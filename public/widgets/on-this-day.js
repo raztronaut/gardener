@@ -14,10 +14,11 @@ export default {
       .otd-ev { display:flex; gap:16px; align-items:baseline;
         padding-bottom:16px; border-bottom:1px solid var(--stroke); }
       .otd-ev:last-child { border-bottom:none; padding-bottom:0; }
-      .otd-year { flex:0 0 auto; min-width:74px; font-family:var(--font-display);
-        font-weight:600; font-size:30px; line-height:1; color:var(--mint);
+      .otd-year { flex:0 0 auto; min-width:92px; font-family:var(--font-display);
+        font-weight:600; font-size:26px; line-height:1; color:var(--mint);
         font-variant-numeric:tabular-nums; }
-      .otd-text { flex:1; font-size:17px; line-height:1.4; color:var(--ink); }
+      .otd-text { flex:1; min-width:0; font-size:17px; line-height:1.4; color:var(--ink); }
+      .otd-desc { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
       .otd-ago { display:block; margin-top:4px; font-size:13px; color:var(--ink-faint); }
     `);
 
@@ -57,13 +58,14 @@ export default {
         .slice(0, 3);
 
       const rows = picks.map((e) => {
-        const ago = thisYear - e.year;
         const text = e.text.trim();
+        const yearLabel = e.year < 0 ? `${Math.abs(e.year)} BC` : String(e.year);
+        const ago = e.year > 0 ? thisYear - e.year : null;
         return ctx.h('div', { class: 'otd-ev' },
-          ctx.h('div', { class: 'otd-year' }, String(e.year)),
+          ctx.h('div', { class: 'otd-year' }, yearLabel),
           ctx.h('div', { class: 'otd-text' },
-            text,
-            ago > 0
+            ctx.h('div', { class: 'otd-desc' }, text),
+            ago && ago > 0
               ? ctx.h('span', { class: 'otd-ago' }, `${ago} year${ago === 1 ? '' : 's'} ago`)
               : null));
       });

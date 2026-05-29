@@ -49,8 +49,8 @@ export default {
         body.replaceChildren(ctx.error('no stories right now'));
         return;
       }
-      const top5 = ids.slice(0, 5);
-      const stories = await Promise.all(top5.map((id) => ctx.fetchJSON(ITEM(id))));
+      const top = ids.slice(0, 4);
+      const stories = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id))));
       const rows = stories
         .map((s, i) => {
           if (!s || !s.title) return null;
