@@ -1,0 +1,170 @@
+/* The Gardener™ — base theme (stable template).
+   Canvas is locked to 900×1600 (9:16 portrait). Widgets fill cards inside #garden.
+   Aesthetic: a luminous garden at dusk — deep teal/green, mist, mint accents, glass. */
+
+:root {
+  --w: 900px;
+  --h: 1600px;
+
+  --bg-0: #04110d;
+  --bg-1: #07201a;
+  --ink: #eafff4;
+  --ink-soft: #a8c8bd;
+  --ink-faint: #6f9388;
+  --mint: #74f7b0;
+  --mint-2: #43e6c6;
+  --gold: #ffd98a;
+  --rose: #ff9bb0;
+
+  --glass: rgba(20, 48, 40, 0.42);
+  --glass-2: rgba(14, 36, 30, 0.55);
+  --stroke: rgba(140, 240, 195, 0.16);
+  --stroke-strong: rgba(140, 240, 195, 0.30);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+
+  --radius: 26px;
+  --gap: 20px;
+  --pad: 26px;
+
+  --font: "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: var(--w);
+  height: var(--h);
+  overflow: hidden;
+  background: var(--bg-0);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  cursor: none; /* kiosk: no pointer */
+}
+
+/* ---------- aurora backdrop ---------- */
+.aurora {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #0b3a2c 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 70%);
+}
+.blob {
+  position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55;
+  mix-blend-mode: screen; will-change: transform;
+}
+.b1 { width: 620px; height: 620px; left: -160px; top: -120px;
+  background: radial-gradient(circle, #1ee9a8, transparent 70%); animation: drift1 26s ease-in-out infinite; }
+.b2 { width: 540px; height: 540px; right: -180px; top: 380px;
+  background: radial-gradient(circle, #1aa0ff, transparent 70%); opacity: 0.4; animation: drift2 32s ease-in-out infinite; }
+.b3 { width: 700px; height: 700px; left: -120px; bottom: -220px;
+  background: radial-gradient(circle, #b98bff, transparent 70%); opacity: 0.32; animation: drift3 38s ease-in-out infinite; }
+@keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(80px,60px)} }
+@keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-70px,40px)} }
+@keyframes drift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,-50px)} }
+.grain {
+  position: absolute; inset: 0; opacity: 0.05; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- shell layout ---------- */
+#stage {
+  position: relative; z-index: 1;
+  width: var(--w); height: var(--h);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 30px 26px 22px;
+}
+
+#topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 6px 18px;
+}
+.brand { display: flex; align-items: center; gap: 16px; }
+.brand .mark { width: 52px; height: 52px; border-radius: 14px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4); object-fit: cover; }
+.brand h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px;
+  letter-spacing: .3px; line-height: 1; background: linear-gradient(120deg, var(--ink), var(--mint));
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand .tm { font-size: 13px; -webkit-text-fill-color: var(--ink-faint); vertical-align: super; }
+.brand #subtitle { color: var(--ink-faint); font-size: 13px; margin-top: 5px; letter-spacing: .2px; }
+
+.status { display: flex; align-items: center; gap: 8px; color: var(--ink-soft);
+  font-size: 13px; padding: 8px 14px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--stroke); backdrop-filter: blur(10px); }
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mint);
+  box-shadow: 0 0 12px var(--mint); animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ---------- widget grid ---------- */
+#garden {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: minmax(120px, auto);
+  gap: var(--gap);
+  align-content: start;
+  overflow: hidden;
+  padding: 2px;
+}
+.card {
+  position: relative; grid-column: span 1;
+  background: var(--glass); border: 1px solid var(--stroke);
+  border-radius: var(--radius); padding: var(--pad);
+  box-shadow: var(--shadow); backdrop-filter: blur(16px) saturate(120%);
+  overflow: hidden; display: flex; flex-direction: column; gap: 12px;
+  animation: rise .7s cubic-bezier(.2,.8,.2,1) both;
+}
+.card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(160deg, rgba(255,255,255,.06), transparent 40%); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+.card.span-2 { grid-column: span 2; }
+.card.tall { grid-row: span 2; }
+.card.bare { background: transparent; border: none; box-shadow: none; backdrop-filter: none; padding: 8px; }
+.card.bare::before { display: none; }
+
+.card .card-title { display: flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); }
+.card .card-title .ic { font-size: 15px; filter: saturate(1.2); }
+.card .card-body { flex: 1; min-height: 0; }
+
+.widget-error { color: var(--rose); font-size: 13px; opacity: .85; display:flex; gap:8px; align-items:center; }
+.widget-loading { color: var(--ink-faint); font-size: 13px; display:flex; gap:10px; align-items:center; }
+.spinner { width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--stroke-strong); border-top-color: var(--mint); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- feedback bar ---------- */
+#feedbackbar { padding: 16px 4px 4px; }
+#feedbackForm { display: flex; align-items: center; gap: 12px;
+  background: var(--glass-2); border: 1px solid var(--stroke); border-radius: 999px;
+  padding: 10px 12px 10px 20px; box-shadow: var(--shadow); backdrop-filter: blur(14px); }
+#feedbackForm .seed { font-size: 18px; }
+#feedbackInput { flex: 1; background: transparent; border: none; outline: none;
+  color: var(--ink); font-size: 16px; font-family: var(--font); }
+#feedbackInput::placeholder { color: var(--ink-faint); }
+#feedbackSend { border: none; cursor: pointer; color: #042018; font-weight: 700; font-size: 15px;
+  padding: 11px 22px; border-radius: 999px; letter-spacing: .02em;
+  background: linear-gradient(120deg, var(--mint), var(--mint-2));
+  box-shadow: 0 6px 18px rgba(67,230,198,.35); transition: transform .15s ease, filter .15s ease; }
+#feedbackSend:active { transform: scale(.96); filter: brightness(1.08); }
+
+/* ---------- toast ---------- */
+#toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%) translateY(20px);
+  z-index: 50; background: var(--glass-2); color: var(--ink); border: 1px solid var(--stroke-strong);
+  padding: 13px 22px; border-radius: 14px; font-size: 15px; backdrop-filter: blur(14px);
+  box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .3s ease, transform .3s ease; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- night veil (opaque, energy saving) ---------- */
+#nightveil { position: fixed; inset: 0; z-index: 100; background: #000;
+  opacity: 0; pointer-events: none; transition: opacity 1.6s ease; }
+body.night #nightveil { opacity: 1; pointer-events: auto; }
+
+/* ---------- screenshot mode (clean QA capture) ---------- */
+body.screenshot #feedbackbar { visibility: hidden; }
+body.screenshot #nightveil { opacity: 0 !important; }
+body.screenshot #toast { display: none; }

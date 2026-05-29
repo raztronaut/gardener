@@ -1,0 +1,14 @@
+# Secrets — NEVER commit
+.env
+*.key
+
+# Dependencies
+node_modules/
+
+# Runtime data & state (machine-local, not versioned)
+data/
+.chrome-profile/
+
+# OS / editor
+.DS_Store
+*.log

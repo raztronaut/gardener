@@ -1,0 +1,7 @@
+{
+  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest.",
+  "widgets": [
+    { "id": "clock", "file": "clock.js", "enabled": true, "order": 1 },
+    { "id": "weather", "file": "weather.js", "enabled": true, "order": 2 }
+  ]
+}

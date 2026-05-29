@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en" data-gardener-boot="loading">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=900, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <title>The Gardener</title>
+  <link rel="icon" href="/assets/logo.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- The aurora backdrop (template-owned, stable) -->
+  <div class="aurora" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+    <div class="grain"></div>
+  </div>
+
+  <!-- Stable shell: header / widget canvas / feedback bar -->
+  <main id="stage">
+    <header id="topbar">
+      <div class="brand">
+        <img src="/assets/logo.png" alt="" class="mark" />
+        <div class="title">
+          <h1>The&nbsp;Gardener<span class="tm">™</span></h1>
+          <p id="subtitle">tending the garden…</p>
+        </div>
+      </div>
+      <div class="status" id="status" title="garden status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">live</span>
+      </div>
+    </header>
+
+    <section id="garden" aria-live="polite">
+      <!-- widgets mount here -->
+    </section>
+
+    <footer id="feedbackbar">
+      <form id="feedbackForm" autocomplete="off">
+        <span class="seed">🌱</span>
+        <input id="feedbackInput" type="text" maxlength="2000"
+               placeholder="Plant a thought — tell the gardener what to grow…" />
+        <button type="submit" id="feedbackSend" aria-label="send feedback">Plant</button>
+      </form>
+    </footer>
+  </main>
+
+  <!-- Opaque night overlay (energy saving). Pure black; covers everything. -->
+  <div id="nightveil" aria-hidden="true"></div>
+
+  <!-- Toasts -->
+  <div id="toast" role="status"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
