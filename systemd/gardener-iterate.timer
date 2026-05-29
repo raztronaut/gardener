@@ -1,0 +1,12 @@
+[Unit]
+Description=The Gardener — run the daily tending at 06:00 (system TZ = America/Los_Angeles)
+
+[Timer]
+# System clock is America/Los_Angeles, so local time == PT (auto PST/PDT).
+OnCalendar=*-*-* 06:00:00
+# If the machine was off/asleep at 06:00, run as soon as it's back.
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

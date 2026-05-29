@@ -1,0 +1,10 @@
+[Unit]
+Description=The Gardener — wake the screen at 07:00 (PT)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=false
+AccuracySec=30sec
+
+[Install]
+WantedBy=timers.target

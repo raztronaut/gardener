@@ -1,0 +1,12 @@
+[Unit]
+Description=The Gardener — set display day/night state for the current time (boot/recovery)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+Environment=DISPLAY=:0
+ExecStart=/home/talbot/gardener/scripts/gardener.sh sync
+
+[Install]
+WantedBy=graphical-session.target

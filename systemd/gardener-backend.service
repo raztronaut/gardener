@@ -1,0 +1,15 @@
+[Unit]
+Description=The Gardener — backend server (serves UI + API)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/talbot/gardener/scripts/gardener.sh server
+Restart=always
+RestartSec=2
+# Keep memory modest on the Jetson
+MemoryHigh=512M
+
+[Install]
+WantedBy=default.target

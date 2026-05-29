@@ -1,0 +1,10 @@
+[Unit]
+Description=The Gardener — daily tending (agentic iteration)
+After=network-online.target gardener-backend.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Headless agent run; deterministic offscreen screenshots → no display needed.
+ExecStart=/home/talbot/gardener/scripts/gardener.sh iterate scheduled
+TimeoutStartSec=3600

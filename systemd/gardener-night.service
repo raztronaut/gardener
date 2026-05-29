@@ -1,0 +1,9 @@
+[Unit]
+Description=The Gardener — night mode (screen off, overlay, brightness 0)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+Environment=DISPLAY=:0
+ExecStart=/home/talbot/gardener/scripts/gardener.sh night

@@ -1,0 +1,9 @@
+[Unit]
+Description=The Gardener — day mode (screen on, brightness 1, overlay off)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+Environment=DISPLAY=:0
+ExecStart=/home/talbot/gardener/scripts/gardener.sh day

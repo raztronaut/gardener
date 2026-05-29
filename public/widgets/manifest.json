@@ -2,6 +2,12 @@
   "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest.",
   "widgets": [
     { "id": "clock", "file": "clock.js", "enabled": true, "order": 1 },
-    { "id": "weather", "file": "weather.js", "enabled": true, "order": 2 }
+    { "id": "weather", "file": "weather.js", "enabled": true, "order": 2 },
+    { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 3 },
+    { "id": "markets", "file": "markets.js", "enabled": true, "order": 4 },
+    { "id": "celestial", "file": "celestial.js", "enabled": true, "order": 5 },
+    { "id": "on-this-day", "file": "on-this-day.js", "enabled": true, "order": 6 },
+    { "id": "hacker-news", "file": "hacker-news.js", "enabled": true, "order": 7 },
+    { "id": "daily-quote", "file": "daily-quote.js", "enabled": true, "order": 8 }
   ]
 }
