@@ -115,7 +115,13 @@ html, body {
   border-radius: var(--radius); padding: var(--pad);
   box-shadow: var(--shadow); backdrop-filter: blur(16px) saturate(120%);
   overflow: hidden; display: flex; flex-direction: column; gap: 12px;
-  animation: rise .7s cubic-bezier(.2,.8,.2,1) both;
+  /* Gentle staggered wake-up: each card eases in just after the previous one.
+     --enter-index is set per-card by the runtime in mount order. */
+  animation: rise .8s cubic-bezier(.2,.8,.2,1) both;
+  animation-delay: calc(var(--enter-index, 0) * 90ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { animation-duration: .01ms; animation-delay: 0ms; }
 }
 .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: linear-gradient(160deg, rgba(255,255,255,.06), transparent 40%); }

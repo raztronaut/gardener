@@ -100,7 +100,7 @@ function makeCtx(widgetId) {
 // ---- widget loader ----------------------------------------------------------
 const SIZE_CLASS = { sm: '', md: '', lg: 'span-2', full: 'span-2', tall: 'tall', wide: 'span-2' };
 
-async function loadWidget(entry, mountPoint) {
+async function loadWidget(entry, mountPoint, index = 0) {
   let mod;
   try {
     mod = await import(`/widgets/${entry.file}?v=${window.__GARDEN_VERSION}`);
@@ -117,6 +117,9 @@ async function loadWidget(entry, mountPoint) {
   }
   const bare = w.chrome === false;
   const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim() });
+  // Staggered wake-up: each card eases in slightly after the previous one.
+  // Cap the index so a large garden can't drag the entrance out too long.
+  card.style.setProperty('--enter-index', String(Math.min(index, 16)));
   let body = card;
   if (!bare) {
     card.appendChild(h('div', { class: 'card-title' },
@@ -162,7 +165,8 @@ async function boot() {
 
   // Mount sequentially to preserve order (cheap; mounts are async-light).
   try {
-    for (const entry of enabled) await loadWidget(entry, garden);
+    let i = 0;
+    for (const entry of enabled) await loadWidget(entry, garden, i++);
   } finally {
     // Always publish the contract markers smoke depends on, even on partial failure.
     document.documentElement.dataset.gardenerReady = 'true';
