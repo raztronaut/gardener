@@ -32,7 +32,7 @@ export default {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,weather_code&hourly=temperature_2m,weather_code`
         + `&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit`
-        + `&timezone=${encodeURIComponent(tz)}&forecast_days=1`;
+        + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
       const refresh = async () => {
         const d = await ctx.fetchJSON(url);
         const [cond, emoji] = WMO(d.current.weather_code);
