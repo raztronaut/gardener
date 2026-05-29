@@ -135,6 +135,8 @@ async function main() {
       const count = (dom.match(/data-gardener-widget-count="(\d+)"/) || [])[1];
       const expected = (manifest.widgets || []).filter((w) => w.enabled !== false).length;
       check('all enabled widgets mounted', count && Number(count) === expected, `mounted ${count} of ${expected}`);
+      const overflow = (dom.match(/data-gardener-overflow="(\d+)"/) || [])[1];
+      check('fits 900×1600 (no clipping)', overflow == null || Number(overflow) <= 24, `garden overflows by ${overflow}px`);
     } catch (e) { bad('headless render', e.message); }
 
   } finally {

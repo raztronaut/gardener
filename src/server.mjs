@@ -5,6 +5,7 @@
 import http from 'node:http';
 import { promises as fs, readFileSync, existsSync, appendFileSync } from 'node:fs';
 import { lookup } from 'node:dns/promises';
+import { BlockList, isIP } from 'node:net';
 import { join, normalize, extname, resolve } from 'node:path';
 import { config, paths } from './config.mjs';
 import {
@@ -21,7 +22,11 @@ function log(msg) {
 }
 
 // ---- crash recovery on boot ------------------------------------------------
-try { recover(); } catch (e) { log(`recover() failed: ${e.stack || e}`); }
+// Skipped when this is a child render-harness (e.g. the iteration's review
+// server), so it can never revert the live iteration's in-flight work.
+if (!process.env.GARDENER_NO_RECOVER) {
+  try { recover(); } catch (e) { log(`recover() failed: ${e.stack || e}`); }
+}
 
 // ---- static file serving ---------------------------------------------------
 const MIME = {
@@ -80,23 +85,29 @@ function hostAllowed(hostname, allow) {
   for (const a of allow) { if (h === a || h.endsWith('.' + a)) return true; }
   return false;
 }
+// Reserved/private ranges (SSRF). net.BlockList handles all IPv4-mapped/hex
+// IPv6 forms correctly, unlike hand-rolled string checks.
+const BLOCK = new BlockList();
+for (const [a, n] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16],
+  ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]]) BLOCK.addSubnet(a, n, 'ipv4');
+for (const [a, n] of [['::1', 128], ['::', 128], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]]) BLOCK.addSubnet(a, n, 'ipv6');
 function isPrivateIp(ip) {
-  if (!ip) return true;
-  if (ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80') || ip === '::') return true;
-  const m = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i); if (m) ip = m[1];
-  const p = ip.split('.').map(Number);
-  if (p.length !== 4 || p.some((n) => isNaN(n))) return /^[0-9a-f:]+$/i.test(ip) ? false : true;
-  const [a, b] = p;
-  return a === 0 || a === 127 || a === 10 || (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  let v = isIP(ip);
+  if (v === 6) { const m = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i); if (m) { ip = m[1]; v = 4; } }
+  if (!v) return true; // not a parseable IP → refuse
+  return BLOCK.check(ip, v === 6 ? 'ipv6' : 'ipv4');
 }
 async function validateTarget(rawUrl, allow) {
   let u;
   try { u = new URL(rawUrl); } catch { throw new Error('invalid url'); }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('protocol not allowed');
   if (!hostAllowed(u.hostname, allow)) throw new Error(`host not in allowlist: ${u.hostname}`);
-  const { address } = await lookup(u.hostname);
-  if (isPrivateIp(address)) throw new Error('resolves to private address');
+  // Reject if ANY resolved address is private (closes the "one private among
+  // many A-records" gap). Residual DNS-rebind TOCTOU is accepted: the server is
+  // localhost-only and the allowlist is reputable public hosts.
+  const addrs = await lookup(u.hostname, { all: true });
+  if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) throw new Error('resolves to private address');
   return u;
 }
 async function handleProxy(req, res, u) {

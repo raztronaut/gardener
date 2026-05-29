@@ -3,6 +3,7 @@ Description=The Gardener — kiosk browser (surf, fullscreen)
 PartOf=graphical-session.target
 After=graphical-session.target gardener-backend.service
 Wants=gardener-backend.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

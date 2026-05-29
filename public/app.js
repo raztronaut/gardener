@@ -139,7 +139,10 @@ async function boot() {
   let state = {};
   try { state = await (await fetch('/api/state', { cache: 'no-store' })).json(); } catch (e) { markError('core', `state: ${e.message}`); }
   window.__GARDEN_STATE = state;
-  window.__GARDEN_VERSION = state.version || Date.now();
+  window.__GARDEN_VERSION = state.version || Date.now(); // cache-bust token
+  // Only a REAL numeric version becomes the reload baseline (a failed boot must
+  // not fabricate one and trigger an endless reload loop).
+  window.__GARDEN_BOOT_VERSION = typeof state.version === 'number' ? state.version : null;
   setNight(!!state.night);
   if (state.location) {
     const sub = document.getElementById('subtitle');
@@ -158,13 +161,29 @@ async function boot() {
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
 
   // Mount sequentially to preserve order (cheap; mounts are async-light).
-  for (const entry of enabled) await loadWidget(entry, garden);
+  try {
+    for (const entry of enabled) await loadWidget(entry, garden);
+  } finally {
+    // Always publish the contract markers smoke depends on, even on partial failure.
+    document.documentElement.dataset.gardenerReady = 'true';
+    document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
+    document.documentElement.dataset.gardenerBoot = 'ready';
+    checkOverflow();
+    // Re-check after async widget content settles (lists/quotes can grow).
+    setTimeout(checkOverflow, 3000);
+    setTimeout(checkOverflow, 6500);
+    startPolling();
+  }
+}
 
-  document.documentElement.dataset.gardenerReady = 'true';
-  document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
-  document.documentElement.dataset.gardenerBoot = 'ready';
-
-  startPolling();
+// Detect when widgets exceed the locked 900×1600 canvas (overflow:hidden would
+// otherwise clip them silently). Publishes data-gardener-overflow; smoke fails
+// if it exceeds tolerance, so the daily agent can't ship a clipped garden.
+function checkOverflow() {
+  const garden = document.getElementById('garden');
+  if (!garden) return;
+  const over = Math.max(0, garden.scrollHeight - garden.clientHeight);
+  document.documentElement.dataset.gardenerOverflow = String(over);
 }
 
 // ---- night veil -------------------------------------------------------------
@@ -172,12 +191,16 @@ function setNight(on) { document.body.classList.toggle('night', !!on && !SCREENS
 
 // ---- backend polling: reload on version change, react to night --------------
 function startPolling() {
-  const initial = window.__GARDEN_VERSION;
+  let baseline = window.__GARDEN_BOOT_VERSION; // may be null if boot state failed
   setInterval(async () => {
     try {
       const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
       setNight(!!s.night);
-      if (s.version && s.version !== initial) location.reload(); // a new garden was grown
+      checkOverflow();
+      if (typeof s.version === 'number') {
+        if (baseline == null) baseline = s.version;            // adopt baseline, no reload
+        else if (s.version !== baseline) location.reload();    // a new garden was grown
+      }
     } catch { /* offline blip — ignore */ }
   }, 8000);
 }

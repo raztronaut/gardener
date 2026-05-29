@@ -1,13 +1,14 @@
 [Unit]
 Description=The Gardener — backend server (serves UI + API)
-After=network-online.target
-Wants=network-online.target
+# (network-online.target is inert for --user units; the server needs no network anyway)
+# Never latch 'failed' on a crash loop — keep retrying forever.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=/home/talbot/gardener/scripts/gardener.sh server
 Restart=always
-RestartSec=2
+RestartSec=5
 # Keep memory modest on the Jetson
 MemoryHigh=512M
 

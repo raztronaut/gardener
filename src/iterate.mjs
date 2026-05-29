@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { config, paths } from './config.mjs';
 import {
-  getPendingFeedback, consumePendingFeedback, createIteration, finishIteration,
-  updateIteration, bumpUiVersion, acquireLock, releaseLock, recentIterations,
+  getPendingFeedback, createIteration, finishIteration, updateIteration,
+  acquireLock, releaseLock, refreshLock, recentIterations, finalizeDeployTx,
 } from './db.mjs';
 import * as git from './gitlib.mjs';
 import { recover } from './recover.mjs';
@@ -119,15 +119,20 @@ async function runSmoke() {
 
 // ---- headless screenshot + vision review -----------------------------------
 async function captureAndReview(iterDir) {
+  // GARDENER_NO_RECOVER=1: this child must NEVER run crash recovery, or it would
+  // revert the very (uncommitted) work we are about to screenshot.
   const server = spawn(process.execPath, [join(paths.ROOT, 'src', 'server.mjs')], {
-    cwd: paths.ROOT, env: { ...process.env, GARDENER_PORT: String(REVIEW_PORT) }, stdio: ['ignore', 'ignore', 'pipe'],
+    cwd: paths.ROOT, env: { ...process.env, GARDENER_PORT: String(REVIEW_PORT), GARDENER_NO_RECOVER: '1' }, stdio: ['ignore', 'ignore', 'pipe'],
   });
   try {
-    // wait for health
+    // wait for health — fail loudly if the review server never binds (e.g. port
+    // clash), so a connection-error page can't masquerade as a layout defect.
+    let healthy = false;
     for (let i = 0; i < 40; i++) {
-      try { const r = await fetch(`http://127.0.0.1:${REVIEW_PORT}/api/health`); if (r.ok) break; } catch { /* not yet */ }
+      try { const r = await fetch(`http://127.0.0.1:${REVIEW_PORT}/api/health`); if (r.ok) { healthy = true; break; } } catch { /* not yet */ }
       await new Promise((r) => setTimeout(r, 250));
     }
+    if (!healthy) throw new Error(`review server did not become healthy on ${REVIEW_PORT}`);
     const shot = join(iterDir, 'screenshot.png');
     await captureUrl(`http://127.0.0.1:${REVIEW_PORT}/?screenshot=1`, shot, { waitMs: 7000 });
     try { copyFileSync(shot, join(paths.SCREENSHOTS, 'latest.png')); } catch { /* ignore */ }
@@ -148,12 +153,15 @@ async function main() {
   const trigger = process.argv[2] || 'manual';
   recover();
   if (!acquireLock()) { log('another iteration holds the lock — exiting'); process.exit(0); }
+  // Heartbeat the lock so a long-but-healthy run is never seen as stale/stealable.
+  const heartbeat = setInterval(() => { try { refreshLock(); } catch { /* ignore */ } }, 60 * 1000);
 
   // Start from a clean, known-good base (HEAD). Discard any stray working changes.
   if (git.isRepo() && git.isDirty()) { log('working tree dirty at start — resetting to HEAD'); git.resetHard('HEAD'); }
   const baseCommit = git.head();
 
   const feedbackItems = getPendingFeedback();
+  const feedbackIds = feedbackItems.map((f) => f.id); // consume ONLY these at deploy; mid-run feedback stays pending
   const date = new Date().toLocaleDateString('en-US', { timeZone: config.tz, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const iterId = createIteration({ trigger, baseCommit, feedbackCount: feedbackItems.length });
   const iterDir = join(paths.ITERATIONS, String(iterId));
@@ -198,47 +206,62 @@ async function main() {
       throw new Error('smoke tests still failing after self-heal — reverting');
     }
 
-    // 3) Visual review + bounded self-heal on critical visual defects
+    // 3) Visual review (BEST-EFFORT) + bounded self-heal on critical defects.
+    //    Smoke (incl. render integrity) is the hard deploy gate. Review-infra
+    //    failures (e.g. port clash, screenshot error) are non-blocking — they
+    //    must never roll back a green tree. But a visual fix that BREAKS smoke
+    //    is a real regression → hard fail → rollback.
     updateIteration(iterId, { status: 'reviewing' });
-    let { shot, verdict } = await captureAndReview(iterDir);
-    lastVerdict = verdict;
-    log(`visual review: ok=${verdict.ok} score=${verdict.score} notes="${(verdict.notes || '').slice(0, 160)}"`);
-    let critical = (verdict.issues || []).filter((i) => i.severity === 'critical');
-    for (let attempt = 1; critical.length && attempt <= MAX_FIX; attempt++) {
-      log(`visual critical issues (${critical.length}) — refine attempt ${attempt}/${MAX_FIX}`);
-      await runAgent({
-        prompt: `A vision review of the rendered 900×1600 dashboard found CRITICAL visual defects. Fix them, then run \`npm run smoke\` and keep it GREEN.\n\n`
-          + `Issues:\n${summarizeIssues({ issues: critical })}\n\nFull notes: ${verdict.notes || ''}\n\n`
-          + `Use the designer subagent if helpful. Keep changes surgical and within the 9:16 canvas.`,
-        timeoutMs: FIX_TIMEOUT_MS, transcriptPath: transcript, label: `fix-visual-${attempt}`,
-      });
-      const reSmoke = await runSmoke();
-      if (!reSmoke.ok) { log('a visual fix broke smoke — reverting that is required'); writeFileSync(join(iterDir, 'smoke-fail.txt'), reSmoke.output); throw new Error('visual fix broke smoke — reverting'); }
-      ({ shot, verdict } = await captureAndReview(iterDir));
+    let smokeBrokenByFix = false;
+    try {
+      let { verdict } = await captureAndReview(iterDir);
       lastVerdict = verdict;
-      critical = (verdict.issues || []).filter((i) => i.severity === 'critical');
-      log(`visual review after refine ${attempt}: ok=${verdict.ok} score=${verdict.score} critical=${critical.length}`);
+      log(`visual review: ok=${verdict.ok} score=${verdict.score} notes="${(verdict.notes || '').slice(0, 160)}"`);
+      let critical = (verdict.issues || []).filter((i) => i.severity === 'critical');
+      for (let attempt = 1; critical.length && attempt <= MAX_FIX; attempt++) {
+        log(`visual critical issues (${critical.length}) — refine attempt ${attempt}/${MAX_FIX}`);
+        await runAgent({
+          prompt: `A vision review of the rendered 900×1600 dashboard found CRITICAL visual defects. Fix them, then run \`npm run smoke\` and keep it GREEN.\n\n`
+            + `Issues:\n${summarizeIssues({ issues: critical })}\n\nFull notes: ${verdict.notes || ''}\n\n`
+            + `Use the designer subagent if helpful. Keep changes surgical and within the 9:16 canvas.`,
+          timeoutMs: FIX_TIMEOUT_MS, transcriptPath: transcript, label: `fix-visual-${attempt}`,
+        });
+        const reSmoke = await runSmoke();
+        if (!reSmoke.ok) { writeFileSync(join(iterDir, 'smoke-fail.txt'), reSmoke.output); smokeBrokenByFix = true; break; }
+        ({ verdict } = await captureAndReview(iterDir));
+        lastVerdict = verdict;
+        critical = (verdict.issues || []).filter((i) => i.severity === 'critical');
+        log(`visual review after refine ${attempt}: ok=${verdict.ok} score=${verdict.score} critical=${critical.length}`);
+      }
+    } catch (e) {
+      log(`visual review infra failed (non-blocking — keeping the green tree): ${e.message}`);
     }
+    if (smokeBrokenByFix) throw new Error('a visual fix broke smoke — reverting');
 
-    // 4) Deploy on green (smoke is the hard gate; render integrity is part of it).
+    // 4) Deploy on green. git commit is the point of no return; record the
+    //    result_commit durably BEFORE finalizing, then bump+consume+mark in one
+    //    atomic transaction (so a crash can't apply a partial deploy).
     const resultCommit = git.commitAll(
       `tend #${iterId}: ${(finalSummary.split('\n')[0] || 'self-directed improvement').slice(0, 72)}\n\n`
       + `${finalSummary.slice(0, 1500)}\n\nGardener iteration ${iterId} (${trigger}, ${feedbackItems.length} feedback).`);
-    const version = bumpUiVersion();
-    const consumed = consumePendingFeedback(iterId);
-    finishIteration(iterId, 'committed', {
-      result_commit: resultCommit, summary: finalSummary.slice(0, 4000),
-      review_ok: lastVerdict?.ok ? 1 : 0, review_score: lastVerdict?.score ?? null,
-      review_notes: (lastVerdict?.notes || '') + (critical.length ? ` | unresolved critical:${critical.length}` : ''),
+    updateIteration(iterId, { result_commit: resultCommit });
+    const unresolved = (lastVerdict?.issues || []).filter((i) => i.severity === 'critical').length;
+    const version = finalizeDeployTx({
+      iterId, resultCommit, feedbackIds,
+      summary: finalSummary.slice(0, 4000),
+      reviewOk: lastVerdict?.ok ? 1 : 0,
+      reviewScore: lastVerdict?.score ?? null,
+      reviewNotes: (lastVerdict?.notes || '') + (unresolved ? ` | unresolved critical:${unresolved}` : ''),
       screenshot: join(iterDir, 'screenshot.png'),
     });
     deployed = true;
-    log(`DEPLOYED iteration #${iterId} → commit ${resultCommit?.slice(0, 8)}, ui v${version}, consumed ${consumed} feedback`);
+    log(`DEPLOYED iteration #${iterId} → commit ${resultCommit?.slice(0, 8)}, ui v${version}, consumed ${feedbackIds.length} feedback`);
   } catch (e) {
     log(`iteration FAILED: ${e.message} — rolling back to ${baseCommit?.slice(0, 8)}`);
     try { if (baseCommit) git.resetHard(baseCommit); else git.resetHard('HEAD'); } catch (re) { log(`rollback error: ${re.message}`); }
     finishIteration(iterId, 'failed', { error: e.message.slice(0, 1000), summary: finalSummary.slice(0, 2000), review_notes: lastVerdict ? summarizeIssues(lastVerdict).slice(0, 1000) : null });
   } finally {
+    clearInterval(heartbeat);
     releaseLock();
   }
   log(`=== iteration #${iterId} done (deployed=${deployed}) ===`);

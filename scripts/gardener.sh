@@ -6,8 +6,9 @@ set -euo pipefail
 ROOT="/home/talbot/gardener"
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 
-# Put the nvm-managed node on PATH without sourcing nvm (avoids set -u issues).
-for d in "$NVM_DIR"/versions/node/*/bin; do [ -d "$d" ] && PATH="$d:$PATH"; done
+# Put the nvm-managed node on PATH (highest installed version, deterministically).
+NODE_BIN="$(ls -d "$NVM_DIR"/versions/node/*/bin 2>/dev/null | sort -V | tail -1 || true)"
+[ -n "$NODE_BIN" ] && PATH="$NODE_BIN:$PATH"
 export PATH
 
 cd "$ROOT"
@@ -33,6 +34,11 @@ case "$cmd" in
   kiosk)
     mkdir -p "$HOME/.surf/styles" 2>/dev/null || true
     : > "$HOME/.surf/styles/default.css" 2>/dev/null || true   # silence optional-stylesheet warning
+    # Wait for the X server to be ready (surf needs a live DISPLAY).
+    for _ in $(seq 1 60); do
+      if xset q >/dev/null 2>&1; then break; fi
+      sleep 1
+    done
     # Wait for the backend before opening the kiosk.
     for _ in $(seq 1 90); do
       if curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then break; fi

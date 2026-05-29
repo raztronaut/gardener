@@ -3,9 +3,16 @@
 // WAL + FULL fsync gives crash-consistent durability: a power loss never loses
 // an acknowledged feedback write and never leaves a torn DB.
 import Database from 'better-sqlite3';
+import { readFileSync } from 'node:fs';
 import { paths, ensureDirs } from './config.mjs';
 
 ensureDirs();
+
+// Identity of this boot — lets us treat a lock/pid from a previous boot as dead
+// (Linux recycles PIDs across reboots).
+const BOOT_ID = (() => {
+  try { return readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim(); } catch { return 'nb'; }
+})();
 
 const db = new Database(paths.DB);
 db.pragma('journal_mode = WAL');
@@ -78,6 +85,14 @@ const _recent = db.prepare('SELECT id, ts, text, source, consumed_by FROM feedba
 export function getRecentFeedback(limit = 25) { return _recent.all(limit); }
 const _consume = db.prepare('UPDATE feedback SET consumed_by = ? WHERE consumed_by IS NULL');
 export function consumePendingFeedback(iterationId) { return _consume.run(iterationId).changes; }
+// Consume ONLY the specific feedback ids the agent actually saw, so feedback
+// that arrives mid-iteration stays pending for the next run (no silent loss).
+export function consumeFeedbackIds(iterationId, ids) {
+  if (!ids || !ids.length) return 0;
+  const ph = ids.map(() => '?').join(',');
+  return db.prepare(`UPDATE feedback SET consumed_by = ? WHERE consumed_by IS NULL AND id IN (${ph})`)
+    .run(iterationId, ...ids).changes;
+}
 export function countPendingFeedback() {
   return db.prepare('SELECT COUNT(*) n FROM feedback WHERE consumed_by IS NULL').get().n;
 }
@@ -115,21 +130,50 @@ export function unfinishedIterations() {
   return db.prepare("SELECT * FROM iterations WHERE status IN ('running','testing','reviewing')").all();
 }
 
+// Atomic deploy finalization: bump version + consume the seen feedback +
+// mark committed, all in one SQLite transaction so a crash can't apply a
+// partial deploy (e.g. consume feedback but lose the version bump).
+export const finalizeDeployTx = db.transaction((p) => {
+  const version = bumpUiVersion();
+  consumeFeedbackIds(p.iterId, p.feedbackIds);
+  finishIteration(p.iterId, 'committed', {
+    result_commit: p.resultCommit, summary: p.summary,
+    review_ok: p.reviewOk, review_score: p.reviewScore,
+    review_notes: p.reviewNotes, screenshot: p.screenshot,
+  });
+  return version;
+});
+
 // ---- iteration lock (single-writer guarantee across processes) -------------
+// A lock holder is "alive" only if its pid is live AND from THIS boot. We never
+// steal a live holder's lock until a generous hard-cap TTL (covers a wedged
+// process); a healthy run heartbeats its ts so it never looks stale.
 const LOCK_KEY = 'iteration_lock';
-function pidAlive(pid) {
+export function pidAlive(pid) {
+  if (!pid) return false;
   try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
-export function acquireLock(ttlMs = 45 * 60 * 1000) {
+function lockHeldByOther(ttlMs) {
   const cur = getKV(LOCK_KEY, null);
-  if (cur) {
-    try {
-      const { pid, ts } = JSON.parse(cur);
-      if (pidAlive(pid) && Date.now() - ts < ttlMs) return false; // genuinely held
-    } catch { /* corrupt lock — steal it */ }
-  }
-  setKV(LOCK_KEY, JSON.stringify({ pid: process.pid, ts: Date.now() }));
+  if (!cur) return false;
+  try {
+    const { pid, ts, boot } = JSON.parse(cur);
+    if (pid === process.pid) return false;
+    const fresh = (Date.now() - ts) < ttlMs;
+    return pidAlive(pid) && boot === BOOT_ID && fresh;
+  } catch { return false; } // corrupt lock → free to claim
+}
+// Atomic claim (BEGIN IMMEDIATE) so two iterate processes can't both win.
+const _claim = db.transaction((ttlMs) => {
+  if (lockHeldByOther(ttlMs)) return false;
+  setKV(LOCK_KEY, JSON.stringify({ pid: process.pid, ts: Date.now(), boot: BOOT_ID }));
   return true;
+});
+export function acquireLock(ttlMs = 135 * 60 * 1000) { return _claim.immediate(ttlMs); }
+export function refreshLock() {
+  const cur = getKV(LOCK_KEY, null);
+  try { if (cur && JSON.parse(cur).pid === process.pid) setKV(LOCK_KEY, JSON.stringify({ pid: process.pid, ts: Date.now(), boot: BOOT_ID })); }
+  catch { /* ignore */ }
 }
 export function releaseLock() {
   const cur = getKV(LOCK_KEY, null);
@@ -141,8 +185,8 @@ export function clearStaleLock() {
   const cur = getKV(LOCK_KEY, null);
   if (!cur) return;
   try {
-    const { pid } = JSON.parse(cur);
-    if (!pidAlive(pid)) setKV(LOCK_KEY, '');
+    const { pid, boot } = JSON.parse(cur);
+    if (!pidAlive(pid) || boot !== BOOT_ID) setKV(LOCK_KEY, '');
   } catch { setKV(LOCK_KEY, ''); }
 }
 

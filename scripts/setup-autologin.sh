@@ -18,10 +18,14 @@ if not c.has_section('daemon'):
     c.add_section('daemon')
 c.set('daemon', 'AutomaticLoginEnable', 'true')
 c.set('daemon', 'AutomaticLogin', 'talbot')
+c.set('daemon', 'WaylandEnable', 'false')   # force Xorg so DISPLAY=:0 + xset/xrandr/surf work
 with open(p, 'w') as f:
     c.write(f)
-print("autologin enabled for talbot in", p)
+print("autologin (Xorg) enabled for talbot in", p)
 PY
 
-echo "Done. A reboot will now auto-login 'talbot' and start The Gardener kiosk."
+# Let the user manager (backend + timers) start at boot even before a graphical login.
+loginctl enable-linger talbot && echo "linger enabled for talbot"
+
+echo "Done. A reboot will now auto-login 'talbot' (Xorg) and start The Gardener kiosk."
 echo "Backup saved at $CONF.gardener.bak"
