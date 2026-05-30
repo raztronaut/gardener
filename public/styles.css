@@ -16,8 +16,10 @@
   --gold: #ffd98a;
   --rose: #ff9bb0;
 
-  --glass: rgba(20, 48, 40, 0.42);
-  --glass-2: rgba(14, 36, 30, 0.55);
+  /* More opaque than true glass so panels read well WITHOUT costly backdrop-filter
+     (backdrop-filter pegs the WebKit renderer on this Jetson). */
+  --glass: rgba(17, 43, 36, 0.72);
+  --glass-2: rgba(12, 32, 27, 0.82);
   --stroke: rgba(140, 240, 195, 0.16);
   --stroke-strong: rgba(140, 240, 195, 0.30);
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
@@ -45,26 +47,20 @@ html, body {
   cursor: none; /* kiosk: no pointer */
 }
 
-/* ---------- aurora backdrop ---------- */
+/* ---------- aurora backdrop ----------
+   Pure radial gradients — NO filter:blur. A blurred layer is re-rendered on every
+   frame, so any 60fps animation (even a tiny spinner) would re-blur it and peg a
+   CPU core. Soft gradients give the same glow for ~free and stay free under motion. */
 .aurora {
   position: fixed; inset: 0; z-index: 0; overflow: hidden;
   background:
+    radial-gradient(58% 42% at 12% 8%, rgba(30,233,168,.22), transparent 70%),
+    radial-gradient(52% 40% at 92% 32%, rgba(26,160,255,.15), transparent 70%),
+    radial-gradient(70% 52% at 8% 102%, rgba(185,139,255,.13), transparent 70%),
     radial-gradient(120% 80% at 50% -10%, #0b3a2c 0%, transparent 60%),
-    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 70%);
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 75%);
 }
-.blob {
-  position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55;
-  mix-blend-mode: screen; will-change: transform;
-}
-.b1 { width: 620px; height: 620px; left: -160px; top: -120px;
-  background: radial-gradient(circle, #1ee9a8, transparent 70%); animation: drift1 26s ease-in-out infinite; }
-.b2 { width: 540px; height: 540px; right: -180px; top: 380px;
-  background: radial-gradient(circle, #1aa0ff, transparent 70%); opacity: 0.4; animation: drift2 32s ease-in-out infinite; }
-.b3 { width: 700px; height: 700px; left: -120px; bottom: -220px;
-  background: radial-gradient(circle, #b98bff, transparent 70%); opacity: 0.32; animation: drift3 38s ease-in-out infinite; }
-@keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(80px,60px)} }
-@keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-70px,40px)} }
-@keyframes drift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,-50px)} }
+.blob { display: none; } /* glow is baked into the .aurora gradients above */
 .grain {
   position: absolute; inset: 0; opacity: 0.05; pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -94,10 +90,9 @@ html, body {
 
 .status { display: flex; align-items: center; gap: 8px; color: var(--ink-soft);
   font-size: 13px; padding: 8px 14px; border-radius: 999px;
-  background: var(--glass); border: 1px solid var(--stroke); backdrop-filter: blur(10px); }
+  background: var(--glass); border: 1px solid var(--stroke); }
 .status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mint);
-  box-shadow: 0 0 12px var(--mint); animation: pulse 2.4s ease-in-out infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  box-shadow: 0 0 12px var(--mint); }
 
 /* ---------- widget grid ---------- */
 #garden {
@@ -113,7 +108,7 @@ html, body {
   position: relative; grid-column: span 1;
   background: var(--glass); border: 1px solid var(--stroke);
   border-radius: var(--radius); padding: var(--pad);
-  box-shadow: var(--shadow); backdrop-filter: blur(16px) saturate(120%);
+  box-shadow: var(--shadow);
   overflow: hidden; display: flex; flex-direction: column; gap: 12px;
   /* Gentle staggered wake-up: each card eases in just after the previous one.
      --enter-index is set per-card by the runtime in mount order. */
@@ -147,7 +142,7 @@ html, body {
 #feedbackbar { padding: 16px 4px 4px; }
 #feedbackForm { display: flex; align-items: center; gap: 12px;
   background: var(--glass-2); border: 1px solid var(--stroke); border-radius: 999px;
-  padding: 10px 12px 10px 20px; box-shadow: var(--shadow); backdrop-filter: blur(14px); }
+  padding: 10px 12px 10px 20px; box-shadow: var(--shadow); }
 #feedbackForm .seed { font-size: 18px; }
 #feedbackInput { flex: 1; background: transparent; border: none; outline: none;
   color: var(--ink); font-size: 16px; font-family: var(--font); }
@@ -161,7 +156,7 @@ html, body {
 /* ---------- toast ---------- */
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%) translateY(20px);
   z-index: 50; background: var(--glass-2); color: var(--ink); border: 1px solid var(--stroke-strong);
-  padding: 13px 22px; border-radius: 14px; font-size: 15px; backdrop-filter: blur(14px);
+  padding: 13px 22px; border-radius: 14px; font-size: 15px;
   box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .3s ease, transform .3s ease; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 

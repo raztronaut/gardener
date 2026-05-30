@@ -3,7 +3,7 @@
 // This is deterministic and independent of the physical display's power state
 // (so it works even at 06:00 when the panel is asleep). gnome-screenshot of
 // the live X display is available as a secondary "what the human sees" capture.
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { statSync, existsSync, rmSync } from 'node:fs';
 import { config, paths } from './config.mjs';
@@ -22,13 +22,20 @@ export async function captureUrl(url, outPath, { waitMs = 8000, timeout = 45000 
     `--virtual-time-budget=${waitMs}`,
     url,
   ];
-  try {
-    await pExecFile(config.chromium, args, { timeout });
-  } catch (e) {
-    // Chromium often exits non-zero with benign GPU/va warnings even on success;
-    // judge by the artifact, not the exit code.
-    if (!existsSync(outPath)) throw new Error(`headless render produced no file: ${(e.stderr || e.message || '').toString().slice(0, 200)}`);
-  }
+  // Spawn DETACHED so we can kill the whole chromium process group (zygote, gpu,
+  // renderer, utility…) on completion or timeout — otherwise those children
+  // orphan and accumulate (we found 19 stale chromium procs from past runs).
+  await new Promise((resolve, reject) => {
+    const child = spawn(config.chromium, args, { detached: true, stdio: 'ignore' });
+    let settled = false;
+    const killTree = () => { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* gone */ } } };
+    const timer = setTimeout(() => { if (settled) return; settled = true; killTree(); reject(new Error('chromium screenshot timed out')); }, timeout);
+    child.on('error', (e) => { if (settled) return; settled = true; clearTimeout(timer); killTree(); reject(e); });
+    child.on('exit', () => { if (settled) return; settled = true; clearTimeout(timer); killTree(); resolve(); });
+  }).catch((e) => {
+    // Chromium often exits oddly with benign GPU warnings; judge by the artifact.
+    if (!existsSync(outPath)) throw new Error(`headless render produced no file: ${e.message}`);
+  });
   if (!existsSync(outPath) || statSync(outPath).size < 1024) {
     throw new Error('screenshot missing or suspiciously small');
   }

@@ -5,7 +5,7 @@
 // + a headless screenshot + a vision review. Deploys ONLY on green (git commit +
 // version bump → kiosk auto-reloads); otherwise reverts the working tree to the
 // last known-good commit. Crash-safe: any failure or abort leaves HEAD intact.
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { appendFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
@@ -118,11 +118,23 @@ async function runSmoke() {
 }
 
 // ---- headless screenshot + vision review -----------------------------------
+// Best-effort: kill anything still listening on a port (self-heals a leaked
+// review server from a prior crash so visual review never gets permanently stuck).
+function freePort(port) {
+  try {
+    const out = execFileSync('ss', ['-ltnpH', `sport = :${port}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const m of out.matchAll(/pid=(\d+)/g)) { try { process.kill(Number(m[1]), 'SIGKILL'); } catch { /* gone */ } }
+  } catch { /* ss missing or port free */ }
+}
+
 async function captureAndReview(iterDir) {
+  freePort(REVIEW_PORT);
   // GARDENER_NO_RECOVER=1: this child must NEVER run crash recovery, or it would
   // revert the very (uncommitted) work we are about to screenshot.
+  // detached: lets us kill the whole process group in finally (no orphans).
   const server = spawn(process.execPath, [join(paths.ROOT, 'src', 'server.mjs')], {
-    cwd: paths.ROOT, env: { ...process.env, GARDENER_PORT: String(REVIEW_PORT), GARDENER_NO_RECOVER: '1' }, stdio: ['ignore', 'ignore', 'pipe'],
+    cwd: paths.ROOT, detached: true,
+    env: { ...process.env, GARDENER_PORT: String(REVIEW_PORT), GARDENER_NO_RECOVER: '1' }, stdio: ['ignore', 'ignore', 'pipe'],
   });
   try {
     // wait for health — fail loudly if the review server never binds (e.g. port
@@ -140,7 +152,8 @@ async function captureAndReview(iterDir) {
     try { verdict = await reviewScreenshot(shot); } catch (e) { log(`visual review failed (non-blocking): ${e.message}`); }
     return { shot, verdict };
   } finally {
-    try { server.kill('SIGKILL'); } catch { /* ignore */ }
+    // Kill the whole group so no review server lingers on the port.
+    try { process.kill(-server.pid, 'SIGKILL'); } catch { try { server.kill('SIGKILL'); } catch { /* ignore */ } }
   }
 }
 

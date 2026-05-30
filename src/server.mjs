@@ -213,7 +213,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.on('error', (e) => { log(`server error: ${e.stack || e}`); });
+server.on('error', (e) => {
+  log(`server error: ${e.stack || e}`);
+  // Don't linger as a non-listening zombie (this caused a stale review server to
+  // squat the port for hours and break later visual reviews). Exit so systemd /
+  // the iteration can react.
+  if (e.code === 'EADDRINUSE') { console.error(`port in use — exiting`); process.exit(1); }
+});
 // Never let an unexpected throw take the dashboard down.
 process.on('uncaughtException', (e) => log(`uncaughtException: ${e.stack || e}`));
 process.on('unhandledRejection', (e) => log(`unhandledRejection: ${e}`));

@@ -26,20 +26,26 @@ export default {
     const fmtDate = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' });
     const hourOf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false });
 
-    ctx.interval(() => {
+    // We show HH:MM (no seconds), so only TOUCH THE DOM when a value actually
+    // changes — i.e. ~once a minute, not 60×. Repainting the 104px gradient-clipped
+    // time text every second pegs this Jetson's software renderer. The 10s tick is
+    // cheap (string compare, no repaint) and flips the minute within ~10s of :00.
+    let lastT = '', lastD = '', lastG = '';
+    const tick = () => {
       const now = new Date();
       const parts = fmtTime.formatToParts(now);
       const hhmm = parts.filter((p) => p.type !== 'dayPeriod').map((p) => p.value).join('').trim();
       const ap = (parts.find((p) => p.type === 'dayPeriod')?.value || '').toUpperCase();
-      time.replaceChildren(
-        ctx.h('span', {}, hhmm),
-        ctx.h('span', { class: 'ap' }, ap),
-      );
-      date.textContent = fmtDate.format(now);
+      const t = `${hhmm}|${ap}`;
+      if (t !== lastT) { lastT = t; time.replaceChildren(ctx.h('span', {}, hhmm), ctx.h('span', { class: 'ap' }, ap)); }
+      const d = fmtDate.format(now);
+      if (d !== lastD) { lastD = d; date.textContent = d; }
       const h = parseInt(hourOf.format(now), 10);
-      greet.textContent = h < 5 ? 'A quiet night in the garden'
+      const g = h < 5 ? 'A quiet night in the garden'
         : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon'
         : h < 21 ? 'Good evening' : 'Good night';
-    }, 1000);
+      if (g !== lastG) { lastG = g; greet.textContent = g; }
+    };
+    ctx.interval(tick, 10000);
   },
 };

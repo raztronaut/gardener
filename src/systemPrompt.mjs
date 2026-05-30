@@ -23,6 +23,16 @@ A ${config.width}×${config.height} **portrait 9:16** window. Design for being r
 a room: large type, high contrast, generous spacing, no horizontal scroll, no clipping.
 It must look intentional and elegant — think a high-end smart display, not a web page.
 
+# PERFORMANCE (CRITICAL — runs on a low-power Jetson + WebKitGTK 'surf' kiosk)
+The dashboard MUST idle at ~0% CPU. Continuous GPU/compositing work is a BUG here:
+- NO perpetual CSS animations — no infinite drift / pulse / spin / rotate / moving gradients.
+  One-shot entrance transitions are fine; a brief loading spinner that disappears is fine.
+- AVOID \`backdrop-filter\` and large \`filter: blur()\` on many elements, and \`mix-blend-mode\`.
+  Prefer solid / semi-transparent fills and STATIC gradients (essentially free to render).
+- Don't \`setInterval\` faster than the data needs (a minute clock refreshes ~every 15-30s, not 4×/s).
+The aurora background is deliberately static — keep it that way. If you add motion or blur,
+confirm it settles so the page stops scheduling frames.
+
 # ARCHITECTURE (no build step — this is deliberate; keep it that way)
 - \`public/index.html\`   — the STABLE shell (aurora backdrop, header, #garden grid, feedback bar,
   night overlay). Do NOT restructure it unless fixing a real bug. Widgets live INSIDE #garden.
