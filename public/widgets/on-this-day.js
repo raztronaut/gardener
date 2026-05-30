@@ -10,9 +10,9 @@ export default {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
 
     ctx.style(`
-      .otd { display:flex; flex-direction:column; gap:10px; }
+      .otd { display:flex; flex-direction:column; gap:7px; }
       .otd-ev { display:flex; gap:16px; align-items:baseline;
-        padding-bottom:10px; border-bottom:1px solid var(--stroke); }
+        padding-bottom:7px; border-bottom:1px solid var(--stroke); }
       .otd-ev:last-child { border-bottom:none; padding-bottom:0; }
       .otd-year { flex:0 0 auto; min-width:92px; font-family:var(--font-display);
         font-weight:600; font-size:25px; line-height:1; color:var(--mint);
@@ -55,7 +55,7 @@ export default {
       const picks = usable
         .slice()
         .sort((a, b) => a.year - b.year)
-        .slice(0, 4);
+        .slice(0, 3);
 
       const rows = picks.map((e) => {
         const text = e.text.trim();

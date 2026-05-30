@@ -52,18 +52,18 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .cel { display:flex; flex-direction:column; gap:16px; }
+      .cel { display:flex; flex-direction:column; gap:10px; }
       .cel-sun { display:flex; gap:14px; }
       .cel-sun .card { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--stroke);
-        border-radius:16px; padding:16px 14px; display:flex; flex-direction:column; gap:6px; align-items:center; }
+        border-radius:16px; padding:11px 14px; display:flex; flex-direction:column; gap:5px; align-items:center; }
       .cel-sun .card .ico { font-size:34px; line-height:1; filter:drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
       .cel-sun .card .lbl { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); }
       .cel-sun .card .val { font-family:var(--font-display); font-size:30px; font-weight:600; line-height:1; color:var(--ink); }
       .cel-day { display:flex; align-items:center; justify-content:center; gap:10px;
         font-size:16px; color:var(--ink-soft); }
       .cel-day .n { font-family:var(--font-mono); font-size:20px; color:var(--gold); font-weight:600; }
-      .cel-moon { display:flex; align-items:center; gap:18px; padding-top:14px; border-top:1px solid var(--stroke); }
-      .cel-moon .emoji { font-size:54px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.45)); }
+      .cel-moon { display:flex; align-items:center; gap:18px; padding-top:9px; border-top:1px solid var(--stroke); }
+      .cel-moon .emoji { font-size:42px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.45)); }
       .cel-moon .meta { display:flex; flex-direction:column; gap:5px; }
       .cel-moon .name { font-family:var(--font-display); font-size:24px; font-weight:600; line-height:1; color:var(--mint); }
       .cel-moon .sub { font-size:14px; color:var(--ink-faint); }

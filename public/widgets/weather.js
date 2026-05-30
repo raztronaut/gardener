@@ -16,11 +16,11 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; gap:20px; }
-      .wx-top { display:flex; align-items:center; gap:22px; }
-      .wx-emoji { font-size:78px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+      .wx { display:flex; flex-direction:column; gap:13px; }
+      .wx-top { display:flex; align-items:center; gap:18px; }
+      .wx-emoji { font-size:50px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
       .wx-temp { display:flex; align-items:baseline; gap:14px; }
-      .wx-temp .f { font-family:var(--font-display); font-size:82px; font-weight:600; line-height:.85;
+      .wx-temp .f { font-family:var(--font-display); font-size:54px; font-weight:600; line-height:.85;
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
       .wx-temp .c { font-family:var(--font-display); font-size:34px; font-weight:600; color:var(--ink-soft); line-height:1; }
       .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:7px; }

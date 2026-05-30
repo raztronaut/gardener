@@ -23,15 +23,15 @@ export default {
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .hn { display:flex; flex-direction:column; gap:10px; }
-      .hn-item { display:flex; gap:13px; align-items:center;
-        padding:10px 14px; background:rgba(255,255,255,.04);
-        border:1px solid var(--stroke); border-radius:18px; }
-      .hn-rank { font-family:var(--font-display); font-size:28px; font-weight:700;
-        line-height:1; color:var(--mint); min-width:38px; text-align:center;
+      .hn { display:flex; flex-direction:column; gap:6px; }
+      .hn-item { display:flex; gap:12px; align-items:center;
+        padding:6px 12px; background:rgba(255,255,255,.04);
+        border:1px solid var(--stroke); border-radius:16px; }
+      .hn-rank { font-family:var(--font-display); font-size:23px; font-weight:700;
+        line-height:1; color:var(--mint); min-width:34px; text-align:center;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
-      .hn-body { display:flex; flex-direction:column; gap:5px; min-width:0; flex:1; }
-      .hn-title { font-size:18px; line-height:1.25; color:var(--ink);
+      .hn-body { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }
+      .hn-title { font-size:16px; line-height:1.22; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
         overflow:hidden; }
       .hn-meta { display:flex; align-items:center; gap:9px; flex-wrap:wrap;

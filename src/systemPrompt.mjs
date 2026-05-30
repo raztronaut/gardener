@@ -83,6 +83,10 @@ Rules for widgets:
   elements to the space the widget actually gets: tune font-size, line-height, line-clamp, padding,
   and the NUMBER of rows/items so everything fits with margin. If content is too tall, show fewer
   items or scale text down rather than letting it get cut off. Long single lines should ellipsize.
+  THIS IS ENFORCED: smoke measures EVERY card's internal clipping (content taller than the card) and
+  FAILS if any card clips by more than 8px (\`data-gardener-card-clip\`, with the offenders named in
+  \`data-gardener-clipped\`). Run \`npm run smoke\`; if it reports clipped widgets, reduce their content
+  (fewer rows, smaller type, tighter spacing) or give them a larger \`size\` until clip is 0.
 - REBALANCE ON CHANGE: whenever you add OR remove a widget, re-tune the WHOLE layout — widget sizes,
   order, and count — so the 9:16 canvas stays full and well-composed: no awkward empty gaps at the
   bottom, and no overcrowding. Adding one widget may mean resizing a neighbour; removing one may mean

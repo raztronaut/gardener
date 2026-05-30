@@ -137,7 +137,10 @@ async function main() {
       const expected = (manifest.widgets || []).filter((w) => w.enabled !== false).length;
       check('all enabled widgets mounted', count && Number(count) === expected, `mounted ${count} of ${expected}`);
       const overflow = (dom.match(/data-gardener-overflow="(\d+)"/) || [])[1];
-      check('fits 900×1600 (no clipping)', overflow == null || Number(overflow) <= 24, `garden overflows by ${overflow}px`);
+      check('fits 900×1600 (garden not overflowing)', overflow == null || Number(overflow) <= 24, `garden overflows by ${overflow}px`);
+      const cardClip = (dom.match(/data-gardener-card-clip="(\d+)"/) || [])[1];
+      const clipped = (dom.match(/data-gardener-clipped="([^"]*)"/) || [])[1] || '';
+      check('no content clipped inside any widget', !cardClip || Number(cardClip) <= 8, `clipped widgets: ${clipped || cardClip + 'px'}`);
     } catch (e) { bad('headless render', e.message); }
 
   } finally {

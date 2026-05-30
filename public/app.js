@@ -189,6 +189,20 @@ function checkOverflow() {
   if (!garden) return;
   const over = Math.max(0, garden.scrollHeight - garden.clientHeight);
   document.documentElement.dataset.gardenerOverflow = String(over);
+  // Per-card INTERNAL clipping: every .card is overflow:hidden, so content taller
+  // than the card is silently cut off. Measure each and surface the worst, plus
+  // the names of clipped widgets — smoke fails on this so clipping can't ship.
+  let maxClip = 0; const clipped = [];
+  for (const card of garden.querySelectorAll(':scope > .card')) {
+    const clip = Math.round(card.scrollHeight - card.clientHeight);
+    if (clip > maxClip) maxClip = clip;
+    if (clip > 8) {
+      const name = (card.querySelector('.card-title')?.textContent || 'widget').trim().replace(/\s+/g, ' ').slice(0, 24);
+      clipped.push(`${name}(${clip})`);
+    }
+  }
+  document.documentElement.dataset.gardenerCardClip = String(maxClip);
+  document.documentElement.dataset.gardenerClipped = clipped.join(', ');
 }
 
 // ---- night veil -------------------------------------------------------------
