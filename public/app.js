@@ -235,6 +235,9 @@ function openPanel(title, bodyEl) {
   document.getElementById('panelTitle').textContent = title;
   document.getElementById('panelBody').replaceChildren(bodyEl);
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
+  // Move keyboard focus into the panel so Esc works without clicking first
+  // (surf doesn't always give the page keyboard focus until interaction).
+  setTimeout(() => p.querySelector('.panel-card')?.focus(), 0);
 }
 function closePanel() {
   const p = document.getElementById('panel'); if (!p) return;
@@ -276,14 +279,16 @@ function wireFeedback() {
   focusInput();
 
   // Type anywhere → the note field (no clicking needed); Esc closes a panel.
+  // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { if (panelOpen()) closePanel(); return; }
+    if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
     if (panelOpen() || e.ctrlKey || e.metaKey || e.altKey) return;
     if (document.activeElement !== input && e.key.length === 1) focusInput();
-  });
+  }, true);
   // Refocus if the field ever loses focus (kiosk: always ready to type).
   input.addEventListener('blur', () => { if (!panelOpen()) setTimeout(focusInput, 0); });
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
+  document.getElementById('panelClose')?.addEventListener('click', closePanel);
   document.getElementById('panel')?.addEventListener('click', (e) => { if (e.target.id === 'panel') closePanel(); });
 
   form.addEventListener('submit', async (e) => {

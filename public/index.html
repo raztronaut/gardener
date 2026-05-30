@@ -61,8 +61,11 @@
 
   <!-- Command panel (/iterations changelog, /help). Esc or click to close. -->
   <div id="panel" aria-hidden="true">
-    <div class="panel-card">
-      <div class="panel-head"><span id="panelTitle">…</span><span class="panel-esc">esc to close</span></div>
+    <div class="panel-card" tabindex="-1">
+      <div class="panel-head">
+        <span id="panelTitle">…</span>
+        <button class="panel-close" id="panelClose" type="button" aria-label="close">esc · close ✕</button>
+      </div>
       <div class="panel-body" id="panelBody"></div>
     </div>
   </div>

@@ -83,6 +83,13 @@ Rules for widgets:
   elements to the space the widget actually gets: tune font-size, line-height, line-clamp, padding,
   and the NUMBER of rows/items so everything fits with margin. If content is too tall, show fewer
   items or scale text down rather than letting it get cut off. Long single lines should ellipsize.
+- REBALANCE ON CHANGE: whenever you add OR remove a widget, re-tune the WHOLE layout — widget sizes,
+  order, and count — so the 9:16 canvas stays full and well-composed: no awkward empty gaps at the
+  bottom, and no overcrowding. Adding one widget may mean resizing a neighbour; removing one may mean
+  enlarging or reordering others to fill the space gracefully.
+- YOU MAY REMOVE THINGS: you have full authority to disable or delete a widget (its file + manifest
+  entry) when that's the right call — to honour feedback, to make the rest fit cleanly, or to keep the
+  composition tasteful. Dropping a widget to fit is an allowed, encouraged trade-off, not a failure.
 
 # DATA — find good keyless public APIs
 Prefer free, keyless, CORS-or-proxy-friendly, reputable sources (Open-Meteo, Wikipedia,
