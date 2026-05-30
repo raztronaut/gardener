@@ -10,16 +10,16 @@ export default {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
 
     ctx.style(`
-      .otd { display:flex; flex-direction:column; gap:13px; }
+      .otd { display:flex; flex-direction:column; gap:10px; }
       .otd-ev { display:flex; gap:16px; align-items:baseline;
-        padding-bottom:13px; border-bottom:1px solid var(--stroke); }
+        padding-bottom:10px; border-bottom:1px solid var(--stroke); }
       .otd-ev:last-child { border-bottom:none; padding-bottom:0; }
       .otd-year { flex:0 0 auto; min-width:92px; font-family:var(--font-display);
-        font-weight:600; font-size:26px; line-height:1; color:var(--mint);
+        font-weight:600; font-size:25px; line-height:1; color:var(--mint);
         font-variant-numeric:tabular-nums; }
-      .otd-text { flex:1; min-width:0; font-size:17px; line-height:1.38; color:var(--ink); }
+      .otd-text { flex:1; min-width:0; font-size:16px; line-height:1.34; color:var(--ink); }
       .otd-desc { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .otd-ago { display:block; margin-top:4px; font-size:13px; color:var(--ink-faint); }
+      .otd-ago { display:block; margin-top:3px; font-size:12px; color:var(--ink-faint); }
     `);
 
     body.appendChild(ctx.loading('leafing through history…'));
@@ -55,7 +55,7 @@ export default {
       const picks = usable
         .slice()
         .sort((a, b) => a.year - b.year)
-        .slice(0, 3);
+        .slice(0, 4);
 
       const rows = picks.map((e) => {
         const text = e.text.trim();
