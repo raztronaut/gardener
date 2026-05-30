@@ -76,20 +76,9 @@
   <!-- Toasts -->
   <div id="toast" role="status"></div>
 
+  <!-- Custom cursor: a green dot, hidden when idle; on movement it fades in big then shrinks. -->
+  <div id="cursor" aria-hidden="true"></div>
+
   <script type="module" src="/app.js"></script>
-  <script>
-    setTimeout(() => {
-      const cards = [...document.querySelectorAll('#garden > .card')];
-      const data = cards.map(c => {
-        if (!c.matches('#garden > .card')) return null;
-        const t = (c.querySelector('.card-title')?.textContent || 'clock').trim().replace(/\s+/g,' ');
-        const body = c.querySelector('.card-body') || c;
-        const clip = body.scrollHeight - body.clientHeight;
-        return `${t}|cardH=${Math.round(c.getBoundingClientRect().height)}|clip=${clip}`;
-      }).filter(Boolean);
-      const g = document.getElementById('garden');
-      document.documentElement.dataset.measure = JSON.stringify({garden:{client:g.clientHeight,scroll:g.scrollHeight}, cards:data});
-    }, 7000);
-  </script>
 </body>
 </html>

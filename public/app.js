@@ -318,6 +318,24 @@ function wireFeedback() {
   });
 }
 
+// ---- custom green-dot cursor ------------------------------------------------
+function wireCursor() {
+  const cur = document.getElementById('cursor');
+  if (!cur) return;
+  let on = false, hideT;
+  window.addEventListener('mousemove', (e) => {
+    cur.style.left = `${e.clientX}px`;
+    cur.style.top = `${e.clientY}px`;
+    if (!on) { // first move after stillness → fade in big, then shrink to default
+      on = true;
+      cur.classList.remove('on'); void cur.offsetWidth; cur.classList.add('on');
+    }
+    clearTimeout(hideT);
+    hideT = setTimeout(() => { on = false; cur.classList.remove('on'); }, 1500);
+  }, { passive: true });
+}
+
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();
+wireCursor();
 boot();

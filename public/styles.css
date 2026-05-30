@@ -44,7 +44,7 @@ html, body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  cursor: default; /* keep the pointer visible (it was hiding) */
+  cursor: none; /* native pointer hidden — replaced by the custom green-dot cursor (#cursor) */
 }
 
 /* ---------- aurora backdrop ----------
@@ -159,6 +159,20 @@ html, body {
   padding: 13px 22px; border-radius: 14px; font-size: 15px;
   box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .3s ease, transform .3s ease; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- custom cursor (green dot) ----------
+   Invisible when idle. On movement it fades in LARGE (to catch the eye) and
+   shrinks to its small default size; fades back out after a moment of stillness. */
+#cursor {
+  position: fixed; left: 0; top: 0; z-index: 200;
+  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--mint); box-shadow: 0 0 16px 4px rgba(116,247,176,.6);
+  pointer-events: none; opacity: 0; transform: scale(1);
+  transition: opacity .55s ease; will-change: left, top, transform, opacity;
+}
+#cursor.on { opacity: 1; animation: cursorPop .55s cubic-bezier(.2,.85,.25,1); }
+@keyframes cursorPop { from { transform: scale(3.6); } to { transform: scale(1); } }
+body.night #cursor, body.screenshot #cursor { display: none; }
 
 /* ---------- night veil (opaque, energy saving) ---------- */
 #nightveil { position: fixed; inset: 0; z-index: 100; background: #000;
