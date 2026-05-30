@@ -192,11 +192,17 @@ async function main() {
   let deployed = false;
   let finalSummary = '';
   let lastVerdict = null;
+  let agentOk = false;
   try {
     // 1) Main tending pass
     const run = await runAgent({ prompt: userPrompt, timeoutMs: AGENT_TIMEOUT_MS, transcriptPath: transcript, label: 'tend' });
     finalSummary = run.summary;
-    log(`tend complete (turns=${run.turns}, success=${run.success}); summary: ${finalSummary.slice(0, 200)}`);
+    // "agentOk" = the tending genuinely completed (not aborted / API-overloaded).
+    // We still SHIP tested changes when smoke is green, but we only mark feedback
+    // CONSUMED on a clean run — otherwise an overloaded/timed-out run silently
+    // buries the user's requests (this happened: a 529-throttled run ate 4 items).
+    agentOk = run.success && !/(API Error|Overloaded|rate.?limit|\b429\b|\b529\b|aborted|timed out)/i.test(finalSummary || '');
+    log(`tend complete (turns=${run.turns}, success=${run.success}, agentOk=${agentOk}); summary: ${finalSummary.slice(0, 200)}`);
 
     // 2) Verify + bounded self-heal on smoke failures
     updateIteration(iterId, { status: 'testing' });
@@ -259,16 +265,20 @@ async function main() {
       + `${finalSummary.slice(0, 1500)}\n\nGardener iteration ${iterId} (${trigger}, ${feedbackItems.length} feedback).`);
     updateIteration(iterId, { result_commit: resultCommit });
     const unresolved = (lastVerdict?.issues || []).filter((i) => i.severity === 'critical').length;
+    // Consume feedback ONLY on a clean run; otherwise keep it pending so the next
+    // tending retries it (an incomplete run still ships its tested partial work).
+    const consumeIds = agentOk ? feedbackIds : [];
     const version = finalizeDeployTx({
-      iterId, resultCommit, feedbackIds,
+      iterId, resultCommit, feedbackIds: consumeIds,
       summary: finalSummary.slice(0, 4000),
       reviewOk: lastVerdict?.ok ? 1 : 0,
       reviewScore: lastVerdict?.score ?? null,
-      reviewNotes: (lastVerdict?.notes || '') + (unresolved ? ` | unresolved critical:${unresolved}` : ''),
+      reviewNotes: (lastVerdict?.notes || '') + (unresolved ? ` | unresolved critical:${unresolved}` : '')
+        + (agentOk ? '' : ' | agent run incomplete — feedback kept pending for retry'),
       screenshot: join(iterDir, 'screenshot.png'),
     });
     deployed = true;
-    log(`DEPLOYED iteration #${iterId} → commit ${resultCommit?.slice(0, 8)}, ui v${version}, consumed ${feedbackIds.length} feedback`);
+    log(`DEPLOYED iteration #${iterId} → commit ${resultCommit?.slice(0, 8)}, ui v${version}, consumed ${consumeIds.length}/${feedbackIds.length} feedback${agentOk ? '' : ' (run incomplete — feedback retained)'}`);
   } catch (e) {
     log(`iteration FAILED: ${e.message} — rolling back to ${baseCommit?.slice(0, 8)}`);
     try { if (baseCommit) git.resetHard(baseCommit); else git.resetHard('HEAD'); } catch (re) { log(`rollback error: ${re.message}`); }
