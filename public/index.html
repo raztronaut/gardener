@@ -36,9 +36,12 @@
           <p id="subtitle">tending the garden…</p>
         </div>
       </div>
-      <div class="status" id="status" title="garden status">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">live</span>
+      <div class="topright">
+        <span class="iter-badge" id="iterBadge" title="tendings so far">❀&nbsp;—</span>
+        <div class="status" id="status" title="garden status">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">live</span>
+        </div>
       </div>
     </header>
 
@@ -49,12 +52,20 @@
     <footer id="feedbackbar">
       <form id="feedbackForm" autocomplete="off">
         <span class="seed">🌱</span>
-        <input id="feedbackInput" type="text" maxlength="2000"
-               placeholder="Plant a thought — tell the gardener what to grow…" />
+        <input id="feedbackInput" type="text" maxlength="2000" autofocus
+               placeholder="Just start typing — tell the gardener what to grow.  Try /help" />
         <button type="submit" id="feedbackSend" aria-label="send feedback">Plant</button>
       </form>
     </footer>
   </main>
+
+  <!-- Command panel (/iterations changelog, /help). Esc or click to close. -->
+  <div id="panel" aria-hidden="true">
+    <div class="panel-card">
+      <div class="panel-head"><span id="panelTitle">…</span><span class="panel-esc">esc to close</span></div>
+      <div class="panel-body" id="panelBody"></div>
+    </div>
+  </div>
 
   <!-- Opaque night overlay (energy saving). Pure black; covers everything. -->
   <div id="nightveil" aria-hidden="true"></div>

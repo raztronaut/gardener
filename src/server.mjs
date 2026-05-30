@@ -11,6 +11,7 @@ import { config, paths } from './config.mjs';
 import {
   addFeedback, getRecentFeedback, countPendingFeedback,
   getUiVersion, getNight, setNight, latestIteration,
+  recentIterations, latestCommitted,
 } from './db.mjs';
 import { recover } from './recover.mjs';
 
@@ -166,6 +167,7 @@ function stateObject() {
     now: new Date().toISOString(),
     tz: config.tz,
     pendingFeedback: countPendingFeedback(),
+    iteration: (latestCommitted() || {}).id ?? 0, // the "growth number" shown on the header
     lastIteration: it ? {
       id: it.id, status: it.status, trigger: it.trigger,
       finished_at: it.finished_at, summary: it.summary,
@@ -182,6 +184,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, version: getUiVersion(), night: getNight(), uptime: Math.round((Date.now() - START) / 1000) });
     if (req.method === 'GET' && p === '/api/version') return json(res, 200, { version: getUiVersion() });
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, stateObject());
+    if (req.method === 'GET' && p === '/api/iterations') {
+      // One concise phrase per committed tending — powers the /iterations changelog.
+      const oneline = (s) => (s ? (s.split('\n').map((x) => x.trim()).find(Boolean) || '').replace(/\s+/g, ' ').slice(0, 160) : '');
+      const iterations = recentIterations(80)
+        .filter((x) => x.status === 'committed')
+        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, phrase: oneline(x.summary) || 'self-directed improvement' }));
+      return json(res, 200, { iterations });
+    }
     if (req.method === 'GET' && p === '/api/feedback') {
       const limit = Math.min(parseInt(u.searchParams.get('limit') || '25', 10) || 25, 200);
       return json(res, 200, { feedback: getRecentFeedback(limit) });

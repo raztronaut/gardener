@@ -44,7 +44,7 @@ html, body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  cursor: none; /* kiosk: no pointer */
+  cursor: default; /* keep the pointer visible (it was hiding) */
 }
 
 /* ---------- aurora backdrop ----------
@@ -165,7 +165,41 @@ html, body {
   opacity: 0; pointer-events: none; transition: opacity 1.6s ease; }
 body.night #nightveil { opacity: 1; pointer-events: auto; }
 
+/* ---------- header: growth badge ---------- */
+.topright { display: flex; align-items: center; gap: 12px; }
+.iter-badge { font-family: var(--font-mono); font-size: 13px; color: var(--mint);
+  background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 999px;
+  padding: 7px 13px; cursor: pointer; white-space: nowrap; }
+
+/* ---------- command panel (/iterations, /help) ---------- */
+#panel { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center;
+  background: rgba(2, 10, 8, 0.68); padding: 60px 40px; }
+#panel.open { display: flex; }
+.panel-card { width: 100%; max-height: 100%; display: flex; flex-direction: column;
+  background: var(--glass-2); border: 1px solid var(--stroke-strong); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 24px 28px 14px; }
+#panelTitle { font-family: var(--font-display); font-size: 25px; color: var(--ink); }
+.panel-esc { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+.panel-body { padding: 2px 28px 28px; overflow-y: auto; }
+.cl { display: flex; flex-direction: column; }
+.cl-row { display: flex; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--stroke); }
+.cl-row:last-child { border-bottom: none; }
+.cl-id { flex: 0 0 auto; min-width: 50px; font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--mint); }
+.cl-main { flex: 1; min-width: 0; }
+.cl-phrase { font-size: 17px; line-height: 1.36; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cl-meta { margin-top: 5px; font-size: 13px; color: var(--ink-faint); }
+.cl-empty { color: var(--ink-faint); font-size: 15px; padding: 12px 0; }
+.help { display: flex; flex-direction: column; gap: 14px; }
+.help-lead { font-size: 16px; line-height: 1.5; color: var(--ink-soft); }
+.help-cmds { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.help-cmd { display: flex; gap: 14px; align-items: baseline; }
+.help-cmd code { font-family: var(--font-mono); font-size: 14px; color: var(--mint);
+  background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 8px; padding: 3px 10px; min-width: 116px; text-align: center; }
+.help-cmd span { color: var(--ink); font-size: 15px; }
+
 /* ---------- screenshot mode (clean QA capture) ---------- */
 body.screenshot #feedbackbar { visibility: hidden; }
 body.screenshot #nightveil { opacity: 0 !important; }
-body.screenshot #toast { display: none; }
+body.screenshot #toast, body.screenshot #panel { display: none; }

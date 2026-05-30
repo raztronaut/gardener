@@ -80,6 +80,7 @@ async function main() {
       ['/api/health', async (r) => r.ok && (await r.clone().json()).ok === true],
       ['/api/version', async (r) => typeof (await r.json()).version === 'number'],
       ['/api/state', async (r) => { const s = await r.json(); return s.canvas.w === 900 && s.canvas.h === 1600; }],
+      ['/api/iterations', async (r) => r.ok && Array.isArray((await r.json()).iterations)],
       ['/widgets/manifest.json', (r) => r.ok],
       ['/styles.css', (r) => r.ok],
       ['/app.js', (r) => r.ok],

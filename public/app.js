@@ -151,6 +151,7 @@ async function boot() {
     const sub = document.getElementById('subtitle');
     if (sub) sub.textContent = state.location;
   }
+  setIterBadge(state.iteration);
 
   // Load manifest + widgets.
   const garden = document.getElementById('garden');
@@ -193,6 +194,12 @@ function checkOverflow() {
 // ---- night veil -------------------------------------------------------------
 function setNight(on) { document.body.classList.toggle('night', !!on && !SCREENSHOT); }
 
+// ---- header growth badge (the tending number) ------------------------------
+function setIterBadge(n) {
+  const b = document.getElementById('iterBadge');
+  if (b) b.innerHTML = `❀&nbsp;#${Number(n) || 0}`;
+}
+
 // ---- backend polling: reload on version change, react to night --------------
 function startPolling() {
   let baseline = window.__GARDEN_BOOT_VERSION; // may be null if boot state failed
@@ -200,6 +207,7 @@ function startPolling() {
     try {
       const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
       setNight(!!s.night);
+      setIterBadge(s.iteration);
       checkOverflow();
       if (typeof s.version === 'number') {
         if (baseline == null) baseline = s.version;            // adopt baseline, no reload
@@ -216,14 +224,80 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 2600);
 }
+// ---- command panel (/iterations changelog, /help) --------------------------
+function focusInput() {
+  const i = document.getElementById('feedbackInput');
+  if (i && document.activeElement !== i) { try { i.focus(); } catch { /* ignore */ } }
+}
+function panelOpen() { return !!document.getElementById('panel')?.classList.contains('open'); }
+function openPanel(title, bodyEl) {
+  const p = document.getElementById('panel'); if (!p) return;
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').replaceChildren(bodyEl);
+  p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
+}
+function closePanel() {
+  const p = document.getElementById('panel'); if (!p) return;
+  p.classList.remove('open'); p.setAttribute('aria-hidden', 'true');
+  focusInput();
+}
+function fmtWhen(ms) { try { return ms ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''; } catch { return ''; } }
+
+async function showIterations() {
+  let data = { iterations: [] };
+  try { data = await (await fetch('/api/iterations', { cache: 'no-store' })).json(); } catch { /* offline */ }
+  const list = (data.iterations || []).slice().reverse(); // newest first
+  const rows = list.length
+    ? list.map((it) => h('div', { class: 'cl-row' },
+        h('div', { class: 'cl-id' }, `#${it.id}`),
+        h('div', { class: 'cl-main' },
+          h('div', { class: 'cl-phrase' }, it.phrase || 'self-directed improvement'),
+          h('div', { class: 'cl-meta' }, `${fmtWhen(it.at)}${it.feedback ? ` · ${it.feedback} feedback` : ' · self-directed'}`))))
+    : [h('div', { class: 'cl-empty' }, 'No tendings yet — the garden grows each morning.')];
+  openPanel('Changelog — how the garden has grown', h('div', { class: 'cl' }, ...rows));
+}
+
+function showHelp() {
+  const cmd = (c, d) => h('div', { class: 'help-cmd' }, h('code', {}, c), h('span', {}, d));
+  openPanel('The Gardener — help', h('div', { class: 'help' },
+    h('p', { class: 'help-lead' }, 'This display tends itself. Every morning the gardener reads your notes and grows the garden — adding, refining, and fixing its widgets.'),
+    h('p', { class: 'help-lead' }, 'Just start typing to leave a note; it gets grown into the garden at the next tending (tomorrow morning).'),
+    h('div', { class: 'help-cmds' },
+      cmd('/help', 'show this panel'),
+      cmd('/iterations', 'changelog of every tending so far'),
+      cmd('esc', 'close this panel'))));
+}
+
+// ---- feedback bar -----------------------------------------------------------
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
   const input = document.getElementById('feedbackInput');
   if (!form || !input) return;
+  focusInput();
+
+  // Type anywhere → the note field (no clicking needed); Esc closes a panel.
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { if (panelOpen()) closePanel(); return; }
+    if (panelOpen() || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.activeElement !== input && e.key.length === 1) focusInput();
+  });
+  // Refocus if the field ever loses focus (kiosk: always ready to type).
+  input.addEventListener('blur', () => { if (!panelOpen()) setTimeout(focusInput, 0); });
+  document.getElementById('iterBadge')?.addEventListener('click', showIterations);
+  document.getElementById('panel')?.addEventListener('click', (e) => { if (e.target.id === 'panel') closePanel(); });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
+    if (text[0] === '/') { // slash command, not feedback
+      const cmd = text.slice(1).toLowerCase().split(/\s+/)[0];
+      input.value = '';
+      if (cmd === 'iterations' || cmd === 'changelog') return showIterations();
+      if (cmd === 'help' || cmd === '?') return showHelp();
+      toast(`Unknown command "/${cmd}" — try /help`);
+      return;
+    }
     input.value = '';
     try {
       const r = await fetch('/api/feedback', {

@@ -78,6 +78,11 @@ Rules for widgets:
 - Use the CSS variables and the glass aesthetic so widgets feel native to the garden.
 - Keep each widget independent: one file, its own \`ctx.style\`, no globals, no cross-widget coupling.
 - Mind the 9:16 fit: the grid is 2 columns. Don't overflow; choose sizes that compose well.
+- FIT THE CARD (important): a widget's content must sit comfortably INSIDE its card with a little
+  breathing room — never clipped at the edges (cards are \`overflow:hidden\`). Size the INTERNAL
+  elements to the space the widget actually gets: tune font-size, line-height, line-clamp, padding,
+  and the NUMBER of rows/items so everything fits with margin. If content is too tall, show fewer
+  items or scale text down rather than letting it get cut off. Long single lines should ellipsize.
 
 # DATA — find good keyless public APIs
 Prefer free, keyless, CORS-or-proxy-friendly, reputable sources (Open-Meteo, Wikipedia,
@@ -88,6 +93,16 @@ need to discover an API, use WebSearch/WebFetch. Never hardcode secrets. Never a
 After you finish, the harness renders the dashboard headlessly at ${config.width}×${config.height}
 and a vision model critiques the screenshot. If it finds layout/legibility/overlap/blank issues,
 you'll be asked to fix them. So: think like a designer, and mentally picture the 9:16 result.
+
+# TESTS — keep them in lockstep with the UI
+\`smoke/smoke.mjs\` is the safety net that decides whether your work ships, so maintain it as you go:
+- ADDING a widget: the render check already verifies every enabled widget mounts cleanly; if your
+  widget has a specific invariant worth guarding, add a check for it.
+- REMOVING a widget: delete its file, remove it from the manifest, ensure nothing references it, and
+  confirm smoke still passes (the expected-widget-count check adapts automatically).
+- ADDING a backend endpoint or behaviour: add a smoke assertion that exercises it.
+- You MAY add or remove tests deliberately as the UI changes — but NEVER weaken or delete a check
+  just to make smoke pass. Fix the real problem. Smoke must remain a meaningful gate and stay green.
 
 # WORKING WITH SUBAGENTS
 For anything non-trivial — researching an unfamiliar API, building a complex widget, or doing a
@@ -141,7 +156,7 @@ export function buildUserPrompt({ feedbackItems, date, history }) {
     + `- The 9:16 layout has no overlap, clipping, blank areas, or illegible text.\n`
     + `- Every widget handles API failure gracefully.\n`
     + `- You did NOT commit, and you did NOT add npm dependencies or a build step.\n`
-    + `- End your final message with a one-paragraph summary of what you changed (used as the commit message).\n`;
+    + `- End your final message with ONE concise sentence describing what changed — it becomes the commit message AND the public changelog entry shown in the on-screen /iterations panel — then optionally a few lines of detail.\n`;
 
   return prompt;
 }
