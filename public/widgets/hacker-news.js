@@ -19,23 +19,23 @@ export default {
   id: 'hacker-news',
   title: 'Hacker News',
   icon: '📰',
-  size: 'tall',
+  size: 'md',
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .hn { display:flex; flex-direction:column; gap:14px; }
-      .hn-item { display:flex; gap:16px; align-items:flex-start;
-        padding:14px 16px; background:rgba(255,255,255,.04);
-        border:1px solid var(--stroke); border-radius:var(--radius); }
-      .hn-rank { font-family:var(--font-display); font-size:34px; font-weight:700;
-        line-height:1; color:var(--mint); min-width:46px; text-align:center;
+      .hn { display:flex; flex-direction:column; gap:10px; }
+      .hn-item { display:flex; gap:13px; align-items:center;
+        padding:10px 14px; background:rgba(255,255,255,.04);
+        border:1px solid var(--stroke); border-radius:18px; }
+      .hn-rank { font-family:var(--font-display); font-size:28px; font-weight:700;
+        line-height:1; color:var(--mint); min-width:38px; text-align:center;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
-      .hn-body { display:flex; flex-direction:column; gap:8px; min-width:0; flex:1; }
-      .hn-title { font-size:21px; line-height:1.28; color:var(--ink);
+      .hn-body { display:flex; flex-direction:column; gap:5px; min-width:0; flex:1; }
+      .hn-title { font-size:18px; line-height:1.25; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
         overflow:hidden; }
-      .hn-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-        font-family:var(--font-mono); font-size:14px; color:var(--ink-faint); }
+      .hn-meta { display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+        font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
       .hn-score { color:var(--gold); font-weight:600; }
       .hn-dot { color:var(--ink-faint); opacity:.5; }
       .hn-domain { color:var(--ink-soft);
@@ -49,7 +49,7 @@ export default {
         body.replaceChildren(ctx.error('no stories right now'));
         return;
       }
-      const top = ids.slice(0, 4);
+      const top = ids.slice(0, 3);
       const stories = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id))));
       const rows = stories
         .map((s, i) => {

@@ -10,15 +10,15 @@ export default {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
 
     ctx.style(`
-      .otd { display:flex; flex-direction:column; gap:16px; }
+      .otd { display:flex; flex-direction:column; gap:13px; }
       .otd-ev { display:flex; gap:16px; align-items:baseline;
-        padding-bottom:16px; border-bottom:1px solid var(--stroke); }
+        padding-bottom:13px; border-bottom:1px solid var(--stroke); }
       .otd-ev:last-child { border-bottom:none; padding-bottom:0; }
       .otd-year { flex:0 0 auto; min-width:92px; font-family:var(--font-display);
         font-weight:600; font-size:26px; line-height:1; color:var(--mint);
         font-variant-numeric:tabular-nums; }
-      .otd-text { flex:1; min-width:0; font-size:17px; line-height:1.4; color:var(--ink); }
-      .otd-desc { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+      .otd-text { flex:1; min-width:0; font-size:17px; line-height:1.38; color:var(--ink); }
+      .otd-desc { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .otd-ago { display:block; margin-top:4px; font-size:13px; color:var(--ink-faint); }
     `);
 

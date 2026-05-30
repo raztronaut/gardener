@@ -16,20 +16,22 @@ export default {
   id: 'daily-quote',
   title: 'Daily Quote',
   icon: '🌿',
-  size: 'md',
+  size: 'full',
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
       .dq { display:flex; flex-direction:column; justify-content:center; align-items:center;
-        gap:20px; height:100%; min-height:200px; text-align:center; padding:8px 4px; }
-      .dq-mark { font-family:var(--font-display); font-size:88px; line-height:.4; color:var(--mint);
-        opacity:.45; height:36px; user-select:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.35)); }
-      .dq-quote { font-family:var(--font-display); font-weight:500; font-size:28px; line-height:1.34;
-        letter-spacing:.2px; color:var(--ink); max-width:16ch; text-wrap:balance; margin:0; }
-      .dq-rule { width:56px; height:2px; border:0; margin:0;
-        background:linear-gradient(90deg, transparent, var(--gold, var(--mint)), transparent); opacity:.7; }
-      .dq-author { font-family:var(--font); font-size:15px; letter-spacing:1.4px; text-transform:uppercase;
-        color:var(--ink-soft); }
+        height:100%; max-height:100%; text-align:center; padding:2px 10px; overflow:hidden; }
+      /* inner wrapper is NOT height-constrained, so we can measure its true
+         (unclipped) height to auto-fit the quote into the card. */
+      .dq-inner { display:flex; flex-direction:column; align-items:center; gap:10px; width:100%; }
+      .dq-mark { font-family:var(--font-display); font-size:34px; line-height:1; color:var(--mint);
+        opacity:.4; margin-bottom:-18px; user-select:none;
+        filter:drop-shadow(0 4px 12px rgba(0,0,0,.35)); }
+      .dq-quote { font-family:var(--font-display); font-weight:500; font-size:30px; line-height:1.3;
+        letter-spacing:.2px; color:var(--ink); max-width:54ch; text-wrap:balance; margin:0; }
+      .dq-author { font-family:var(--font); font-size:14px; letter-spacing:1.4px; text-transform:uppercase;
+        color:var(--ink-soft); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     `);
     body.appendChild(ctx.loading('gathering a thought…'));
 
@@ -40,12 +42,33 @@ export default {
       return t.value;
     };
 
+    // Shrink the quote's font-size until the content fits the card's real height.
+    // We measure .dq-inner (unconstrained) against .dq (the clipped cell) so a
+    // long quote is always shown in full, never cut off at the frame edge.
+    const fit = () => {
+      const dq = body.querySelector('.dq');
+      const inner = body.querySelector('.dq-inner');
+      const ql = body.querySelector('.dq-quote');
+      if (!dq || !inner || !ql || !dq.clientHeight) return;
+      let size = 30;
+      ql.style.fontSize = size + 'px';
+      let guard = 0;
+      while (inner.offsetHeight > dq.clientHeight && size > 13 && guard++ < 40) {
+        size -= 1;
+        ql.style.fontSize = size + 'px';
+      }
+    };
+
     const render = (q, a) => {
       body.replaceChildren(ctx.h('div', { class: 'dq' },
-        ctx.h('div', { class: 'dq-mark', 'aria-hidden': 'true' }, '“'),
-        ctx.h('p', { class: 'dq-quote' }, q),
-        ctx.h('hr', { class: 'dq-rule' }),
-        ctx.h('div', { class: 'dq-author' }, a ? `— ${a}` : '— Unknown')));
+        ctx.h('div', { class: 'dq-inner' },
+          ctx.h('div', { class: 'dq-mark', 'aria-hidden': 'true' }, '“'),
+          ctx.h('p', { class: 'dq-quote' }, q),
+          ctx.h('div', { class: 'dq-author' }, a ? `— ${a}` : '— Unknown'))));
+      // Fit now, and again after layout/fonts settle.
+      fit();
+      requestAnimationFrame(fit);
+      setTimeout(fit, 400);
     };
 
     const pickFallback = () => {

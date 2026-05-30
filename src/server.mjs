@@ -124,7 +124,15 @@ async function handleProxy(req, res, u) {
       try {
         r = await fetch(valid.toString(), {
           redirect: 'manual', signal: ac.signal,
-          headers: { 'User-Agent': 'TheGardener/2.0 (+local ambient dashboard)', 'Accept': 'application/json, text/*;q=0.9, */*;q=0.5' },
+          // Referer is set to the target's own origin: the most innocuous value
+          // possible (what an in-site navigation would send). Some keyless
+          // endpoints (e.g. pollen.com) reject requests lacking a same-origin
+          // Referer with 405; reputable APIs ignore it. Safe + generic.
+          headers: {
+            'User-Agent': 'TheGardener/2.0 (+local ambient dashboard)',
+            'Accept': 'application/json, text/*;q=0.9, */*;q=0.5',
+            'Referer': `${valid.origin}/`,
+          },
         });
       } finally { clearTimeout(timer); }
       if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
