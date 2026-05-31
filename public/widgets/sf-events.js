@@ -1,10 +1,16 @@
-// Today in SF — notable civic / cultural / community events happening in San
-// Francisco today, via the keyless DataSF "Our415 Events & Activities" dataset
-// (Socrata SODA API) through the SSRF-safe proxy. Shows each event's time + address.
+// Today in SF — specific cultural / civic / community happenings in San Francisco
+// today, via the keyless DataSF "Our415 Events & Activities" dataset (Socrata SODA
+// API) through the SSRF-safe proxy. Shows each event's time + location.
 //   https://data.sfgov.org/resource/8i3s-ih2a.json
+// (Aggregators like Luma/Eventbrite need API keys, so aren't usable keyless; DataSF
+//  is the reputable keyless civic feed. We drop generic drop-in sports/rec entries
+//  and favour one-off, place-specific events.)
 const RESOURCE = 'https://data.sfgov.org/resource/8i3s-ih2a.json';
 
 const tidy = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+
+// Skip recurring drop-in sports / fitness / generic recreation — not "events".
+const SKIP = /\b(sport|sports|athletic|fitness|recreation|drop[\s-]?in|basketball|soccer|volleyball|pickleball|softball|baseball|tennis|workout|bootcamp|zumba|aerobics|gym)\b/i;
 
 // "18:00:00" -> "6 PM" / "6:30 PM"
 function fmtT(t) {
@@ -23,16 +29,17 @@ export default {
   async mount(body, ctx) {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .sfe { display:flex; flex-direction:column; gap:12px; }
-      .sfe-ev { padding-bottom:12px; border-bottom:1px solid var(--stroke); }
+      .sfe { display:flex; flex-direction:column; gap:12px; height:100%; }
+      .sfe-ev { flex:1; display:flex; flex-direction:column; justify-content:center;
+        padding-bottom:11px; border-bottom:1px solid var(--stroke); }
       .sfe-ev:last-child { border-bottom:none; padding-bottom:0; }
-      .sfe-name { font-size:17px; font-weight:600; line-height:1.25; color:var(--ink);
+      .sfe-name { font-size:17px; font-weight:600; line-height:1.24; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .sfe-meta { margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
       .sfe-time { font-family:var(--font-mono); font-size:13px; color:var(--gold); white-space:nowrap; }
       .sfe-cat { font-family:var(--font-mono); font-size:11px; letter-spacing:.03em;
         color:var(--mint); background:rgba(120,247,176,.1); border:1px solid var(--stroke);
-        border-radius:999px; padding:2px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%; }
+        border-radius:999px; padding:2px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:62%; }
       .sfe-addr { margin-top:4px; font-size:13px; color:var(--ink-faint);
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     `);
@@ -47,7 +54,7 @@ export default {
     const url = `${RESOURCE}`
       + `?$select=event_name,events_category,org_name,site_location_name,site_address,analysis_neighborhood,start_time,end_time,event_start_date,event_end_date`
       + `&$where=${where}`
-      + `&$order=event_start_date&$limit=80`;
+      + `&$order=event_start_date&$limit=120`;
 
     try {
       const span = (r) => {
@@ -62,10 +69,12 @@ export default {
         for (const r of list) {
           const name = tidy(r && r.event_name);
           if (!name) continue;
+          const cat = tidy(r && r.events_category);
+          if (SKIP.test(name) || SKIP.test(cat)) continue; // drop generic sports/rec
           const k = name.toLowerCase();
           if (seen.has(k)) continue;
           seen.add(k); picks.push(r);
-          if (picks.length >= 6) break;
+          if (picks.length >= 5) break;
         }
         if (!picks.length) { body.replaceChildren(ctx.error('no events listed for today')); return; }
 

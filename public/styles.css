@@ -170,8 +170,15 @@ html, body {
   pointer-events: none; opacity: 0; transform: scale(1);
   transition: opacity .55s ease; will-change: left, top, transform, opacity;
 }
-#cursor.on { opacity: 1; animation: cursorPop .55s cubic-bezier(.2,.85,.25,1); }
-@keyframes cursorPop { from { transform: scale(3.6); } to { transform: scale(1); } }
+#cursor.on { opacity: 1; animation: cursorPop 2s cubic-bezier(.16,.7,.3,1) forwards; }
+/* Fades in LARGE and lingers, then eases down to its small default — slow enough
+   to read the motion, and noticeably bigger at its peak. One-shot (no perpetual
+   animation), so it stays idle-friendly on the Jetson. */
+@keyframes cursorPop {
+  0%   { transform: scale(6.5); }
+  28%  { transform: scale(5.4); }
+  100% { transform: scale(1); }
+}
 body.night #cursor, body.screenshot #cursor { display: none; }
 
 /* ---------- night veil (opaque, energy saving) ---------- */

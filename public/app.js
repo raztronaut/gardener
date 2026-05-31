@@ -282,7 +282,36 @@ function showHelp() {
     h('div', { class: 'help-cmds' },
       cmd('/help', 'show this panel'),
       cmd('/iterations', 'changelog of every tending so far'),
+      cmd('/notes', 'the notes you’ve planted, awaiting tending'),
+      cmd('/night', 'toggle the dark screen-saver veil'),
+      cmd('/refresh', 'reload the garden now'),
       cmd('esc', 'close this panel'))));
+}
+
+// Show the feedback the humans have planted (pending vs already grown in).
+async function showNotes() {
+  let data = { feedback: [] };
+  try { data = await (await fetch('/api/feedback?limit=14', { cache: 'no-store' })).json(); } catch { /* offline */ }
+  const list = data.feedback || [];
+  const rows = list.length
+    ? list.map((f) => h('div', { class: 'cl-row' },
+        h('div', { class: 'cl-id' }, f.consumed_by == null ? '🌱' : '🌿'),
+        h('div', { class: 'cl-main' },
+          h('div', { class: 'cl-phrase' }, f.text),
+          h('div', { class: 'cl-meta' }, `${fmtWhen(f.ts)} · ${f.consumed_by == null ? 'awaiting next tending' : 'grown in'}`))))
+    : [h('div', { class: 'cl-empty' }, 'No notes yet — just start typing to plant one.')];
+  openPanel('Planted notes — what you’ve asked the gardener to grow', h('div', { class: 'cl' }, ...rows));
+}
+
+// Toggle the night veil (dim the wall display) — acts immediately.
+async function toggleNight() {
+  try {
+    const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    const next = !s.night;
+    await fetch('/api/night', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on: next }) });
+    setNight(next);
+    toast(next ? 'Night mode on 🌙 — screen dimmed' : 'Night mode off ☀️ — good morning');
+  } catch { toast('Could not reach the gardener — try again'); }
 }
 
 // ---- feedback bar -----------------------------------------------------------
@@ -314,6 +343,9 @@ function wireFeedback() {
       input.value = '';
       if (cmd === 'iterations' || cmd === 'changelog') return showIterations();
       if (cmd === 'help' || cmd === '?') return showHelp();
+      if (cmd === 'notes' || cmd === 'planted') return showNotes();
+      if (cmd === 'night' || cmd === 'sleep' || cmd === 'dim') return toggleNight();
+      if (cmd === 'refresh' || cmd === 'reload') { toast('Refreshing the garden…'); return setTimeout(() => location.reload(), 250); }
       toast(`Unknown command "/${cmd}" — try /help`);
       return;
     }
@@ -345,7 +377,7 @@ function wireCursor() {
       cur.classList.remove('on'); void cur.offsetWidth; cur.classList.add('on');
     }
     clearTimeout(hideT);
-    hideT = setTimeout(() => { on = false; cur.classList.remove('on'); }, 1500);
+    hideT = setTimeout(() => { on = false; cur.classList.remove('on'); }, 2000);
   }, { passive: true });
 }
 

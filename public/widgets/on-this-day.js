@@ -4,7 +4,7 @@ export default {
   id: 'on-this-day',
   title: 'On This Day',
   icon: '📜',
-  size: 'md',
+  size: 'full',
   chrome: true,
   async mount(body, ctx) {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
