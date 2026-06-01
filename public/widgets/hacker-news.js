@@ -5,7 +5,7 @@
 
 const TOP = 'https://hacker-news.firebaseio.com/v0/topstories.json';
 const ITEM = (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
-const COUNT = 6;
+const COUNT = 5;
 
 function domainOf(url) {
   if (!url) return 'news.ycombinator.com';
@@ -20,9 +20,9 @@ export default {
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .hn { display:flex; flex-direction:column; gap:9px; height:100%; }
+      .hn { display:flex; flex-direction:column; gap:8px; height:100%; }
       .hn-item { display:flex; gap:13px; align-items:flex-start; flex:1;
-        padding:11px 13px; background:rgba(255,255,255,.04);
+        padding:9px 13px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; }
       .hn-rank { font-family:var(--font-display); font-size:25px; font-weight:700;
         line-height:1; color:var(--mint); min-width:26px; text-align:center; margin-top:1px;
