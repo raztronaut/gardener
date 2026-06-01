@@ -207,14 +207,15 @@ body.night #nightveil { opacity: 1; pointer-events: auto; }
     var(--glass-2);
   border: 1px solid var(--stroke-strong); border-radius: 28px;
   box-shadow: 0 -10px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(120,247,176,.05);
-  overflow: hidden; animation: panelRise .42s cubic-bezier(.16,.84,.3,1) both; }
+  overflow: hidden; animation: panelRise .5s cubic-bezier(.16,.84,.3,1) both; }
 /* A thin luminous accent along the top edge — the seam it unfurls from. */
 .panel-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
   background: linear-gradient(90deg, transparent, var(--mint), var(--mint-2), transparent); opacity: .7; }
 @keyframes panelVeil { from { opacity: 0; } to { opacity: 1; } }
 @keyframes panelRise {
-  from { opacity: 0; transform: translateY(26px) scaleY(.94); }
-  to   { opacity: 1; transform: translateY(0) scaleY(1); }
+  /* slides all the way up from below the screen to its resting height */
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   #panel.open, .panel-card { animation-duration: .01ms; }
