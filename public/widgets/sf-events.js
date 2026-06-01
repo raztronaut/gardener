@@ -1,16 +1,23 @@
-// Today in SF — specific cultural / civic / community happenings in San Francisco
-// today, via the keyless DataSF "Our415 Events & Activities" dataset (Socrata SODA
-// API) through the SSRF-safe proxy. Shows each event's time + location.
+// Tonight in SF — what's happening in the city today, leaning toward the fun
+// stuff: parties, music, nightlife, tech meetups, art openings, festivals & food.
+// Source: keyless DataSF "Our415 Events & Activities" dataset (Socrata SODA API)
+// through the SSRF-safe proxy. Shows each event's time + location.
 //   https://data.sfgov.org/resource/8i3s-ih2a.json
 // (Aggregators like Luma/Eventbrite need API keys, so aren't usable keyless; DataSF
-//  is the reputable keyless civic feed. We drop generic drop-in sports/rec entries
-//  and favour one-off, place-specific events.)
+//  is the reputable keyless civic feed. Per feedback we drop library/storytime and
+//  generic rec/sports entries and BOOST tech-meetup / party / music / arts events.)
 const RESOURCE = 'https://data.sfgov.org/resource/8i3s-ih2a.json';
 
 const tidy = (s) => String(s || '').trim().replace(/\s+/g, ' ');
 
-// Skip recurring drop-in sports / fitness / generic recreation — not "events".
-const SKIP = /\b(sport|sports|athletic|fitness|recreation|drop[\s-]?in|basketball|soccer|volleyball|pickleball|softball|baseball|tennis|workout|bootcamp|zumba|aerobics|gym)\b/i;
+// Drop what the humans don't want here: library/storytime/book clubs (explicit
+// feedback), plus recurring drop-in sports / fitness / generic recreation and
+// kid/senior daycare-style programs — none of which read as a "night out".
+const SKIP = /\b(librar(y|ies)|story\s?time|book\s?club|bookmobile|sport|sports|athletic|fitness|recreation|drop[\s-]?in|basketball|soccer|volleyball|pickleball|softball|baseball|tennis|workout|bootcamp|zumba|aerobics|gym|toddler|preschool|senior\s+center)\b/i;
+
+// Boost the vibe the humans asked for: tech meetups, parties, music & nightlife,
+// art, festivals, food/drink, comedy. Matched against name + category + org.
+const BOOST = /\b(tech|startup|hackathon|meetup|demo\s?day|developer|coding|ai|web3|crypto|party|parties|nightlife|club|dj|dance|music|concert|live|band|festival|fest|art|gallery|opening|exhibit|comedy|improv|food|drink|beer|wine|cocktail|tasting|market|mixer|networking|social)\b/i;
 
 // "18:00:00" -> "6 PM" / "6:30 PM"
 function fmtT(t) {
@@ -22,8 +29,8 @@ function fmtT(t) {
 
 export default {
   id: 'sf-events',
-  title: 'Today in SF',
-  icon: '🌉',
+  title: 'Tonight in SF',
+  icon: '🎉',
   size: 'tall',
   chrome: true,
   async mount(body, ctx) {
@@ -61,21 +68,24 @@ export default {
         const a = Date.parse(r && r.event_start_date), b = Date.parse(r && r.event_end_date);
         return (Number.isFinite(a) && Number.isFinite(b)) ? Math.max(0, b - a) : Infinity;
       };
+      const hay = (r) => `${tidy(r && r.event_name)} ${tidy(r && r.events_category)} ${tidy(r && r.org_name)}`;
       const refresh = async () => {
         const rows = await ctx.fetchJSON(url);
         const list = (Array.isArray(rows) ? rows : []).slice();
-        list.sort((a, b) => span(a) - span(b)); // one-off happenings before year-long programs
-        const seen = new Set(); const picks = [];
+        const seen = new Set(); const kept = [];
         for (const r of list) {
           const name = tidy(r && r.event_name);
           if (!name) continue;
-          const cat = tidy(r && r.events_category);
-          if (SKIP.test(name) || SKIP.test(cat)) continue; // drop generic sports/rec
+          const text = hay(r);
+          if (SKIP.test(text)) continue; // drop library / sports / rec / kid-care
           const k = name.toLowerCase();
           if (seen.has(k)) continue;
-          seen.add(k); picks.push(r);
-          if (picks.length >= 5) break;
+          seen.add(k); kept.push(r);
         }
+        // Surface the fun stuff first (tech / parties / music / arts), then prefer
+        // one-off happenings over year-long standing programs.
+        kept.sort((a, b) => (BOOST.test(hay(b)) - BOOST.test(hay(a))) || (span(a) - span(b)));
+        const picks = kept.slice(0, 5);
         if (!picks.length) { body.replaceChildren(ctx.error('no events listed for today')); return; }
 
         const rowsEl = picks.map((r) => {

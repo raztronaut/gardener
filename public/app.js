@@ -249,9 +249,14 @@ function openPanel(title, bodyEl) {
   document.getElementById('panelTitle').textContent = title;
   document.getElementById('panelBody').replaceChildren(bodyEl);
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
-  // Move keyboard focus into the panel so Esc works without clicking first
-  // (surf doesn't always give the page keyboard focus until interaction).
-  setTimeout(() => p.querySelector('.panel-card')?.focus(), 0);
+  // Move keyboard focus onto a REAL focusable control (the close button) so Esc
+  // works without clicking first. surf/WebKitGTK doesn't route key events to the
+  // page until something focusable holds focus; a <button> reliably does, where a
+  // tabindex=-1 div sometimes didn't. Focus on the next frame so display:flex has
+  // taken effect (you can't focus a display:none element).
+  requestAnimationFrame(() => {
+    (document.getElementById('panelClose') || p.querySelector('.panel-card'))?.focus();
+  });
 }
 function closePanel() {
   const p = document.getElementById('panel'); if (!p) return;
@@ -283,6 +288,7 @@ function showHelp() {
       cmd('/help', 'show this panel'),
       cmd('/iterations', 'changelog of every tending so far'),
       cmd('/notes', 'the notes you’ve planted, awaiting tending'),
+      cmd('/trash', 'mark Tuesday’s “take trash out” done (or not)'),
       cmd('/night', 'toggle the dark screen-saver veil'),
       cmd('/refresh', 'reload the garden now'),
       cmd('esc', 'close this panel'))));
@@ -333,6 +339,11 @@ function wireFeedback() {
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
   document.getElementById('panelClose')?.addEventListener('click', closePanel);
   document.getElementById('panel')?.addEventListener('click', (e) => { if (e.target.id === 'panel') closePanel(); });
+  // Belt-and-suspenders: also catch Esc on the panel itself (in case the window
+  // capture listener missed focus). The close button lives here, so it has focus.
+  document.getElementById('panel')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closePanel(); }
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -345,6 +356,10 @@ function wireFeedback() {
       if (cmd === 'help' || cmd === '?') return showHelp();
       if (cmd === 'notes' || cmd === 'planted') return showNotes();
       if (cmd === 'night' || cmd === 'sleep' || cmd === 'dim') return toggleNight();
+      if (cmd === 'trash' || cmd === 'bins' || cmd === 'garbage') {
+        window.dispatchEvent(new CustomEvent('garden:trash-toggle'));
+        return toast('Trash reminder toggled 🗑');
+      }
       if (cmd === 'refresh' || cmd === 'reload') { toast('Refreshing the garden…'); return setTimeout(() => location.reload(), 250); }
       toast(`Unknown command "/${cmd}" — try /help`);
       return;

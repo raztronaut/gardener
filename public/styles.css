@@ -192,14 +192,34 @@ body.night #nightveil { opacity: 1; pointer-events: auto; }
   background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 999px;
   padding: 7px 13px; cursor: pointer; white-space: nowrap; }
 
-/* ---------- command panel (/iterations, /help) ---------- */
-#panel { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center;
-  background: rgba(2, 10, 8, 0.68); padding: 60px 40px; }
-#panel.open { display: flex; }
+/* ---------- command panel (/iterations, /help) ----------
+   Anchored to the BOTTOM (just above the feedback bar) and grows UPWARD to only
+   the height its content needs — so it reads as unfurling up out of the input.
+   One-shot entrance animations only (no perpetual motion → idle-friendly). */
+#panel { position: fixed; inset: 0; z-index: 90; display: none;
+  align-items: flex-end; justify-content: center;
+  background: rgba(2, 10, 8, 0.72); padding: 44px 34px 104px; }
+#panel.open { display: flex; animation: panelVeil .28s ease both; }
 .panel-card { width: 100%; max-height: 100%; display: flex; flex-direction: column;
-  background: var(--glass-2); border: 1px solid var(--stroke-strong); border-radius: var(--radius);
-  box-shadow: var(--shadow); overflow: hidden; }
-.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 24px 28px 14px; }
+  transform-origin: bottom center;
+  background:
+    linear-gradient(180deg, rgba(120,247,176,.06), transparent 120px),
+    var(--glass-2);
+  border: 1px solid var(--stroke-strong); border-radius: 28px;
+  box-shadow: 0 -10px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(120,247,176,.05);
+  overflow: hidden; animation: panelRise .42s cubic-bezier(.16,.84,.3,1) both; }
+/* A thin luminous accent along the top edge — the seam it unfurls from. */
+.panel-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--mint), var(--mint-2), transparent); opacity: .7; }
+@keyframes panelVeil { from { opacity: 0; } to { opacity: 1; } }
+@keyframes panelRise {
+  from { opacity: 0; transform: translateY(26px) scaleY(.94); }
+  to   { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #panel.open, .panel-card { animation-duration: .01ms; }
+}
+.panel-head { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 24px 28px 14px; }
 #panelTitle { font-family: var(--font-display); font-size: 25px; color: var(--ink); }
 .panel-close { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--ink-soft);
   background: rgba(255,255,255,.05); border: 1px solid var(--stroke); border-radius: 999px;
