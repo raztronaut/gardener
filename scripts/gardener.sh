@@ -44,6 +44,9 @@ case "$cmd" in
       if curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then break; fi
       sleep 1
     done
-    exec surf -F "http://127.0.0.1:$PORT" ;;
+    # Prefer the patched surf (Escape unbound, built by scripts/build-surf.sh)
+    # so the dashboard can use Esc; fall back to the system surf otherwise.
+    SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
+    exec "$SURF" -F "http://127.0.0.1:$PORT" ;;
   *) echo "usage: gardener.sh {server|iterate|day|night|sync|kiosk}"; exit 2 ;;
 esac
