@@ -42,6 +42,9 @@ export const config = {
   lat: num(E.GARDENER_LAT, 37.7577),
   lon: num(E.GARDENER_LON, -122.4727),
   location: E.GARDENER_LOCATION || 'San Francisco, CA',
+  // Public base URL (e.g. an ngrok tunnel) the QR-notes widget encodes so phones
+  // can plant notes remotely. Empty → the widget falls back to the page origin.
+  publicUrl: (E.GARDENER_PUBLIC_URL || '').replace(/\/+$/, ''),
   port: num(E.GARDENER_PORT, 8787),
   host: E.GARDENER_HOST || '127.0.0.1',
   display: E.DISPLAY || ':0',

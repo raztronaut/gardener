@@ -163,6 +163,7 @@ function stateObject() {
     version: getUiVersion(),
     night: getNight(),
     location: config.location,
+    publicUrl: config.publicUrl,
     canvas: { w: config.width, h: config.height },
     now: new Date().toISOString(),
     tz: config.tz,

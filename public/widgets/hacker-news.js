@@ -5,7 +5,7 @@
 
 const TOP = 'https://hacker-news.firebaseio.com/v0/topstories.json';
 const ITEM = (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
-const COUNT = 5;
+const COUNT = 4;
 
 function domainOf(url) {
   if (!url) return 'news.ycombinator.com';

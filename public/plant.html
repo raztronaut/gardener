@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <title>Plant a note · The Gardener</title>
+  <link rel="icon" href="/assets/logo.png" />
+  <style>
+    :root{
+      --bg-0:#04110d; --bg-1:#07201a; --ink:#eafff4; --ink-soft:#a8c8bd; --ink-faint:#6f9388;
+      --mint:#74f7b0; --mint-2:#43e6c6; --glass:rgba(17,43,36,.72); --glass-2:rgba(12,32,27,.82);
+      --stroke:rgba(140,240,195,.16); --stroke-strong:rgba(140,240,195,.30);
+      --font:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+      --font-display:"Fraunces","Iowan Old Style",Georgia,serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    html,body{min-height:100%;}
+    body{
+      font-family:var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
+      background:
+        radial-gradient(58% 42% at 12% 8%, rgba(30,233,168,.22), transparent 70%),
+        radial-gradient(52% 40% at 92% 32%, rgba(26,160,255,.15), transparent 70%),
+        radial-gradient(120% 80% at 50% -10%, #0b3a2c 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 75%);
+      background-attachment:fixed;
+      min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .card{
+      width:100%; max-width:440px; background:var(--glass-2); border:1px solid var(--stroke);
+      border-radius:26px; padding:30px 26px; box-shadow:0 18px 50px rgba(0,0,0,.45);
+    }
+    .brand{display:flex; align-items:center; gap:12px; margin-bottom:6px;}
+    .seed{font-size:30px;}
+    h1{font-family:var(--font-display); font-weight:600; font-size:26px; line-height:1.05;
+      background:linear-gradient(120deg,var(--ink),var(--mint)); -webkit-background-clip:text;
+      background-clip:text; color:transparent;}
+    p.lead{color:var(--ink-soft); font-size:15px; line-height:1.5; margin:14px 0 20px;}
+    textarea{
+      width:100%; min-height:128px; resize:vertical; color:var(--ink); font-family:var(--font);
+      font-size:17px; line-height:1.4; background:rgba(8,24,20,.7); border:1px solid var(--stroke);
+      border-radius:16px; padding:15px 16px; outline:none;
+    }
+    textarea:focus{border-color:var(--stroke-strong);}
+    textarea::placeholder{color:var(--ink-faint);}
+    button{
+      width:100%; margin-top:16px; border:none; cursor:pointer; color:#042018; font-weight:700;
+      font-size:17px; padding:15px; border-radius:999px; letter-spacing:.02em;
+      background:linear-gradient(120deg,var(--mint),var(--mint-2));
+      box-shadow:0 6px 18px rgba(67,230,198,.35);
+    }
+    button:active{transform:scale(.98);}
+    button:disabled{opacity:.55;}
+    .msg{margin-top:16px; font-size:15px; min-height:22px; text-align:center;}
+    .msg.ok{color:var(--mint);}
+    .msg.err{color:#ff9bb0;}
+    .foot{margin-top:18px; text-align:center; color:var(--ink-faint); font-size:13px;}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand"><span class="seed">🌱</span><h1>Plant a note</h1></div>
+    <p class="lead">Tell the Gardener what to grow on the wall display. Your note gets tended into the garden at the next morning’s tending.</p>
+    <form id="f">
+      <textarea id="t" maxlength="2000" placeholder="e.g. add a transit board for the 22 bus…" autofocus></textarea>
+      <button type="submit" id="b">Plant it 🌱</button>
+    </form>
+    <div class="msg" id="m" role="status"></div>
+    <div class="foot">The Gardener™ · ambient wall display</div>
+  </main>
+  <script>
+    const f = document.getElementById('f'), t = document.getElementById('t');
+    const b = document.getElementById('b'), m = document.getElementById('m');
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = t.value.trim();
+      if (!text) { t.focus(); return; }
+      b.disabled = true; m.className = 'msg'; m.textContent = 'Planting…';
+      try {
+        const r = await fetch('/api/feedback', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        t.value = ''; m.className = 'msg ok'; m.textContent = 'Planted 🌱  the Gardener will tend to it.';
+      } catch {
+        m.className = 'msg err'; m.textContent = 'Could not reach the Gardener — try again.';
+      } finally { b.disabled = false; }
+    });
+  </script>
+</body>
+</html>

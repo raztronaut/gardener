@@ -10,10 +10,28 @@ const RESOURCE = 'https://data.sfgov.org/resource/8i3s-ih2a.json';
 
 const tidy = (s) => String(s || '').trim().replace(/\s+/g, ' ');
 
-// Drop what the humans don't want here: library/storytime/book clubs (explicit
-// feedback), plus recurring drop-in sports / fitness / generic recreation and
-// kid/senior daycare-style programs — none of which read as a "night out".
-const SKIP = /\b(librar(y|ies)|story\s?time|book\s?club|bookmobile|sport|sports|athletic|fitness|recreation|drop[\s-]?in|basketball|soccer|volleyball|pickleball|softball|baseball|tennis|workout|bootcamp|zumba|aerobics|gym|toddler|preschool|senior\s+center)\b/i;
+// Drop what the humans don't want here. This is a hacker house of 20-something
+// guys, so explicitly cut all parent/child/family/support-group programming
+// ("remove all this parent child bs grupo de apoyo"), plus library/storytime,
+// recurring drop-in sports / fitness / generic recreation and senior daycare —
+// none of which read as a "night out" for them.
+const SKIP = new RegExp(
+  '\\b(' + [
+    // parent / child / family / support-group (explicit feedback)
+    'parent', 'parenting', 'parents', 'child', 'children', 'childcare', 'kid', 'kids',
+    'famil(y|ies)', 'prenatal', 'pregnan(t|cy)', 'bab(y|ies)', 'infant', 'toddler',
+    'mother', 'mom', 'mommy', 'daddy', 'caregiver', 'playgroup', 'daycare', 'nanny',
+    'breastfeed\\w*', 'newborn', 'after\\s?school', 'youth', 'support\\s+group',
+    'grupo\\s+de\\s+apoyo', 'apoyo', 'crianza',
+    // library / storytime
+    'librar(y|ies)', 'story\\s?time', 'book\\s?club', 'bookmobile',
+    // sports / fitness / generic recreation
+    'sport', 'sports', 'athletic', 'fitness', 'recreation', 'drop[\\s-]?in',
+    'basketball', 'soccer', 'volleyball', 'pickleball', 'softball', 'baseball',
+    'tennis', 'workout', 'bootcamp', 'zumba', 'aerobics', 'gym',
+    // senior / daycare-style programs
+    'preschool', 'senior\\s+center', 'seniors?',
+  ].join('|') + ')\\b', 'i');
 
 // Boost the vibe the humans asked for: tech meetups, parties, music & nightlife,
 // art, festivals, food/drink, comedy. Matched against name + category + org.
@@ -85,7 +103,7 @@ export default {
         // Surface the fun stuff first (tech / parties / music / arts), then prefer
         // one-off happenings over year-long standing programs.
         kept.sort((a, b) => (BOOST.test(hay(b)) - BOOST.test(hay(a))) || (span(a) - span(b)));
-        const picks = kept.slice(0, 5);
+        const picks = kept.slice(0, 4);
         if (!picks.length) { body.replaceChildren(ctx.error('no events listed for today')); return; }
 
         const rowsEl = picks.map((r) => {
