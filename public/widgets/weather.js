@@ -25,7 +25,7 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; gap:11px; height:100%; justify-content:space-between; }
+      .wx { display:flex; flex-direction:column; gap:9px; height:100%; justify-content:space-between; }
       .wx-top { display:flex; align-items:center; gap:16px; }
       .wx-emoji { font-size:48px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
       .wx-temp { display:flex; align-items:baseline; gap:12px; }
@@ -44,7 +44,7 @@ export default {
 
       /* linear hourly timeline */
       .wx-tl { display:flex; flex-direction:column; gap:0; }
-      .wx-plot { position:relative; height:52px; }
+      .wx-plot { position:relative; height:46px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-pt { position:absolute; transform:translate(-50%,-50%); width:0; height:0; }
       .wx-pt .dot { position:absolute; left:-5px; top:-5px; width:10px; height:10px; border-radius:50%;

@@ -25,7 +25,7 @@
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 
   --radius: 26px;
-  --gap: 20px;
+  --gap: 16px;   /* tighter inter-card margin (~20% less than 20px) → room for more/bigger cards */
   --pad: 26px;
 
   --font: "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -185,6 +185,30 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 #nightveil { position: fixed; inset: 0; z-index: 100; background: #000;
   opacity: 0; pointer-events: none; transition: opacity 1.6s ease; }
 body.night #nightveil { opacity: 1; pointer-events: auto; }
+
+/* ---------- curb-trash alarm (full-screen, flashing red until acknowledged) ----------
+   Only ever visible Tue 16:00 → Wed 07:00 while unacknowledged — i.e. a rare, transient
+   ALARM state, not the idle dashboard. The flash is a stepped solid-color swap (no blur /
+   filter / gradient tween), so it's cheap; it stops entirely the instant it's dismissed or
+   the window closes, returning the screen to ~0% CPU idle. */
+#trashalarm { position: fixed; inset: 0; z-index: 150; display: none;
+  align-items: center; justify-content: center; text-align: center;
+  background: #c81810; color: #fff; padding: 40px; }
+#trashalarm.on { display: flex; animation: trashFlash 1s step-end infinite; }
+@keyframes trashFlash { 0% { background: #ef2418; } 50% { background: #5e0b06; } }
+@media (prefers-reduced-motion: reduce) { #trashalarm.on { animation: none; background: #ef2418; } }
+.ta-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.ta-icon { font-size: 96px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
+.ta-text { font-family: var(--font-display); font-weight: 700; font-size: 100px; line-height: .96;
+  letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.4); }
+.ta-sub { font-size: 24px; line-height: 1.4; max-width: 620px; color: #fff; opacity: .94; margin-top: 6px; }
+#trashAck { margin-top: 34px; font-family: var(--font); font-size: 24px; font-weight: 700;
+  padding: 20px 44px; border-radius: 999px; cursor: pointer; color: #7a0a04;
+  background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+#trashAck:active { transform: scale(.97); }
+.ta-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
+.ta-hint b { color: #fff; }
+body.screenshot #trashalarm { display: none !important; }
 
 /* ---------- header: growth badge ---------- */
 .topright { display: flex; align-items: center; gap: 12px; }

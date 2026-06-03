@@ -8,27 +8,30 @@ export default {
   async mount(root, ctx) {
     const tz = ctx.config?.tz || 'America/Los_Angeles';
     ctx.style(`
-      .clk { display:flex; flex-direction:column; gap:8px; padding:14px 10px 6px; }
+      .clk { display:flex; flex-direction:column; gap:6px; padding:8px 10px 4px; }
+      .clk .topline { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:34px; }
       .clk .greet { color: var(--ink-soft); font-size:17px; letter-spacing:.04em; }
       .clk .timerow { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
       .clk .time { font-family: var(--font-display); font-weight:600; letter-spacing:-.01em;
-        font-size: 104px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
+        font-size: 96px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
         -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:14px; }
       .clk .time .ap { font-size:34px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
       .clk .date { color: var(--ink); font-size:22px; opacity:.92; }
-      /* Tuesday bin-night nudge — a tappable pill beside the time. /trash toggles done. */
-      .clk .trash { display:inline-flex; align-items:center; gap:9px; cursor:pointer;
-        padding:10px 16px; border-radius:999px; font-size:16px; font-weight:600;
-        color:var(--gold); background:rgba(255,217,138,.10); border:1px solid rgba(255,217,138,.34);
-        box-shadow:0 0 18px rgba(255,217,138,.12); transition:opacity .2s ease, filter .2s ease; }
-      .clk .trash .lbl { letter-spacing:.01em; }
-      .clk .trash .hint { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);
-        opacity:.85; letter-spacing:.02em; }
-      .clk .trash.done { color:var(--ink-faint); background:rgba(120,247,176,.07);
+      /* Tuesday bin-night nudge — a bold RED pill on the right. shift+T toggles done. */
+      .clk .trash { display:inline-flex; align-items:center; gap:10px; cursor:pointer;
+        padding:11px 20px; border-radius:999px; font-size:19px; font-weight:800; letter-spacing:.01em;
+        color:#fff; background:linear-gradient(135deg,#ff5a52,#d8261b);
+        border:1px solid rgba(255,140,130,.6); box-shadow:0 8px 26px rgba(216,38,27,.38);
+        transition:opacity .2s ease, filter .2s ease; }
+      .clk .trash .lbl { white-space:nowrap; }
+      .clk .trash .hint { font-family:var(--font-mono); font-size:11px; color:rgba(255,255,255,.85);
+        opacity:.9; letter-spacing:.02em; font-weight:600; }
+      .clk .trash.done { color:var(--ink-faint); background:rgba(120,247,176,.07); font-weight:600;
         border-color:var(--stroke); box-shadow:none; }
       .clk .trash.done .lbl { text-decoration:line-through; }
     `);
-    const greet = root.appendChild(ctx.h('div', { class: 'greet' }));
+    const topline = root.appendChild(ctx.h('div', { class: 'topline' }));
+    const greet = topline.appendChild(ctx.h('div', { class: 'greet' }));
     const timerow = root.appendChild(ctx.h('div', { class: 'timerow' }));
     const time = timerow.appendChild(ctx.h('div', { class: 'time' }));
     const date = root.appendChild(ctx.h('div', { class: 'date' }));
@@ -56,15 +59,15 @@ export default {
       if (!tuesday) { if (trashEl) { trashEl.remove(); trashEl = null; } return; }
       const done = isDone();
       if (!trashEl) {
-        trashEl = ctx.h('button', { class: 'trash', type: 'button', title: 'tap or type /trash to toggle',
+        trashEl = ctx.h('button', { class: 'trash', type: 'button', title: 'tap or press shift+T to toggle',
           onClick: () => setDone(!isDone()) });
-        timerow.appendChild(trashEl);
+        topline.appendChild(trashEl);
       }
       trashEl.classList.toggle('done', done);
       trashEl.replaceChildren(
         ctx.h('span', {}, done ? '✅' : '🗑'),
-        ctx.h('span', { class: 'lbl' }, 'Take trash out'),
-        ctx.h('span', { class: 'hint' }, done ? 'done · /trash' : '/trash'));
+        ctx.h('span', { class: 'lbl' }, done ? 'Trash taken out' : 'TODAY IS TRASH DAY!!'),
+        ctx.h('span', { class: 'hint' }, done ? 'undo · shift+T' : 'shift+T'));
     }
     // React to the /trash command dispatched from the feedback bar.
     const onToggle = () => setDone(!isDone());

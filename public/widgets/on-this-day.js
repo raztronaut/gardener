@@ -4,22 +4,19 @@ export default {
   id: 'on-this-day',
   title: 'On This Day',
   icon: '📜',
-  size: 'full',
+  size: 'md',
   chrome: true,
   async mount(body, ctx) {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
 
     ctx.style(`
-      .otd { display:flex; flex-direction:column; gap:7px; }
-      .otd-ev { display:flex; gap:16px; align-items:baseline;
-        padding-bottom:7px; border-bottom:1px solid var(--stroke); }
+      .otd { display:flex; flex-direction:column; gap:9px; }
+      .otd-ev { padding-bottom:9px; border-bottom:1px solid var(--stroke); }
       .otd-ev:last-child { border-bottom:none; padding-bottom:0; }
-      .otd-year { flex:0 0 auto; min-width:92px; font-family:var(--font-display);
-        font-weight:600; font-size:25px; line-height:1; color:var(--mint);
-        font-variant-numeric:tabular-nums; }
-      .otd-text { flex:1; min-width:0; font-size:16px; line-height:1.34; color:var(--ink); }
-      .otd-desc { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .otd-ago { display:block; margin-top:3px; font-size:12px; color:var(--ink-faint); }
+      .otd-year { font-family:var(--font-display); font-weight:700; font-size:19px; line-height:1;
+        color:var(--mint); font-variant-numeric:tabular-nums; }
+      .otd-desc { margin-top:4px; font-size:14px; line-height:1.3; color:var(--ink);
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     `);
 
     body.appendChild(ctx.loading('leafing through history…'));
@@ -51,23 +48,18 @@ export default {
         return;
       }
 
-      // Pick the oldest few — the most enduring / interesting moments.
+      // Pick the oldest couple — the most enduring / interesting moments.
       const picks = usable
         .slice()
         .sort((a, b) => a.year - b.year)
-        .slice(0, 3);
+        .slice(0, 2);
 
       const rows = picks.map((e) => {
         const text = e.text.trim();
         const yearLabel = e.year < 0 ? `${Math.abs(e.year)} BC` : String(e.year);
-        const ago = e.year > 0 ? thisYear - e.year : null;
         return ctx.h('div', { class: 'otd-ev' },
           ctx.h('div', { class: 'otd-year' }, yearLabel),
-          ctx.h('div', { class: 'otd-text' },
-            ctx.h('div', { class: 'otd-desc' }, text),
-            ago && ago > 0
-              ? ctx.h('span', { class: 'otd-ago' }, `${ago} year${ago === 1 ? '' : 's'} ago`)
-              : null));
+          ctx.h('div', { class: 'otd-desc' }, text));
       });
 
       body.replaceChildren(ctx.h('div', { class: 'otd' }, ...rows));

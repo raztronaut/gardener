@@ -73,6 +73,17 @@
   <!-- Opaque night overlay (energy saving). Pure black; covers everything. -->
   <div id="nightveil" aria-hidden="true"></div>
 
+  <!-- Curb-trash alarm: full-screen flashing red, Tue 4PM → Wed 7AM, until acknowledged. -->
+  <div id="trashalarm" aria-hidden="true">
+    <div class="ta-inner">
+      <div class="ta-icon">🗑️</div>
+      <div class="ta-text">TAKE OUT<br>TRASH&nbsp;TO&nbsp;CURB</div>
+      <div class="ta-sub">It’s trash night — wheel the bins out to the curb before pickup.</div>
+      <button id="trashAck" type="button">✓ &nbsp;Done — it’s at the curb</button>
+      <div class="ta-hint">or press <b>shift</b>&nbsp;+&nbsp;<b>T</b></div>
+    </div>
+  </div>
+
   <!-- Toasts -->
   <div id="toast" role="status"></div>
 

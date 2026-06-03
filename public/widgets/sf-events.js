@@ -1,128 +1,122 @@
-// Tonight in SF — what's happening in the city today, leaning toward the fun
-// stuff: parties, music, nightlife, tech meetups, art openings, festivals & food.
-// Source: keyless DataSF "Our415 Events & Activities" dataset (Socrata SODA API)
-// through the SSRF-safe proxy. Shows each event's time + location.
-//   https://data.sfgov.org/resource/8i3s-ih2a.json
-// (Aggregators like Luma/Eventbrite need API keys, so aren't usable keyless; DataSF
-//  is the reputable keyless civic feed. Per feedback we drop library/storytime and
-//  generic rec/sports entries and BOOST tech-meetup / party / music / arts events.)
-const RESOURCE = 'https://data.sfgov.org/resource/8i3s-ih2a.json';
+// Out in SF — real, upcoming, fun things to do around the city: parties, music,
+// art openings, festivals, free stuff, night markets, DJ sets. Source: Funcheap SF
+// ("Free & Cheap Things to Do in San Francisco"), a reputable keyless RSS feed,
+// fetched through the SSRF-safe proxy. The previous DataSF civic feed only ever
+// returned after-school programs / library storytime / parent-child playgroups —
+// nothing a hacker house would call "shit happening" — so we switched sources.
+//
+// Funcheap item titles look like:  "6/4/26: Chinatown Night Market (SF) - FREE"
+// We parse the leading M/D/YY date, the trailing price ("- FREE" / "- $20"), and a
+// trailing "(Neighborhood)" hint, then show the soonest few upcoming events.
+const FEED = 'https://feeds.feedburner.com/funcheapsf_recent_added_events/';
 
 const tidy = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-// Drop what the humans don't want here. This is a hacker house of 20-something
-// guys, so explicitly cut all parent/child/family/support-group programming
-// ("remove all this parent child bs grupo de apoyo"), plus library/storytime,
-// recurring drop-in sports / fitness / generic recreation and senior daycare —
-// none of which read as a "night out" for them.
-const SKIP = new RegExp(
-  '\\b(' + [
-    // parent / child / family / support-group (explicit feedback)
-    'parent', 'parenting', 'parents', 'child', 'children', 'childcare', 'kid', 'kids',
-    'famil(y|ies)', 'prenatal', 'pregnan(t|cy)', 'bab(y|ies)', 'infant', 'toddler',
-    'mother', 'mom', 'mommy', 'daddy', 'caregiver', 'playgroup', 'daycare', 'nanny',
-    'breastfeed\\w*', 'newborn', 'after\\s?school', 'youth', 'support\\s+group',
-    'grupo\\s+de\\s+apoyo', 'apoyo', 'crianza',
-    // library / storytime
-    'librar(y|ies)', 'story\\s?time', 'book\\s?club', 'bookmobile',
-    // sports / fitness / generic recreation
-    'sport', 'sports', 'athletic', 'fitness', 'recreation', 'drop[\\s-]?in',
-    'basketball', 'soccer', 'volleyball', 'pickleball', 'softball', 'baseball',
-    'tennis', 'workout', 'bootcamp', 'zumba', 'aerobics', 'gym',
-    // senior / daycare-style programs
-    'preschool', 'senior\\s+center', 'seniors?',
-  ].join('|') + ')\\b', 'i');
-
-// Boost the vibe the humans asked for: tech meetups, parties, music & nightlife,
-// art, festivals, food/drink, comedy. Matched against name + category + org.
-const BOOST = /\b(tech|startup|hackathon|meetup|demo\s?day|developer|coding|ai|web3|crypto|party|parties|nightlife|club|dj|dance|music|concert|live|band|festival|fest|art|gallery|opening|exhibit|comedy|improv|food|drink|beer|wine|cocktail|tasting|market|mixer|networking|social)\b/i;
-
-// "18:00:00" -> "6 PM" / "6:30 PM"
-function fmtT(t) {
-  const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
-  if (!m) return '';
-  let h = +m[1]; const mm = m[2]; const ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12;
-  return mm === '00' ? `${h} ${ap}` : `${h}:${mm} ${ap}`;
+// "6/4/26: Name (SF) - FREE" → { when:Date|null, name, place, price }
+function parseTitle(raw) {
+  let t = tidy(raw);
+  let when = null;
+  const dm = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}):\s*(.*)$/.exec(t);
+  if (dm) {
+    let [, mo, da, yr, rest] = dm;
+    yr = +yr; if (yr < 100) yr += 2000;
+    const d = new Date(yr, +mo - 1, +da);
+    if (!isNaN(d)) when = d;
+    t = rest;
+  }
+  // trailing price / FREE tag
+  let price = '';
+  const pm = /\s[-–—]\s*(FREE\b[^-–—]*|\$[\d.,]+(?:\s*[-–—]\s*\$?[\d.,]+)?\+?[^-–—]*)$/i.exec(t);
+  if (pm) { price = tidy(pm[1]).toUpperCase().startsWith('FREE') ? 'FREE' : tidy(pm[1]); t = t.slice(0, pm.index); }
+  // trailing "(Neighborhood / City)"
+  let place = '';
+  const lm = /\(([^()]{2,28})\)\s*$/.exec(tidy(t));
+  if (lm) { place = tidy(lm[1]); t = tidy(t).slice(0, lm.index); }
+  return { when, name: tidy(t).replace(/[\s:–-]+$/, ''), place, price };
 }
 
 export default {
   id: 'sf-events',
-  title: 'Tonight in SF',
+  title: 'Out in SF',
   icon: '🎉',
   size: 'tall',
   chrome: true,
   async mount(body, ctx) {
-    const { tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
       .sfe { display:flex; flex-direction:column; gap:12px; height:100%; }
-      .sfe-ev { flex:1; display:flex; flex-direction:column; justify-content:center;
+      .sfe-ev { flex:1; display:flex; gap:14px; align-items:flex-start;
         padding-bottom:11px; border-bottom:1px solid var(--stroke); }
       .sfe-ev:last-child { border-bottom:none; padding-bottom:0; }
+      .sfe-date { flex:0 0 auto; width:62px; text-align:center; line-height:1; padding-top:2px; }
+      .sfe-date .d { font-family:var(--font-display); font-weight:700; font-size:30px; color:var(--mint); }
+      .sfe-date .m { font-family:var(--font-mono); font-size:11px; letter-spacing:.12em; color:var(--ink-faint); margin-top:3px; }
+      .sfe-date.soon .d { font-size:17px; line-height:1.1; }
+      .sfe-main { flex:1; min-width:0; }
       .sfe-name { font-size:17px; font-weight:600; line-height:1.24; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .sfe-meta { margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-      .sfe-time { font-family:var(--font-mono); font-size:13px; color:var(--gold); white-space:nowrap; }
-      .sfe-cat { font-family:var(--font-mono); font-size:11px; letter-spacing:.03em;
-        color:var(--mint); background:rgba(120,247,176,.1); border:1px solid var(--stroke);
-        border-radius:999px; padding:2px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:62%; }
-      .sfe-addr { margin-top:4px; font-size:13px; color:var(--ink-faint);
-        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .sfe-place { font-size:13px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis;
+        white-space:nowrap; max-width:60%; }
+      .sfe-price { font-family:var(--font-mono); font-size:11px; letter-spacing:.04em; font-weight:600;
+        color:var(--gold); background:rgba(255,217,138,.1); border:1px solid var(--stroke);
+        border-radius:999px; padding:2px 9px; white-space:nowrap; }
+      .sfe-price.free { color:var(--mint); background:rgba(120,247,176,.12); }
     `);
     body.appendChild(ctx.loading('checking the city…'));
 
-    let day;
-    try {
-      day = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    } catch { day = new Date().toISOString().slice(0, 10); }
+    const startOfToday = (() => { const n = new Date(); n.setHours(0, 0, 0, 0); return n; })();
 
-    const where = `event_start_date <= '${day}T23:59:59' AND event_end_date >= '${day}T00:00:00'`;
-    const url = `${RESOURCE}`
-      + `?$select=event_name,events_category,org_name,site_location_name,site_address,analysis_neighborhood,start_time,end_time,event_start_date,event_end_date`
-      + `&$where=${where}`
-      + `&$order=event_start_date&$limit=120`;
+    const refresh = async () => {
+      const xml = await ctx.fetchText(FEED);
+      const doc = new DOMParser().parseFromString(xml, 'text/xml');
+      const items = Array.from(doc.querySelectorAll('item'));
+      const seen = new Set();
+      const evs = [];
+      for (const it of items) {
+        const parsed = parseTitle(it.querySelector('title')?.textContent || '');
+        if (!parsed.name) continue;
+        const key = parsed.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        evs.push(parsed);
+      }
+      // Prefer upcoming events (today onward), soonest first; undated go last.
+      const upcoming = evs.filter((e) => e.when && e.when >= startOfToday);
+      const pool = upcoming.length ? upcoming : evs;
+      pool.sort((a, b) => (a.when ? a.when.getTime() : Infinity) - (b.when ? b.when.getTime() : Infinity));
+      const picks = pool.slice(0, 4);
+      if (!picks.length) { body.replaceChildren(ctx.error('no events listed right now')); return; }
 
-    try {
-      const span = (r) => {
-        const a = Date.parse(r && r.event_start_date), b = Date.parse(r && r.event_end_date);
-        return (Number.isFinite(a) && Number.isFinite(b)) ? Math.max(0, b - a) : Infinity;
-      };
-      const hay = (r) => `${tidy(r && r.event_name)} ${tidy(r && r.events_category)} ${tidy(r && r.org_name)}`;
-      const refresh = async () => {
-        const rows = await ctx.fetchJSON(url);
-        const list = (Array.isArray(rows) ? rows : []).slice();
-        const seen = new Set(); const kept = [];
-        for (const r of list) {
-          const name = tidy(r && r.event_name);
-          if (!name) continue;
-          const text = hay(r);
-          if (SKIP.test(text)) continue; // drop library / sports / rec / kid-care
-          const k = name.toLowerCase();
-          if (seen.has(k)) continue;
-          seen.add(k); kept.push(r);
+      const dayMs = 864e5;
+      const rows = picks.map((e) => {
+        let dateEl;
+        if (e.when) {
+          const diff = Math.round((e.when - startOfToday) / dayMs);
+          if (diff <= 0) dateEl = ctx.h('div', { class: 'sfe-date soon' }, ctx.h('div', { class: 'd' }, 'Today'));
+          else if (diff === 1) dateEl = ctx.h('div', { class: 'sfe-date soon' }, ctx.h('div', { class: 'd' }, 'Tmrw'));
+          else dateEl = ctx.h('div', { class: 'sfe-date' },
+            ctx.h('div', { class: 'd' }, String(e.when.getDate())),
+            ctx.h('div', { class: 'm' }, MON[e.when.getMonth()]));
+        } else {
+          dateEl = ctx.h('div', { class: 'sfe-date soon' }, ctx.h('div', { class: 'd' }, 'Soon'));
         }
-        // Surface the fun stuff first (tech / parties / music / arts), then prefer
-        // one-off happenings over year-long standing programs.
-        kept.sort((a, b) => (BOOST.test(hay(b)) - BOOST.test(hay(a))) || (span(a) - span(b)));
-        const picks = kept.slice(0, 4);
-        if (!picks.length) { body.replaceChildren(ctx.error('no events listed for today')); return; }
+        const isFree = /^free$/i.test(e.price);
+        return ctx.h('div', { class: 'sfe-ev' },
+          dateEl,
+          ctx.h('div', { class: 'sfe-main' },
+            ctx.h('div', { class: 'sfe-name' }, e.name),
+            (e.place || e.price) ? ctx.h('div', { class: 'sfe-meta' },
+              e.place ? ctx.h('span', { class: 'sfe-place' }, `📍 ${e.place}`) : null,
+              e.price ? ctx.h('span', { class: `sfe-price ${isFree ? 'free' : ''}`.trim() }, e.price) : null) : null));
+      });
+      body.replaceChildren(ctx.h('div', { class: 'sfe' }, ...rows));
+    };
 
-        const rowsEl = picks.map((r) => {
-          const cat = tidy(r.events_category);
-          const s = fmtT(r.start_time), e = fmtT(r.end_time);
-          const time = s ? (e && e !== s ? `${s} – ${e}` : s) : 'All day';
-          const addr = tidy(r.site_address) || tidy(r.site_location_name) || tidy(r.analysis_neighborhood);
-          return ctx.h('div', { class: 'sfe-ev' },
-            ctx.h('div', { class: 'sfe-name' }, tidy(r.event_name)),
-            ctx.h('div', { class: 'sfe-meta' },
-              ctx.h('span', { class: 'sfe-time' }, `🕒 ${time}`),
-              cat ? ctx.h('span', { class: 'sfe-cat' }, cat) : null),
-            addr ? ctx.h('div', { class: 'sfe-addr' }, `📍 ${addr}`) : null);
-        });
-        body.replaceChildren(ctx.h('div', { class: 'sfe' }, ...rowsEl));
-      };
+    try {
       await refresh();
-      ctx.interval(() => refresh().catch(() => {}), 6 * 60 * 60 * 1000);
-    } catch (e) {
+      ctx.interval(() => refresh().catch(() => {}), 3 * 60 * 60 * 1000);
+    } catch {
       body.replaceChildren(ctx.error('events unavailable'));
     }
   },

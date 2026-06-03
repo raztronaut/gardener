@@ -288,7 +288,7 @@ function showHelp() {
       cmd('/help', 'show this panel'),
       cmd('/iterations', 'changelog of every tending so far'),
       cmd('/notes', 'the notes you’ve planted, awaiting tending'),
-      cmd('/trash', 'mark Tuesday’s “take trash out” done (or not)'),
+      cmd('shift + T', 'mark “take trash out” done (on trash day)'),
       cmd('/night', 'toggle the dark screen-saver veil'),
       cmd('/refresh', 'reload the garden now'),
       cmd('esc', 'close this panel'))));
@@ -320,6 +320,50 @@ async function toggleNight() {
   } catch { toast('Could not reach the gardener — try again'); }
 }
 
+// ---- Tuesday curb-trash alarm ----------------------------------------------
+// A full-screen flashing-red takeover from Tuesday 16:00 until Wednesday 07:00
+// (local SF time) that PERSISTS until someone acknowledges it. Acknowledgement
+// is stamped with the alarm's Tuesday date in localStorage, so it stays dismissed
+// for that week and re-arms automatically next Tuesday. (?alarmtest=1 forces it
+// on for QA.) Hidden in screenshot mode so QA captures the dashboard itself.
+const TRASH_ACK = 'garden.trashCurbAck';
+function tzNow(parts) {
+  const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  return new Intl.DateTimeFormat('en-US', { timeZone: tz, ...parts });
+}
+function alarmKey(now) {
+  const wd = tzNow({ weekday: 'short' }).format(now);
+  const hr = parseInt(tzNow({ hour: 'numeric', hour12: false }).format(now), 10);
+  const dayOf = (d) => new Intl.DateTimeFormat('en-CA', {
+    timeZone: (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d);
+  if (wd === 'Tue' && hr >= 16) return dayOf(now);                       // Tue evening
+  if (wd === 'Wed' && hr < 7) return dayOf(new Date(now.getTime() - 864e5)); // before Wed 7AM → yesterday (Tue)
+  return null;
+}
+function refreshTrashAlarm() {
+  const el = document.getElementById('trashalarm');
+  if (!el) return;
+  const key = qs.has('alarmtest') ? 'test' : alarmKey(new Date());
+  let acked = false;
+  try { acked = !!key && localStorage.getItem(TRASH_ACK) === key; } catch { /* ignore */ }
+  const show = !!key && !acked && !SCREENSHOT;
+  el._key = key;
+  el.classList.toggle('on', show);
+  el.setAttribute('aria-hidden', show ? 'false' : 'true');
+}
+function wireTrashAlarm() {
+  document.getElementById('trashAck')?.addEventListener('click', () => {
+    const el = document.getElementById('trashalarm');
+    try { if (el && el._key) localStorage.setItem(TRASH_ACK, el._key); } catch { /* ignore */ }
+    refreshTrashAlarm();
+    toast('Thanks — trash acknowledged 🗑');
+  });
+  refreshTrashAlarm();
+  setInterval(refreshTrashAlarm, 30000);
+}
+
 // ---- feedback bar -----------------------------------------------------------
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
@@ -332,6 +376,15 @@ function wireFeedback() {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
     if (panelOpen() || e.ctrlKey || e.metaKey || e.altKey) return;
+    // Shift+T → trash shortcut. Only fires when the note field is empty, so a
+    // capital T typed mid-note never toggles it (the requested no-typing-conflict).
+    if (e.shiftKey && (e.key === 'T' || e.key === 't') && input.value.trim() === '') {
+      e.preventDefault();
+      const alarm = document.getElementById('trashalarm');
+      if (alarm && alarm.classList.contains('on')) { document.getElementById('trashAck')?.click(); }
+      else { window.dispatchEvent(new CustomEvent('garden:trash-toggle')); toast('Trash reminder toggled 🗑  (shift+T)'); }
+      return;
+    }
     if (document.activeElement !== input && e.key.length === 1) focusInput();
   }, true);
   // Refocus if the field ever loses focus (kiosk: always ready to type).
@@ -356,10 +409,6 @@ function wireFeedback() {
       if (cmd === 'help' || cmd === '?') return showHelp();
       if (cmd === 'notes' || cmd === 'planted') return showNotes();
       if (cmd === 'night' || cmd === 'sleep' || cmd === 'dim') return toggleNight();
-      if (cmd === 'trash' || cmd === 'bins' || cmd === 'garbage') {
-        window.dispatchEvent(new CustomEvent('garden:trash-toggle'));
-        return toast('Trash reminder toggled 🗑');
-      }
       if (cmd === 'refresh' || cmd === 'reload') { toast('Refreshing the garden…'); return setTimeout(() => location.reload(), 250); }
       toast(`Unknown command "/${cmd}" — try /help`);
       return;
@@ -398,5 +447,6 @@ function wireCursor() {
 
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();
+wireTrashAlarm();
 wireCursor();
 boot();
