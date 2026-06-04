@@ -151,7 +151,15 @@ export default {
             plot,
             ctx.h('div', { class: 'wx-axis' }, ...axis))));
       };
-      await refresh();
+      // Initial load: a few attempts so one slow/aborted response doesn't blank
+      // the widget for a whole refresh cycle.
+      let loaded = false;
+      for (let attempt = 1; attempt <= 3 && !loaded; attempt++) {
+        try { await refresh(); loaded = true; }
+        catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 2500)); }
+      }
+      if (!loaded) body.replaceChildren(ctx.error('weather unavailable — retrying…'));
+      // Steady refresh; on failure KEEP the last good reading (don't blank).
       ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
     } catch (e) {
       body.replaceChildren(ctx.error('weather unavailable'));

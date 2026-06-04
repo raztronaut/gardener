@@ -119,23 +119,25 @@ async function handleProxy(req, res, u) {
   try {
     for (let hop = 0; hop < 4; hop++) {
       const valid = await validateTarget(current, allow);
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 9000);
+      // Referer = the target's own origin (most innocuous value; some keyless
+      // endpoints reject requests lacking a same-origin Referer). Safe + generic.
+      const HDRS = {
+        'User-Agent': 'TheGardener/2.0 (+local ambient dashboard)',
+        'Accept': 'application/json, text/*;q=0.9, */*;q=0.5',
+        'Referer': `${valid.origin}/`,
+      };
+      // One 11s attempt + a retry on a transient blip (abort/connection reset).
+      // Public APIs from this Jetson occasionally stall past a tight timeout,
+      // which would otherwise blank a widget for a whole refresh cycle.
+      const tryFetch = async () => {
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 11000);
+        try { return await fetch(valid.toString(), { redirect: 'manual', signal: ac.signal, headers: HDRS }); }
+        finally { clearTimeout(timer); }
+      };
       let r;
-      try {
-        r = await fetch(valid.toString(), {
-          redirect: 'manual', signal: ac.signal,
-          // Referer is set to the target's own origin: the most innocuous value
-          // possible (what an in-site navigation would send). Some keyless
-          // endpoints (e.g. pollen.com) reject requests lacking a same-origin
-          // Referer with 405; reputable APIs ignore it. Safe + generic.
-          headers: {
-            'User-Agent': 'TheGardener/2.0 (+local ambient dashboard)',
-            'Accept': 'application/json, text/*;q=0.9, */*;q=0.5',
-            'Referer': `${valid.origin}/`,
-          },
-        });
-      } finally { clearTimeout(timer); }
+      try { r = await tryFetch(); }
+      catch (e1) { await new Promise((res) => setTimeout(res, 500)); r = await tryFetch(); }
       if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
         current = new URL(r.headers.get('location'), valid).toString();
         continue; // re-validate next hop against allowlist

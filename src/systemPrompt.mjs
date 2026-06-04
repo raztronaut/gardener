@@ -74,6 +74,9 @@ export default {
 Rules for widgets:
 - Always render LOADING, then real data — and a graceful ERROR/EMPTY state if the API fails.
   An API being down must never blank the widget or throw.
+- BE RESILIENT to flaky networks (public APIs stall sometimes): retry the INITIAL load 2-3× with a
+  short backoff before showing an error, and on a PERIODIC refresh, KEEP the last good data if the
+  fetch fails (do the fetch BEFORE replacing the DOM, so a failure leaves the previous render intact).
 - Use \`ctx.fetchJSON\` (proxy) for external data; add the host to proxy-allowlist.json first.
 - Use the CSS variables and the glass aesthetic so widgets feel native to the garden.
 - Keep each widget independent: one file, its own \`ctx.style\`, no globals, no cross-widget coupling.

@@ -56,7 +56,7 @@ function makeCtx(widgetId) {
     h,
     proxyUrl: (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
     // Fetch JSON through the SSRF-safe backend proxy by default.
-    async fetchJSON(url, { viaProxy = true, timeout = 12000 } = {}) {
+    async fetchJSON(url, { viaProxy = true, timeout = 24000 } = {}) {
       const target = viaProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
       const ac = new AbortController();
       const t = setTimeout(() => ac.abort(), timeout);
@@ -66,7 +66,7 @@ function makeCtx(widgetId) {
         return await r.json();
       } finally { clearTimeout(t); }
     },
-    async fetchText(url, { viaProxy = true, timeout = 12000 } = {}) {
+    async fetchText(url, { viaProxy = true, timeout = 24000 } = {}) {
       const target = viaProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
       const ac = new AbortController();
       const t = setTimeout(() => ac.abort(), timeout);
