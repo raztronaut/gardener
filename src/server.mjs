@@ -156,6 +156,39 @@ async function handleProxy(req, res, u) {
   }
 }
 
+// ---- ngrok tunnel auto-detection -------------------------------------------
+// The "Plant a Note" QR must encode a PUBLIC url so phones off the LAN can reach
+// it — a localhost/LAN address is useless on a phone. If GARDENER_PUBLIC_URL is
+// set it always wins; otherwise we auto-discover a running ngrok tunnel via its
+// local agent API (127.0.0.1:4040) and use that https public_url. So the human
+// just runs `ngrok http 8787` and the QR starts working — no config edits, and it
+// keeps up with ngrok's rotating free-tier URLs. Detection is best-effort: any
+// failure leaves the url empty and the widget falls back gracefully.
+let ngrokUrl = '';
+async function detectNgrok() {
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 1500);
+    let data;
+    try {
+      const r = await fetch('http://127.0.0.1:4040/api/tunnels', { signal: ac.signal });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      data = await r.json();
+    } finally { clearTimeout(timer); }
+    const tunnels = (data && data.tunnels) || [];
+    // Prefer an https tunnel; fall back to any public_url present.
+    const https = tunnels.find((t) => /^https:/.test(t.public_url || ''));
+    const next = (https || tunnels[0] || {}).public_url || '';
+    if (next !== ngrokUrl) { ngrokUrl = next; if (next) log(`ngrok tunnel detected: ${next}`); }
+  } catch { /* no agent running / unreachable → leave ngrokUrl as-is unless it was set */ }
+}
+// Poll only when no explicit public URL is configured (env override is static).
+if (!config.publicUrl && !process.env.GARDENER_NO_RECOVER) {
+  detectNgrok();
+  setInterval(detectNgrok, 30000).unref?.();
+}
+function publicUrlNow() { return config.publicUrl || ngrokUrl || ''; }
+
 // ---- API --------------------------------------------------------------------
 function stateObject() {
   const it = latestIteration();
@@ -163,7 +196,7 @@ function stateObject() {
     version: getUiVersion(),
     night: getNight(),
     location: config.location,
-    publicUrl: config.publicUrl,
+    publicUrl: publicUrlNow(),
     canvas: { w: config.width, h: config.height },
     now: new Date().toISOString(),
     tz: config.tz,
