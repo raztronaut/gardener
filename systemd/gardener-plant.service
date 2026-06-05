@@ -1,0 +1,13 @@
+[Unit]
+Description=The Gardener — public note-planting server (the only tunnel-exposed surface)
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/home/talbot/gardener/scripts/gardener.sh plant
+Restart=always
+RestartSec=3
+MemoryHigh=128M
+
+[Install]
+WantedBy=default.target

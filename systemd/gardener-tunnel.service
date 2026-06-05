@@ -1,0 +1,14 @@
+[Unit]
+Description=The Gardener — cloudflared quick tunnel for remote note-planting (no account needed)
+After=gardener-plant.service
+Wants=gardener-plant.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/home/talbot/gardener/scripts/gardener.sh tunnel
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

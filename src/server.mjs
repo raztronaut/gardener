@@ -189,7 +189,15 @@ if (!config.publicUrl && !process.env.GARDENER_NO_RECOVER) {
   detectNgrok();
   setInterval(detectNgrok, 30000).unref?.();
 }
-function publicUrlNow() { return config.publicUrl || ngrokUrl || ''; }
+function publicUrlNow() {
+  if (config.publicUrl) return config.publicUrl;      // explicit env override wins
+  if (ngrokUrl) return ngrokUrl;                      // ngrok agent, if running
+  try {                                               // cloudflared quick-tunnel URL (written by gardener.sh tunnel)
+    const u = readFileSync(join(paths.DATA, 'public-url.txt'), 'utf8').trim();
+    if (/^https?:\/\//.test(u)) return u;
+  } catch { /* no tunnel file → none */ }
+  return '';
+}
 
 // ---- API --------------------------------------------------------------------
 function stateObject() {

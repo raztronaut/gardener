@@ -31,6 +31,20 @@ case "$cmd" in
   day)     exec node src/display.mjs day ;;
   night)   exec node src/display.mjs night ;;
   sync)    exec node src/display.mjs sync ;;
+  plant)   exec node src/plant-server.mjs ;;   # locked-down PUBLIC surface (note page + feedback only)
+  tunnel)
+    # Open a free cloudflared quick tunnel (no account/token) to the PLANT server
+    # only, and write the rotating public URL where the backend picks it up.
+    CF="$HOME/.local/bin/cloudflared"
+    URLFILE="$ROOT/data/public-url.txt"
+    PP="$(grep -E '^GARDENER_PLANT_PORT=' .env 2>/dev/null | cut -d= -f2 || true)"; PP="${PP:-8788}"
+    : > "$URLFILE"   # clear any stale URL while the tunnel is establishing
+    for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$PP/" >/dev/null 2>&1 && break; sleep 1; done
+    "$CF" tunnel --no-autoupdate --url "http://localhost:$PP" 2>&1 | while IFS= read -r line; do
+      printf '%s\n' "$line"
+      u="$(printf '%s' "$line" | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | head -1)"
+      [ -n "$u" ] && printf '%s\n' "$u" > "$URLFILE"
+    done ;;
   kiosk)
     mkdir -p "$HOME/.surf/styles" 2>/dev/null || true
     : > "$HOME/.surf/styles/default.css" 2>/dev/null || true   # silence optional-stylesheet warning
@@ -52,5 +66,5 @@ case "$cmd" in
     # so the dashboard can use Esc; fall back to the system surf otherwise.
     SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
     exec "$SURF" -F "http://127.0.0.1:$PORT" ;;
-  *) echo "usage: gardener.sh {server|iterate|day|night|sync|kiosk}"; exit 2 ;;
+  *) echo "usage: gardener.sh {server|iterate|day|night|sync|plant|tunnel|kiosk}"; exit 2 ;;
 esac

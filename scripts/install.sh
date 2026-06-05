@@ -14,6 +14,8 @@ systemctl --user daemon-reload
 
 # Always-on services
 systemctl --user enable --now gardener-backend.service
+systemctl --user enable --now gardener-plant.service || true     # public note page (tunnel target)
+systemctl --user enable --now gardener-tunnel.service || true    # cloudflared quick tunnel
 systemctl --user enable --now gardener-display-sync.service || true
 systemctl --user enable --now gardener-kiosk.service || true
 
