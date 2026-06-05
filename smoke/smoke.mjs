@@ -110,6 +110,16 @@ async function main() {
     // empty feedback rejected
     try { const r = await fetch(`${BASE}/api/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"text":"  "}' }); check('rejects empty feedback', r.status === 400); }
     catch (e) { bad('rejects empty feedback', e.message); }
+    // a pending note can be deleted (pruned before tending), then it's gone
+    try {
+      const created = await (await fetch(`${BASE}/api/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'smoke-del-' + Date.now() }) })).json();
+      const del = await fetch(`${BASE}/api/feedback?id=${created.id}`, { method: 'DELETE' });
+      check('DELETE /api/feedback removes a pending note', del.ok);
+      const after = await (await fetch(`${BASE}/api/feedback?limit=50`)).json();
+      check('deleted note no longer listed', !after.feedback.some((f) => f.id === created.id));
+      const del404 = await fetch(`${BASE}/api/feedback?id=${created.id}`, { method: 'DELETE' });
+      check('DELETE of unknown note 404s', del404.status === 404);
+    } catch (e) { bad('feedback delete round-trip', e.message); }
 
     // 6) Proxy SSRF guards (no real network needed)
     console.log('\n[6] proxy SSRF guards');

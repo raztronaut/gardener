@@ -1,0 +1,9 @@
+[Unit]
+Description=The Gardener — evening dim (screen on, brightness 50%, no overlay)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+Environment=DISPLAY=:0
+ExecStart=/home/talbot/gardener/scripts/gardener.sh evening

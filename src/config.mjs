@@ -55,6 +55,10 @@ export const config = {
   // Night window (local PT hours): screen sleeps at NIGHT_START, wakes at DAY_START.
   nightStartHour: num(E.GARDENER_NIGHT_START, 0), // 00:00
   dayStartHour: num(E.GARDENER_DAY_START, 7), // 07:00
+  // Evening dim window: from EVENING_START until NIGHT_START the panel runs at
+  // half brightness (the 9PM "wind-down"). Day = 100%, evening = 50%, night = 0%.
+  eveningStartHour: num(E.GARDENER_EVENING_START, 21), // 21:00
+  eveningBrightness: num(E.GARDENER_EVENING_BRIGHTNESS, 0.5),
   iterateHour: num(E.GARDENER_ITERATE_HOUR, 6), // 06:00
 };
 
@@ -95,4 +99,13 @@ export function isNightNow(date = new Date()) {
   const h = ptHour(date);
   const { nightStartHour: a, dayStartHour: b } = config;
   return a <= b ? h >= a && h < b : h >= a || h < b; // handles wrap-around
+}
+
+// True during the evening dim window: from eveningStartHour until night begins
+// (and not already night). E.g. 21:00 ≤ h < 24 with night starting at 00:00.
+export function isEveningNow(date = new Date()) {
+  if (isNightNow(date)) return false;
+  const h = ptHour(date);
+  const { eveningStartHour: e, nightStartHour: n } = config;
+  return e <= n ? (h >= e && h < n) : (h >= e || h < n);
 }

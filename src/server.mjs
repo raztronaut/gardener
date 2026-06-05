@@ -9,7 +9,7 @@ import { BlockList, isIP } from 'node:net';
 import { join, normalize, extname, resolve } from 'node:path';
 import { config, paths } from './config.mjs';
 import {
-  addFeedback, getRecentFeedback, countPendingFeedback,
+  addFeedback, getRecentFeedback, countPendingFeedback, deletePendingFeedback,
   getUiVersion, getNight, setNight, latestIteration,
   recentIterations, latestCommitted,
 } from './db.mjs';
@@ -248,6 +248,14 @@ const server = http.createServer(async (req, res) => {
       if (!text) return json(res, 400, { error: 'empty feedback' });
       const id = addFeedback(text, 'ui');
       log(`feedback #${id}: ${text.slice(0, 120)}`);
+      return json(res, 200, { ok: true, id });
+    }
+    if (req.method === 'DELETE' && p === '/api/feedback') {
+      const id = parseInt(u.searchParams.get('id') || '', 10);
+      if (!id) return json(res, 400, { error: 'missing id' });
+      const removed = deletePendingFeedback(id);
+      if (!removed) return json(res, 404, { error: 'not found or already grown in' });
+      log(`feedback #${id} deleted (pruned before tending)`);
       return json(res, 200, { ok: true, id });
     }
     if (req.method === 'GET' && p === '/api/night') return json(res, 200, { night: getNight() });

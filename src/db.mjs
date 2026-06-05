@@ -83,6 +83,11 @@ const _pending = db.prepare('SELECT id, ts, text, source FROM feedback WHERE con
 export function getPendingFeedback() { return _pending.all(); }
 const _recent = db.prepare('SELECT id, ts, text, source, consumed_by FROM feedback ORDER BY ts DESC LIMIT ?');
 export function getRecentFeedback(limit = 25) { return _recent.all(limit); }
+// Delete a still-pending note (the human can prune notes before they're tended).
+// Only ever removes PENDING feedback — once a note has been grown into the garden
+// (consumed_by set) it's part of history and stays.
+const _deletePending = db.prepare('DELETE FROM feedback WHERE id = ? AND consumed_by IS NULL');
+export function deletePendingFeedback(id) { return _deletePending.run(id).changes; }
 const _consume = db.prepare('UPDATE feedback SET consumed_by = ? WHERE consumed_by IS NULL');
 export function consumePendingFeedback(iterationId) { return _consume.run(iterationId).changes; }
 // Consume ONLY the specific feedback ids the agent actually saw, so feedback

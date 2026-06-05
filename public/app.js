@@ -286,8 +286,10 @@ function showHelp() {
     h('p', { class: 'help-lead' }, 'Just start typing to leave a note; it gets grown into the garden at the next tending (tomorrow morning).'),
     h('div', { class: 'help-cmds' },
       cmd('/help', 'show this panel'),
+      cmd('/events  ·  /e', 'full-screen list of upcoming SF events (↑ ↓ to scroll)'),
+      cmd('/architecture', 'how the gardener works & iterates'),
       cmd('/iterations', 'changelog of every tending so far'),
-      cmd('/notes', 'the notes you’ve planted, awaiting tending'),
+      cmd('/notes', 'notes you’ve planted — and delete any before tending'),
       cmd('shift + T', 'mark “take trash out” done (on trash day)'),
       cmd('/night', 'toggle the dark screen-saver veil'),
       cmd('/refresh', 'reload the garden now'),
@@ -295,18 +297,89 @@ function showHelp() {
 }
 
 // Show the feedback the humans have planted (pending vs already grown in).
+// Pending notes can be DELETED here (pruned before the next tending); notes already
+// grown into the garden are history and have no delete control.
 async function showNotes() {
   let data = { feedback: [] };
   try { data = await (await fetch('/api/feedback?limit=14', { cache: 'no-store' })).json(); } catch { /* offline */ }
   const list = data.feedback || [];
   const rows = list.length
-    ? list.map((f) => h('div', { class: 'cl-row' },
-        h('div', { class: 'cl-id' }, f.consumed_by == null ? '🌱' : '🌿'),
-        h('div', { class: 'cl-main' },
-          h('div', { class: 'cl-phrase' }, f.text),
-          h('div', { class: 'cl-meta' }, `${fmtWhen(f.ts)} · ${f.consumed_by == null ? 'awaiting next tending' : 'grown in'}`))))
+    ? list.map((f) => {
+        const pending = f.consumed_by == null;
+        const del = pending
+          ? h('button', { class: 'note-del', type: 'button', title: 'delete this note',
+              onClick: async (e) => {
+                e.stopPropagation();
+                const btn = e.currentTarget; btn.disabled = true;
+                try {
+                  const r = await fetch(`/api/feedback?id=${f.id}`, { method: 'DELETE' });
+                  if (!r.ok) throw new Error('HTTP ' + r.status);
+                  toast('Note deleted 🥀'); showNotes();
+                } catch { btn.disabled = false; toast('Could not delete — try again'); }
+              } }, '🗑')
+          : null;
+        return h('div', { class: 'cl-row' },
+          h('div', { class: 'cl-id' }, pending ? '🌱' : '🌿'),
+          h('div', { class: 'cl-main' },
+            h('div', { class: 'cl-phrase' }, f.text),
+            h('div', { class: 'cl-meta' }, `${fmtWhen(f.ts)} · ${pending ? 'awaiting next tending' : 'grown in'}`)),
+          del);
+      })
     : [h('div', { class: 'cl-empty' }, 'No notes yet — just start typing to plant one.')];
-  openPanel('Planted notes — what you’ve asked the gardener to grow', h('div', { class: 'cl' }, ...rows));
+  openPanel('Planted notes — delete any you’ve changed your mind about', h('div', { class: 'cl' }, ...rows));
+}
+
+// Full-screen, scrollable list of ALL upcoming SF events (the /events · /e command).
+// Arrow keys / PageUp-Down / Home-End scroll the list; Esc returns to the dashboard.
+async function showEvents() {
+  openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'checking the city…')));
+  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
+  const fetchJSON = (url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  let evs = [];
+  try {
+    const lib = await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`);
+    evs = await lib.fetchEvents(fetchJSON, { limit: 80 });
+  } catch {
+    return openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'Events are unavailable right now — try again shortly.')));
+  }
+  if (!evs.length) {
+    return openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No upcoming events listed right now.')));
+  }
+  const rows = evs.map((e) => {
+    let when = 'Soon';
+    if (e.when) {
+      when = `${dayFmt.format(e.when)} ${MON[e.when.getMonth()]} ${e.when.getDate()} · ${timeFmt.format(e.when).replace(' ', '')}`;
+    }
+    return h('div', { class: 'cl-row ev-row' },
+      h('div', { class: 'ev-when' }, when),
+      h('div', { class: 'cl-main' },
+        h('div', { class: 'cl-phrase' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
+        e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null));
+  });
+  openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl' }, ...rows));
+}
+
+// A simple diagram of how the gardener works, iterates, and displays things
+// (the /architecture command). Static HTML/SVG — idle-friendly.
+function showArchitecture() {
+  const step = (n, icon, title, desc) => h('div', { class: 'arch-step' },
+    h('div', { class: 'arch-num' }, icon),
+    h('div', {},
+      h('div', { class: 'arch-st' }, `${n}. ${title}`),
+      h('div', { class: 'arch-sd' }, desc)),
+    h('div', { class: 'arch-arrow' }, '↓'));
+  openPanel('How the gardener works', h('div', { class: 'arch' },
+    h('p', { class: 'help-lead' }, 'This wall display tends itself. A loop runs once a day — reading your notes and growing the garden, one careful tending at a time.'),
+    h('div', { class: 'arch-flow' },
+      step(1, '🌱', 'You plant notes', 'Type anywhere on screen, or scan the QR to add notes from your phone. They wait in a durable SQLite store.'),
+      step(2, '🌅', 'Daily tending wakes (6 AM)', 'A systemd timer launches the gardener — an autonomous Claude agent with full file + shell access to this project.'),
+      step(3, '🛠', 'It builds & rebalances', 'The agent reads the notes, then adds, refines, or removes vanilla-JS widgets and re-tunes the 900×1600 layout.'),
+      step(4, '✅', 'Smoke + visual review', 'It must leave `npm run smoke` green; then a vision model critiques a headless 9:16 screenshot. Failures loop back to step 3.'),
+      step(5, '🌿', 'Commit & live-reload', 'Only a green, reviewed tree is committed. The version bumps and every screen reloads itself into the new garden.')),
+    h('p', { class: 'arch-foot' }, 'Backend: Node + SQLite serving static widgets through an SSRF-safe, allowlisted proxy. No build step, no frameworks — by design.')));
 }
 
 // Toggle the night veil (dim the wall display) — acts immediately.
@@ -364,6 +437,45 @@ function wireTrashAlarm() {
   setInterval(refreshTrashAlarm, 30000);
 }
 
+// ---- street-cleaning car alarm ---------------------------------------------
+// Move-your-car reminder for street sweeping: the 1st & 3rd Monday AND Wednesday of
+// every month, from 11:00 until 13:00 (PT). Full-screen persistent takeover until
+// acknowledged (else: a ticket). Ack is stamped with the day's date in localStorage,
+// so it stays dismissed that day and re-arms automatically next sweep day.
+// (?streettest=1 forces it on for QA.) Hidden in screenshot mode.
+const STREET_ACK = 'garden.streetCarAck';
+function streetKey(now) {
+  const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  const wd = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now);
+  const hr = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false }).format(now), 10);
+  const dom = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, day: 'numeric' }).format(now), 10);
+  const nth = Math.ceil(dom / 7); // 1st..5th occurrence of this weekday in the month
+  const isSweepDay = (wd === 'Mon' || wd === 'Wed') && (nth === 1 || nth === 3);
+  if (!isSweepDay || hr < 11 || hr >= 13) return null;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}
+function refreshStreetAlarm() {
+  const el = document.getElementById('streetalarm');
+  if (!el) return;
+  const key = qs.has('streettest') ? 'test' : streetKey(new Date());
+  let acked = false;
+  try { acked = !!key && localStorage.getItem(STREET_ACK) === key; } catch { /* ignore */ }
+  const show = !!key && !acked && !SCREENSHOT;
+  el._key = key;
+  el.classList.toggle('on', show);
+  el.setAttribute('aria-hidden', show ? 'false' : 'true');
+}
+function wireStreetAlarm() {
+  document.getElementById('streetAck')?.addEventListener('click', () => {
+    const el = document.getElementById('streetalarm');
+    try { if (el && el._key) localStorage.setItem(STREET_ACK, el._key); } catch { /* ignore */ }
+    refreshStreetAlarm();
+    toast('Thanks — car moved 🚗');
+  });
+  refreshStreetAlarm();
+  setInterval(refreshStreetAlarm, 30000);
+}
+
 // ---- feedback bar -----------------------------------------------------------
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
@@ -375,7 +487,17 @@ function wireFeedback() {
   // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
-    if (panelOpen() || e.ctrlKey || e.metaKey || e.altKey) return;
+    // While a panel (e.g. /events) is open, arrows / page / home-end scroll its body.
+    if (panelOpen()) {
+      const sb = document.getElementById('panelBody');
+      if (!sb) return;
+      const step = 64, page = sb.clientHeight - 60;
+      const moves = { ArrowDown: step, ArrowUp: -step, PageDown: page, PageUp: -page,
+        Home: -1e9, End: 1e9, ' ': page };
+      if (e.key in moves) { e.preventDefault(); sb.scrollBy({ top: moves[e.key], behavior: 'smooth' }); }
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     // Shift+T → trash shortcut. Only fires when the note field is empty, so a
     // capital T typed mid-note never toggles it (the requested no-typing-conflict).
     if (e.shiftKey && (e.key === 'T' || e.key === 't') && input.value.trim() === '') {
@@ -408,6 +530,8 @@ function wireFeedback() {
       if (cmd === 'iterations' || cmd === 'changelog') return showIterations();
       if (cmd === 'help' || cmd === '?') return showHelp();
       if (cmd === 'notes' || cmd === 'planted') return showNotes();
+      if (cmd === 'events' || cmd === 'e') return showEvents();
+      if (cmd === 'architecture' || cmd === 'arch') return showArchitecture();
       if (cmd === 'night' || cmd === 'sleep' || cmd === 'dim') return toggleNight();
       if (cmd === 'refresh' || cmd === 'reload') { toast('Refreshing the garden…'); return setTimeout(() => location.reload(), 250); }
       toast(`Unknown command "/${cmd}" — try /help`);
@@ -448,5 +572,6 @@ function wireCursor() {
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();
 wireTrashAlarm();
+wireStreetAlarm();
 wireCursor();
 boot();

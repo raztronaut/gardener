@@ -8,6 +8,7 @@
     { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 5 },
     { "id": "qr-notes", "file": "qr-notes.js", "enabled": true, "order": 6 },
     { "id": "house-intervention", "file": "house-intervention.js", "enabled": true, "order": 7 },
-    { "id": "on-this-day", "file": "on-this-day.js", "enabled": true, "order": 8 }
+    { "id": "colyap", "file": "colyap.js", "enabled": true, "order": 8 },
+    { "id": "on-this-day", "file": "on-this-day.js", "enabled": false, "order": 9 }
   ]
 }

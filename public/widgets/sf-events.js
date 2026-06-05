@@ -1,45 +1,8 @@
 // Out in SF — real, upcoming things to do around the city, sourced from SF RATS
-// (sfrats.com): "a working field guide to free events around the Bay Area, posted
-// by neighbors and curated by AI." Honors the note: "for the events in sf, search
-// the sfrats api and use that."
-//
-// SF RATS is a Supabase-backed app; its public PostgREST endpoint is keyless (the
-// anon key ships in the site's own JS bundle) and fully CORS-open. We fetch the
-// "Events" category, upcoming-only, soonest-first, through the SSRF-safe proxy.
-// The anon key is passed as the `apikey` query param (Supabase's gateway accepts
-// it there), so no custom headers are needed.
-const SUPA = 'https://uflkltmvzvhziysheccd.supabase.co/rest/v1/items';
-// Public anon key, role "anon" — published in sfrats.com's client bundle. Not a secret.
-const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmbGtsdG12enZoeml5c2hlY2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMTEzNTYsImV4cCI6MjA5Mzg4NzM1Nn0.4rnQa5rCJNzmnfzjUg0B-ecJ-dxCnJamrA9tu8eiBWU';
-const TZ = 'America/Los_Angeles';
-const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-const tidy = (s) => String(s || '').trim().replace(/\s+/g, ' ');
-
-// Titles from scraped sources look like "6/20/26: Name (Venue) - FREE". The real
-// date lives in available_from, so strip the leading date prefix and trailing price
-// tag, leaving a clean human name. Native titles (e.g. "OpenClaw @ GitHub") pass
-// through untouched.
-function cleanName(raw) {
-  let t = tidy(raw);
-  t = t.replace(/^\d{1,2}\/\d{1,2}\/\d{2,4}:\s*/, '');
-  t = t.replace(/\s[-–—]\s*(FREE\b.*|\$[\d.,].*)$/i, '');
-  return tidy(t).replace(/[\s:–-]+$/, '');
-}
-
-// Trim the location to the neighborhood: drop generic ", San Francisco[, CA]" tails.
-function cleanPlace(raw) {
-  let t = tidy(raw);
-  if (/^san francisco(,?\s*ca)?$/i.test(t)) return '';
-  t = t.replace(/,?\s*san francisco(,?\s*ca)?\.?$/i, '');
-  return tidy(t);
-}
-
-// "today" in SF as YYYY-MM-DD, for the available_from filter.
-function sfToday() {
-  const p = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  return p;
-}
+// (sfrats.com). Shows the next few events on the dashboard; the full, scrollable
+// list lives behind the /events (or /e) command. Data sourcing, cleaning, de-duping
+// and PAST-EVENT PRUNING all live in /lib/events.js so the card and the modal agree.
+import { fetchEvents, TZ, MON } from '/lib/events.js';
 
 export default {
   id: 'sf-events',
@@ -74,35 +37,9 @@ export default {
     const dayMs = 864e5;
     const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
 
-    const refresh = async () => {
-      const params = new URLSearchParams({
-        select: 'id,title,location_address,available_from,emoji',
-        category: 'eq.Events',
-        available_from: `gte.${sfToday()}`,
-        order: 'available_from.asc',
-        limit: '40',
-        apikey: ANON,
-      });
-      const rows = await ctx.fetchJSON(`${SUPA}?${params.toString()}`);
-      if (!Array.isArray(rows)) { body.replaceChildren(ctx.error('events unavailable')); return; }
-
-      // Dedup near-identical listings (the feed often has "X with Y", "X w/ Y",
-      // "X w/ Y at Venue" as separate rows). Collapse on a normalized prefix.
-      const dedupKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
-      const seen = new Set();
-      const evs = [];
-      for (const r of rows) {
-        const name = cleanName(r.title);
-        if (!name || /^__SCRAPER_RUN__/.test(r.title || '')) continue;
-        const key = dedupKey(name);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const when = r.available_from ? new Date(r.available_from) : null;
-        evs.push({ name, when: when && !isNaN(when) ? when : null, place: cleanPlace(r.location_address), emoji: tidy(r.emoji) });
-      }
+    const render = (evs) => {
       const picks = evs.slice(0, 4);
-      if (!picks.length) { body.replaceChildren(ctx.error('no events listed right now')); return; }
-
+      if (!picks.length) { body.replaceChildren(ctx.error('no upcoming events right now')); return; }
       const els = picks.map((e) => {
         let dateEl;
         if (e.when) {
@@ -129,11 +66,17 @@ export default {
       body.replaceChildren(ctx.h('div', { class: 'sfe' }, ...els));
     };
 
-    try {
-      await refresh();
-      ctx.interval(() => refresh().catch(() => {}), 3 * 60 * 60 * 1000);
-    } catch {
-      body.replaceChildren(ctx.error('events unavailable'));
+    // Fetch BEFORE touching the DOM so a failed refresh keeps the last good render.
+    const refresh = async () => { const evs = await fetchEvents(ctx.fetchJSON); render(evs); };
+
+    // Retry the initial load a few times before showing an error (flaky networks).
+    let ok = false;
+    for (let i = 0; i < 3 && !ok; i++) {
+      try { await refresh(); ok = true; }
+      catch { await new Promise((r) => setTimeout(r, 600 * (i + 1))); }
     }
+    if (!ok) body.replaceChildren(ctx.error('events unavailable'));
+    // Refresh every 15 min so events that have already passed drop off the list.
+    ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
   },
 };

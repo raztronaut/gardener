@@ -38,10 +38,6 @@
       </div>
       <div class="topright">
         <span class="iter-badge" id="iterBadge" title="tendings so far">❀&nbsp;—</span>
-        <div class="status" id="status" title="garden status">
-          <span class="dot" id="statusDot"></span>
-          <span id="statusText">live</span>
-        </div>
       </div>
     </header>
 
@@ -81,6 +77,17 @@
       <div class="ta-sub">It’s trash night — wheel the bins out to the curb before pickup.</div>
       <button id="trashAck" type="button">✓ &nbsp;Done — it’s at the curb</button>
       <div class="ta-hint">or press <b>shift</b>&nbsp;+&nbsp;<b>T</b></div>
+    </div>
+  </div>
+
+  <!-- Street-cleaning car alarm: full-screen, 1st & 3rd Mon/Wed 11AM→1PM, until acknowledged. -->
+  <div id="streetalarm" aria-hidden="true">
+    <div class="sa-inner">
+      <div class="sa-icon">🚗</div>
+      <div class="sa-text">MOVE&nbsp;YOUR<br>CAR</div>
+      <div class="sa-sub">Street&nbsp;cleaning today (1st&nbsp;&amp;&nbsp;3rd Mon/Wed). Move the car now or it’s a ticket.</div>
+      <button id="streetAck" type="button">✓ &nbsp;Done — car is moved</button>
+      <div class="sa-hint">street sweeping · 11 AM</div>
     </div>
   </div>
 

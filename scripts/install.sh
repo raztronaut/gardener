@@ -23,6 +23,7 @@ systemctl --user enable --now gardener-kiosk.service || true
 systemctl --user enable --now gardener-iterate.timer
 systemctl --user enable --now gardener-night.timer
 systemctl --user enable --now gardener-day.timer
+systemctl --user enable --now gardener-evening.timer
 
 echo
 echo "=== installed. backend status ==="

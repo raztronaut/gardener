@@ -29,6 +29,7 @@ case "$cmd" in
   server)  exec node src/server.mjs ;;
   iterate) exec node src/iterate.mjs "${1:-scheduled}" ;;
   day)     exec node src/display.mjs day ;;
+  evening) exec node src/display.mjs evening ;;
   night)   exec node src/display.mjs night ;;
   sync)    exec node src/display.mjs sync ;;
   plant)   exec node src/plant-server.mjs ;;   # locked-down PUBLIC surface (note page + feedback only)
@@ -68,5 +69,5 @@ case "$cmd" in
     # so the dashboard can use Esc; fall back to the system surf otherwise.
     SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
     exec "$SURF" -F "http://127.0.0.1:$PORT" ;;
-  *) echo "usage: gardener.sh {server|iterate|day|night|sync|plant|tunnel|kiosk}"; exit 2 ;;
+  *) echo "usage: gardener.sh {server|iterate|day|evening|night|sync|plant|tunnel|kiosk}"; exit 2 ;;
 esac

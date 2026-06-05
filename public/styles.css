@@ -88,12 +88,6 @@ html, body {
 .brand .tm { font-size: 13px; -webkit-text-fill-color: var(--ink-faint); vertical-align: super; }
 .brand #subtitle { color: var(--ink-faint); font-size: 13px; margin-top: 5px; letter-spacing: .2px; }
 
-.status { display: flex; align-items: center; gap: 8px; color: var(--ink-soft);
-  font-size: 13px; padding: 8px 14px; border-radius: 999px;
-  background: var(--glass); border: 1px solid var(--stroke); }
-.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mint);
-  box-shadow: 0 0 12px var(--mint); }
-
 /* ---------- widget grid ---------- */
 #garden {
   display: grid;
@@ -210,6 +204,28 @@ body.night #nightveil { opacity: 1; pointer-events: auto; }
 .ta-hint b { color: #fff; }
 body.screenshot #trashalarm { display: none !important; }
 
+/* ---------- street-cleaning car alarm (full-screen, blue, until acknowledged) ----------
+   Only visible on the 1st & 3rd Mon/Wed, 11AM→1PM, while unacknowledged — a rare,
+   transient ALARM state. Stepped solid-color flash (no blur/filter), so it's cheap and
+   stops the instant it's dismissed or the window closes (→ ~0% CPU idle). */
+#streetalarm { position: fixed; inset: 0; z-index: 150; display: none;
+  align-items: center; justify-content: center; text-align: center;
+  background: #0b4ea2; color: #fff; padding: 40px; }
+#streetalarm.on { display: flex; animation: streetFlash 1s step-end infinite; }
+@keyframes streetFlash { 0% { background: #1565d8; } 50% { background: #07315f; } }
+@media (prefers-reduced-motion: reduce) { #streetalarm.on { animation: none; background: #1565d8; } }
+.sa-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.sa-icon { font-size: 96px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
+.sa-text { font-family: var(--font-display); font-weight: 700; font-size: 104px; line-height: .96;
+  letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.4); }
+.sa-sub { font-size: 24px; line-height: 1.4; max-width: 640px; color: #fff; opacity: .94; margin-top: 6px; }
+#streetAck { margin-top: 34px; font-family: var(--font); font-size: 24px; font-weight: 700;
+  padding: 20px 44px; border-radius: 999px; cursor: pointer; color: #06346a;
+  background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+#streetAck:active { transform: scale(.97); }
+.sa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
+body.screenshot #streetalarm { display: none !important; }
+
 /* ---------- header: growth badge ---------- */
 .topright { display: flex; align-items: center; gap: 12px; }
 .iter-badge { font-family: var(--font-mono); font-size: 13px; color: var(--mint);
@@ -268,6 +284,33 @@ body.screenshot #trashalarm { display: none !important; }
 .help-cmd code { font-family: var(--font-mono); font-size: 14px; color: var(--mint);
   background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 8px; padding: 3px 10px; min-width: 116px; text-align: center; }
 .help-cmd span { color: var(--ink); font-size: 15px; }
+
+/* delete control on a pending /notes row */
+.cl-row .note-del { flex: 0 0 auto; align-self: center; font-size: 16px; line-height: 1;
+  background: rgba(255,155,176,.10); border: 1px solid var(--stroke); border-radius: 10px;
+  color: var(--rose); cursor: pointer; padding: 8px 11px; transition: filter .15s ease; }
+.cl-row .note-del:hover { filter: brightness(1.2); border-color: var(--stroke-strong); }
+.cl-row .note-del:disabled { opacity: .4; cursor: default; }
+
+/* /events full-screen list rows */
+.ev-row .ev-when { flex: 0 0 auto; min-width: 168px; font-family: var(--font-mono);
+  font-size: 13px; letter-spacing: .02em; color: var(--mint); padding-top: 2px; }
+
+/* /architecture diagram */
+.arch { display: flex; flex-direction: column; gap: 14px; }
+.arch-flow { display: flex; flex-direction: column; gap: 0; }
+.arch-step { display: grid; grid-template-columns: 46px 1fr; grid-template-rows: auto auto;
+  align-items: start; column-gap: 14px; }
+.arch-num { grid-row: 1; grid-column: 1; width: 46px; height: 46px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  background: rgba(120,247,176,.08); border: 1px solid var(--stroke); }
+.arch-st { font-size: 17px; font-weight: 700; color: var(--ink); }
+.arch-sd { font-size: 14px; line-height: 1.42; color: var(--ink-soft); margin-top: 3px; }
+.arch-arrow { grid-column: 1; grid-row: 2; width: 46px; text-align: center;
+  color: var(--mint); opacity: .55; font-size: 18px; line-height: 1.6; }
+.arch-step:last-child .arch-arrow { display: none; }
+.arch-foot { font-size: 13.5px; line-height: 1.5; color: var(--ink-faint);
+  border-top: 1px solid var(--stroke); padding-top: 12px; margin-top: 2px; }
 
 /* ---------- screenshot mode (clean QA capture) ---------- */
 body.screenshot #feedbackbar { visibility: hidden; }
