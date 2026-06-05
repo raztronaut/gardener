@@ -35,6 +35,8 @@ case "$cmd" in
   tunnel)
     # Open a free cloudflared quick tunnel (no account/token) to the PLANT server
     # only, and write the rotating public URL where the backend picks it up.
+    set +e   # the URL-scraping loop below greps every log line; a non-match must
+             # NOT abort the script under `set -e`/pipefail (that crash-looped it).
     CF="$HOME/.local/bin/cloudflared"
     URLFILE="$ROOT/data/public-url.txt"
     PP="$(grep -E '^GARDENER_PLANT_PORT=' .env 2>/dev/null | cut -d= -f2 || true)"; PP="${PP:-8788}"
