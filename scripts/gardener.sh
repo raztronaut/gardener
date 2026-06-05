@@ -44,6 +44,10 @@ case "$cmd" in
       if curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then break; fi
       sleep 1
     done
+    # Force WebKitGTK's accelerated-compositing path so CSS transform/opacity
+    # animations run on the Jetson GPU instead of being CPU-rasterized (which
+    # made them choppy, especially with the cards' box-shadows + gradients).
+    export WEBKIT_FORCE_COMPOSITING_MODE=1
     # Prefer the patched surf (Escape unbound, built by scripts/build-surf.sh)
     # so the dashboard can use Esc; fall back to the system surf otherwise.
     SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
