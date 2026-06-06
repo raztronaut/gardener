@@ -44,13 +44,25 @@ function hasClockTime(rawFrom) {
   return /\d{1,2}:\d{2}/.test(s) && !/[T\s]00:00(:00)?/.test(s);
 }
 
+// The literal calendar day written in the source value (YYYY-MM-DD), taken AS-IS.
+// Source dates are stored as UTC instants, so converting a midnight-UTC placeholder
+// through the SF timezone shifts it back a day — which made "today" all-day events
+// look like yesterday and silently drop. For all-day rows we trust the written date.
+function rawDateKey(rawFrom) {
+  const m = String(rawFrom || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
 // Is this event already over, by current time? All-day events (no clock time) are
-// "past" only once their calendar day in SF has fully ended; timed events get a
-// 2-hour grace so something that just started (likely still going) isn't dropped.
+// "past" only once their calendar day has fully ended (compared in SF); timed events
+// get a 2-hour grace so something that just started (likely still going) isn't dropped.
 const PAST_GRACE_MS = 2 * 60 * 60 * 1000;
 export function isPast(when, rawFrom, now = new Date()) {
   if (!when || isNaN(when)) return false; // unknown date → keep (don't hide blindly)
-  if (!hasClockTime(rawFrom)) return dayKeyOf(when) < dayKeyOf(now);
+  if (!hasClockTime(rawFrom)) {
+    const dk = rawDateKey(rawFrom) || dayKeyOf(when);
+    return dk < dayKeyOf(now);
+  }
   return when.getTime() < now.getTime() - PAST_GRACE_MS;
 }
 

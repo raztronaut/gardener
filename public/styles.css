@@ -232,6 +232,13 @@ body.screenshot #streetalarm { display: none !important; }
   background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 999px;
   padding: 7px 13px; cursor: pointer; white-space: nowrap; }
 
+/* Corner Plant-a-Note QR — quiet, just the code, tinted green to match the garden. */
+.cornerqr { display: block; width: 58px; height: 58px; border-radius: 12px;
+  background: #fff; padding: 5px; box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  border: 1px solid rgba(120,247,176,.35); line-height: 0; }
+.cornerqr[hidden] { display: none; }
+.cornerqr img { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+
 /* ---------- command panel (/iterations, /help) ----------
    Anchored to the BOTTOM (just above the feedback bar) and grows UPWARD to only
    the height its content needs — so it reads as unfurling up out of the input.
@@ -296,19 +303,16 @@ body.screenshot #streetalarm { display: none !important; }
 .ev-row .ev-when { flex: 0 0 auto; min-width: 168px; font-family: var(--font-mono);
   font-size: 13px; letter-spacing: .02em; color: var(--mint); padding-top: 2px; }
 
-/* /architecture diagram */
-.arch { display: flex; flex-direction: column; gap: 14px; }
-.arch-flow { display: flex; flex-direction: column; gap: 0; }
-.arch-step { display: grid; grid-template-columns: 46px 1fr; grid-template-rows: auto auto;
-  align-items: start; column-gap: 14px; }
-.arch-num { grid-row: 1; grid-column: 1; width: 46px; height: 46px; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center; font-size: 22px;
-  background: rgba(120,247,176,.08); border: 1px solid var(--stroke); }
-.arch-st { font-size: 17px; font-weight: 700; color: var(--ink); }
-.arch-sd { font-size: 14px; line-height: 1.42; color: var(--ink-soft); margin-top: 3px; }
-.arch-arrow { grid-column: 1; grid-row: 2; width: 46px; text-align: center;
-  color: var(--mint); opacity: .55; font-size: 18px; line-height: 1.6; }
-.arch-step:last-child .arch-arrow { display: none; }
+/* /architecture — inline SVG technical diagram */
+.arch { display: flex; flex-direction: column; gap: 16px; }
+.arch-diagram { width: 100%; }
+.arch-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.arch-svg .an-t { fill: var(--ink); font-family: var(--font-display); font-size: 17px; font-weight: 600; }
+.arch-svg .an-t.an-acc { fill: var(--mint); }
+.arch-svg .an-s { fill: var(--ink-soft); font-family: var(--font-body, inherit); font-size: 12.5px; }
+.arch-svg .an-a { stroke: #5f9e86; stroke-width: 1.6; }
+.arch-svg .an-l { fill: var(--ink-faint); font-family: var(--font-mono); font-size: 11.5px; }
+.arch-svg .an-cap { fill: var(--ink-faint); font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 .arch-foot { font-size: 13.5px; line-height: 1.5; color: var(--ink-faint);
   border-top: 1px solid var(--stroke); padding-top: 12px; margin-top: 2px; }
 

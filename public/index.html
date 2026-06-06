@@ -38,6 +38,10 @@
       </div>
       <div class="topright">
         <span class="iter-badge" id="iterBadge" title="tendings so far">❀&nbsp;—</span>
+        <!-- Plant-a-note QR: lives in the corner (not the grid). Populated by app.js
+             from state.publicUrl; hidden when no public tunnel URL is available. -->
+        <a id="cornerqr" class="cornerqr" href="#" target="_blank" rel="noopener"
+           aria-label="Scan to plant a note" hidden></a>
       </div>
     </header>
 

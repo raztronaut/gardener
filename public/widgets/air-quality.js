@@ -19,18 +19,19 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .aq { display:flex; flex-direction:column; gap:16px; }
-      .aq-main { display:flex; align-items:baseline; gap:14px; }
-      .aq-num { font-family:var(--font-display); font-size:72px; font-weight:700; line-height:.9;
+      .aq { display:flex; align-items:center; gap:16px; height:100%; }
+      .aq-num { font-family:var(--font-display); font-size:58px; font-weight:700; line-height:.85;
         color:var(--aq-color, var(--ink)); text-shadow:0 4px 16px rgba(0,0,0,.4); }
-      .aq-unit { font-family:var(--font-mono); font-size:14px; color:var(--ink-faint); letter-spacing:.05em; }
-      .aq-cat { font-size:20px; font-weight:600; color:var(--aq-color, var(--ink)); line-height:1.2; }
-      .aq-pm { display:flex; align-items:center; gap:8px; font-size:15px; color:var(--ink-soft);
-        border-top:1px solid var(--stroke); padding-top:12px; }
-      .aq-pm .v { font-family:var(--font-mono); font-weight:600; color:var(--ink); }
-      .aq-pm .u { font-size:12px; color:var(--ink-faint); }
-      .aq-dot { width:10px; height:10px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
-        box-shadow:0 0 10px var(--aq-color, transparent); }
+      .aq-side { flex:1; min-width:0; display:flex; flex-direction:column; gap:7px; }
+      .aq-unit { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); letter-spacing:.08em; }
+      .aq-cat { font-size:16px; font-weight:600; color:var(--aq-color, var(--ink)); line-height:1.18;
+        display:flex; align-items:flex-start; gap:7px; }
+      .aq-cat .aq-dot { margin-top:5px; }
+      .aq-pm { display:flex; align-items:baseline; gap:6px; font-size:13px; color:var(--ink-soft); }
+      .aq-pm .v { font-family:var(--font-mono); font-weight:600; color:var(--ink); font-size:15px; }
+      .aq-pm .u { font-size:11px; color:var(--ink-faint); }
+      .aq-dot { flex:0 0 auto; width:9px; height:9px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
+        box-shadow:0 0 9px var(--aq-color, transparent); }
     `);
     body.appendChild(ctx.loading('sampling the air…'));
 
@@ -48,15 +49,15 @@ export default {
         }
         const cat = aqiCat(aqi);
         const card = ctx.h('div', { class: 'aq', style: { '--aq-color': cat.color } },
-          ctx.h('div', { class: 'aq-main' },
-            ctx.h('div', { class: 'aq-num' }, String(Math.round(aqi))),
-            ctx.h('div', { class: 'aq-unit' }, 'US AQI')),
-          ctx.h('div', { class: 'aq-cat' },
-            ctx.h('span', { class: 'aq-dot' }), ' ', cat.label),
-          ctx.h('div', { class: 'aq-pm' },
-            'PM2.5',
-            ctx.h('span', { class: 'v' }, pm == null ? '—' : pm.toFixed(1)),
-            ctx.h('span', { class: 'u' }, 'µg/m³')));
+          ctx.h('div', { class: 'aq-num' }, String(Math.round(aqi))),
+          ctx.h('div', { class: 'aq-side' },
+            ctx.h('div', { class: 'aq-unit' }, 'US AQI'),
+            ctx.h('div', { class: 'aq-cat' },
+              ctx.h('span', { class: 'aq-dot' }), cat.label),
+            ctx.h('div', { class: 'aq-pm' },
+              'PM2.5',
+              ctx.h('span', { class: 'v' }, pm == null ? '—' : pm.toFixed(1)),
+              ctx.h('span', { class: 'u' }, 'µg/m³'))));
         body.replaceChildren(card);
       };
       await refresh();

@@ -4,18 +4,18 @@ export default {
   id: 'on-this-day',
   title: 'On This Day',
   icon: '📜',
-  size: 'md',
+  size: 'full',
   chrome: true,
   async mount(body, ctx) {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
 
     ctx.style(`
-      .otd { display:flex; flex-direction:column; gap:9px; }
-      .otd-ev { padding-bottom:9px; border-bottom:1px solid var(--stroke); }
-      .otd-ev:last-child { border-bottom:none; padding-bottom:0; }
-      .otd-year { font-family:var(--font-display); font-weight:700; font-size:19px; line-height:1;
+      .otd { display:flex; gap:24px; height:100%; align-items:stretch; }
+      .otd-ev { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
+      .otd-ev + .otd-ev { border-left:1px solid var(--stroke); padding-left:24px; }
+      .otd-year { font-family:var(--font-display); font-weight:700; font-size:21px; line-height:1;
         color:var(--mint); font-variant-numeric:tabular-nums; }
-      .otd-desc { margin-top:4px; font-size:14px; line-height:1.3; color:var(--ink);
+      .otd-desc { margin-top:6px; font-size:14px; line-height:1.32; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     `);
 

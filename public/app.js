@@ -362,24 +362,52 @@ async function showEvents() {
   openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl' }, ...rows));
 }
 
-// A simple diagram of how the gardener works, iterates, and displays things
-// (the /architecture command). Static HTML/SVG — idle-friendly.
+// A technical system + data-flow diagram of how the gardener works (the
+// /architecture command). Static inline SVG — idle-friendly (no animation).
 function showArchitecture() {
-  const step = (n, icon, title, desc) => h('div', { class: 'arch-step' },
-    h('div', { class: 'arch-num' }, icon),
-    h('div', {},
-      h('div', { class: 'arch-st' }, `${n}. ${title}`),
-      h('div', { class: 'arch-sd' }, desc)),
-    h('div', { class: 'arch-arrow' }, '↓'));
-  openPanel('How the gardener works', h('div', { class: 'arch' },
-    h('p', { class: 'help-lead' }, 'This wall display tends itself. A loop runs once a day — reading your notes and growing the garden, one careful tending at a time.'),
-    h('div', { class: 'arch-flow' },
-      step(1, '🌱', 'You plant notes', 'Type anywhere on screen, or scan the QR to add notes from your phone. They wait in a durable SQLite store.'),
-      step(2, '🌅', 'Daily tending wakes (6 AM)', 'A systemd timer launches the gardener — an autonomous Claude agent with full file + shell access to this project.'),
-      step(3, '🛠', 'It builds & rebalances', 'The agent reads the notes, then adds, refines, or removes vanilla-JS widgets and re-tunes the 900×1600 layout.'),
-      step(4, '✅', 'Smoke + visual review', 'It must leave `npm run smoke` green; then a vision model critiques a headless 9:16 screenshot. Failures loop back to step 3.'),
-      step(5, '🌿', 'Commit & live-reload', 'Only a green, reviewed tree is committed. The version bumps and every screen reloads itself into the new garden.')),
-    h('p', { class: 'arch-foot' }, 'Backend: Node + SQLite serving static widgets through an SSRF-safe, allowlisted proxy. No build step, no frameworks — by design.')));
+  const box = (x, y, w, hgt, o = {}) => {
+    const cx = x + w / 2;
+    const fill = o.accent ? 'rgba(120,247,176,.13)' : 'rgba(120,247,176,.05)';
+    const stroke = o.accent ? '#78f7b0' : 'rgba(120,247,176,.30)';
+    const ty = o.sub ? y + hgt / 2 - 3 : y + hgt / 2 + 6;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${hgt}" rx="14" fill="${fill}" stroke="${stroke}" stroke-width="1.4"/>`
+      + `<text x="${cx}" y="${ty}" text-anchor="middle" class="an-t${o.accent ? ' an-acc' : ''}">${o.title}</text>`
+      + (o.sub ? `<text x="${cx}" y="${y + hgt / 2 + 16}" text-anchor="middle" class="an-s">${o.sub}</text>` : '');
+  };
+  const arr = (x1, y1, x2, y2, label) => {
+    let s = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="an-a" marker-end="url(#ah)"/>`;
+    if (label) s += `<text x="${(x1 + x2) / 2 + 9}" y="${(y1 + y2) / 2 + 4}" class="an-l">${label}</text>`;
+    return s;
+  };
+  const svg = `<svg class="arch-svg" viewBox="0 0 800 640" role="img" aria-label="System architecture diagram" preserveAspectRatio="xMidYMid meet">
+    <defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#5f9e86"/></marker></defs>
+    <text x="225" y="-2" text-anchor="middle" class="an-cap">inputs</text>
+    ${box(70, 8, 300, 58, { title: '📱 Phone', sub: 'scans corner QR → plant.html' })}
+    ${box(430, 8, 300, 58, { title: '⌨ Wall display', sub: 'type a note in the bar' })}
+    ${arr(225, 66, 362, 102)}
+    ${arr(575, 66, 438, 102)}
+    ${box(120, 104, 560, 66, { title: 'Node http server · :8787', sub: 'SSRF-safe allowlisted proxy · serves static widgets' })}
+    ${arr(400, 170, 400, 204)}
+    ${box(260, 206, 280, 52, { title: '🗄 SQLite — notes + state' })}
+    ${arr(400, 258, 400, 292, 'reads notes')}
+    ${box(110, 294, 580, 70, { accent: true, title: '🤖 Gardener agent — Claude · full FS + shell', sub: '⏰ woken daily at 6 AM by a systemd timer' })}
+    ${arr(400, 364, 400, 396, 'builds')}
+    ${box(240, 398, 320, 52, { title: '🛠 edits widgets/*.js + manifest.json' })}
+    ${arr(400, 450, 268, 484)}
+    ${arr(400, 450, 532, 484)}
+    ${box(150, 486, 230, 54, { title: '✅ npm run smoke' })}
+    ${box(420, 486, 230, 54, { title: '👁 vision review', sub: '900×1600 screenshot' })}
+    ${arr(265, 540, 362, 572, 'pass')}
+    ${arr(535, 540, 438, 572)}
+    <path d="M650,513 C778,498 778,360 694,332" class="an-a" fill="none" marker-end="url(#ah)"/>
+    <text x="772" y="424" text-anchor="middle" class="an-l">✗ retry</text>
+    ${box(230, 574, 340, 54, { title: '🌿 git commit · version++', sub: 'every kiosk live-reloads' })}
+  </svg>`;
+  openPanel('Architecture — how the gardener works', h('div', { class: 'arch' },
+    h('p', { class: 'help-lead' }, 'A self-tending wall display. Notes flow in from phones and the on-screen bar into SQLite; once a day an autonomous Claude agent reads them, rebuilds the vanilla-JS widgets, and only ships a tree that passes smoke + a vision review.'),
+    h('div', { class: 'arch-diagram', html: svg }),
+    h('p', { class: 'arch-foot' }, 'No build step, no frameworks, no npm deps — static ES-module widgets served by Node + SQLite behind an allowlisted proxy, rendered by a surf / WebKitGTK kiosk on a Jetson.')));
 }
 
 // Toggle the night veil (dim the wall display) — acts immediately.
@@ -569,9 +597,42 @@ function wireCursor() {
   }, { passive: true });
 }
 
+// ---- corner Plant-a-Note QR -------------------------------------------------
+// The QR used to be a grid widget; the humans asked for it to live quietly in the
+// top-right corner — just the code, green to match the garden, no copy. It encodes
+// the PUBLIC tunnel URL (state.publicUrl) so a phone can actually reach it; if no
+// public URL exists yet, the corner stays empty rather than showing a dead code.
+const isPublicUrl = (u) => {
+  try { return !/^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/i.test(new URL(u).hostname); }
+  catch { return false; }
+};
+async function wireCornerQr() {
+  const el = document.getElementById('cornerqr');
+  if (!el) return;
+  let base = '';
+  try {
+    const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    if (s && s.publicUrl) base = s.publicUrl;
+  } catch { /* offline — leave empty */ }
+  if (!base && window.__GARDEN_STATE && window.__GARDEN_STATE.publicUrl) base = window.__GARDEN_STATE.publicUrl;
+  if (!base) { try { if (isPublicUrl(location.origin)) base = location.origin; } catch { /* ignore */ } }
+  base = String(base || '').replace(/\/+$/, '');
+  if (!base) { el.hidden = true; return; }
+  const target = `${base}/plant.html`;
+  // Green modules (#0e7a45) on white → reads as a green code yet scans reliably.
+  const src = `/api/proxy?url=${encodeURIComponent(
+    `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&ecc=M&color=0e7a45&bgcolor=ffffff&data=${encodeURIComponent(target)}`)}`;
+  const img = h('img', { alt: 'Scan to plant a note', src });
+  img.addEventListener('error', () => { el.hidden = true; });
+  el.replaceChildren(img);
+  el.setAttribute('href', target);
+  el.hidden = false;
+}
+
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();
 wireTrashAlarm();
 wireStreetAlarm();
 wireCursor();
+wireCornerQr();
 boot();
