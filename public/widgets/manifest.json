@@ -6,7 +6,6 @@
     { "id": "hacker-news", "file": "hacker-news.js", "enabled": true, "order": 3 },
     { "id": "sf-events", "file": "sf-events.js", "enabled": true, "order": 4 },
     { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 5 },
-    { "id": "colyap", "file": "colyap.js", "enabled": true, "order": 6 },
-    { "id": "on-this-day", "file": "on-this-day.js", "enabled": true, "order": 7 }
+    { "id": "on-this-day", "file": "on-this-day.js", "enabled": true, "order": 6 }
   ]
 }
