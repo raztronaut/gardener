@@ -1,6 +1,6 @@
 {
-  "name": "Hearth · The House",
-  "short_name": "Hearth",
+  "name": "Hive · The House",
+  "short_name": "Hive",
   "description": "The household app for The Gardener — start Clean Mode, log chores, see the leaderboard, and get notified.",
   "start_url": "/",
   "scope": "/",

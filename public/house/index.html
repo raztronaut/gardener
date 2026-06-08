@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <meta name="theme-color" content="#04110d" />
-  <title>Hearth · The House</title>
+  <title>Hive · The House</title>
   <link rel="icon" href="/assets/logo.png" />
   <!-- PWA: installable + Web Push. iOS (16.4+) only delivers push to a PWA that
        was added to the Home Screen, so the apple-* tags + manifest matter there. -->
@@ -13,28 +13,34 @@
   <link rel="apple-touch-icon" href="/assets/hearth-icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Hearth" />
+  <meta name="apple-mobile-web-app-title" content="Hive" />
   <link rel="stylesheet" href="/house/house.css" />
 </head>
 <body>
   <div id="app">
     <header class="app-head">
-      <span class="logo">🔥</span>
-      <h1>Hearth</h1>
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 20h14M6 20l1.1-4.5h9.8L18 20M7.4 15.5l1-4h7.2l1 4M8.6 11.5l.9-3.6h5l.9 3.6M10 7.9 12 3.5l2 4.4" />
+        </svg>
+      </span>
+      <h1>Hive</h1>
       <div class="who" id="who"></div>
     </header>
 
     <!-- Screen 1: Plant a Note -->
     <section class="screen" id="screen-note">
-      <div class="card">
-        <h2>🌱 Plant a note</h2>
+      <div class="hero">
+        <span class="hero-emoji">🌱</span>
+        <h2>Plant a note</h2>
         <p class="lead">Tell the Gardener what to grow on the wall display. Your note is tended into the garden at the next morning's tending.</p>
       </div>
-      <div class="card">
+      <div class="card compose">
         <textarea id="noteText" maxlength="500" placeholder="e.g. add a transit board for the 22 bus…"></textarea>
-        <div style="height:12px"></div>
-        <button class="primary" id="noteSend">Plant it 🌱</button>
-        <div style="height:12px"></div>
+        <div class="compose-row">
+          <span class="charcount" id="noteCount">500 left</span>
+          <button class="primary slim" id="noteSend">Plant it 🌱</button>
+        </div>
         <div class="msg" id="noteMsg" role="status"></div>
       </div>
     </section>
@@ -42,7 +48,7 @@
     <!-- Screen 2: Community Macros -->
     <section class="screen" id="screen-macros">
       <div class="card" id="identityCard">
-        <h2>Who's this?</h2>
+        <h2>👋 Who's this?</h2>
         <p class="lead">Pick your name so the household knows who's pitching in.</p>
         <div class="namegrid" id="nameGrid"></div>
         <div class="namerow">
@@ -54,20 +60,20 @@
 
       <div id="macrosArea" hidden>
         <div id="activeArea"></div>
-        <div class="card">
-          <h2>Household macros</h2>
-          <p class="lead" style="margin-bottom:14px">Kick off a shared activity. Everyone gets notified.</p>
-          <div class="macro" id="startClean">
+        <div class="card macro-card">
+          <h2>🧹 Household macros</h2>
+          <p class="lead">Kick off a shared activity. Everyone gets notified.</p>
+          <button class="macro" id="startClean" type="button">
             <span class="ic">🧹</span>
-            <div class="mtext"><b>Start Clean Mode</b><span>Begin a cleaning session &amp; log your chores</span></div>
-          </div>
+            <span class="mtext"><b>Start Clean Mode</b><span>Begin a session &amp; log your chores</span></span>
+            <span class="go">›</span>
+          </button>
         </div>
         <div id="sessionArea"></div>
         <div class="card" id="notifyCard">
           <h2>🔔 Notifications</h2>
-          <p class="lead" style="margin-bottom:14px">Get a phone push when someone starts Clean Mode or logs a chore — even with Hearth closed.</p>
+          <p class="lead">Get a phone push when someone starts Clean Mode or logs a chore — even with Hive closed.</p>
           <button class="primary" id="notifyBtn">Enable notifications 🔔</button>
-          <div style="height:10px"></div>
           <div class="msg" id="notifyMsg" role="status"></div>
           <p class="muted" id="notifyHint" style="margin-top:10px; display:none"></p>
         </div>
@@ -76,16 +82,16 @@
 
     <!-- Screen 3: Dashboard -->
     <section class="screen" id="screen-dash">
-      <div class="card">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <div class="card board-card">
+        <div class="card-head">
           <h2>🏆 Leaderboard</h2>
           <div class="toggle" id="rangeToggle">
-            <button data-range="day" class="on">Day</button>
-            <button data-range="week">Week</button>
+            <button data-range="day" class="on" type="button">Day</button>
+            <button data-range="week" type="button">Week</button>
           </div>
         </div>
         <p class="muted" id="rangeNote">Today (since midnight)</p>
-        <div id="rankList"></div>
+        <div id="rankList" class="ranklist"></div>
       </div>
       <div class="card">
         <h2>🧹 Cleaning now</h2>
@@ -101,13 +107,19 @@
       </div>
     </section>
 
-    <div class="foot">Hearth · the household app · part of The Gardener™</div>
+    <div class="foot">Hive · the household app · part of The Gardener™</div>
   </div>
 
   <nav class="tabbar">
-    <button data-screen="note"><span class="ti">🌱</span>Note</button>
-    <button data-screen="macros"><span class="ti">🧹</span>Macros</button>
-    <button data-screen="dash" class="on"><span class="ti">🏆</span>Dashboard</button>
+    <button data-screen="note" type="button">
+      <span class="ti" aria-hidden="true">🌱</span><span class="tl">Note</span>
+    </button>
+    <button data-screen="macros" type="button">
+      <span class="ti" aria-hidden="true">🧹</span><span class="tl">Clean</span>
+    </button>
+    <button data-screen="dash" class="on" type="button">
+      <span class="ti" aria-hidden="true">🏆</span><span class="tl">Dashboard</span>
+    </button>
   </nav>
 
   <script src="/house/app.js"></script>

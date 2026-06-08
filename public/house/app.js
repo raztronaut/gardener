@@ -1,4 +1,4 @@
-// Hearth — household app frontend (vanilla, no build, no deps).
+// Hive — household app frontend (vanilla, no build, no deps).
 // A separate, hand-maintained side project (the daily tending must NOT touch this).
 // Three screens behind a bottom tab bar: Plant a Note · Community Macros · Dashboard.
 'use strict';
@@ -45,6 +45,20 @@ function renderWho() {
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+// Deterministic per-person avatar: an initial + a hue derived from the name, so
+// the same person always gets the same colored bubble across the leaderboard.
+const AVATAR_HUES = [150, 168, 186, 42, 200, 128, 96, 18];
+function avatarFor(name) {
+  const n = String(name || '?').trim();
+  let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+  const hue = AVATAR_HUES[h % AVATAR_HUES.length];
+  return { initial: (n[0] || '?').toUpperCase(), bg: `linear-gradient(135deg, hsl(${hue} 70% 62%), hsl(${(hue + 28) % 360} 72% 52%))` };
+}
+// A charming empty state: emoji + line + optional sub-line.
+function emptyState(emoji, line, sub) {
+  return el('div', { class: 'empty' }, el('span', { class: 'emoji' }, emoji), el('span', {}, line), sub ? el('span', { class: 'sub' }, sub) : null);
+}
+
 // ---- tab navigation ---------------------------------------------------------
 let activeSession = null; // {id, name} when this user is mid-clean
 function showScreen(name) {
@@ -59,14 +73,17 @@ $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showScreen
 // Screen 1 — Plant a Note
 // =============================================================================
 (function wireNote() {
-  const t = $('#noteText'), btn = $('#noteSend'), msg = $('#noteMsg');
+  const t = $('#noteText'), btn = $('#noteSend'), msg = $('#noteMsg'), count = $('#noteCount');
+  const max = parseInt(t.getAttribute('maxlength') || '500', 10);
+  const updateCount = () => { if (count) count.textContent = (max - t.value.length) + ' left'; };
+  t.addEventListener('input', updateCount); updateCount();
   btn.addEventListener('click', async () => {
     const text = t.value.trim();
     if (!text) { t.focus(); return; }
     btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Planting…';
     try {
       await api('/api/feedback', { method: 'POST', body: JSON.stringify({ text }) });
-      t.value = ''; msg.className = 'msg ok'; msg.textContent = 'Planted 🌱  the Gardener will tend to it.';
+      t.value = ''; updateCount(); msg.className = 'msg ok'; msg.textContent = 'Planted 🌱  the Gardener will tend to it.';
     } catch {
       msg.className = 'msg err'; msg.textContent = 'Could not reach the Gardener — try again.';
     } finally { btn.disabled = false; }
@@ -154,7 +171,7 @@ async function openSession() {
         add.disabled = true;
         try { await logChore(ch.key, note); inp.value = ''; flash(add, '✓'); } catch (e) { alert(e.message); } finally { add.disabled = false; }
       });
-      list.appendChild(el('div', { class: 'check', style: 'cursor:default; flex-wrap:wrap;' },
+      list.appendChild(el('div', { class: 'check other' },
         el('span', { class: 'emoji' }, ch.emoji), el('span', { class: 'label' }, ch.label),
         el('div', { class: 'otherwrap' }, inp, add)));
       continue;
@@ -233,11 +250,11 @@ async function refreshNotifyUi() {
     if (isIOS() && !isStandalone()) {
       btn.disabled = true; btn.textContent = 'Add to Home Screen first';
       hint.style.display = 'block';
-      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Hearth from that icon to enable notifications (iOS 16.4+).';
+      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Hive from that icon to enable notifications (iOS 16.4+).';
       setNotifyMsg('');
     } else {
       btn.disabled = true; btn.textContent = 'Notifications not supported';
-      setNotifyMsg('This browser can’t do web push. Open Hearth in Chrome (Android) or an installed PWA (iOS).', 'err');
+      setNotifyMsg('This browser can’t do web push. Open Hive in Chrome (Android) or an installed PWA (iOS).', 'err');
     }
     return;
   }
@@ -317,21 +334,25 @@ $$('#rangeToggle button').forEach((b) => b.addEventListener('click', () => {
 async function refreshDashboard() {
   let status = null;
   try { status = await api('/api/house/status'); } catch { renderEmptyDash(); return; }
-  // Leaderboard
+  // Leaderboard — ranked rows with medals, colored avatars, point pills.
   const board = (range === 'day' ? status.day : status.week);
   const list = $('#rankList');
-  list.replaceChildren(...(board.length ? board.map((p, i) =>
-    el('div', { class: 'rank' + (i === 0 ? ' top' : '') },
-      el('div', { class: 'pos' }, i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1)),
+  const medals = ['🥇', '🥈', '🥉'];
+  list.replaceChildren(...(board.length ? board.map((p, i) => {
+    const av = avatarFor(p.name);
+    return el('div', { class: 'rank' + (i === 0 ? ' top' : '') },
+      el('div', { class: 'pos' + (i < 3 ? ' medal' : '') }, i < 3 ? medals[i] : String(i + 1)),
+      el('div', { class: 'av', style: `background:${av.bg}` }, av.initial),
       el('div', { class: 'nm' }, p.name, el('small', {}, `${p.chores} ${p.chores === 1 ? 'chore' : 'chores'} · last ${fmtAgo(p.lastTs)}`)),
-      el('div', { class: 'pts' }, String(p.points), el('small', {}, ' pts'))))
-    : [el('div', { class: 'empty' }, range === 'day' ? 'No chores logged today yet.' : 'No chores logged this week yet.')]));
+      el('div', { class: 'pts' }, String(p.points), el('small', {}, 'pts')));
+  }) : [emptyState('🧺', range === 'day' ? 'No chores logged today yet.' : 'No chores logged this week yet.', 'Start Clean Mode to get on the board.')]));
 
   // Cleaning now
   const now = $('#cleaningNow');
   now.replaceChildren(...(status.cleaning.length ? status.cleaning.map((c) =>
-    el('div', { class: 'pill' }, el('span', { class: 'pulse' }), el('span', { html: `<b>${escapeHtml(c.name)}</b> is cleaning · since ${fmtClock(c.startedAt)}` })))
-    : [el('div', { class: 'empty' }, 'Nobody is cleaning right now.')]));
+    el('div', { class: 'pill' }, el('span', { class: 'pulse' }),
+      el('span', { html: `<b>${escapeHtml(c.name)}</b> is cleaning <small>· since ${fmtClock(c.startedAt)}</small>` })))
+    : [emptyState('🛋️', 'Nobody is cleaning right now.', 'The house is at rest.')]));
 
   // Activity feed
   const feed = $('#activityFeed');
@@ -339,20 +360,20 @@ async function refreshDashboard() {
     const def = (CHORES.find((c) => c.key === a.chore)) || { emoji: '•', label: a.chore };
     const what = a.chore === 'other' && a.note ? a.note : def.label;
     return el('div', { class: 'row' }, el('span', { class: 'e' }, def.emoji),
-      el('span', { class: 'txt' }, `${a.name} — ${what}`, el('small', {}, fmtAgo(a.ts))));
-  }) : [el('div', { class: 'empty' }, 'No activity yet.')]));
+      el('span', { class: 'txt', html: `<b>${escapeHtml(a.name)}</b> — ${escapeHtml(what)}` }, el('small', {}, fmtAgo(a.ts))));
+  }) : [emptyState('🌙', 'No activity yet.', 'Logged chores will show up here.')]));
 
   // Notifications
   const nf = $('#notifFeed');
   nf.replaceChildren(...(status.notifications.length ? status.notifications.map((n) =>
     el('div', { class: 'row' }, el('span', { class: 'e' }, '🔔'),
       el('span', { class: 'txt' }, n.text, el('small', {}, fmtAgo(n.ts)))))
-    : [el('div', { class: 'empty' }, 'No notifications yet.')]));
+    : [emptyState('🔕', 'No notifications yet.', 'Household pings will appear here.')]));
 
   updateMacroBadge(status);
 }
 function renderEmptyDash() {
-  $('#rankList').replaceChildren(el('div', { class: 'empty' }, 'Could not reach the household — try again.'));
+  $('#rankList').replaceChildren(emptyState('📡', 'Could not reach the household.', 'Check your connection and try again.'));
 }
 // Surface a dot on the Macros tab when someone (else) is cleaning.
 function updateMacroBadge(status) {
