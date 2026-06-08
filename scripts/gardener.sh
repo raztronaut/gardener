@@ -34,15 +34,23 @@ case "$cmd" in
   sync)    exec node src/display.mjs sync ;;
   plant)   exec node src/plant-server.mjs ;;   # locked-down PUBLIC surface (note page + feedback only)
   tunnel)
-    # Open a free cloudflared quick tunnel (no account/token) to the PLANT server
-    # only, and write the rotating public URL where the backend picks it up.
-    set +e   # the URL-scraping loop below greps every log line; a non-match must
-             # NOT abort the script under `set -e`/pipefail (that crash-looped it).
-    CF="$HOME/.local/bin/cloudflared"
+    # Expose the PLANT server publicly. Prefer a PERMANENT ngrok static domain if
+    # configured (.env: GARDENER_NGROK_DOMAIN); otherwise fall back to a free
+    # cloudflared quick tunnel (rotating URL).
+    set +e   # the cloudflared URL-scraping loop greps every log line; a non-match
+             # must NOT abort the script under `set -e`/pipefail (that crash-looped it).
     URLFILE="$ROOT/data/public-url.txt"
     PP="$(grep -E '^GARDENER_PLANT_PORT=' .env 2>/dev/null | cut -d= -f2 || true)"; PP="${PP:-8788}"
-    : > "$URLFILE"   # clear any stale URL while the tunnel is establishing
     for _ in $(seq 1 60); do curl -sf "http://127.0.0.1:$PP/" >/dev/null 2>&1 && break; sleep 1; done
+    NGROK_DOMAIN="$(grep -E '^GARDENER_NGROK_DOMAIN=' .env 2>/dev/null | cut -d= -f2 || true)"
+    NGROK_TOKEN="$(grep -E '^GARDENER_NGROK_AUTHTOKEN=' .env 2>/dev/null | cut -d= -f2 || true)"
+    if [ -n "$NGROK_DOMAIN" ] && [ -x "$HOME/.local/bin/ngrok" ]; then
+      [ -n "$NGROK_TOKEN" ] && "$HOME/.local/bin/ngrok" config add-authtoken "$NGROK_TOKEN" >/dev/null 2>&1
+      printf 'https://%s\n' "$NGROK_DOMAIN" > "$URLFILE"   # stable; matches GARDENER_PUBLIC_URL
+      exec "$HOME/.local/bin/ngrok" http "$PP" --url="https://$NGROK_DOMAIN" --log stdout
+    fi
+    CF="$HOME/.local/bin/cloudflared"
+    : > "$URLFILE"   # clear any stale URL while the quick tunnel is establishing
     "$CF" tunnel --no-autoupdate --url "http://localhost:$PP" 2>&1 | while IFS= read -r line; do
       printf '%s\n' "$line"
       u="$(printf '%s' "$line" | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | head -1)"
