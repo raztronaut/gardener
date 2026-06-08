@@ -1,0 +1,16 @@
+{
+  "name": "Hearth · The House",
+  "short_name": "Hearth",
+  "description": "The household app for The Gardener — start Clean Mode, log chores, see the leaderboard, and get notified.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#04110d",
+  "theme_color": "#04110d",
+  "icons": [
+    { "src": "/assets/hearth-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/hearth-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/hearth-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

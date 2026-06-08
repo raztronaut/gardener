@@ -86,6 +86,18 @@ db.exec(`
     kind        TEXT NOT NULL DEFAULT 'info'  -- session_start|chore|session_end|info
   );
   CREATE INDEX IF NOT EXISTS idx_notif_ts ON house_notifications(ts);
+  -- Web Push subscriptions (one row per browser/device that opted in). The
+  -- endpoint is the unique key; p256dh/auth are the encryption keys the push
+  -- service needs. Dead endpoints are pruned on 404/410 when we try to send.
+  CREATE TABLE IF NOT EXISTS house_push_subscriptions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER REFERENCES house_users(id),  -- who subscribed (nullable)
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    created_at  INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_endpoint ON house_push_subscriptions(endpoint);
 `);
 
 // ---- key/value state -------------------------------------------------------
@@ -295,6 +307,25 @@ export function addHouseNotification(text, kind = 'info') {
 }
 const _recentNotifs = db.prepare('SELECT id, ts, text, kind FROM house_notifications ORDER BY ts DESC LIMIT ?');
 export function recentHouseNotifications(limit = 30) { return _recentNotifs.all(Math.min(limit, 100)); }
+
+// ---- web push subscriptions -------------------------------------------------
+// Upsert by endpoint (re-subscribing the same browser refreshes its keys rather
+// than stacking rows). Returns the stored row.
+const _addSub = db.prepare(`
+  INSERT INTO house_push_subscriptions(user_id, endpoint, p256dh, auth, created_at)
+  VALUES(@user_id, @endpoint, @p256dh, @auth, @created_at)
+  ON CONFLICT(endpoint) DO UPDATE SET
+    p256dh = excluded.p256dh, auth = excluded.auth, user_id = excluded.user_id`);
+const _subByEndpoint = db.prepare('SELECT * FROM house_push_subscriptions WHERE endpoint = ?');
+export function addPushSubscription({ userId, endpoint, p256dh, auth }) {
+  _addSub.run({ user_id: userId || null, endpoint: String(endpoint), p256dh: String(p256dh), auth: String(auth), created_at: Date.now() });
+  return _subByEndpoint.get(String(endpoint));
+}
+const _allSubs = db.prepare('SELECT id, user_id, endpoint, p256dh, auth FROM house_push_subscriptions');
+export function allPushSubscriptions() { return _allSubs.all(); }
+const _delSub = db.prepare('DELETE FROM house_push_subscriptions WHERE endpoint = ?');
+export function removePushSubscription(endpoint) { return _delSub.run(String(endpoint)).changes; }
+export function countPushSubscriptions() { return db.prepare('SELECT COUNT(*) n FROM house_push_subscriptions').get().n; }
 
 // ---- rankings / activity ----------------------------------------------------
 // Points: 1 per chore; 'curb' (trash to the curb) and 'vacuum' (vacuum floor)

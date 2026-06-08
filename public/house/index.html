@@ -7,6 +7,13 @@
   <meta name="theme-color" content="#04110d" />
   <title>Hearth · The House</title>
   <link rel="icon" href="/assets/logo.png" />
+  <!-- PWA: installable + Web Push. iOS (16.4+) only delivers push to a PWA that
+       was added to the Home Screen, so the apple-* tags + manifest matter there. -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/assets/hearth-icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Hearth" />
   <link rel="stylesheet" href="/house/house.css" />
 </head>
 <body>
@@ -56,6 +63,14 @@
           </div>
         </div>
         <div id="sessionArea"></div>
+        <div class="card" id="notifyCard">
+          <h2>🔔 Notifications</h2>
+          <p class="lead" style="margin-bottom:14px">Get a phone push when someone starts Clean Mode or logs a chore — even with Hearth closed.</p>
+          <button class="primary" id="notifyBtn">Enable notifications 🔔</button>
+          <div style="height:10px"></div>
+          <div class="msg" id="notifyMsg" role="status"></div>
+          <p class="muted" id="notifyHint" style="margin-top:10px; display:none"></p>
+        </div>
       </div>
     </section>
 

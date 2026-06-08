@@ -9,7 +9,9 @@ import {
   activeSessionForUser, addChoreEvent, choresForSession,
   addHouseNotification, recentHouseNotifications,
   rankingSince, recentActivity, chorePoints,
+  addPushSubscription, removePushSubscription,
 } from './db.mjs';
+import { getVapidPublicKey, sendToAll } from './push.mjs';
 
 // Canonical chore catalog. `key` is stored; `label`/`emoji` drive the UI and the
 // notification text. The last item is free-text ("other"). Edit here only.
@@ -108,6 +110,14 @@ export async function handleHouseApi(req, res, url, opts = {}) {
     if (req.method === 'GET' && p === '/api/house/rankings') {
       json(res, 200, { day: rankingSince(dayStartMs()), week: rankingSince(weekStartMs()) }); return true;
     }
+    // Web Push: the VAPID public key the browser needs to subscribe. A read, so
+    // it's available everywhere the API is mounted (the wall server never sends).
+    if (req.method === 'GET' && p === '/api/house/vapid-public') {
+      let key = '';
+      try { key = getVapidPublicKey(); } catch (e) { log(`vapid key error: ${e}`); }
+      if (!key) { json(res, 503, { error: 'push not configured' }); return true; }
+      json(res, 200, { publicKey: key }); return true;
+    }
     if (req.method === 'GET' && p === '/api/house/session') {
       const id = parseInt(url.searchParams.get('id') || '', 10);
       const s = id ? getCleanSession(id) : null;
@@ -138,8 +148,10 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       const fresh = !activeSessionForUser(user.id);
       const session = startCleanSession(user.id);
       if (fresh) {
-        addHouseNotification(`${user.name} started cleaning the house 🧹`, 'session_start');
+        const text = `${user.name} started cleaning the house 🧹`;
+        addHouseNotification(text, 'session_start');
         log(`session #${session.id} started by ${user.name}`);
+        pushAll({ title: 'Clean Mode started 🧹', body: text, tag: 'session' }, b, log);
       }
       json(res, 200, { ok: true, session, chores: choresForSession(session.id) }); return true;
     }
@@ -169,9 +181,38 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       const session = b && b.sessionId ? getCleanSession(parseInt(b.sessionId, 10)) : null;
       const id = addChoreEvent({ userId: user.id, sessionId: session ? session.id : null, chore: def.key, note: note || null });
       const label = def.freeText ? `${note}` : def.past;
-      addHouseNotification(`${user.name} ${def.freeText ? `noted: ${label}` : label} ${def.emoji}`, 'chore');
+      const text = `${user.name} ${def.freeText ? `noted: ${label}` : label} ${def.emoji}`;
+      addHouseNotification(text, 'chore');
       log(`chore '${def.key}' by ${user.name} (+${chorePoints(def.key)})`);
+      pushAll({ title: `Chore logged ${def.emoji}`, body: text, tag: 'chore' }, b, log);
       json(res, 200, { ok: true, id }); return true;
+    }
+
+    // ----- web push subscribe / unsubscribe -----
+    if (req.method === 'POST' && p === '/api/house/subscribe') {
+      const b = await parseJson(req);
+      const sub = b && b.subscription;
+      const endpoint = (sub && sub.endpoint || '').toString();
+      const p256dh = (sub && sub.keys && sub.keys.p256dh || '').toString();
+      const auth = (sub && sub.keys && sub.keys.auth || '').toString();
+      // Must be a real push endpoint with both encryption keys.
+      if (!/^https:\/\//.test(endpoint) || endpoint.length > 1024 || !p256dh || !auth) {
+        json(res, 400, { error: 'invalid subscription' }); return true;
+      }
+      const user = b && (b.userId || b.name) ? resolveUser(b) : null;
+      try {
+        addPushSubscription({ userId: user ? user.id : null, endpoint, p256dh, auth });
+        log(`push subscribe${user ? ` (${user.name})` : ''}: …${endpoint.slice(-12)}`);
+        json(res, 200, { ok: true }); return true;
+      } catch (e) { log(`subscribe error: ${e}`); json(res, 500, { error: 'could not subscribe' }); return true; }
+    }
+
+    if (req.method === 'POST' && p === '/api/house/unsubscribe') {
+      const b = await parseJson(req);
+      const endpoint = (b && b.endpoint || '').toString();
+      if (!/^https:\/\//.test(endpoint)) { json(res, 400, { error: 'invalid endpoint' }); return true; }
+      removePushSubscription(endpoint);
+      json(res, 200, { ok: true }); return true;
     }
 
     json(res, 404, { error: 'no such house route' });
@@ -181,6 +222,20 @@ export async function handleHouseApi(req, res, url, opts = {}) {
     try { json(res, 500, { error: 'house error' }); } catch { /* ignore */ }
     return true;
   }
+}
+
+// Fire-and-forget Web Push fan-out to all stored subscriptions. We don't await
+// it (the HTTP response shouldn't block on the push services) and never let a
+// push failure surface to the caller. The actor's own device is skipped when
+// the client includes its `endpoint` in the request body. The tunnel URL is the
+// canonical place to open notifications, so we point clicks at it when known.
+const PUBLIC_BASE = (process.env.GARDENER_PUBLIC_URL || '').replace(/\/+$/, '');
+function pushAll(payload, body, log) {
+  const skipEndpoint = body && typeof body.endpoint === 'string' ? body.endpoint : null;
+  const url = PUBLIC_BASE || '/';
+  Promise.resolve()
+    .then(() => sendToAll({ ...payload, url }, { skipEndpoint, log }))
+    .catch((e) => log(`push fan-out error: ${e}`));
 }
 
 // Resolve a user from {userId} or {name} (creating by name if needed) — lets the

@@ -61,6 +61,23 @@ const server = http.createServer(async (req, res) => {
       const html = await fs.readFile(join(paths.PUBLIC, 'plant.html'));
       return send(res, 200, 'text/html; charset=utf-8', html);
     }
+    // PWA service worker — served at the ROOT so its scope can cover the whole
+    // app (Web Push needs a SW; iOS only delivers push to INSTALLED PWAs). The
+    // Service-Worker-Allowed header lets it claim scope '/'.
+    if (req.method === 'GET' && p === '/sw.js') {
+      try {
+        const data = await fs.readFile(join(paths.PUBLIC, 'house', 'sw.js'));
+        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' });
+        return res.end(data);
+      } catch { return send(res, 404, 'text/plain', 'not found'); }
+    }
+    // Web app manifest (Add to Home Screen / installable PWA).
+    if (req.method === 'GET' && (p === '/manifest.webmanifest' || p === '/house/manifest.webmanifest')) {
+      try {
+        const data = await fs.readFile(join(paths.PUBLIC, 'house', 'manifest.webmanifest'));
+        return send(res, 200, 'application/manifest+json; charset=utf-8', data);
+      } catch { return send(res, 404, 'text/plain', 'not found'); }
+    }
     // Hearth static assets (app.js / house.css), confined to public/house/.
     if (req.method === 'GET' && p.startsWith('/house/')) {
       const name = p.slice('/house/'.length);

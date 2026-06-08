@@ -86,6 +86,34 @@ async function main() {
     // Grace logs one chore
     check('Grace logs trash (worth 1)', (await jpost(PB, '/api/house/chore', { userId: u2.user.id, chore: 'trash' })).ok);
 
+    console.log('\n[hearth] web push (VAPID + subscribe/unsubscribe)');
+    const vp = await (await jget(PB, '/api/house/vapid-public')).json();
+    check('vapid-public returns a key', typeof vp.publicKey === 'string' && vp.publicKey.length > 80, `got ${vp.publicKey && vp.publicKey.length}`);
+    // A plausible-looking subscription (https endpoint + both encryption keys).
+    const goodSub = { subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/SMOKE-' + Date.now(), keys: { p256dh: 'BPexampleKeyMaterialAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', auth: 'YXV0aHNlY3JldEFB' } }, userId: u1.user.id };
+    const sub1 = await jpost(PB, '/api/house/subscribe', goodSub);
+    check('subscribe persists a valid subscription', sub1.ok);
+    // Re-subscribing the same endpoint is an upsert (no error, no duplicate).
+    check('re-subscribe same endpoint is idempotent', (await jpost(PB, '/api/house/subscribe', goodSub)).ok);
+    check('subscribe rejects missing keys', (await jpost(PB, '/api/house/subscribe', { subscription: { endpoint: 'https://fcm.googleapis.com/x' } })).status === 400);
+    check('subscribe rejects non-https endpoint', (await jpost(PB, '/api/house/subscribe', { subscription: { endpoint: 'http://insecure/x', keys: { p256dh: 'a', auth: 'b' } } })).status === 400);
+    check('subscribe rejects empty body', (await jpost(PB, '/api/house/subscribe', {})).status === 400);
+    check('unsubscribe accepts the endpoint', (await jpost(PB, '/api/house/unsubscribe', { endpoint: goodSub.subscription.endpoint })).ok);
+    check('unsubscribe rejects bad endpoint', (await jpost(PB, '/api/house/unsubscribe', { endpoint: 'nope' })).status === 400);
+    check('main server also exposes vapid-public (read-only ok)', (await jget(MB, '/api/house/vapid-public')).ok);
+
+    console.log('\n[hearth] PWA assets (service worker + manifest + icons)');
+    const sw = await jget(PB, '/sw.js');
+    check('GET /sw.js serves the service worker', sw.ok && /Service Worker|push|showNotification/i.test(await sw.clone().text()));
+    check('/sw.js sets Service-Worker-Allowed: /', sw.headers.get('service-worker-allowed') === '/');
+    const mani = await jget(PB, '/manifest.webmanifest');
+    check('GET /manifest.webmanifest serves a manifest', mani.ok);
+    const manijson = await mani.json();
+    check('manifest is installable (name + icons + standalone)', manijson.name && manijson.display === 'standalone' && Array.isArray(manijson.icons) && manijson.icons.length >= 2);
+    check('GET /assets/hearth-icon-192.png exists', (await jget(PB, '/assets/hearth-icon-192.png')).ok);
+    check('GET /assets/hearth-icon-512.png exists', (await jget(PB, '/assets/hearth-icon-512.png')).ok);
+    check('index.html links the manifest', /rel="manifest"/.test(await (await jget(PB, '/')).text()));
+
     console.log('\n[hearth] session view');
     const sv = await (await jget(PB, `/api/house/session?id=${sid}`)).json();
     check('session view lists Ada chores', sv.session && sv.session.name === 'Ada' && sv.chores.length === 4);

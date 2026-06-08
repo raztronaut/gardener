@@ -85,6 +85,7 @@ async function renderMacros() {
   if (currentUser) { idCard.hidden = true; area.hidden = false; }
   else { idCard.hidden = false; area.hidden = true; await renderNamePicker(); return; }
   await refreshActiveState();
+  refreshNotifyUi();
 }
 
 async function renderNamePicker() {
@@ -188,6 +189,119 @@ async function logChore(chore, note) {
   return api('/api/house/chore', { method: 'POST', body: JSON.stringify({ userId: currentUser.id, name: currentUser.name, sessionId: activeSession ? activeSession.id : null, chore, note }) });
 }
 function flash(btn, txt) { const old = btn.textContent; btn.textContent = txt; setTimeout(() => { btn.textContent = old; }, 900); }
+
+// =============================================================================
+// Web Push — phone notifications (works with the app CLOSED).
+// Android Chrome subscribes directly. iOS (16.4+) only allows web push once the
+// site is "Added to Home Screen" as a PWA and opened from that icon — until then
+// the browser exposes no PushManager / permission, so we show the install hint.
+// HTTPS is required: phones MUST open the tunnel URL (https), not localhost.
+// =============================================================================
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+// Detect an iOS device viewing in Safari (not yet installed as a PWA).
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+let swReg = null;
+async function ensureSW() {
+  if (!('serviceWorker' in navigator)) return null;
+  if (swReg) return swReg;
+  try { swReg = await navigator.serviceWorker.register('/sw.js', { scope: '/' }); } catch { swReg = null; }
+  return swReg;
+}
+// Register the SW eagerly (so the PWA is installable) — harmless if push is unused.
+ensureSW();
+
+function urlBase64ToUint8Array(b64) {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const base64 = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function setNotifyMsg(text, kind) { const m = $('#notifyMsg'); if (!m) return; m.className = 'msg' + (kind ? ' ' + kind : ''); m.textContent = text || ''; }
+
+// Reflect the current subscription/permission state in the Macros notify card.
+async function refreshNotifyUi() {
+  const card = $('#notifyCard'); if (!card) return;
+  const btn = $('#notifyBtn'); const hint = $('#notifyHint');
+  hint.style.display = 'none'; hint.textContent = '';
+  if (!pushSupported()) {
+    // On iOS Safari, PushManager only appears inside an installed PWA.
+    if (isIOS() && !isStandalone()) {
+      btn.disabled = true; btn.textContent = 'Add to Home Screen first';
+      hint.style.display = 'block';
+      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Hearth from that icon to enable notifications (iOS 16.4+).';
+      setNotifyMsg('');
+    } else {
+      btn.disabled = true; btn.textContent = 'Notifications not supported';
+      setNotifyMsg('This browser can’t do web push. Open Hearth in Chrome (Android) or an installed PWA (iOS).', 'err');
+    }
+    return;
+  }
+  btn.disabled = false;
+  if (Notification.permission === 'denied') {
+    btn.textContent = 'Notifications blocked';
+    setNotifyMsg('Notifications are blocked in your browser settings — re-enable them for this site to opt in.', 'err');
+    return;
+  }
+  const reg = await ensureSW();
+  let sub = null; try { sub = reg && (await reg.pushManager.getSubscription()); } catch { /* ignore */ }
+  if (sub) {
+    btn.textContent = 'Disable notifications';
+    setNotifyMsg('You’ll get a push when someone cleans or logs a chore. ✓', 'ok');
+  } else {
+    btn.textContent = 'Enable notifications 🔔';
+    setNotifyMsg('');
+  }
+}
+
+async function enableNotifications() {
+  const reg = await ensureSW();
+  if (!reg) { setNotifyMsg('Could not start the notification worker. Make sure you opened the https tunnel URL.', 'err'); return; }
+  setNotifyMsg('Requesting permission…');
+  let perm;
+  try { perm = await Notification.requestPermission(); } catch { perm = Notification.permission; }
+  if (perm !== 'granted') { setNotifyMsg(perm === 'denied' ? 'Permission denied — enable it in your browser settings to opt in.' : 'Permission was not granted.', 'err'); refreshNotifyUi(); return; }
+  setNotifyMsg('Subscribing…');
+  try {
+    const { publicKey } = await api('/api/house/vapid-public');
+    if (!publicKey) throw new Error('push not configured on the server');
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+    await api('/api/house/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub.toJSON(), userId: currentUser && currentUser.id, name: currentUser && currentUser.name }) });
+    setNotifyMsg('Notifications on — you’ll be pinged when the house gets tidy. ✓', 'ok');
+  } catch (e) {
+    setNotifyMsg(e.message || 'Could not subscribe — try again.', 'err');
+  }
+  refreshNotifyUi();
+}
+
+async function disableNotifications() {
+  const reg = await ensureSW();
+  setNotifyMsg('Turning off…');
+  try {
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (sub) {
+      try { await api('/api/house/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: sub.endpoint }) }); } catch { /* server prune is best-effort */ }
+      await sub.unsubscribe();
+    }
+    setNotifyMsg('Notifications off.', 'ok');
+  } catch (e) { setNotifyMsg(e.message || 'Could not turn off.', 'err'); }
+  refreshNotifyUi();
+}
+
+(function wireNotify() {
+  const btn = $('#notifyBtn'); if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const reg = await ensureSW();
+    let sub = null; try { sub = reg && (await reg.pushManager.getSubscription()); } catch { /* ignore */ }
+    try { if (sub) await disableNotifications(); else await enableNotifications(); }
+    finally { btn.disabled = false; }
+  });
+})();
 
 // =============================================================================
 // Screen 3 — Dashboard (leaderboard + day/week toggle + activity + notifs)
