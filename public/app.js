@@ -599,9 +599,10 @@ function wireCursor() {
 
 // ---- corner Plant-a-Note QR -------------------------------------------------
 // The QR used to be a grid widget; the humans asked for it to live quietly in the
-// top-right corner — just the code, green to match the garden, no copy. It encodes
-// the PUBLIC tunnel URL (state.publicUrl) so a phone can actually reach it; if no
-// public URL exists yet, the corner stays empty rather than showing a dead code.
+// top-right corner — just the code, no card, no copy. It now renders as WHITE
+// modules on a TRANSPARENT background so it floats slickly over the aurora. It
+// encodes the PUBLIC tunnel URL (state.publicUrl) so a phone can actually reach
+// it; if no public URL exists yet, the corner stays empty rather than show a dead code.
 const isPublicUrl = (u) => {
   try { return !/^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/i.test(new URL(u).hostname); }
   catch { return false; }
@@ -619,9 +620,10 @@ async function wireCornerQr() {
   base = String(base || '').replace(/\/+$/, '');
   if (!base) { el.hidden = true; return; }
   const target = `${base}/plant.html`;
-  // Green modules (#0e7a45) on white → reads as a green code yet scans reliably.
+  // White modules on a transparent background → the code floats over the aurora
+  // with no card. quickchart renders true alpha (dark=ffffff opaque, light=00000000).
   const src = `/api/proxy?url=${encodeURIComponent(
-    `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=0&ecc=M&color=0e7a45&bgcolor=ffffff&data=${encodeURIComponent(target)}`)}`;
+    `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=ffffff&light=00000000&ecLevel=M&margin=1&size=240&format=png`)}`;
   const img = h('img', { alt: 'Scan to plant a note', src });
   img.addEventListener('error', () => { el.hidden = true; });
   el.replaceChildren(img);

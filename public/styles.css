@@ -232,12 +232,13 @@ body.screenshot #streetalarm { display: none !important; }
   background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 999px;
   padding: 7px 13px; cursor: pointer; white-space: nowrap; }
 
-/* Corner Plant-a-Note QR — quiet, just the code, tinted green to match the garden. */
-.cornerqr { display: block; width: 58px; height: 58px; border-radius: 12px;
-  background: #fff; padding: 5px; box-shadow: 0 4px 14px rgba(0,0,0,.35);
-  border: 1px solid rgba(120,247,176,.35); line-height: 0; }
+/* Corner Plant-a-Note QR — quiet, just the code: white modules, no card, no
+   background, floating over the aurora. A soft drop-shadow keeps it legible. */
+.cornerqr { display: block; width: 58px; height: 58px;
+  background: none; padding: 0; border: 0; box-shadow: none; line-height: 0; }
 .cornerqr[hidden] { display: none; }
-.cornerqr img { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+.cornerqr img { width: 100%; height: 100%; display: block; image-rendering: pixelated;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,.55)); }
 
 /* ---------- command panel (/iterations, /help) ----------
    Anchored to the BOTTOM (just above the feedback bar) and grows UPWARD to only
