@@ -52,6 +52,40 @@ db.exec(`
     key    TEXT PRIMARY KEY,
     value  TEXT
   );
+
+  -- ====================================================================
+  -- "Hearth" — the household side app (a separate, hand-maintained side
+  -- project; the daily tending must NOT touch these tables or its code).
+  -- Served on the PUBLIC plant-server surface; surfaced read-only on the wall.
+  -- ====================================================================
+  CREATE TABLE IF NOT EXISTS house_users (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE,
+    created_at  INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS clean_sessions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES house_users(id),
+    started_at  INTEGER NOT NULL,
+    ended_at    INTEGER                      -- NULL = still cleaning
+  );
+  CREATE INDEX IF NOT EXISTS idx_clean_active ON clean_sessions(ended_at);
+  CREATE TABLE IF NOT EXISTS chore_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES house_users(id),
+    session_id  INTEGER REFERENCES clean_sessions(id),
+    chore       TEXT NOT NULL,                -- canonical chore key (e.g. 'vacuum')
+    note        TEXT,                         -- free text for the 'other' chore
+    ts          INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_chore_ts ON chore_events(ts);
+  CREATE TABLE IF NOT EXISTS house_notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    text        TEXT NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'info'  -- session_start|chore|session_end|info
+  );
+  CREATE INDEX IF NOT EXISTS idx_notif_ts ON house_notifications(ts);
 `);
 
 // ---- key/value state -------------------------------------------------------
@@ -194,5 +228,100 @@ export function clearStaleLock() {
     if (!pidAlive(pid) || boot !== BOOT_ID) setKV(LOCK_KEY, '');
   } catch { setKV(LOCK_KEY, ''); }
 }
+
+// ============================================================================
+// "Hearth" household app — data helpers. Separate, hand-maintained side project.
+// All writes are validated/rate-limited at the (internet-exposed) HTTP layer.
+// ============================================================================
+
+// ---- users -----------------------------------------------------------------
+const _houseUsers = db.prepare('SELECT id, name, created_at FROM house_users ORDER BY name COLLATE NOCASE ASC');
+export function listHouseUsers() { return _houseUsers.all(); }
+const _houseUserByName = db.prepare('SELECT id, name, created_at FROM house_users WHERE name = ? COLLATE NOCASE');
+export function getHouseUserByName(name) { return _houseUserByName.get(String(name)); }
+const _houseUserById = db.prepare('SELECT id, name, created_at FROM house_users WHERE id = ?');
+export function getHouseUser(id) { return _houseUserById.get(id); }
+const _addHouseUser = db.prepare('INSERT INTO house_users(name, created_at) VALUES(?,?)');
+// Create-or-get by (case-insensitive) name; returns the canonical row.
+export function upsertHouseUser(name) {
+  const clean = String(name).trim().slice(0, 40);
+  if (!clean) return null;
+  const existing = _houseUserByName.get(clean);
+  if (existing) return existing;
+  try {
+    const info = _addHouseUser.run(clean, Date.now());
+    return getHouseUser(info.lastInsertRowid);
+  } catch {
+    return _houseUserByName.get(clean); // raced an insert → return the winner
+  }
+}
+
+// ---- clean sessions ---------------------------------------------------------
+const _activeSessionForUser = db.prepare('SELECT * FROM clean_sessions WHERE user_id = ? AND ended_at IS NULL ORDER BY id DESC LIMIT 1');
+export function activeSessionForUser(userId) { return _activeSessionForUser.get(userId); }
+const _activeSessions = db.prepare(`
+  SELECT s.id, s.user_id, s.started_at, u.name
+  FROM clean_sessions s JOIN house_users u ON u.id = s.user_id
+  WHERE s.ended_at IS NULL ORDER BY s.started_at ASC`);
+export function activeSessions() { return _activeSessions.all(); }
+const _startSession = db.prepare('INSERT INTO clean_sessions(user_id, started_at) VALUES(?,?)');
+// Idempotent start: reuse an already-open session rather than stacking them.
+export function startCleanSession(userId) {
+  const open = _activeSessionForUser.get(userId);
+  if (open) return open;
+  const info = _startSession.run(userId, Date.now());
+  return db.prepare('SELECT * FROM clean_sessions WHERE id = ?').get(info.lastInsertRowid);
+}
+const _endSession = db.prepare('UPDATE clean_sessions SET ended_at = ? WHERE id = ? AND ended_at IS NULL');
+export function endCleanSession(sessionId) { return _endSession.run(Date.now(), sessionId).changes; }
+const _getSession = db.prepare('SELECT * FROM clean_sessions WHERE id = ?');
+export function getCleanSession(id) { return _getSession.get(id); }
+
+// ---- chore events -----------------------------------------------------------
+const _addChore = db.prepare('INSERT INTO chore_events(user_id, session_id, chore, note, ts) VALUES(?,?,?,?,?)');
+export function addChoreEvent({ userId, sessionId, chore, note }) {
+  const info = _addChore.run(userId, sessionId || null, String(chore), note ? String(note).slice(0, 200) : null, Date.now());
+  return info.lastInsertRowid;
+}
+// Chores logged within a given session (for the active-session checklist view).
+const _choresForSession = db.prepare('SELECT id, chore, note, ts FROM chore_events WHERE session_id = ? ORDER BY ts ASC');
+export function choresForSession(sessionId) { return _choresForSession.all(sessionId); }
+
+// ---- notifications ----------------------------------------------------------
+const _addNotif = db.prepare('INSERT INTO house_notifications(ts, text, kind) VALUES(?,?,?)');
+export function addHouseNotification(text, kind = 'info') {
+  const info = _addNotif.run(Date.now(), String(text).slice(0, 280), String(kind));
+  return info.lastInsertRowid;
+}
+const _recentNotifs = db.prepare('SELECT id, ts, text, kind FROM house_notifications ORDER BY ts DESC LIMIT ?');
+export function recentHouseNotifications(limit = 30) { return _recentNotifs.all(Math.min(limit, 100)); }
+
+// ---- rankings / activity ----------------------------------------------------
+// Points: 1 per chore; 'curb' (trash to the curb) and 'vacuum' (vacuum floor)
+// are worth 2 (the heavier lifts). Tie-break is most-recent activity. The HTTP
+// layer passes a `sinceMs` window (day = local PT midnight, week = rolling 7d).
+const CHORE_POINTS = { curb: 2, vacuum: 2 };
+export function chorePoints(chore) { return CHORE_POINTS[chore] || 1; }
+const _eventsSince = db.prepare(`
+  SELECT e.user_id, u.name, e.chore, e.ts
+  FROM chore_events e JOIN house_users u ON u.id = e.user_id
+  WHERE e.ts >= ? ORDER BY e.ts ASC`);
+export function rankingSince(sinceMs) {
+  const rows = _eventsSince.all(sinceMs);
+  const by = new Map();
+  for (const r of rows) {
+    let agg = by.get(r.user_id);
+    if (!agg) { agg = { user_id: r.user_id, name: r.name, points: 0, chores: 0, lastTs: 0 }; by.set(r.user_id, agg); }
+    agg.points += chorePoints(r.chore);
+    agg.chores += 1;
+    if (r.ts > agg.lastTs) agg.lastTs = r.ts;
+  }
+  return [...by.values()].sort((a, b) => b.points - a.points || b.lastTs - a.lastTs);
+}
+const _recentActivity = db.prepare(`
+  SELECT e.id, e.chore, e.note, e.ts, u.name
+  FROM chore_events e JOIN house_users u ON u.id = e.user_id
+  ORDER BY e.ts DESC LIMIT ?`);
+export function recentActivity(limit = 20) { return _recentActivity.all(Math.min(limit, 100)); }
 
 export default db;

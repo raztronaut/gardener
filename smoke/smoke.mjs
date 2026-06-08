@@ -159,6 +159,18 @@ async function main() {
     try { rmSync(tmpData, { recursive: true, force: true }); } catch { /* ignore */ }
   }
 
+  // 8) Hearth (household side app) — run its dedicated smoke as a subprocess
+  // (its own ports/temp DB). Folded in so `npm run smoke` covers it too.
+  console.log('\n[8] Hearth household app');
+  try {
+    await pExecFile(process.execPath, [join(ROOT, 'smoke', 'house-smoke.mjs')], { timeout: 60000 });
+    ok('hearth smoke passed (users/sessions/chores/rankings/notifications)');
+  } catch (e) {
+    const out = ((e.stdout || '') + (e.stderr || '')).toString();
+    const fails = out.split('\n').filter((l) => /✗/.test(l)).slice(0, 8).join(' | ');
+    bad('hearth smoke', fails || (e.message || '').split('\n')[0]);
+  }
+
   console.log(`\n${'─'.repeat(46)}`);
   if (failures.length) {
     console.log(`SMOKE FAILED — ${passed} passed, ${failures.length} failed:`);

@@ -8,6 +8,7 @@ import { promises as fs, appendFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { config, paths } from './config.mjs';
 import { addFeedback } from './db.mjs';
+import { handleHouseApi } from './house-api.mjs';
 
 const PORT = parseInt(process.env.GARDENER_PLANT_PORT || '8788', 10);
 const HOST = '127.0.0.1'; // cloudflared connects here; never bound to the LAN directly
@@ -18,6 +19,8 @@ function log(msg) {
 }
 
 const IMG = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon' };
+// Static MIME for the Hearth app's own files (served only from public/house/).
+const HOUSE_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon' };
 
 // Simple global rate limit so a stranger with the URL can't flood the gardener.
 const hits = [];
@@ -48,10 +51,31 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const p = u.pathname;
 
-    // The note page (mobile).
-    if (req.method === 'GET' && (p === '/' || p === '/plant.html')) {
+    // Hearth — the household app is the new front door. `/` serves it; the
+    // standalone note page stays reachable at /plant.html as a fallback.
+    if (req.method === 'GET' && (p === '/' || p === '/house' || p === '/house/')) {
+      const html = await fs.readFile(join(paths.PUBLIC, 'house', 'index.html'));
+      return send(res, 200, 'text/html; charset=utf-8', html);
+    }
+    if (req.method === 'GET' && p === '/plant.html') {
       const html = await fs.readFile(join(paths.PUBLIC, 'plant.html'));
       return send(res, 200, 'text/html; charset=utf-8', html);
+    }
+    // Hearth static assets (app.js / house.css), confined to public/house/.
+    if (req.method === 'GET' && p.startsWith('/house/')) {
+      const name = p.slice('/house/'.length);
+      const ext = extname(name).toLowerCase();
+      if (name.includes('..') || name.startsWith('/') || !HOUSE_MIME[ext]) return send(res, 404, 'text/plain', 'not found');
+      try {
+        const data = await fs.readFile(join(paths.PUBLIC, 'house', name));
+        return send(res, 200, HOUSE_MIME[ext], data);
+      } catch { return send(res, 404, 'text/plain', 'not found'); }
+    }
+    // Hearth household JSON API (full read+write — this is the public surface).
+    if (p.startsWith('/api/house')) {
+      if (!rateOk(120, 60000)) return send(res, 429, 'application/json', JSON.stringify({ error: 'too many requests — try again shortly' }));
+      const handled = await handleHouseApi(req, res, u, { log });
+      if (handled) return;
     }
     // The logo only (and only image files under /assets, traversal-guarded).
     if (req.method === 'GET' && p.startsWith('/assets/')) {

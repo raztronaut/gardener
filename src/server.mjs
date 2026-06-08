@@ -14,6 +14,7 @@ import {
   recentIterations, latestCommitted,
 } from './db.mjs';
 import { recover } from './recover.mjs';
+import { handleHouseApi } from './house-api.mjs';
 
 const START = Date.now();
 
@@ -266,6 +267,14 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, night: on });
     }
     if (req.method === 'GET' && p === '/api/proxy') return handleProxy(req, res, u);
+
+    // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
+    // This localhost-only server never accepts house writes (those live solely
+    // on the public plant-server); readOnly:true rejects any non-GET house route.
+    if (p.startsWith('/api/house')) {
+      const handled = await handleHouseApi(req, res, u, { readOnly: true, log });
+      if (handled) return;
+    }
 
     if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(req, res, p + (u.search || ''));
     return send(res, 405, 'text/plain', 'method not allowed');

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#04110d" />
+  <title>Hearth · The House</title>
+  <link rel="icon" href="/assets/logo.png" />
+  <link rel="stylesheet" href="/house/house.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-head">
+      <span class="logo">🔥</span>
+      <h1>Hearth</h1>
+      <div class="who" id="who"></div>
+    </header>
+
+    <!-- Screen 1: Plant a Note -->
+    <section class="screen" id="screen-note">
+      <div class="card">
+        <h2>🌱 Plant a note</h2>
+        <p class="lead">Tell the Gardener what to grow on the wall display. Your note is tended into the garden at the next morning's tending.</p>
+      </div>
+      <div class="card">
+        <textarea id="noteText" maxlength="500" placeholder="e.g. add a transit board for the 22 bus…"></textarea>
+        <div style="height:12px"></div>
+        <button class="primary" id="noteSend">Plant it 🌱</button>
+        <div style="height:12px"></div>
+        <div class="msg" id="noteMsg" role="status"></div>
+      </div>
+    </section>
+
+    <!-- Screen 2: Community Macros -->
+    <section class="screen" id="screen-macros">
+      <div class="card" id="identityCard">
+        <h2>Who's this?</h2>
+        <p class="lead">Pick your name so the household knows who's pitching in.</p>
+        <div class="namegrid" id="nameGrid"></div>
+        <div class="namerow">
+          <input type="text" id="newName" maxlength="40" placeholder="…or type your name" />
+          <button class="primary" id="addName">Add</button>
+        </div>
+        <div class="msg" id="nameMsg" role="status"></div>
+      </div>
+
+      <div id="macrosArea" hidden>
+        <div id="activeArea"></div>
+        <div class="card">
+          <h2>Household macros</h2>
+          <p class="lead" style="margin-bottom:14px">Kick off a shared activity. Everyone gets notified.</p>
+          <div class="macro" id="startClean">
+            <span class="ic">🧹</span>
+            <div class="mtext"><b>Start Clean Mode</b><span>Begin a cleaning session &amp; log your chores</span></div>
+          </div>
+        </div>
+        <div id="sessionArea"></div>
+      </div>
+    </section>
+
+    <!-- Screen 3: Dashboard -->
+    <section class="screen" id="screen-dash">
+      <div class="card">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <h2>🏆 Leaderboard</h2>
+          <div class="toggle" id="rangeToggle">
+            <button data-range="day" class="on">Day</button>
+            <button data-range="week">Week</button>
+          </div>
+        </div>
+        <p class="muted" id="rangeNote">Today (since midnight)</p>
+        <div id="rankList"></div>
+      </div>
+      <div class="card">
+        <h2>🧹 Cleaning now</h2>
+        <div class="cleaning-now" id="cleaningNow"></div>
+      </div>
+      <div class="card">
+        <h2>📋 Recent activity</h2>
+        <div class="feed" id="activityFeed"></div>
+      </div>
+      <div class="card">
+        <h2>🔔 Notifications</h2>
+        <div class="feed" id="notifFeed"></div>
+      </div>
+    </section>
+
+    <div class="foot">Hearth · the household app · part of The Gardener™</div>
+  </div>
+
+  <nav class="tabbar">
+    <button data-screen="note"><span class="ti">🌱</span>Note</button>
+    <button data-screen="macros"><span class="ti">🧹</span>Macros</button>
+    <button data-screen="dash" class="on"><span class="ti">🏆</span>Dashboard</button>
+  </nav>
+
+  <script src="/house/app.js"></script>
+</body>
+</html>

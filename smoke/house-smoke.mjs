@@ -1,0 +1,134 @@
+// Hearth (household app) — smoke test. Boots the PUBLIC plant-server on a test
+// port + temp DB and exercises every household endpoint: create user, start
+// session (+notification), log chores, rankings (day/week), notifications,
+// status, and the read-only guard on the localhost server. Exits 0/1.
+// A separate, hand-maintained side project (the daily tending must NOT touch it).
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PLANT_PORT = 8795;
+const MAIN_PORT = 8796;
+const PB = `http://127.0.0.1:${PLANT_PORT}`;  // public surface (read+write)
+const MB = `http://127.0.0.1:${MAIN_PORT}`;   // localhost surface (read-only)
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+let passed = 0; const failures = [];
+const ok = (n) => { passed++; console.log(`  ✓ ${n}`); };
+const bad = (n, d) => { failures.push(`${n}${d ? ' — ' + d : ''}`); console.log(`  ✗ ${n}${d ? ' — ' + d : ''}`); };
+const check = (n, c, d) => { c ? ok(n) : bad(n, d); return c; };
+const jpost = (base, path, body) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const jget = (base, path) => fetch(base + path);
+
+async function waitUp(url, n = 40) { for (let i = 0; i < n; i++) { try { if ((await fetch(url)).ok) return true; } catch { /* not yet */ } await sleep(250); } return false; }
+
+async function main() {
+  const tmpData = mkdtempSync(join(tmpdir(), 'hearth-smoke-'));
+  const env = { ...process.env, GARDENER_DATA: tmpData, GARDENER_HOST: '127.0.0.1', GARDENER_NO_RECOVER: '1' };
+  // Boot the plant server first and let it create the fresh schema, THEN the
+  // localhost server — so two processes don't race to CREATE TABLE on a brand-new
+  // temp DB (which can transiently lock under WAL on a cold start).
+  const plant = spawn(process.execPath, [join(ROOT, 'src', 'plant-server.mjs')], { env: { ...env, GARDENER_PLANT_PORT: String(PLANT_PORT) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let perr = ''; plant.stderr.on('data', (d) => { perr += d; }); plant.stdout.on('data', () => {});
+  let main;
+  let merr = '';
+
+  try {
+    console.log('\n[hearth] server boot');
+    if (!check('plant server up', await waitUp(`${PB}/api/house/chores`), perr.split('\n').slice(-2).join(' ').slice(0, 200))) throw new Error('plant did not boot');
+    main = spawn(process.execPath, [join(ROOT, 'src', 'server.mjs')], { env: { ...env, GARDENER_PORT: String(MAIN_PORT) }, stdio: ['ignore', 'pipe', 'pipe'] });
+    main.stderr.on('data', (d) => { merr += d; }); main.stdout.on('data', () => {});
+    check('main server up', await waitUp(`${MB}/api/health`), merr.split('\n').slice(-2).join(' ').slice(0, 200));
+
+    console.log('\n[hearth] app + fallback serve');
+    check('GET / serves Hearth app', /Hearth/.test(await (await jget(PB, '/')).text()));
+    check('GET /plant.html still works (fallback)', (await jget(PB, '/plant.html')).ok);
+    check('GET /house/app.js serves app js', (await jget(PB, '/house/app.js')).ok);
+    check('GET /house/house.css serves css', (await jget(PB, '/house/house.css')).ok);
+    check('blocks /house/ traversal', (await jget(PB, '/house/..%2f..%2fpackage.json')).status === 404);
+
+    console.log('\n[hearth] chore catalog');
+    const chores = (await (await jget(PB, '/api/house/chores')).json()).chores;
+    check('chore catalog has 7 entries', Array.isArray(chores) && chores.length === 7, `got ${chores && chores.length}`);
+    check('last chore is free-text "other"', chores.at(-1).key === 'other' && chores.at(-1).freeText === true);
+
+    console.log('\n[hearth] users');
+    const u1 = await (await jpost(PB, '/api/house/users', { name: 'Ada' })).json();
+    check('create user Ada', u1.ok && u1.user && typeof u1.user.id === 'number');
+    const u1b = await (await jpost(PB, '/api/house/users', { name: 'ada' })).json(); // case-insensitive dedupe
+    check('user create is case-insensitive (no dup)', u1b.user.id === u1.user.id);
+    const u2 = await (await jpost(PB, '/api/house/users', { name: 'Grace' })).json();
+    check('create user Grace', u2.ok && u2.user.id !== u1.user.id);
+    check('rejects empty name', (await jpost(PB, '/api/house/users', { name: '   ' })).status === 400);
+    check('rejects bogus name', (await jpost(PB, '/api/house/users', { name: '<script>' })).status === 400);
+    const users = (await (await jget(PB, '/api/house/users')).json()).users;
+    check('lists both users', users.length === 2);
+
+    console.log('\n[hearth] clean session + notification');
+    const start = await (await jpost(PB, '/api/house/session/start', { userId: u1.user.id })).json();
+    check('start session for Ada', start.ok && start.session && typeof start.session.id === 'number');
+    const sid = start.session.id;
+    const start2 = await (await jpost(PB, '/api/house/session/start', { userId: u1.user.id })).json();
+    check('starting again reuses the open session (idempotent)', start2.session.id === sid);
+    let notifs = (await (await jget(PB, '/api/house/notifications')).json()).notifications;
+    check('session_start notification emitted', notifs.some((n) => n.kind === 'session_start' && /Ada started cleaning/.test(n.text)));
+
+    console.log('\n[hearth] log chores (+points)');
+    check('log vacuum (worth 2)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'vacuum' })).ok);
+    check('log counters (worth 1)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'counters' })).ok);
+    check('log curb (worth 2)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'curb' })).ok);
+    check('free-text "other" requires a note', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'other' })).status === 400);
+    check('log "other" with note', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'other', note: 'cleaned the windows' })).ok);
+    check('rejects unknown chore', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, chore: 'nope' })).status === 400);
+    // Grace logs one chore
+    check('Grace logs trash (worth 1)', (await jpost(PB, '/api/house/chore', { userId: u2.user.id, chore: 'trash' })).ok);
+
+    console.log('\n[hearth] session view');
+    const sv = await (await jget(PB, `/api/house/session?id=${sid}`)).json();
+    check('session view lists Ada chores', sv.session && sv.session.name === 'Ada' && sv.chores.length === 4);
+
+    console.log('\n[hearth] rankings (day/week)');
+    const rk = await (await jget(PB, '/api/house/rankings')).json();
+    // Ada: vacuum(2)+counters(1)+curb(2)+other(1)=6 ; Grace: trash(1)=1
+    const adaDay = rk.day.find((p) => p.name === 'Ada');
+    const graceDay = rk.day.find((p) => p.name === 'Grace');
+    check('Ada has 6 points today', adaDay && adaDay.points === 6, `got ${adaDay && adaDay.points}`);
+    check('Grace has 1 point today', graceDay && graceDay.points === 1, `got ${graceDay && graceDay.points}`);
+    check('leaderboard sorted (Ada first)', rk.day[0].name === 'Ada');
+    check('week ranking present', Array.isArray(rk.week) && rk.week.length === 2);
+
+    console.log('\n[hearth] status snapshot');
+    const st = await (await jget(PB, '/api/house/status')).json();
+    check('status shows Ada cleaning', st.cleaning.some((c) => c.name === 'Ada'));
+    check('status has day/week/activity/notifications', Array.isArray(st.day) && Array.isArray(st.week) && Array.isArray(st.activity) && Array.isArray(st.notifications));
+    check('chore notification emitted', st.notifications.some((n) => n.kind === 'chore'));
+
+    console.log('\n[hearth] end session');
+    check('end session ok', (await jpost(PB, '/api/house/session/end', { sessionId: sid })).ok);
+    const st2 = await (await jget(PB, '/api/house/status')).json();
+    check('Ada no longer cleaning', !st2.cleaning.some((c) => c.name === 'Ada'));
+    check('session_end notification emitted', st2.notifications.some((n) => n.kind === 'session_end'));
+
+    console.log('\n[hearth] localhost server is READ-ONLY for house');
+    check('main GET /api/house/status works', (await jget(MB, '/api/house/status')).ok);
+    check('main rejects house writes (403)', (await jpost(MB, '/api/house/session/start', { userId: u1.user.id })).status === 403);
+
+    console.log('\n[hearth] rate-limit guard exists');
+    let limited = false;
+    for (let i = 0; i < 80; i++) { if ((await jpost(PB, '/api/house/users', { name: 'X' })).status === 429) { limited = true; break; } }
+    check('write rate limit returns 429 under flood', limited);
+
+  } finally {
+    for (const c of [plant, main]) { try { c && c.kill('SIGKILL'); } catch { /* ignore */ } }
+    try { rmSync(tmpData, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+
+  console.log(`\n${'─'.repeat(46)}`);
+  if (failures.length) { console.log(`HEARTH SMOKE FAILED — ${passed} passed, ${failures.length} failed:`); for (const f of failures) console.log(`   ✗ ${f}`); process.exit(1); }
+  console.log(`HEARTH SMOKE PASSED — ${passed} checks green 🔥`);
+  process.exit(0);
+}
+main().catch((e) => { console.error('hearth smoke crashed:', e); process.exit(1); });

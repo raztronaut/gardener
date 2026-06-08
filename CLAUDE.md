@@ -33,3 +33,28 @@ chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.f
 - `npm run smoke` — run the smoke tests.
 - `npm run iterate -- manual` — run one tending iteration now.
 - `npm run day | night | display-sync` — display energy control.
+
+## "Hearth" — household side app (HAND-MAINTAINED — daily tending MUST NOT modify)
+There is a separate, mobile-first household web app called **Hearth** ("The House")
+served on the PUBLIC plant-server surface (the tunnel) at `/` (with `/plant.html`
+kept as a fallback). It is a hand-maintained side project and is **NOT part of the
+self-tending loop**: the daily tending agent must NOT edit, refactor, or delete its
+files, tables, endpoints, or its wall widget. Leave it strictly alone.
+Its files (all clearly namespaced):
+- `public/house/` — the Hearth app (`index.html`, `app.js`, `house.css`): three
+  screens behind a bottom tab bar — Plant a Note · Community Macros (Start Clean
+  Mode + chore checklist + identity) · Dashboard (leaderboard, day/week toggle,
+  cleaning-now, activity, notifications).
+- `src/house-api.mjs` — the household JSON API router (chore catalog, validation,
+  rankings, `houseStatus()`). Imported by `plant-server.mjs` (full read+write,
+  rate-limited) and `server.mjs` (read-only `/api/house/status` for the widget).
+- `db.mjs` — the `house_users / clean_sessions / chore_events / house_notifications`
+  tables + helpers (in the clearly-marked Hearth section). Do not touch them.
+- `public/widgets/house-cleaning.js` — the ONE wall widget that surfaces Hearth on
+  the dashboard ("🧹 \<name\> is cleaning" + today's top cleaners + recent chores),
+  reading the localhost read-only `/api/house/status`. The agent may restyle the
+  garden but must keep this widget present and working.
+- `smoke/house-smoke.mjs` — Hearth's own smoke (folded into `npm run smoke`).
+Points: 1 per chore; "put trash to the curb" and "vacuumed floor" are worth 2.
+Day = since local PT midnight; Week = rolling 7 days. Web Push is deferred (in-app +
+wall notifications only).
