@@ -25,26 +25,26 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; gap:7px; height:100%; justify-content:space-between; }
+      .wx { display:flex; flex-direction:column; gap:5px; height:100%; justify-content:space-between; }
       .wx-top { display:flex; align-items:center; gap:14px; }
-      .wx-emoji { font-size:42px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+      .wx-emoji { font-size:36px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
       .wx-temp { display:flex; align-items:baseline; gap:11px; }
-      .wx-temp .f { font-family:var(--font-display); font-size:46px; font-weight:600; line-height:.85;
+      .wx-temp .f { font-family:var(--font-display); font-size:40px; font-weight:600; line-height:.85;
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-      .wx-temp .c { font-family:var(--font-display); font-size:27px; font-weight:600; color:var(--ink-soft); line-height:1; }
+      .wx-temp .c { font-family:var(--font-display); font-size:25px; font-weight:600; color:var(--ink-soft); line-height:1; }
       .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:4px; }
       .wx-meta .cond { font-size:19px; font-weight:600; color:var(--ink); }
       .wx-meta .range { font-family:var(--font-mono); font-size:13.5px; color:var(--ink-faint); letter-spacing:.02em; }
       .wx-meta .sun { font-family:var(--font-mono); font-size:13.5px; color:var(--gold); letter-spacing:.02em; }
       .wx-stats { display:flex; gap:10px; }
       .wx-stat { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:14px;
-        padding:6px 13px; display:flex; flex-direction:column; gap:1px; }
+        padding:4px 13px; display:flex; flex-direction:column; gap:1px; }
       .wx-stat .k { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); }
       .wx-stat .v { font-family:var(--font-display); font-size:17px; font-weight:600; color:var(--ink); line-height:1.05; }
 
       /* linear hourly timeline */
       .wx-tl { display:flex; flex-direction:column; gap:0; }
-      .wx-plot { position:relative; height:34px; }
+      .wx-plot { position:relative; height:21px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-pt { position:absolute; transform:translate(-50%,-50%); width:0; height:0; }
       .wx-pt .dot { position:absolute; left:-5px; top:-5px; width:10px; height:10px; border-radius:50%;
