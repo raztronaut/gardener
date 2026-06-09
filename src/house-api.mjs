@@ -6,9 +6,10 @@
 import {
   listHouseUsers, upsertHouseUser, getHouseUser,
   startCleanSession, endCleanSession, getCleanSession, activeSessions,
-  activeSessionForUser, addChoreEvent, choresForSession,
+  activeSessionForUser, addChoreEvents, choresForSession,
+  deleteChoreEvents, deleteChoreEventsSince,
   addHouseNotification, recentHouseNotifications,
-  rankingSince, recentActivity, chorePoints,
+  rankingSince, recentActivity,
   addPushSubscription, removePushSubscription,
 } from './db.mjs';
 import { getVapidPublicKey, sendToAll } from './push.mjs';
@@ -170,22 +171,69 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       json(res, 200, { ok: true }); return true;
     }
 
-    if (req.method === 'POST' && p === '/api/house/chore') {
+    // Batch-log the chores the user SELECTED and then CONFIRMED. Takes
+    // { userId|name, sessionId?, chores:[{chore,note?} | "key"], note? } and
+    // inserts them all in one transaction, emitting exactly ONE summary
+    // notification (and ONE push) for the whole batch — not one per chore. This
+    // replaces the old per-tap /api/house/chore auto-log (selection happens
+    // client-side now; nothing is logged until Confirm).
+    if (req.method === 'POST' && p === '/api/house/chores') {
       const b = await parseJson(req);
       const user = resolveUser(b);
       if (!user) { json(res, 400, { error: 'unknown user' }); return true; }
-      const def = CHORE_BY_KEY.get((b && b.chore || '').toString());
-      if (!def) { json(res, 400, { error: 'unknown chore' }); return true; }
-      let note = (b && b.note || '').toString().trim().slice(0, 200);
-      if (def.freeText && !note) { json(res, 400, { error: 'describe what you did' }); return true; }
+      const raw = Array.isArray(b && b.chores) ? b.chores : [];
+      if (!raw.length || raw.length > 50) { json(res, 400, { error: 'select at least one chore' }); return true; }
+      // Normalize + validate each selection; dedupe non-free-text keys so the
+      // same toggle can't be double-counted in a single confirm.
+      const entries = []; const seen = new Set(); const labels = [];
+      for (const item of raw) {
+        const key = (typeof item === 'string' ? item : (item && item.chore) || '').toString();
+        const def = CHORE_BY_KEY.get(key);
+        if (!def) { json(res, 400, { error: 'unknown chore' }); return true; }
+        let note = ((typeof item === 'object' && item && item.note) || '').toString().trim().slice(0, 200);
+        if (def.freeText) {
+          if (!note) { json(res, 400, { error: 'describe what you did' }); return true; }
+        } else {
+          if (seen.has(def.key)) continue; // collapse duplicate toggles
+          seen.add(def.key);
+          note = '';
+        }
+        entries.push({ chore: def.key, note: note || null });
+        labels.push(def.freeText ? note : def.past);
+      }
+      if (!entries.length) { json(res, 400, { error: 'select at least one chore' }); return true; }
       const session = b && b.sessionId ? getCleanSession(parseInt(b.sessionId, 10)) : null;
-      const id = addChoreEvent({ userId: user.id, sessionId: session ? session.id : null, chore: def.key, note: note || null });
-      const label = def.freeText ? `${note}` : def.past;
-      const text = `${user.name} ${def.freeText ? `noted: ${label}` : label} ${def.emoji}`;
+      const ids = addChoreEvents({ userId: user.id, sessionId: session ? session.id : null, entries });
+      // One summary notification for the whole confirmed batch.
+      const summary = labels.length === 1 ? labels[0]
+        : labels.slice(0, -1).join(', ') + ' & ' + labels[labels.length - 1];
+      const text = `${user.name} cleaned: ${summary} 🧹`;
       addHouseNotification(text, 'chore');
-      log(`chore '${def.key}' by ${user.name} (+${chorePoints(def.key)})`);
-      pushAll({ title: `Chore logged ${def.emoji}`, body: text, tag: 'chore' }, b, log);
-      json(res, 200, { ok: true, id }); return true;
+      log(`batch ${ids.length} chore(s) by ${user.name}: ${entries.map((e) => e.chore).join(',')}`);
+      pushAll({ title: `🧹 ${user.name} cleaned`, body: summary, tag: 'chore' }, b, log);
+      json(res, 200, { ok: true, ids, count: ids.length }); return true;
+    }
+
+    // Undo / clear (the "decrease"/reset the user asked for). Scoped to the
+    // caller's OWN events only. scope:"batch" removes the ids just returned by a
+    // confirm; scope:"today" wipes all of this user's chores since local midnight
+    // (resetting their points). DELETE is accepted as an alias for POST.
+    if ((req.method === 'POST' || req.method === 'DELETE') && p === '/api/house/chores/undo') {
+      const b = await parseJson(req);
+      const user = resolveUser(b);
+      if (!user) { json(res, 400, { error: 'unknown user' }); return true; }
+      const scope = (b && b.scope || 'batch').toString();
+      let removed = 0;
+      if (scope === 'today') {
+        removed = deleteChoreEventsSince({ userId: user.id, sinceMs: dayStartMs() });
+        if (removed) { addHouseNotification(`${user.name} cleared their chores for today 🧽`, 'info'); log(`cleared today: ${removed} chore(s) by ${user.name}`); }
+      } else {
+        const ids = Array.isArray(b && b.ids) ? b.ids.slice(0, 50) : [];
+        if (!ids.length) { json(res, 400, { error: 'nothing to undo' }); return true; }
+        removed = deleteChoreEvents({ userId: user.id, ids });
+        if (removed) log(`undo batch: ${removed} chore(s) by ${user.name}`);
+      }
+      json(res, 200, { ok: true, removed }); return true;
     }
 
     // ----- web push subscribe / unsubscribe -----

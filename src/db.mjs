@@ -299,6 +299,40 @@ export function addChoreEvent({ userId, sessionId, chore, note }) {
 const _choresForSession = db.prepare('SELECT id, chore, note, ts FROM chore_events WHERE session_id = ? ORDER BY ts ASC');
 export function choresForSession(sessionId) { return _choresForSession.all(sessionId); }
 
+// Batch-log several chores in ONE transaction (the "Confirm" action). Each entry
+// is { chore, note }. Returns the inserted row ids (used as the undo "batch").
+const _addChoresTx = db.transaction((userId, sessionId, entries) => {
+  const ids = [];
+  for (const e of entries) {
+    const info = _addChore.run(userId, sessionId || null, String(e.chore), e.note ? String(e.note).slice(0, 200) : null, Date.now());
+    ids.push(info.lastInsertRowid);
+  }
+  return ids;
+});
+export function addChoreEvents({ userId, sessionId, entries }) {
+  if (!Array.isArray(entries) || !entries.length) return [];
+  return _addChoresTx(userId, sessionId, entries);
+}
+
+// Undo / clear (the "decrease" the user asked for). Either delete a specific set
+// of just-logged ids (batch undo), or all of a user's chores since `sinceMs`
+// (clear-today). Both are scoped to the given user so one person can only ever
+// remove their OWN events. Returns the number of rows removed.
+const _delChoreByIdForUser = db.prepare('DELETE FROM chore_events WHERE id = ? AND user_id = ?');
+const _delChoresBatchTx = db.transaction((userId, ids) => {
+  let n = 0;
+  for (const id of ids) n += _delChoreByIdForUser.run(parseInt(id, 10), userId).changes;
+  return n;
+});
+export function deleteChoreEvents({ userId, ids }) {
+  if (!Array.isArray(ids) || !ids.length) return 0;
+  return _delChoresBatchTx(userId, ids);
+}
+const _delChoresSinceForUser = db.prepare('DELETE FROM chore_events WHERE user_id = ? AND ts >= ?');
+export function deleteChoreEventsSince({ userId, sinceMs }) {
+  return _delChoresSinceForUser.run(userId, sinceMs).changes;
+}
+
 // ---- notifications ----------------------------------------------------------
 const _addNotif = db.prepare('INSERT INTO house_notifications(ts, text, kind) VALUES(?,?,?)');
 export function addHouseNotification(text, kind = 'info') {

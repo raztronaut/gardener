@@ -1,4 +1,4 @@
-/* Hive — the household app. Mobile-first; reuses the Gardener dark/mint palette.
+/* Arbor — the household app. Mobile-first; reuses the Gardener dark/mint palette.
    A separate, hand-maintained side project (the daily tending must NOT touch this). */
 :root {
   --bg-0:#04110d; --bg-1:#07201a; --ink:#eafff4; --ink-soft:#a8c8bd; --ink-faint:#6f9388;
@@ -174,14 +174,18 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke); }
 .check.done { border-color:var(--mint); background:rgba(116,247,176,.12); }
 .check.done .box { background:var(--mint); border-color:var(--mint); transform:scale(1.06); }
 .check .emoji { font-size:21px; flex:none; } .check .label { font-size:15px; flex:1; font-weight:500; }
-.check .count {
-  font-family:var(--font-mono); font-size:12px; color:#042018; font-weight:700; flex:none;
-  background:var(--mint); padding:2px 8px; border-radius:999px;
-}
 .otherwrap { display:flex; gap:9px; margin-top:8px; width:100%; }
 .otherwrap input { flex:1; }
-.otherwrap button { width:auto; padding:12px 16px; }
 .check.other { flex-wrap:wrap; cursor:default; }
+.check.other:active { transform:none; }
+
+/* Confirm/Undo + session reset actions */
+.linkbtn {
+  border:none; background:none; cursor:pointer; padding:0; font:inherit;
+  color:var(--mint); font-weight:700; text-decoration:underline; text-underline-offset:2px;
+}
+.linkbtn:active { opacity:.7; }
+.session-actions { display:flex; flex-direction:column; gap:10px; margin-top:14px; }
 
 /* ---- dashboard: toggle ---- */
 .toggle { display:inline-flex; background:rgba(6,20,16,.6); border:1px solid var(--stroke); border-radius:999px; padding:4px; gap:2px; }

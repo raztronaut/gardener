@@ -34,19 +34,20 @@ chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.f
 - `npm run iterate -- manual` — run one tending iteration now.
 - `npm run day | night | display-sync` — display energy control.
 
-## "Hive" — household side app (HAND-MAINTAINED — daily tending MUST NOT modify)
-There is a separate, mobile-first household web app called **Hive** ("The House")
+## "Arbor" — household side app (HAND-MAINTAINED — daily tending MUST NOT modify)
+There is a separate, mobile-first household web app called **Arbor** ("The House")
 served on the PUBLIC plant-server surface (the tunnel) at `/` (with `/plant.html`
 kept as a fallback). It is a hand-maintained side project and is **NOT part of the
 self-tending loop**: the daily tending agent must NOT edit, refactor, or delete its
 files, tables, endpoints, or its wall widget. Leave it strictly alone.
-("Hive" is the display name only — internal identifiers stay as-is: the
+("Arbor" is the display name only — internal identifiers stay as-is: the
 `public/house/` dir, `src/house-api.mjs`, `src/push.mjs`, the `house_*` tables, the
 `/api/house/*` routes, `GARDENER_*` env names, and the `hearth-icon-*.png` assets.)
 Its files (all clearly namespaced):
-- `public/house/` — the Hive app (`index.html`, `app.js`, `house.css`): three
+- `public/house/` — the Arbor app (`index.html`, `app.js`, `house.css`): three
   screens behind a bottom tab bar — Plant a Note · Community Macros (Start Clean
-  Mode + chore checklist + identity + an "Enable notifications 🔔" card) ·
+  Mode + a chore checklist of toggle checkboxes that batch-log on Confirm, plus
+  Undo/Clear-today + identity + an "Enable notifications 🔔" card) ·
   Dashboard (leaderboard, day/week toggle, cleaning-now, activity, notifications).
   Also the PWA pieces: `sw.js` (push service worker) + `manifest.webmanifest`.
 - `src/house-api.mjs` — the household JSON API router (chore catalog, validation,
@@ -55,13 +56,13 @@ Its files (all clearly namespaced):
   (read-only `/api/house/status` + `/api/house/vapid-public` for the widget).
 - `src/push.mjs` — Web Push helpers: owns the VAPID keypair and the fan-out send.
 - `db.mjs` — the `house_users / clean_sessions / chore_events / house_notifications
-  / house_push_subscriptions` tables + helpers (in the clearly-marked Hive
+  / house_push_subscriptions` tables + helpers (in the clearly-marked Arbor
   section). Do not touch them.
-- `public/widgets/house-cleaning.js` — the ONE wall widget that surfaces Hive on
+- `public/widgets/house-cleaning.js` — the ONE wall widget that surfaces Arbor on
   the dashboard ("🧹 \<name\> is cleaning" + today's top cleaners + recent chores),
   reading the localhost read-only `/api/house/status`. The agent may restyle the
   garden but must keep this widget present and working.
-- `smoke/house-smoke.mjs` — Hive's own smoke (folded into `npm run smoke`).
+- `smoke/house-smoke.mjs` — Arbor's own smoke (folded into `npm run smoke`).
 Points: 1 per chore; "put trash to the curb" and "vacuumed floor" are worth 2.
 Day = since local PT midnight; Week = rolling 7 days.
 
@@ -79,5 +80,5 @@ logged** — same text as the in-app notification; dead subscriptions are pruned
 404/410. **HTTPS is required for push**, so phones MUST open the **tunnel URL**
 (https, in `data/public-url.txt`), not localhost. **Android Chrome** can subscribe
 directly. **iOS (16.4+) only delivers web push to an INSTALLED PWA** — the user
-must use Share → "Add to Home Screen" and open Hive from that icon before the
+must use Share → "Add to Home Screen" and open Arbor from that icon before the
 "Enable notifications" button works (the UI shows that hint on iOS Safari).

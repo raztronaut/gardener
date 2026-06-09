@@ -1,8 +1,8 @@
-// House Cleaning — wall widget for the "Hive" household app.
+// House Cleaning — wall widget for the "Arbor" household app.
 // Shows who is currently in Clean Mode (live) + the day's top cleaners + a few
 // recent completions, reading the localhost server's read-only /api/house/status.
 //
-// NOTE: this widget belongs to the Hive side project (hand-maintained). The
+// NOTE: this widget belongs to the Arbor side project (hand-maintained). The
 // daily tending may restyle it but should not remove the household feature.
 export default {
   id: 'house-cleaning',

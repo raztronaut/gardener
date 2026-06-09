@@ -71,7 +71,7 @@ export async function sendToAll(payload, { skipEndpoint = null, log = () => {} }
   if (!subs.length) return { sent: 0, pruned: 0 };
   configured();
   const body = JSON.stringify({
-    title: payload.title || 'Hive',
+    title: payload.title || 'Arbor',
     body: payload.body || '',
     url: payload.url || '/',
     tag: payload.tag || 'hearth',

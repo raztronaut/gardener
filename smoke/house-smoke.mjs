@@ -44,7 +44,7 @@ async function main() {
     check('main server up', await waitUp(`${MB}/api/health`), merr.split('\n').slice(-2).join(' ').slice(0, 200));
 
     console.log('\n[hearth] app + fallback serve');
-    check('GET / serves Hive app', /Hive/.test(await (await jget(PB, '/')).text()));
+    check('GET / serves Arbor app', /Arbor/.test(await (await jget(PB, '/')).text()));
     check('GET /plant.html still works (fallback)', (await jget(PB, '/plant.html')).ok);
     check('GET /house/app.js serves app js', (await jget(PB, '/house/app.js')).ok);
     check('GET /house/house.css serves css', (await jget(PB, '/house/house.css')).ok);
@@ -76,15 +76,37 @@ async function main() {
     let notifs = (await (await jget(PB, '/api/house/notifications')).json()).notifications;
     check('session_start notification emitted', notifs.some((n) => n.kind === 'session_start' && /Ada started cleaning/.test(n.text)));
 
-    console.log('\n[hearth] log chores (+points)');
-    check('log vacuum (worth 2)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'vacuum' })).ok);
-    check('log counters (worth 1)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'counters' })).ok);
-    check('log curb (worth 2)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'curb' })).ok);
-    check('free-text "other" requires a note', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'other' })).status === 400);
-    check('log "other" with note', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'other', note: 'cleaned the windows' })).ok);
-    check('rejects unknown chore', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, chore: 'nope' })).status === 400);
-    // Grace logs one chore
-    check('Grace logs trash (worth 1)', (await jpost(PB, '/api/house/chore', { userId: u2.user.id, chore: 'trash' })).ok);
+    console.log('\n[hearth] batch-log chores on Confirm (+points)');
+    // The old per-tap auto-log endpoint is GONE — selection happens client-side and
+    // NOTHING is logged until the batch Confirm hits POST /api/house/chores.
+    check('old per-tap /api/house/chore is removed (404)', (await jpost(PB, '/api/house/chore', { userId: u1.user.id, sessionId: sid, chore: 'vacuum' })).status === 404);
+    // Ada confirms a batch: vacuum(2) + counters(1) + curb(2) + other "windows"(1) = 6.
+    const batch = await (await jpost(PB, '/api/house/chores', { userId: u1.user.id, sessionId: sid, chores: ['vacuum', 'counters', 'curb', { chore: 'other', note: 'cleaned the windows' }] })).json();
+    check('batch-log returns ok + ids', batch.ok && Array.isArray(batch.ids) && batch.ids.length === 4, `got ${batch.ids && batch.ids.length}`);
+    check('batch-log reports count', batch.count === 4, `got ${batch.count}`);
+    let notifsB = (await (await jget(PB, '/api/house/notifications')).json()).notifications;
+    const choreNotifs = notifsB.filter((n) => n.kind === 'chore');
+    check('exactly one chore notification for the batch', choreNotifs.length === 1, `got ${choreNotifs.length}`);
+    check('summary notification names the chores', /cleaned:/.test(choreNotifs[0].text) && /windows/.test(choreNotifs[0].text));
+    check('batch rejects empty selection', (await jpost(PB, '/api/house/chores', { userId: u1.user.id, chores: [] })).status === 400);
+    check('batch rejects unknown chore', (await jpost(PB, '/api/house/chores', { userId: u1.user.id, chores: ['nope'] })).status === 400);
+    check('batch requires note for free-text "other"', (await jpost(PB, '/api/house/chores', { userId: u1.user.id, chores: ['other'] })).status === 400);
+    // Grace confirms a single-chore batch.
+    const graceBatch = await (await jpost(PB, '/api/house/chores', { userId: u2.user.id, chores: ['trash'] })).json();
+    check('Grace batch-logs trash (worth 1)', graceBatch.ok && graceBatch.count === 1);
+
+    console.log('\n[hearth] undo + clear-today');
+    // Ada makes a throwaway batch, then undoes exactly that batch (the "decrease").
+    const tmpBatch = await (await jpost(PB, '/api/house/chores', { userId: u1.user.id, chores: ['counters'] })).json();
+    check('undo batch removes only those ids', (await (await jpost(PB, '/api/house/chores/undo', { userId: u1.user.id, scope: 'batch', ids: tmpBatch.ids })).json()).removed === 1);
+    let adaAfterUndo = (await (await jget(PB, '/api/house/rankings')).json()).day.find((p) => p.name === 'Ada');
+    check('Ada still has 6 points after undoing the throwaway batch', adaAfterUndo && adaAfterUndo.points === 6, `got ${adaAfterUndo && adaAfterUndo.points}`);
+    check('undo with no ids 400s', (await jpost(PB, '/api/house/chores/undo', { userId: u1.user.id, scope: 'batch', ids: [] })).status === 400);
+    // A user can only remove their OWN events: Grace cannot undo Ada's ids.
+    check('cannot undo another user\'s ids (scoped)', (await (await jpost(PB, '/api/house/chores/undo', { userId: u2.user.id, scope: 'batch', ids: batch.ids })).json()).removed === 0);
+    // DELETE is an accepted alias for the undo route.
+    const tmp2 = await (await jpost(PB, '/api/house/chores', { userId: u2.user.id, chores: ['counters'] })).json();
+    check('DELETE alias undoes a batch', (await (await fetch(PB + '/api/house/chores/undo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u2.user.id, scope: 'batch', ids: tmp2.ids }) })).json()).removed === 1);
 
     console.log('\n[hearth] web push (VAPID + subscribe/unsubscribe)');
     const vp = await (await jget(PB, '/api/house/vapid-public')).json();
@@ -143,6 +165,15 @@ async function main() {
     console.log('\n[hearth] localhost server is READ-ONLY for house');
     check('main GET /api/house/status works', (await jget(MB, '/api/house/status')).ok);
     check('main rejects house writes (403)', (await jpost(MB, '/api/house/session/start', { userId: u1.user.id })).status === 403);
+    check('main rejects batch chore-log (403)', (await jpost(MB, '/api/house/chores', { userId: u1.user.id, chores: ['trash'] })).status === 403);
+
+    console.log('\n[hearth] clear my activity today (reset points)');
+    // Wipe Ada's whole day — her points should drop to zero / she leaves the board.
+    const cleared = await (await jpost(PB, '/api/house/chores/undo', { userId: u1.user.id, scope: 'today' })).json();
+    check('clear-today removes Ada\'s 4 logged chores', cleared.removed === 4, `removed ${cleared.removed}`);
+    const rkAfter = await (await jget(PB, '/api/house/rankings')).json();
+    check('Ada is off the day leaderboard after clearing', !rkAfter.day.some((p) => p.name === 'Ada'));
+    check('Grace still on the board (only own events cleared)', rkAfter.day.some((p) => p.name === 'Grace' && p.points === 1));
 
     console.log('\n[hearth] rate-limit guard exists');
     let limited = false;

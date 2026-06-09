@@ -1,4 +1,4 @@
-// Hive — household app frontend (vanilla, no build, no deps).
+// Arbor — household app frontend (vanilla, no build, no deps).
 // A separate, hand-maintained side project (the daily tending must NOT touch this).
 // Three screens behind a bottom tab bar: Plant a Note · Community Macros · Dashboard.
 'use strict';
@@ -148,64 +148,120 @@ async function refreshActiveState() {
   if (activeSession) {
     wrap.replaceChildren(el('div', { class: 'active-banner', onclick: openSession },
       el('span', { class: 'pulse' }),
-      el('span', { class: 'at', html: `You're in <b>Clean Mode</b> — tap to log chores` }),
+      el('span', { class: 'at', html: `You're in <b>Clean Mode</b> — tap to check off chores` }),
       el('span', { class: 'arrow' }, '›')));
   } else { wrap.replaceChildren(); $('#sessionArea').replaceChildren(); }
 }
 
+// The checklist is a SELECTION, not a log. Tapping toggles a chore on/off;
+// nothing is written until the user presses Confirm, which batch-logs everything
+// in one request and fires ONE summary notification. After confirming we offer
+// an Undo for that batch, and a persistent "Clear my activity today" reset.
 let sessionOpen = false;
 async function openSession() {
   if (!activeSession) return;
   sessionOpen = true;
   await loadChores();
   const area = $('#sessionArea');
-  let done = {};
-  try { const r = await api('/api/house/session?id=' + activeSession.id); for (const c of r.chores) done[c.chore] = (done[c.chore] || 0) + 1; } catch { /* ignore */ }
+
+  const selected = new Set();        // chore keys currently toggled on
+  let otherNote = '';                // free-text "other" value (counts if non-empty)
+  let lastBatchIds = [];             // ids from the most recent confirm (for Undo)
+
   const list = el('div', { class: 'checklist' });
+  const rows = new Map();
   for (const ch of CHORES) {
     if (ch.freeText) {
       const inp = el('input', { type: 'text', maxlength: '120', placeholder: 'What else did you do?' });
-      const add = el('button', { class: 'primary', type: 'button' }, 'Log');
-      add.addEventListener('click', async () => {
-        const note = inp.value.trim(); if (!note) return;
-        add.disabled = true;
-        try { await logChore(ch.key, note); inp.value = ''; flash(add, '✓'); } catch (e) { alert(e.message); } finally { add.disabled = false; }
-      });
+      inp.addEventListener('input', () => { otherNote = inp.value.trim(); updateConfirm(); });
       list.appendChild(el('div', { class: 'check other' },
         el('span', { class: 'emoji' }, ch.emoji), el('span', { class: 'label' }, ch.label),
-        el('div', { class: 'otherwrap' }, inp, add)));
+        el('div', { class: 'otherwrap' }, inp)));
       continue;
     }
-    const cnt = done[ch.key] || 0;
-    const row = el('div', { class: 'check' + (cnt ? ' done' : '') },
-      el('span', { class: 'box' }, cnt ? '✓' : ''),
+    const row = el('div', { class: 'check', role: 'button', 'aria-pressed': 'false' },
+      el('span', { class: 'box' }, ''),
       el('span', { class: 'emoji' }, ch.emoji),
-      el('span', { class: 'label' }, ch.label),
-      cnt > 1 ? el('span', { class: 'count' }, '×' + cnt) : null);
-    row.addEventListener('click', async () => {
-      row.style.pointerEvents = 'none';
-      try { await logChore(ch.key); const n = (done[ch.key] || 0) + 1; done[ch.key] = n; row.classList.add('done'); $('.box', row).textContent = '✓';
-        if (n > 1) { let c = $('.count', row); if (!c) { c = el('span', { class: 'count' }); row.appendChild(c); } c.textContent = '×' + n; } }
-      catch (e) { alert(e.message); } finally { row.style.pointerEvents = ''; }
+      el('span', { class: 'label' }, ch.label));
+    row.addEventListener('click', () => {
+      const on = selected.has(ch.key);
+      if (on) { selected.delete(ch.key); row.classList.remove('done'); row.setAttribute('aria-pressed', 'false'); $('.box', row).textContent = ''; }
+      else { selected.add(ch.key); row.classList.add('done'); row.setAttribute('aria-pressed', 'true'); $('.box', row).textContent = '✓'; }
+      updateConfirm();
     });
+    rows.set(ch.key, row);
     list.appendChild(row);
   }
+
+  const confirm = el('button', { class: 'primary', type: 'button', disabled: true }, 'Log these ✓');
+  const confirmMsg = el('div', { class: 'msg', role: 'status' });
+  const selCount = () => selected.size + (otherNote ? 1 : 0);
+  function updateConfirm() {
+    const n = selCount();
+    confirm.disabled = n === 0;
+    confirm.textContent = n === 0 ? 'Log these ✓' : `Log ${n} ${n === 1 ? 'chore' : 'chores'} ✓`;
+  }
+  function clearSelection() {
+    selected.clear(); otherNote = '';
+    for (const row of rows.values()) { row.classList.remove('done'); row.setAttribute('aria-pressed', 'false'); $('.box', row).textContent = ''; }
+    const inp = $('.check.other input', list); if (inp) inp.value = '';
+    updateConfirm();
+  }
+  confirm.addEventListener('click', async () => {
+    const chores = [...selected].map((key) => ({ chore: key }));
+    if (otherNote) chores.push({ chore: 'other', note: otherNote });
+    if (!chores.length) return;
+    confirm.disabled = true; confirmMsg.className = 'msg'; confirmMsg.textContent = 'Logging…';
+    try {
+      const r = await api('/api/house/chores', { method: 'POST', body: JSON.stringify({ userId: currentUser.id, name: currentUser.name, sessionId: activeSession ? activeSession.id : null, chores }) });
+      lastBatchIds = r.ids || [];
+      const n = r.count || chores.length;
+      clearSelection();
+      confirmMsg.className = 'msg ok';
+      confirmMsg.replaceChildren(el('span', {}, `Logged ${n} ${n === 1 ? 'chore' : 'chores'} ✓  `),
+        lastBatchIds.length ? el('button', { class: 'linkbtn', type: 'button', onclick: undoLast }, 'Undo') : null);
+    } catch (e) {
+      confirmMsg.className = 'msg err'; confirmMsg.textContent = e.message || 'Could not log — try again.';
+    } finally { updateConfirm(); }
+  });
+  async function undoLast() {
+    if (!lastBatchIds.length) return;
+    confirmMsg.className = 'msg'; confirmMsg.textContent = 'Undoing…';
+    try {
+      await api('/api/house/chores/undo', { method: 'POST', body: JSON.stringify({ userId: currentUser.id, name: currentUser.name, scope: 'batch', ids: lastBatchIds }) });
+      lastBatchIds = [];
+      confirmMsg.className = 'msg'; confirmMsg.textContent = 'Undone.';
+    } catch (e) { confirmMsg.className = 'msg err'; confirmMsg.textContent = e.message || 'Could not undo.'; }
+  }
+
+  const clearToday = el('button', { class: 'ghost', type: 'button' }, 'Clear my activity today');
+  clearToday.addEventListener('click', async () => {
+    if (!window.confirm('Remove ALL of your logged chores from today? This resets your points.')) return;
+    clearToday.disabled = true;
+    try {
+      const r = await api('/api/house/chores/undo', { method: 'POST', body: JSON.stringify({ userId: currentUser.id, name: currentUser.name, scope: 'today' }) });
+      lastBatchIds = [];
+      confirmMsg.className = 'msg ok'; confirmMsg.textContent = r.removed ? `Cleared ${r.removed} ${r.removed === 1 ? 'chore' : 'chores'} from today.` : 'Nothing logged today.';
+    } catch (e) { confirmMsg.className = 'msg err'; confirmMsg.textContent = e.message || 'Could not clear.'; }
+    finally { clearToday.disabled = false; }
+  });
+
   const end = el('button', { class: 'ghost', type: 'button' }, 'End cleaning session');
   end.addEventListener('click', async () => {
     end.disabled = true;
     try { await api('/api/house/session/end', { method: 'POST', body: JSON.stringify({ sessionId: activeSession.id }) }); activeSession = null; sessionOpen = false; area.replaceChildren(); await refreshActiveState(); }
     catch (e) { end.disabled = false; alert(e.message); }
   });
+
+  updateConfirm();
   area.replaceChildren(el('div', { class: 'card' },
     el('h2', {}, '✅ What did you do?'),
-    el('p', { class: 'lead', style: 'margin-bottom:14px' }, 'Tap each chore you finished. Each one is logged and the household is notified.'),
-    list, el('div', { style: 'height:14px' }), end));
+    el('p', { class: 'lead', style: 'margin-bottom:14px' }, 'Check off everything you finished, then press Confirm. Tap a chore again to deselect it.'),
+    list,
+    el('div', { style: 'height:14px' }), confirm, confirmMsg,
+    el('div', { class: 'session-actions' }, clearToday, end)));
   area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-async function logChore(chore, note) {
-  return api('/api/house/chore', { method: 'POST', body: JSON.stringify({ userId: currentUser.id, name: currentUser.name, sessionId: activeSession ? activeSession.id : null, chore, note }) });
-}
-function flash(btn, txt) { const old = btn.textContent; btn.textContent = txt; setTimeout(() => { btn.textContent = old; }, 900); }
 
 // =============================================================================
 // Web Push — phone notifications (works with the app CLOSED).
@@ -250,11 +306,11 @@ async function refreshNotifyUi() {
     if (isIOS() && !isStandalone()) {
       btn.disabled = true; btn.textContent = 'Add to Home Screen first';
       hint.style.display = 'block';
-      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Hive from that icon to enable notifications (iOS 16.4+).';
+      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Arbor from that icon to enable notifications (iOS 16.4+).';
       setNotifyMsg('');
     } else {
       btn.disabled = true; btn.textContent = 'Notifications not supported';
-      setNotifyMsg('This browser can’t do web push. Open Hive in Chrome (Android) or an installed PWA (iOS).', 'err');
+      setNotifyMsg('This browser can’t do web push. Open Arbor in Chrome (Android) or an installed PWA (iOS).', 'err');
     }
     return;
   }
