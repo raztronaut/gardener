@@ -365,6 +365,83 @@ async function showEvents() {
   openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl' }, ...rows));
 }
 
+// Full Hacker News front page in a panel (the /hn command; controller: Y).
+async function showHackerNews() {
+  openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'reading the front page…')));
+  const fetchJSON = (url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  let stories = [];
+  try {
+    const ids = (await fetchJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 15);
+    stories = (await Promise.all(ids.map((id) =>
+      fetchJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).catch(() => null))))
+      .filter((s) => s && s.title);
+  } catch {
+    return openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'Hacker News is unavailable right now — try again shortly.')));
+  }
+  if (!stories.length) {
+    return openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No stories right now.')));
+  }
+  const domainOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'news.ycombinator.com'; } };
+  const rows = stories.map((s, i) => h('div', { class: 'cl-row' },
+    h('div', { class: 'cl-id' }, String(i + 1)),
+    h('div', { class: 'cl-main' },
+      h('div', { class: 'cl-phrase' }, s.title),
+      h('div', { class: 'cl-meta' }, `▲ ${s.score || 0} · 💬 ${s.descendants || 0} · ${domainOf(s.url)}`))));
+  openPanel(`Hacker News — top ${stories.length}`, h('div', { class: 'cl' }, ...rows));
+}
+
+// Controller button map (the /controls command; controller: HOLD R2).
+// A static SN30-Pro-style diagram with label callouts — idle-friendly.
+function showPadMap() {
+  const W = 760, H = 440;
+  const lab = (x, y, anchor, lines) => lines.map((t, i) =>
+    `<text x="${x}" y="${y + i * 17}" text-anchor="${anchor}" font-size="13.5" font-family="Inter,sans-serif"
+       fill="${i === 0 ? '#74f7b0' : '#a8c8bd'}" font-weight="${i === 0 ? '700' : '400'}">${t}</text>`).join('');
+  const line = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(140,240,195,.35)" stroke-width="1.2"/>`;
+  const btn = (cx, cy, r, t) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <text x="${cx}" y="${cy + 4.5}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#eafff4" font-family="Inter,sans-serif">${t}</text>`;
+  const svg = `
+  <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
+    <!-- shoulders -->
+    <rect x="252" y="40" width="80" height="20" rx="9" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <text x="292" y="54" text-anchor="middle" font-size="11.5" font-weight="700" fill="#eafff4">L2</text>
+    <rect x="428" y="40" width="80" height="20" rx="9" fill="rgba(116,247,176,.22)" stroke="#74f7b0"/>
+    <text x="468" y="54" text-anchor="middle" font-size="11.5" font-weight="700" fill="#eafff4">R2</text>
+    <rect x="252" y="66" width="80" height="18" rx="8" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <text x="292" y="79" text-anchor="middle" font-size="11" font-weight="700" fill="#eafff4">L1</text>
+    <rect x="428" y="66" width="80" height="18" rx="8" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <text x="468" y="79" text-anchor="middle" font-size="11" font-weight="700" fill="#eafff4">R1</text>
+    <!-- body -->
+    <rect x="220" y="92" width="320" height="150" rx="42" fill="rgba(12,32,27,.85)" stroke="rgba(140,240,195,.45)" stroke-width="1.5"/>
+    <!-- d-pad -->
+    <rect x="258" y="148" width="22" height="58" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <rect x="240" y="166" width="58" height="22" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <!-- face buttons (Nintendo diamond) -->
+    ${btn(469, 144, 13, 'X')} ${btn(440, 170, 13, 'Y')} ${btn(498, 170, 13, 'A')} ${btn(469, 196, 13, 'B')}
+    <!-- select/start -->
+    <rect x="340" y="160" width="28" height="11" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <rect x="392" y="160" width="28" height="11" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <text x="354" y="186" text-anchor="middle" font-size="9.5" fill="#6f9388">SELECT</text>
+    <text x="406" y="186" text-anchor="middle" font-size="9.5" fill="#6f9388">START</text>
+    <!-- stick -->
+    <circle cx="320" cy="212" r="18" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
+    <circle cx="320" cy="212" r="9" fill="rgba(116,247,176,.25)"/>
+    <!-- callouts: left column -->
+    ${line(252, 50, 150, 50)}${lab(142, 54, 'end', ['L2 — back', 'close panel / palette (Esc)'])}
+    ${line(252, 75, 150, 100)}${lab(142, 104, 'end', ['L1 / R1 — page', 'scroll long panels'])}
+    ${line(269, 177, 150, 177)}${lab(142, 181, 'end', ['D-pad / stick', 'select &amp; scroll'])}
+    ${line(340, 165, 150, 248)}${lab(142, 252, 'end', ['SELECT — changelog', 'START — help'])}
+    <!-- callouts: right column -->
+    ${line(508, 50, 612, 50)}${lab(620, 54, 'start', ['R2 — commands', 'tap: palette · hold: this map'])}
+    ${line(482, 144, 612, 122)}${lab(620, 126, 'start', ['X — palette'])}
+    ${line(511, 170, 612, 170)}${lab(620, 174, 'start', ['A — run selected'])}
+    ${line(482, 196, 612, 218)}${lab(620, 222, 'start', ['B — events panel'])}
+    ${line(453, 170, 430, 290)}${lab(430, 308, 'middle', ['Y — Hacker News'])}
+    <text x="${W / 2}" y="${H - 14}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">8BitDo SN30 Pro · paired over Bluetooth · also type /controls</text>
+  </svg>`;
+  openPanel('Controller — button map', h('div', { class: 'cl', html: svg }));
+}
+
 // A technical system + data-flow diagram of how the gardener works (the
 // /architecture command). Static inline SVG — idle-friendly (no animation).
 function showArchitecture() {
@@ -517,6 +594,8 @@ const COMMANDS = [
   { cmd: 'iterations', aliases: ['changelog'], icon: '❀', desc: 'changelog — how the garden has grown', run: () => showIterations() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌱', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
+  { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
+  { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
@@ -598,8 +677,20 @@ function wirePad() {
         }
         break;
       }
-      case 'ok':
+      case 'ok': // A — selection only
         if (pal && palMatches[palSel]) runPaletteCmd(input, palMatches[palSel]);
+        break;
+      case 'events':
+        if (pal) { hidePalette(); if (input) input.value = ''; }
+        showEvents();
+        break;
+      case 'hn':
+        if (pal) { hidePalette(); if (input) input.value = ''; }
+        showHackerNews();
+        break;
+      case 'padmap':
+        if (pal) { hidePalette(); if (input) input.value = ''; }
+        showPadMap();
         break;
       case 'back':
         if (pal) { hidePalette(); if (input) input.value = ''; }

@@ -24,17 +24,18 @@ function log(msg) {
 // layout: face = 0,1,3,4 with 2/5 unused; shoulders 6-9; Select/Start 10/11).
 const DEFAULT_MAP = {
   buttons: {
-    0: 'ok',        // A — run selected
-    1: 'back',      // B — back (Nintendo convention)
+    0: 'ok',        // A — run selected (selection only)
+    1: 'events',    // B — SF events panel
     3: 'palette',   // X — palette shortcut
-    4: 'back',      // Y
+    4: 'hn',        // Y — Hacker News panel
     6: 'pageup',    // L1
     7: 'pagedown',  // R1
-    8: 'back',      // L2 — back / Esc (user-requested)
-    9: 'palette',   // R2 — show commands (user-requested)
+    8: 'back',      // L2 — back / Esc
     10: 'changelog',// Select
     11: 'help',     // Start
   },
+  // Tap-vs-hold buttons: 9 = R2 (tap → palette, hold ≥600ms → controller map).
+  holds: { 9: { tap: 'palette', hold: 'padmap', ms: 600 } },
   // Axes: 0/1 left stick, 6/7 d-pad hat. DO NOT add 4/5 — those are the analog
   // trigger channels and REST at -32767, which reads as a permanently-held
   // direction (the "drift" we debugged). 2/3 (right stick) left unmapped.
@@ -71,12 +72,26 @@ function setHeld(key, dir) {
 }
 
 let rawLogged = 0;
+const holdTimers = new Map(); // button number -> {t, fired}
 function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
   if (rawLogged < 300) { rawLogged++; log(`raw ${t === 1 ? 'button' : 'axis'} #${number} = ${value}`); }
-  if (t === 1) { // button: value 1=down 0=up — act on press only
-    if (value !== 1) return;
+  if (t === 1) { // button: value 1=down 0=up
+    const hold = (MAP.holds || {})[number];
+    if (hold) { // tap-vs-hold: decide on release (or when the hold timer fires)
+      if (value === 1) {
+        const st = { fired: false };
+        st.t = setTimeout(() => { st.fired = true; send(hold.hold); }, hold.ms || 600);
+        holdTimers.set(number, st);
+      } else {
+        const st = holdTimers.get(number);
+        holdTimers.delete(number);
+        if (st) { clearTimeout(st.t); if (!st.fired) send(hold.tap); }
+      }
+      return;
+    }
+    if (value !== 1) return; // plain buttons act on press
     const action = MAP.buttons[number];
     if (action && action !== 'noop') send(action);
   } else if (t === 2) { // axis
