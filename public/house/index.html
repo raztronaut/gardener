@@ -20,8 +20,15 @@
   <div id="app">
     <header class="app-head">
       <span class="mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 21v-7M12 14c-3.1 0-5.5-2.2-5.5-5.2C6.5 5.4 9 3 12 3s5.5 2.4 5.5 5.8c0 3-2.4 5.2-5.5 5.2ZM12 12.5l2.6-2.7M12 10.2 9.6 7.8" />
+        <!-- the Roots glyph: a sprout above the ground line, roots reaching below -->
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 10.5h16" />
+          <path d="M12 10.5V5.4" />
+          <path d="M12 7.6c0-2.1 1.6-3.6 3.8-3.6 0 2.1-1.6 3.6-3.8 3.6Z" />
+          <path d="M12 7.6c0-2.1-1.6-3.6-3.8-3.6 0 2.1 1.6 3.6 3.8 3.6Z" />
+          <path d="M12 10.5V20" />
+          <path d="M12 13.4c-1.9.9-3 2.7-3.3 5.3" />
+          <path d="M12 13.4c1.9.9 3 2.7 3.3 5.3" />
         </svg>
       </span>
       <h1>Roots</h1>
@@ -112,13 +119,33 @@
 
   <nav class="tabbar">
     <button data-screen="note" type="button">
-      <span class="ti" aria-hidden="true">🌱</span><span class="tl">Note</span>
+      <span class="ti" aria-hidden="true">
+        <!-- sprout -->
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20v-8.5" />
+          <path d="M12 11.5C12 8.2 14.4 6 17.8 6c0 3.3-2.4 5.5-5.8 5.5Z" />
+          <path d="M12 9C12 6.2 10 4.2 7 4.2 7 7 9 9 12 9Z" />
+        </svg>
+      </span><span class="tl">Note</span>
     </button>
     <button data-screen="macros" type="button">
-      <span class="ti" aria-hidden="true">🧹</span><span class="tl">Clean</span>
+      <span class="ti" aria-hidden="true">
+        <!-- sparkles -->
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4.5 12.5 8.6 16.6 10.1 12.5 11.6 11 15.7 9.5 11.6 5.4 10.1 9.5 8.6Z" />
+          <path d="M18 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9Z" />
+        </svg>
+      </span><span class="tl">Clean</span>
     </button>
     <button data-screen="dash" class="on" type="button">
-      <span class="ti" aria-hidden="true">🏆</span><span class="tl">Dashboard</span>
+      <span class="ti" aria-hidden="true">
+        <!-- trophy -->
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 20.5h8M12 16.5v4" />
+          <path d="M7.5 4h9v5.2a4.5 4.5 0 0 1-9 0Z" />
+          <path d="M7.5 6H5a2.6 2.6 0 0 0 2.7 2.8M16.5 6H19a2.6 2.6 0 0 1-2.7 2.8" />
+        </svg>
+      </span><span class="tl">Dashboard</span>
     </button>
   </nav>
 

@@ -442,7 +442,9 @@ function updateMacroBadge(status) {
 
 // ---- boot + live refresh ----------------------------------------------------
 renderWho();
-showScreen('dash');
+// Deep-link: /#note /#macros /#dash open that screen directly (default: dash).
+const bootScreen = ['note', 'macros', 'dash'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dash';
+showScreen(bootScreen);
 loadChores();
 // Poll for live "currently cleaning" + leaderboard updates while the app is open.
 // 30s (not 7s) and ONLY while the tab is visible: every request goes through the
