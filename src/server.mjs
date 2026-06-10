@@ -222,6 +222,10 @@ function stateObject() {
   };
 }
 
+// Kiosk pages currently listening for controller actions (SSE).
+const padClients = new Set();
+setInterval(() => { for (const c of padClients) { try { c.write(': ping\n\n'); } catch { padClients.delete(c); } } }, 30000).unref?.();
+
 const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
@@ -268,6 +272,22 @@ const server = http.createServer(async (req, res) => {
       setNight(on);
       return json(res, 200, { ok: true, night: on });
     }
+    // ---- controller (SN30 Pro) bridge: pad service POSTs, kiosk listens (SSE).
+    if (req.method === 'GET' && p === '/api/pad/stream') {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
+      res.write(': pad stream open\n\n');
+      padClients.add(res);
+      req.on('close', () => padClients.delete(res));
+      return; // held open
+    }
+    if (req.method === 'POST' && p === '/api/pad/action') {
+      let action = '';
+      try { action = String(JSON.parse(await readBody(req)).action || ''); } catch { return json(res, 400, { error: 'bad json' }); }
+      if (!/^[a-z]{1,16}$/.test(action)) return json(res, 400, { error: 'bad action' });
+      for (const c of padClients) { try { c.write(`data: ${JSON.stringify({ action })}\n\n`); } catch { padClients.delete(c); } }
+      return json(res, 200, { ok: true, listeners: padClients.size });
+    }
+
     if (req.method === 'GET' && p === '/api/proxy') return handleProxy(req, res, u);
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.

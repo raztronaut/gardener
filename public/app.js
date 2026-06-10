@@ -572,6 +572,56 @@ function wireCommandPalette(input) {
   });
 }
 
+// ---- game-controller bridge (SN30 Pro via /api/pad/stream SSE) --------------
+// R2/X→palette · stick/d-pad→select or scroll · A/B(ok)→run · L2/Y→back ·
+// L1/R1→page · Start→help · Select→changelog. Actions arrive from the pad
+// service through the backend; this maps them onto the same UI paths the
+// keyboard uses, so controller and keys always behave identically.
+function wirePad() {
+  const input = document.getElementById('feedbackInput');
+  const panelBody = () => document.querySelector('#panel .panel-body');
+  const apply = (action) => {
+    const pal = paletteOpen();
+    switch (action) {
+      case 'palette':
+        if (pal) { hidePalette(); break; }
+        if (panelOpen()) closePanel();
+        if (input) { input.value = '/'; focusInput(); palSel = 0; updatePalette(input); }
+        break;
+      case 'up':
+      case 'down': {
+        if (pal && palMatches.length) {
+          palSel = (palSel + (action === 'down' ? 1 : -1) + palMatches.length) % palMatches.length;
+          updatePalette(input);
+        } else if (panelOpen()) {
+          panelBody()?.scrollBy({ top: action === 'down' ? 140 : -140, behavior: 'smooth' });
+        }
+        break;
+      }
+      case 'ok':
+        if (pal && palMatches[palSel]) runPaletteCmd(input, palMatches[palSel]);
+        break;
+      case 'back':
+        if (pal) { hidePalette(); if (input) input.value = ''; }
+        else if (panelOpen()) closePanel();
+        break;
+      case 'pageup':
+      case 'pagedown':
+        if (panelOpen()) panelBody()?.scrollBy({ top: action === 'pagedown' ? 520 : -520, behavior: 'smooth' });
+        break;
+      case 'help': panelOpen() ? closePanel() : showHelp(); break;
+      case 'changelog': panelOpen() ? closePanel() : showIterations(); break;
+      default: break; // left/right/noop — unused for now
+    }
+  };
+  const connect = () => {
+    const es = new EventSource('/api/pad/stream');
+    es.onmessage = (e) => { try { apply(JSON.parse(e.data).action); } catch { /* ignore */ } };
+    es.onerror = () => { es.close(); setTimeout(connect, 5000); }; // server restart → reconnect
+  };
+  connect();
+}
+
 // ---- feedback bar -----------------------------------------------------------
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
@@ -715,6 +765,7 @@ setInterval(() => { wireCornerQr().catch(() => {}); }, 60000);
 
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();
+if (!SCREENSHOT) wirePad(); // controller bridge (skip in QA captures)
 wireTrashAlarm();
 wireStreetAlarm();
 wireCursor();

@@ -1,0 +1,15 @@
+[Unit]
+Description=The Gardener — SN30 Pro controller bridge (joystick → dashboard actions)
+After=gardener-backend.service
+Wants=gardener-backend.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/home/talbot/gardener/scripts/gardener.sh pad
+Restart=always
+RestartSec=5
+MemoryHigh=96M
+
+[Install]
+WantedBy=default.target

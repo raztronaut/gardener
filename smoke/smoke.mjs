@@ -93,6 +93,13 @@ async function main() {
       try { const r = await fetch(`${BASE}/widgets/${w.file}`); check(`GET /widgets/${w.file}`, r.ok); }
       catch (e) { bad(`GET /widgets/${w.file}`, e.message); }
     }
+    // controller bridge: action relay accepts a valid action, rejects junk
+    try {
+      const r1 = await fetch(`${BASE}/api/pad/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"action":"noop"}' });
+      const r2 = await fetch(`${BASE}/api/pad/action`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"action":"<bad!>"}' });
+      check('pad action relay (accept + validate)', r1.ok && r2.status === 400);
+    } catch (e) { bad('pad action relay', e.message); }
+
     // path traversal must be blocked
     try { const r = await fetch(`${BASE}/../package.json`); check('blocks path traversal', r.status === 403 || r.status === 404); }
     catch { ok('blocks path traversal'); }
