@@ -24,6 +24,9 @@ systemctl --user enable --now gardener-iterate.timer
 systemctl --user enable --now gardener-night.timer
 systemctl --user enable --now gardener-day.timer
 systemctl --user enable --now gardener-evening.timer
+# Monthly: restart the tunnel so it re-probes the permanent ngrok domain
+# (reclaims it automatically after the free-tier quota resets).
+systemctl --user enable --now gardener-tunnel-reprobe.timer || true
 
 echo
 echo "=== installed. backend status ==="
