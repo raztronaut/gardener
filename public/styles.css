@@ -86,7 +86,14 @@ html, body {
   letter-spacing: .3px; line-height: 1; background: linear-gradient(120deg, var(--ink), var(--mint));
   -webkit-background-clip: text; background-clip: text; color: transparent; }
 .brand .tm { font-size: 13px; -webkit-text-fill-color: var(--ink-faint); vertical-align: super; }
-.brand #subtitle { color: var(--ink-faint); font-size: 13px; margin-top: 5px; letter-spacing: .2px; }
+.brand .subline { display: flex; align-items: baseline; gap: 7px; margin-top: 5px; }
+.brand #subtitle { color: var(--ink-faint); font-size: 13px; letter-spacing: .2px; }
+.brand .subdot { color: var(--ink-faint); opacity: .55; font-size: 12px; }
+/* The growth count — a quiet bloom beside the wordmark. Tap → /iterations. */
+.brand .bloom { background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font); font-size: 13px; letter-spacing: .2px;
+  color: var(--mint); opacity: .85; white-space: nowrap; }
+.brand .bloom:active { opacity: 1; }
 
 /* ---------- widget grid ---------- */
 #garden {
@@ -226,11 +233,8 @@ body.screenshot #trashalarm { display: none !important; }
 .sa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
 body.screenshot #streetalarm { display: none !important; }
 
-/* ---------- header: growth badge ---------- */
+/* ---------- header: right side (QR) ---------- */
 .topright { display: flex; align-items: center; gap: 12px; }
-.iter-badge { font-family: var(--font-mono); font-size: 13px; color: var(--mint);
-  background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 999px;
-  padding: 7px 13px; cursor: pointer; white-space: nowrap; }
 
 /* Corner Plant-a-Note QR — quiet, just the code: white modules, no card, no
    background, floating over the aurora. A soft drop-shadow keeps it legible. */

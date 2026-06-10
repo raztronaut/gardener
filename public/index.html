@@ -33,11 +33,15 @@
         </svg>
         <div class="title">
           <h1>The&nbsp;Gardener<span class="tm">™</span></h1>
-          <p id="subtitle">tending the garden…</p>
+          <p class="subline">
+            <span id="subtitle">tending the garden…</span>
+            <span class="subdot" aria-hidden="true">·</span>
+            <!-- The garden's growth count, nestled with the wordmark. Tap → /iterations changelog. -->
+            <button id="iterBadge" class="bloom" type="button" title="how the garden has grown — tap for the changelog">❀ —</button>
+          </p>
         </div>
       </div>
       <div class="topright">
-        <span class="iter-badge" id="iterBadge" title="tendings so far">❀&nbsp;—</span>
         <!-- Plant-a-note QR: lives in the corner (not the grid). Populated by app.js
              from state.publicUrl; hidden when no public tunnel URL is available. -->
         <a id="cornerqr" class="cornerqr" href="#" target="_blank" rel="noopener"

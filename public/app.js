@@ -208,10 +208,12 @@ function checkOverflow() {
 // ---- night veil -------------------------------------------------------------
 function setNight(on) { document.body.classList.toggle('night', !!on && !SCREENSHOT); }
 
-// ---- header growth badge (the tending number) ------------------------------
+// ---- growth bloom beside the wordmark (the tending count) -------------------
 function setIterBadge(n) {
   const b = document.getElementById('iterBadge');
-  if (b) b.innerHTML = `❀&nbsp;#${Number(n) || 0}`;
+  if (!b) return;
+  const c = Number(n) || 0;
+  b.textContent = `❀ ${c} tending${c === 1 ? '' : 's'}`;
 }
 
 // ---- backend polling: reload on version change, react to night --------------
