@@ -238,7 +238,7 @@ body.screenshot #streetalarm { display: none !important; }
 
 /* Corner Plant-a-Note QR — quiet, just the code: white modules, no card, no
    background, floating over the aurora. A soft drop-shadow keeps it legible. */
-.cornerqr { display: block; width: 58px; height: 58px;
+.cornerqr { display: block; width: 70px; height: 70px;
   background: none; padding: 0; border: 0; box-shadow: none; line-height: 0; }
 .cornerqr[hidden] { display: none; }
 .cornerqr img { width: 100%; height: 100%; display: block; image-rendering: pixelated;
