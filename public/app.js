@@ -270,7 +270,7 @@ function fmtWhen(ms) { try { return ms ? new Date(ms).toLocaleDateString('en-US'
 async function showIterations() {
   let data = { iterations: [] };
   try { data = await (await fetch('/api/iterations', { cache: 'no-store' })).json(); } catch { /* offline */ }
-  const list = (data.iterations || []).slice().reverse(); // newest first
+  const list = (data.iterations || []).slice(); // API is already newest-first (ORDER BY id DESC)
   const rows = list.length
     ? list.map((it) => h('div', { class: 'cl-row' },
         h('div', { class: 'cl-id' }, `#${it.id}`),
