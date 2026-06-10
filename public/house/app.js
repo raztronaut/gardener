@@ -1,4 +1,4 @@
-// Arbor — household app frontend (vanilla, no build, no deps).
+// Roots — household app frontend (vanilla, no build, no deps).
 // A separate, hand-maintained side project (the daily tending must NOT touch this).
 // Three screens behind a bottom tab bar: Plant a Note · Community Macros · Dashboard.
 'use strict';
@@ -306,11 +306,11 @@ async function refreshNotifyUi() {
     if (isIOS() && !isStandalone()) {
       btn.disabled = true; btn.textContent = 'Add to Home Screen first';
       hint.style.display = 'block';
-      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Arbor from that icon to enable notifications (iOS 16.4+).';
+      hint.textContent = 'On iPhone/iPad: tap the Share button, then “Add to Home Screen”, and open Roots from that icon to enable notifications (iOS 16.4+).';
       setNotifyMsg('');
     } else {
       btn.disabled = true; btn.textContent = 'Notifications not supported';
-      setNotifyMsg('This browser can’t do web push. Open Arbor in Chrome (Android) or an installed PWA (iOS).', 'err');
+      setNotifyMsg('This browser can’t do web push. Open Roots in Chrome (Android) or an installed PWA (iOS).', 'err');
     }
     return;
   }

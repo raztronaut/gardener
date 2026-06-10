@@ -638,11 +638,11 @@ async function wireCornerQr() {
   // with no card. quickchart renders true alpha (dark=ffffff opaque, light=00000000).
   const src = `/api/proxy?url=${encodeURIComponent(
     `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=ffffff&light=00000000&ecLevel=M&margin=1&size=240&format=png`)}`;
-  const img = h('img', { alt: 'Scan to open Arbor', src });
+  const img = h('img', { alt: 'Scan to open Roots', src });
   img.addEventListener('error', () => { el.hidden = true; cornerQrTarget = null; });
   el.replaceChildren(img);
   el.setAttribute('href', target);
-  el.setAttribute('aria-label', 'Scan to open Arbor');
+  el.setAttribute('aria-label', 'Scan to open Roots');
   el.hidden = false;
 }
 // The tunnel URL can rotate (cloudflared fallback restarts) without a version

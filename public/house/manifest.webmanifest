@@ -1,6 +1,6 @@
 {
-  "name": "Arbor",
-  "short_name": "Arbor",
+  "name": "Roots",
+  "short_name": "Roots",
   "description": "The household app for The Gardener — start Clean Mode, log chores, see the leaderboard, and get notified.",
   "start_url": "/",
   "scope": "/",

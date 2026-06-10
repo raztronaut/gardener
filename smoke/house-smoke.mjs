@@ -44,7 +44,7 @@ async function main() {
     check('main server up', await waitUp(`${MB}/api/health`), merr.split('\n').slice(-2).join(' ').slice(0, 200));
 
     console.log('\n[hearth] app + fallback serve');
-    check('GET / serves Arbor app', /Arbor/.test(await (await jget(PB, '/')).text()));
+    check('GET / serves Roots app', /Roots/.test(await (await jget(PB, '/')).text()));
     check('GET /plant.html still works (fallback)', (await jget(PB, '/plant.html')).ok);
     check('GET /house/app.js serves app js', (await jget(PB, '/house/app.js')).ok);
     check('GET /house/house.css serves css', (await jget(PB, '/house/house.css')).ok);

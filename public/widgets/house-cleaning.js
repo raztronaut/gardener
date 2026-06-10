@@ -1,54 +1,63 @@
-// Arbor — wall widget for the household app.
-// Shows who is in Clean Mode (live) + today's top cleaners + recent completions,
-// reading the localhost server's read-only /api/house/status. (The QR that opens
-// Arbor on a phone lives in the header corner — see #cornerqr in the template.)
+// Roots — the household strip for the wall (the Roots app's presence on the garden).
+// A slim, adaptive full-width band that COLLAPSES when the house is quiet and
+// shows at most two rows when busy, so it never crowds other widgets:
+//   quiet   → one line: wordmark + "the house is quiet today"
+//   active  → live pill "● Name cleaning · 12m" (pulsing)
+//   chores  → inline leaderboard chips (🥇🥈) + most recent completion
+// Reads the localhost read-only /api/house/status. (The QR that opens Roots on a
+// phone lives in the header corner — see #cornerqr in the template.)
 //
-// NOTE: this widget belongs to the Arbor side project (hand-maintained). The
+// NOTE: this widget belongs to the Roots side project (hand-maintained). The
 // daily tending may restyle it but must keep the widget present and working.
 export default {
   id: 'house-cleaning',
-  title: 'Arbor',
-  icon: '🌳',
+  title: 'Roots',
+  icon: '🌱',
   size: 'lg',
-  chrome: false, // bare card — keeps this full-width row within the locked canvas
+  chrome: false, // bare — a floating strip, not a boxed card
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
-      .hc { display:flex; flex-direction:column; gap:9px; }
-      @keyframes hcpulse { 0%{box-shadow:0 0 0 0 rgba(116,247,176,.6);} 70%{box-shadow:0 0 0 11px rgba(116,247,176,0);} 100%{box-shadow:0 0 0 0 rgba(116,247,176,0);} }
-      .hc .hdr { display:flex; align-items:center; gap:9px; font-family:var(--font-display); font-size:18px; color:var(--ink); }
-      .hc .hdr .ic { font-size:19px; }
-      .hc .hdr .ttl { font-weight:600; }
-      .hc .hdr .dot { width:9px; height:9px; border-radius:50%; background:var(--mint); flex:none; margin-left:auto;
-        box-shadow:0 0 0 0 rgba(116,247,176,.6); animation:hcpulse 1.8s infinite; }
-      .hc .hdr .live { font-family:var(--font); font-size:15px; color:var(--ink-soft); }
-      .hc .hdr .live b { color:var(--mint); }
-      .hc .hdr .idle { font-family:var(--font); font-size:14px; color:var(--ink-faint); margin-left:auto; }
-      .hc .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
-      .hc .col { display:flex; flex-direction:column; gap:2px; min-width:0; }
-      .hc .quiet { color:var(--ink-faint); font-size:15px; }
-      .hc .brow { display:flex; align-items:center; gap:9px; font-size:18px; }
-      .hc .brow .pos { width:24px; text-align:center; }
-      .hc .brow .nm { flex:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .hc .brow .pts { font-family:var(--font-display); color:var(--mint); font-size:19px; }
-      .hc .recent .r { font-size:14px; color:var(--ink-soft); display:flex; gap:7px; line-height:1.25; }
-      .hc .recent .r .e { font-size:15px; flex:none; }
-      .hc .recent .r .rt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      /* Bare card → trim padding so this full-width row stays inside the locked canvas. */
-      .card.hc-card { padding:13px 18px; }
+      .rt { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+        max-height:76px; overflow:hidden; }
+      .rt .mark { display:flex; align-items:baseline; gap:8px; flex:none; }
+      .rt .mark .ic { font-size:17px; }
+      .rt .mark .nm { font-family:var(--font-display); font-weight:600; font-size:18px;
+        background:linear-gradient(120deg, var(--ink), var(--mint));
+        -webkit-background-clip:text; background-clip:text; color:transparent; }
+      .rt .sep { width:1px; height:22px; background:var(--stroke); flex:none; }
+      @keyframes rtpulse { 0%{box-shadow:0 0 0 0 rgba(116,247,176,.55);} 70%{box-shadow:0 0 0 9px rgba(116,247,176,0);} 100%{box-shadow:0 0 0 0 rgba(116,247,176,0);} }
+      .rt .live { display:flex; align-items:center; gap:8px; flex:none;
+        font-size:14.5px; font-weight:600; color:var(--mint);
+        background:rgba(116,247,176,.09); border:1px solid var(--stroke);
+        border-radius:999px; padding:5px 13px; }
+      .rt .live .dot { width:8px; height:8px; border-radius:50%; background:var(--mint);
+        animation:rtpulse 1.8s infinite; }
+      .rt .live .t { font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); font-weight:400; }
+      .rt .chip { display:flex; align-items:center; gap:7px; flex:none;
+        font-size:14.5px; color:var(--ink); background:rgba(255,255,255,.045);
+        border:1px solid var(--stroke); border-radius:999px; padding:5px 12px; }
+      .rt .chip .pts { font-family:var(--font-display); font-weight:700; color:var(--mint); font-size:15.5px; }
+      .rt .recent { font-size:13.5px; color:var(--ink-faint); display:flex; align-items:center; gap:6px;
+        min-width:0; overflow:hidden; }
+      .rt .recent .rtxt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .rt .quiet { font-size:14.5px; color:var(--ink-faint); }
+      .rt .quiet i { font-style:normal; opacity:.75; }
+      /* bare card → slim strip padding */
+      .card.rt-card { padding:11px 18px; }
     `);
-    body.classList.add('hc');
-    body.parentElement?.classList.add('hc-card');
+    body.classList.add('rt');
+    body.parentElement?.classList.add('rt-card');
 
     const CHORE_EMOJI = { trash: '🗑', counters: '🧽', vacuum: '🧹', dishwasher_run: '🍽', dishwasher_empty: '🧼', curb: '♻️', other: '✍️' };
     const CHORE_LABEL = { trash: 'took the trash out', counters: 'wiped counters', vacuum: 'vacuumed', dishwasher_run: 'ran the dishwasher', dishwasher_empty: 'put dishes away', curb: 'trash to the curb', other: 'a chore' };
     const ago = (ts) => { const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? 'now' : s < 3600 ? Math.round(s / 60) + 'm' : s < 86400 ? Math.round(s / 3600) + 'h' : Math.round(s / 86400) + 'd'; };
-    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const MEDAL = ['🥇', '🥈'];
 
     const render = async () => {
       let s;
       try {
-        // Same-origin localhost reads — NOT through the external-only proxy.
+        // Same-origin localhost read — NOT through the external-only proxy.
         const r = await fetch('/api/house/status', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         s = await r.json();
@@ -58,36 +67,42 @@ export default {
       }
       body.dataset.loaded = '1';
 
-      // Header line doubles as the live "cleaning now" status (no extra row).
-      const cleaning = (s.cleaning || []);
-      const status = cleaning.length
-        ? h('span', { class: 'live', html: `${cleaning.map((c) => '<b>' + esc(c.name) + '</b>').join(', ')} cleaning` })
-        : h('span', { class: 'idle' }, 'idle');
-      const hdr = h('div', { class: 'hdr' },
-        h('span', { class: 'ic' }, '🌳'), h('span', { class: 'ttl' }, 'Arbor'),
-        cleaning.length ? h('span', { class: 'dot' }) : null, status);
+      const parts = [
+        h('div', { class: 'mark' }, h('span', { class: 'ic' }, '🌱'), h('span', { class: 'nm' }, 'Roots')),
+      ];
 
-      const cols = h('div', { class: 'cols' });
-      // Left: today's top-2 leaderboard.
-      const board = (s.day || []).slice(0, 2);
-      const left = h('div', { class: 'col board' });
-      if (board.length) {
-        board.forEach((p, i) => left.appendChild(h('div', { class: 'brow' + (i === 0 ? ' top' : '') },
-          h('span', { class: 'pos' }, i === 0 ? '🥇' : '🥈'),
-          h('span', { class: 'nm' }, p.name),
-          h('span', { class: 'pts' }, `${p.points}`))));
-      } else { left.appendChild(h('div', { class: 'quiet' }, 'No chores logged today')); }
-      // Right: the two most recent completions.
-      const recent = (s.activity || []).slice(0, 2);
-      const right = h('div', { class: 'col recent' });
-      for (const a of recent) {
-        const what = a.chore === 'other' && a.note ? a.note : (CHORE_LABEL[a.chore] || a.chore);
-        right.appendChild(h('div', { class: 'r' }, h('span', { class: 'e' }, CHORE_EMOJI[a.chore] || '✓'), h('span', { class: 'rt' }, `${a.name} ${what} · ${ago(a.ts)}`)));
+      // Priority 1 — live cleaning pill(s).
+      const cleaning = s.cleaning || [];
+      for (const c of cleaning.slice(0, 2)) {
+        const mins = c.started_at ? Math.max(1, Math.round((Date.now() - c.started_at) / 60000)) : null;
+        parts.push(h('div', { class: 'live' },
+          h('span', { class: 'dot' }), `${c.name} cleaning`,
+          mins ? h('span', { class: 't' }, `${mins}m`) : null));
       }
-      cols.appendChild(left);
-      if (recent.length) cols.appendChild(right);
 
-      body.replaceChildren(hdr, cols);
+      // Priority 2 — today's top cleaners as inline chips.
+      const board = (s.day || []).slice(0, 2);
+      if (board.length) {
+        parts.push(h('div', { class: 'sep' }));
+        board.forEach((p, i) => parts.push(h('div', { class: 'chip' },
+          MEDAL[i] || '', p.name, h('span', { class: 'pts' }, String(p.points)))));
+      }
+
+      // Priority 3 — the single most recent completion.
+      const a = (s.activity || [])[0];
+      if (a) {
+        const what = a.chore === 'other' && a.note ? a.note : (CHORE_LABEL[a.chore] || a.chore);
+        parts.push(h('div', { class: 'recent' },
+          h('span', {}, CHORE_EMOJI[a.chore] || '✓'),
+          h('span', { class: 'rtxt' }, `${a.name} ${what} · ${ago(a.ts)}`)));
+      }
+
+      // Collapsed quiet state — nothing live, nothing today.
+      if (!cleaning.length && !board.length && !a) {
+        parts.push(h('div', { class: 'quiet' }, 'the house is quiet today · ', h('i', {}, 'scan the corner code to join ↗')));
+      }
+
+      body.replaceChildren(...parts);
     };
 
     ctx.interval(render, 15000);
