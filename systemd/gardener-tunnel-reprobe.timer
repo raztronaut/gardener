@@ -1,0 +1,9 @@
+[Unit]
+Description=The Gardener — monthly tunnel restart to reclaim the permanent ngrok domain after its free-tier quota resets
+
+[Timer]
+OnCalendar=*-*-01 06:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

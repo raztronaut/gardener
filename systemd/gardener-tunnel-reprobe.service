@@ -1,0 +1,6 @@
+[Unit]
+Description=The Gardener — restart the tunnel (re-probes ngrok first, falls back to cloudflared)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user restart gardener-tunnel.service
