@@ -20,23 +20,26 @@ function log(msg) {
 // js-API event: { value:int16, type: 1=button 2=axis (|0x80 init), number }
 // Override via .env GARDENER_PAD_MAP='{"buttons":{"7":"palette",...}}' if a
 // firmware variant numbers differently — raw presses are logged to pad.log.
+// Mapping verified EMPIRICALLY from this controller's pad.log (8BitDo "gap"
+// layout: face = 0,1,3,4 with 2/5 unused; shoulders 6-9; Select/Start 10/11).
 const DEFAULT_MAP = {
   buttons: {
-    0: 'ok',        // B (south) — 8bitdo dinput numbers B=0
-    1: 'ok',        // A (east)  — accept either as "run"
-    2: 'back',      // Y
-    3: 'palette',   // X — quick alternative to R2
-    4: 'pageup',    // L1
-    5: 'pagedown',  // R1
-    6: 'back',      // L2 — back / Esc
-    7: 'palette',   // R2 — show commands
-    8: 'changelog', // Select
-    9: 'help',      // Start
-    10: 'noop', 11: 'noop',
+    0: 'ok',        // A — run selected
+    1: 'back',      // B — back (Nintendo convention)
+    3: 'palette',   // X — palette shortcut
+    4: 'back',      // Y
+    6: 'pageup',    // L1
+    7: 'pagedown',  // R1
+    8: 'back',      // L2 — back / Esc (user-requested)
+    9: 'palette',   // R2 — show commands (user-requested)
+    10: 'changelog',// Select
+    11: 'help',     // Start
   },
-  // axes: left stick 0/1, d-pad hat 6/7 (some firmwares 4/5)
-  vert: [1, 5, 7],   // axis numbers treated as vertical (up/down)
-  horiz: [0, 4, 6],
+  // Axes: 0/1 left stick, 6/7 d-pad hat. DO NOT add 4/5 — those are the analog
+  // trigger channels and REST at -32767, which reads as a permanently-held
+  // direction (the "drift" we debugged). 2/3 (right stick) left unmapped.
+  vert: [1, 7],
+  horiz: [0, 6],
 };
 let MAP = DEFAULT_MAP;
 try { if (process.env.GARDENER_PAD_MAP) MAP = { ...DEFAULT_MAP, ...JSON.parse(process.env.GARDENER_PAD_MAP) }; }
