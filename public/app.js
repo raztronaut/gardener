@@ -353,7 +353,8 @@ async function showEvents() {
   const rows = evs.map((e) => {
     let when = 'Soon';
     if (e.when) {
-      when = `${dayFmt.format(e.when)} ${MON[e.when.getMonth()]} ${e.when.getDate()} · ${timeFmt.format(e.when).replace(' ', '')}`;
+      when = `${dayFmt.format(e.when)} ${MON[e.when.getMonth()]} ${e.when.getDate()}`;
+      if (!e.allDay) when += ` · ${timeFmt.format(e.when).replace(' ', '')}`; // all-day rows have no real clock time
     }
     return h('div', { class: 'cl-row ev-row' },
       h('div', { class: 'ev-when' }, when),

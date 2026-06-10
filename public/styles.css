@@ -164,18 +164,16 @@ html, body {
    shrinks to its small default size; fades back out after a moment of stillness. */
 #cursor {
   position: fixed; left: 0; top: 0; z-index: 200;
-  width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
-  background: var(--mint); box-shadow: 0 0 16px 4px rgba(116,247,176,.6);
+  width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%;
+  background: var(--mint); box-shadow: 0 0 14px 3px rgba(116,247,176,.6);
   pointer-events: none; opacity: 0; transform: scale(1);
   transition: opacity .55s ease; will-change: left, top, transform, opacity;
 }
-#cursor.on { opacity: 1; animation: cursorPop 2s cubic-bezier(.16,.7,.3,1) forwards; }
-/* Fades in LARGE and lingers, then eases down to its small default — slow enough
-   to read the motion, and noticeably bigger at its peak. One-shot (no perpetual
-   animation), so it stays idle-friendly on the Jetson. */
+#cursor.on { opacity: 1; animation: cursorPop .9s cubic-bezier(.16,.7,.3,1) forwards; }
+/* Fades in slightly enlarged (just 20% over resting size) and settles down —
+   a gentle pulse, not a balloon. One-shot, idle-friendly on the Jetson. */
 @keyframes cursorPop {
-  0%   { transform: scale(6.5); }
-  28%  { transform: scale(5.4); }
+  0%   { transform: scale(1.2); }
   100% { transform: scale(1); }
 }
 body.night #cursor, body.screenshot #cursor { display: none; }

@@ -38,32 +38,28 @@ const dayKeyOf = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: '
 // "today" in SF as YYYY-MM-DD, for the available_from query floor.
 export function sfToday() { return dayKeyOf(new Date()); }
 
-// Has this row a real clock time (not an all-day / midnight placeholder)?
-function hasClockTime(rawFrom) {
-  const s = String(rawFrom || '');
-  return /\d{1,2}:\d{2}/.test(s) && !/[T\s]00:00(:00)?/.test(s);
+// The literal event day written in the TITLE ("6/10/26: …"), as YYYY-MM-DD.
+// Scraped rows carry their real calendar day in the title and a noon-UTC
+// placeholder in available_from — the title is the truth for those.
+function titleDateKey(title) {
+  const m = String(title || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4}):/);
+  if (!m) return null;
+  const y = m[3].length === 2 ? '20' + m[3] : m[3];
+  return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
 }
 
-// The literal calendar day written in the source value (YYYY-MM-DD), taken AS-IS.
-// Source dates are stored as UTC instants, so converting a midnight-UTC placeholder
-// through the SF timezone shifts it back a day — which made "today" all-day events
-// look like yesterday and silently drop. For all-day rows we trust the written date.
-function rawDateKey(rawFrom) {
-  const m = String(rawFrom || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
-}
-
-// Is this event already over, by current time? All-day events (no clock time) are
-// "past" only once their calendar day has fully ended (compared in SF); timed events
-// get a 2-hour grace so something that just started (likely still going) isn't dropped.
+// Is this event already over?
+// - ALL-DAY rows (title-dated placeholders): past once their written calendar day
+//   has fully ended in SF.
+// - Everything else: available_from is a REAL UTC instant (e.g. 00:00Z = 5:00 PM
+//   PDT the previous SF evening — the classic event hour, NOT an all-day marker;
+//   that bad heuristic kept showing yesterday-evening events all of today).
+//   Past once the instant is over, with a 2-hour grace for just-started events.
 const PAST_GRACE_MS = 2 * 60 * 60 * 1000;
-export function isPast(when, rawFrom, now = new Date()) {
-  if (!when || isNaN(when)) return false; // unknown date → keep (don't hide blindly)
-  if (!hasClockTime(rawFrom)) {
-    const dk = rawDateKey(rawFrom) || dayKeyOf(when);
-    return dk < dayKeyOf(now);
-  }
-  return when.getTime() < now.getTime() - PAST_GRACE_MS;
+export function isPast(ev, now = new Date()) {
+  if (ev.allDay) return ev.dayKey < dayKeyOf(now);
+  if (!ev.when || isNaN(ev.when)) return false; // unknown date → keep (don't hide blindly)
+  return ev.when.getTime() < now.getTime() - PAST_GRACE_MS;
 }
 
 // Fetch + clean + dedupe + prune-past, soonest first. `fetchJSON` is the widget/app
@@ -87,17 +83,25 @@ export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
   for (const r of rows) {
     const name = cleanName(r.title);
     if (!name || /^__SCRAPER_RUN__/.test(r.title || '')) continue;
-    const when = r.available_from ? new Date(r.available_from) : null;
-    if (isPast(when, r.available_from, now)) continue; // prune events already over
+    const dayKey = titleDateKey(r.title); // non-null → all-day placeholder row
+    let when = r.available_from ? new Date(r.available_from) : null;
+    if (when && isNaN(when)) when = null;
+    // For all-day rows, anchor `when` to SF noon of the WRITTEN day so date
+    // displays are stable (the stored noon-UTC placeholder is 5 AM PDT).
+    if (dayKey) when = new Date(`${dayKey}T12:00:00-07:00`);
+    const ev = {
+      name,
+      when,
+      allDay: !!dayKey,
+      dayKey: dayKey || (when ? dayKeyOf(when) : null),
+      place: cleanPlace(r.location_address),
+      emoji: tidy(r.emoji),
+    };
+    if (isPast(ev, now)) continue; // prune events already over
     const key = dedupKey(name);
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({
-      name,
-      when: when && !isNaN(when) ? when : null,
-      place: cleanPlace(r.location_address),
-      emoji: tidy(r.emoji),
-    });
+    out.push(ev);
   }
   return out;
 }

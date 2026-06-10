@@ -54,7 +54,7 @@ export default {
           dateEl = ctx.h('div', { class: 'sfe-date soon' },
             e.emoji ? ctx.h('div', { class: 'em' }, e.emoji) : ctx.h('div', { class: 'd' }, 'Soon'));
         }
-        const time = e.when ? timeFmt.format(e.when).replace(' ', '') : '';
+        const time = (e.when && !e.allDay) ? timeFmt.format(e.when).replace(' ', '') : '';
         return ctx.h('div', { class: 'sfe-ev' },
           dateEl,
           ctx.h('div', { class: 'sfe-main' },
