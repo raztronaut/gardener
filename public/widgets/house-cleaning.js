@@ -1,7 +1,7 @@
-// Roots — the household strip for the wall (the Roots app's presence on the garden).
-// A slim, adaptive full-width band that COLLAPSES when the house is quiet and
-// shows at most two rows when busy, so it never crowds other widgets:
-//   quiet   → one line: wordmark + "the house is quiet today"
+// Roots — the household app's widget on the wall. A proper card (standard chrome)
+// whose body stays ADAPTIVE: it collapses to one quiet line when nothing is
+// happening and shows at most two rows when busy, so it never crowds the canvas:
+//   quiet   → "the house is quiet today · scan the corner code to join ↗"
 //   active  → live pill "● Name cleaning · 12m" (pulsing)
 //   chores  → inline leaderboard chips (🥇🥈) + most recent completion
 // Reads the localhost read-only /api/house/status. (The QR that opens Roots on a
@@ -14,17 +14,12 @@ export default {
   title: 'Roots',
   icon: '🌱',
   size: 'lg',
-  chrome: false, // bare — a floating strip, not a boxed card
+  chrome: true, // standard widget card — title bar + glass box like its neighbours
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
       .rt { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-        max-height:76px; overflow:hidden; }
-      .rt .mark { display:flex; align-items:baseline; gap:8px; flex:none; }
-      .rt .mark .ic { font-size:17px; }
-      .rt .mark .nm { font-family:var(--font-display); font-weight:600; font-size:18px;
-        background:linear-gradient(120deg, var(--ink), var(--mint));
-        -webkit-background-clip:text; background-clip:text; color:transparent; }
+        max-height:72px; overflow:hidden; }
       .rt .sep { width:1px; height:22px; background:var(--stroke); flex:none; }
       @keyframes rtpulse { 0%{box-shadow:0 0 0 0 rgba(116,247,176,.55);} 70%{box-shadow:0 0 0 9px rgba(116,247,176,0);} 100%{box-shadow:0 0 0 0 rgba(116,247,176,0);} }
       .rt .live { display:flex; align-items:center; gap:8px; flex:none;
@@ -43,11 +38,8 @@ export default {
       .rt .recent .rtxt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .rt .quiet { font-size:14.5px; color:var(--ink-faint); }
       .rt .quiet i { font-style:normal; opacity:.75; }
-      /* bare card → slim strip padding */
-      .card.rt-card { padding:11px 18px; }
     `);
     body.classList.add('rt');
-    body.parentElement?.classList.add('rt-card');
 
     const CHORE_EMOJI = { trash: '🗑', counters: '🧽', vacuum: '🧹', dishwasher_run: '🍽', dishwasher_empty: '🧼', curb: '♻️', other: '✍️' };
     const CHORE_LABEL = { trash: 'took the trash out', counters: 'wiped counters', vacuum: 'vacuumed', dishwasher_run: 'ran the dishwasher', dishwasher_empty: 'put dishes away', curb: 'trash to the curb', other: 'a chore' };
@@ -67,9 +59,7 @@ export default {
       }
       body.dataset.loaded = '1';
 
-      const parts = [
-        h('div', { class: 'mark' }, h('span', { class: 'ic' }, '🌱'), h('span', { class: 'nm' }, 'Roots')),
-      ];
+      const parts = [];
 
       // Priority 1 — live cleaning pill(s).
       const cleaning = s.cleaning || [];
@@ -83,7 +73,7 @@ export default {
       // Priority 2 — today's top cleaners as inline chips.
       const board = (s.day || []).slice(0, 2);
       if (board.length) {
-        parts.push(h('div', { class: 'sep' }));
+        if (parts.length) parts.push(h('div', { class: 'sep' }));
         board.forEach((p, i) => parts.push(h('div', { class: 'chip' },
           MEDAL[i] || '', p.name, h('span', { class: 'pts' }, String(p.points)))));
       }
