@@ -1,15 +1,16 @@
-// House Cleaning — wall widget for the "Arbor" household app.
-// Shows who is currently in Clean Mode (live) + the day's top cleaners + a few
-// recent completions, reading the localhost server's read-only /api/house/status.
+// Arbor — wall widget for the household app.
+// Shows who is in Clean Mode (live) + today's top cleaners + recent completions,
+// reading the localhost server's read-only /api/house/status. (The QR that opens
+// Arbor on a phone lives in the header corner — see #cornerqr in the template.)
 //
 // NOTE: this widget belongs to the Arbor side project (hand-maintained). The
-// daily tending may restyle it but should not remove the household feature.
+// daily tending may restyle it but must keep the widget present and working.
 export default {
   id: 'house-cleaning',
-  title: 'The House',
-  icon: '🧹',
+  title: 'Arbor',
+  icon: '🌳',
   size: 'lg',
-  chrome: false, // bare card — keeps this 7th full-width row within the locked canvas
+  chrome: false, // bare card — keeps this full-width row within the locked canvas
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
@@ -24,16 +25,16 @@ export default {
       .hc .hdr .live b { color:var(--mint); }
       .hc .hdr .idle { font-family:var(--font); font-size:14px; color:var(--ink-faint); margin-left:auto; }
       .hc .cols { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
-      .hc .col { display:flex; flex-direction:column; gap:2px; }
+      .hc .col { display:flex; flex-direction:column; gap:2px; min-width:0; }
       .hc .quiet { color:var(--ink-faint); font-size:15px; }
       .hc .brow { display:flex; align-items:center; gap:9px; font-size:18px; }
       .hc .brow .pos { width:24px; text-align:center; }
-      .hc .brow .nm { flex:1; font-weight:600; }
+      .hc .brow .nm { flex:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .hc .brow .pts { font-family:var(--font-display); color:var(--mint); font-size:19px; }
       .hc .recent .r { font-size:14px; color:var(--ink-soft); display:flex; gap:7px; line-height:1.25; }
       .hc .recent .r .e { font-size:15px; flex:none; }
       .hc .recent .r .rt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      /* Bare card → trim padding so this 7th full-width row stays inside the locked canvas. */
+      /* Bare card → trim padding so this full-width row stays inside the locked canvas. */
       .card.hc-card { padding:13px 18px; }
     `);
     body.classList.add('hc');
@@ -42,11 +43,12 @@ export default {
     const CHORE_EMOJI = { trash: '🗑', counters: '🧽', vacuum: '🧹', dishwasher_run: '🍽', dishwasher_empty: '🧼', curb: '♻️', other: '✍️' };
     const CHORE_LABEL = { trash: 'took the trash out', counters: 'wiped counters', vacuum: 'vacuumed', dishwasher_run: 'ran the dishwasher', dishwasher_empty: 'put dishes away', curb: 'trash to the curb', other: 'a chore' };
     const ago = (ts) => { const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? 'now' : s < 3600 ? Math.round(s / 60) + 'm' : s < 86400 ? Math.round(s / 3600) + 'h' : Math.round(s / 86400) + 'd'; };
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     const render = async () => {
       let s;
       try {
-        // Same-origin localhost read — NOT through the external-only proxy.
+        // Same-origin localhost reads — NOT through the external-only proxy.
         const r = await fetch('/api/house/status', { cache: 'no-store' });
         if (!r.ok) throw new Error('HTTP ' + r.status);
         s = await r.json();
@@ -62,7 +64,7 @@ export default {
         ? h('span', { class: 'live', html: `${cleaning.map((c) => '<b>' + esc(c.name) + '</b>').join(', ')} cleaning` })
         : h('span', { class: 'idle' }, 'idle');
       const hdr = h('div', { class: 'hdr' },
-        h('span', { class: 'ic' }, '🧹'), h('span', { class: 'ttl' }, 'The House'),
+        h('span', { class: 'ic' }, '🌳'), h('span', { class: 'ttl' }, 'Arbor'),
         cleaning.length ? h('span', { class: 'dot' }) : null, status);
 
       const cols = h('div', { class: 'cols' });
@@ -87,7 +89,6 @@ export default {
 
       body.replaceChildren(hdr, cols);
     };
-    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
     ctx.interval(render, 15000);
   },

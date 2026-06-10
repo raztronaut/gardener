@@ -14,6 +14,7 @@ import {
   recentIterations, latestCommitted,
 } from './db.mjs';
 import { recover } from './recover.mjs';
+import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
 
 const START = Date.now();
@@ -230,11 +231,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/version') return json(res, 200, { version: getUiVersion() });
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, stateObject());
     if (req.method === 'GET' && p === '/api/iterations') {
-      // One concise phrase per committed tending — powers the /iterations changelog.
-      const oneline = (s) => (s ? (s.split('\n').map((x) => x.trim()).find(Boolean) || '').replace(/\s+/g, ' ').slice(0, 160) : '');
+      // One concise "what changed" phrase per committed tending — powers the
+      // /iterations changelog. changelogPhrase() prefers the agent's CHANGELOG:
+      // line and skips test-status boilerplate ("all checks green") otherwise.
       const iterations = recentIterations(80)
         .filter((x) => x.status === 'committed')
-        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, phrase: oneline(x.summary) || 'self-directed improvement' }));
+        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, phrase: changelogPhrase(x.summary) || 'self-directed improvement' }));
       return json(res, 200, { iterations });
     }
     if (req.method === 'GET' && p === '/api/feedback') {

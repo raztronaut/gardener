@@ -46,8 +46,24 @@ case "$cmd" in
     NGROK_TOKEN="$(grep -E '^GARDENER_NGROK_AUTHTOKEN=' .env 2>/dev/null | cut -d= -f2 || true)"
     if [ -n "$NGROK_DOMAIN" ] && [ -x "$HOME/.local/bin/ngrok" ]; then
       [ -n "$NGROK_TOKEN" ] && "$HOME/.local/bin/ngrok" config add-authtoken "$NGROK_TOKEN" >/dev/null 2>&1
-      printf 'https://%s\n' "$NGROK_DOMAIN" > "$URLFILE"   # stable; matches GARDENER_PUBLIC_URL
-      exec "$HOME/.local/bin/ngrok" http "$PP" --url="https://$NGROK_DOMAIN" --log stdout
+      "$HOME/.local/bin/ngrok" http "$PP" --url="https://$NGROK_DOMAIN" --log stdout &
+      NGPID=$!
+      # Probe the public EDGE, not just the agent session: a free account that hit
+      # its monthly limit (ERR_NGROK_727) keeps the session alive but 403s every
+      # visitor. Only commit to ngrok if the edge actually serves the app.
+      NGROK_OK=0
+      for _ in $(seq 1 6); do
+        sleep 3
+        code="$(curl -s -o /dev/null -w '%{http_code}' -m 8 -H 'ngrok-skip-browser-warning: 1' "https://$NGROK_DOMAIN/" 2>/dev/null)"
+        case "$code" in 2*) NGROK_OK=1; break ;; esac
+        kill -0 "$NGPID" 2>/dev/null || break   # agent died (bad token etc.)
+      done
+      if [ "$NGROK_OK" = "1" ]; then
+        printf 'https://%s\n' "$NGROK_DOMAIN" > "$URLFILE"   # stable URL
+        wait "$NGPID"; exit $?   # stay attached; systemd restarts us if ngrok dies
+      fi
+      echo "ngrok edge not serving (limit/blocked, last code=$code) — falling back to cloudflared"
+      kill "$NGPID" 2>/dev/null; wait "$NGPID" 2>/dev/null
     fi
     CF="$HOME/.local/bin/cloudflared"
     : > "$URLFILE"   # clear any stale URL while the quick tunnel is establishing

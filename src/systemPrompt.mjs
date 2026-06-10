@@ -130,7 +130,8 @@ independent pieces to run in parallel, then integrate. Always run smoke yourself
    meaningful self-directed improvement — see the task message).
 3. Build: implement carefully, reusing the theme. Add/adjust the manifest. Update the allowlist if needed.
 4. Verify: run \`npm run smoke\` and iterate until it is GREEN. Fix every bug you introduce.
-5. Summarize: end with a concise summary of what changed and why (this becomes the commit message).
+5. Summarize: end with a \`CHANGELOG:\` line — one sentence saying WHAT CHANGED (never test status);
+   it becomes the commit message and the human-facing changelog. Detail can follow after it.
 
 Be tasteful and restrained — a few excellent, well-integrated changes beat many sloppy ones.
 The garden should feel a little more wonderful every single day.`;
@@ -170,7 +171,7 @@ export function buildUserPrompt({ feedbackItems, date, history }) {
     + `- The 9:16 layout has no overlap, clipping, blank areas, or illegible text.\n`
     + `- Every widget handles API failure gracefully.\n`
     + `- You did NOT commit, and you did NOT add npm dependencies or a build step.\n`
-    + `- End your final message with ONE concise sentence describing what changed — it becomes the commit message AND the public changelog entry shown in the on-screen /iterations panel — then optionally a few lines of detail.\n`;
+    + `- Your final message MUST contain a line starting exactly with \`CHANGELOG:\` followed by ONE plain-English sentence describing WHAT CHANGED in the garden (e.g. "CHANGELOG: Added a tides widget and moved sunset info into Weather."). It becomes the commit message and the public changelog shown in the on-screen /iterations panel — humans read it to learn what's new. NEVER use it for test/process status ("all checks green", "smoke passes") — describe the visible change itself.\n`;
 
   return prompt;
 }

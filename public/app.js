@@ -616,6 +616,7 @@ const isPublicUrl = (u) => {
   try { return !/^(localhost|127\.|0\.0\.0\.0|\[?::1\]?$)/i.test(new URL(u).hostname); }
   catch { return false; }
 };
+let cornerQrTarget = null; // re-render only when the public URL actually changes
 async function wireCornerQr() {
   const el = document.getElementById('cornerqr');
   if (!el) return;
@@ -627,18 +628,26 @@ async function wireCornerQr() {
   if (!base && window.__GARDEN_STATE && window.__GARDEN_STATE.publicUrl) base = window.__GARDEN_STATE.publicUrl;
   if (!base) { try { if (isPublicUrl(location.origin)) base = location.origin; } catch { /* ignore */ } }
   base = String(base || '').replace(/\/+$/, '');
-  if (!base) { el.hidden = true; return; }
-  const target = `${base}/plant.html`;
+  if (!base) { el.hidden = true; cornerQrTarget = null; return; }
+  // The QR opens ARBOR — the household app is the front door at `/`
+  // (notes, clean mode, leaderboard). /plant.html still exists as a fallback page.
+  const target = base;
+  if (target === cornerQrTarget) return; // unchanged — don't refetch the PNG
+  cornerQrTarget = target;
   // White modules on a transparent background → the code floats over the aurora
   // with no card. quickchart renders true alpha (dark=ffffff opaque, light=00000000).
   const src = `/api/proxy?url=${encodeURIComponent(
     `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=ffffff&light=00000000&ecLevel=M&margin=1&size=240&format=png`)}`;
-  const img = h('img', { alt: 'Scan to plant a note', src });
-  img.addEventListener('error', () => { el.hidden = true; });
+  const img = h('img', { alt: 'Scan to open Arbor', src });
+  img.addEventListener('error', () => { el.hidden = true; cornerQrTarget = null; });
   el.replaceChildren(img);
   el.setAttribute('href', target);
+  el.setAttribute('aria-label', 'Scan to open Arbor');
   el.hidden = false;
 }
+// The tunnel URL can rotate (cloudflared fallback restarts) without a version
+// bump/page reload — re-check periodically so the wall QR never goes stale.
+setInterval(() => { wireCornerQr().catch(() => {}); }, 60000);
 
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();

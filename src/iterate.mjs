@@ -19,6 +19,7 @@ import {
 import * as git from './gitlib.mjs';
 import { recover } from './recover.mjs';
 import { buildSystemPrompt, buildUserPrompt } from './systemPrompt.mjs';
+import { changelogPhrase } from './changelog.mjs';
 import { captureUrl } from './screenshot.mjs';
 import { reviewScreenshot } from './visualReview.mjs';
 
@@ -261,7 +262,7 @@ async function main() {
     //    result_commit durably BEFORE finalizing, then bump+consume+mark in one
     //    atomic transaction (so a crash can't apply a partial deploy).
     const resultCommit = git.commitAll(
-      `tend #${iterId}: ${(finalSummary.split('\n')[0] || 'self-directed improvement').slice(0, 72)}\n\n`
+      `tend #${iterId}: ${(changelogPhrase(finalSummary) || 'self-directed improvement').slice(0, 72)}\n\n`
       + `${finalSummary.slice(0, 1500)}\n\nGardener iteration ${iterId} (${trigger}, ${feedbackItems.length} feedback).`);
     updateIteration(iterId, { result_commit: resultCommit });
     const unresolved = (lastVerdict?.issues || []).filter((i) => i.severity === 'critical').length;

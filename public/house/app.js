@@ -445,10 +445,16 @@ renderWho();
 showScreen('dash');
 loadChores();
 // Poll for live "currently cleaning" + leaderboard updates while the app is open.
-setInterval(() => {
+// 30s (not 7s) and ONLY while the tab is visible: every request goes through the
+// public tunnel, and an idle phone left open at 7s once burned ngrok's entire
+// monthly free quota (~20k connections → ERR_NGROK_727, tunnel dead for a month).
+function liveTick() {
   const dashActive = $('#screen-dash').classList.contains('active');
   if (dashActive) refreshDashboard();
   else api('/api/house/status').then(updateMacroBadge).catch(() => {});
   // Keep the macros active-banner in sync if that screen is showing.
   if ($('#screen-macros').classList.contains('active') && currentUser && !sessionOpen) refreshActiveState();
-}, 7000);
+}
+setInterval(() => { if (!document.hidden) liveTick(); }, 30000);
+// Refresh immediately when the user returns to the app (makes 30s feel instant).
+document.addEventListener('visibilitychange', () => { if (!document.hidden) liveTick(); });
