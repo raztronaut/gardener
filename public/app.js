@@ -422,8 +422,10 @@ async function toggleNight() {
 }
 
 // ---- Tuesday curb-trash alarm ----------------------------------------------
-// A full-screen flashing-red takeover from Tuesday 16:00 until Wednesday 07:00
-// (local SF time) that PERSISTS until someone acknowledges it. Acknowledgement
+// A full-screen flashing-red takeover that runs ALL of Tuesday (from 07:00, once
+// the day is up) until Wednesday 07:00 — local SF time — and PERSISTS until
+// someone acknowledges it. This is the single, unmissable trash reminder (the old
+// small clock pill was retired in favour of it). Acknowledgement
 // is stamped with the alarm's Tuesday date in localStorage, so it stays dismissed
 // for that week and re-arms automatically next Tuesday. (?alarmtest=1 forces it
 // on for QA.) Hidden in screenshot mode so QA captures the dashboard itself.
@@ -439,7 +441,7 @@ function alarmKey(now) {
     timeZone: (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles',
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(d);
-  if (wd === 'Tue' && hr >= 16) return dayOf(now);                       // Tue evening
+  if (wd === 'Tue' && hr >= 7) return dayOf(now);                        // all Tuesday from 7AM
   if (wd === 'Wed' && hr < 7) return dayOf(new Date(now.getTime() - 864e5)); // before Wed 7AM → yesterday (Tue)
   return null;
 }
@@ -531,8 +533,15 @@ function wireFeedback() {
     if (e.shiftKey && (e.key === 'T' || e.key === 't') && input.value.trim() === '') {
       e.preventDefault();
       const alarm = document.getElementById('trashalarm');
-      if (alarm && alarm.classList.contains('on')) { document.getElementById('trashAck')?.click(); }
-      else { window.dispatchEvent(new CustomEvent('garden:trash-toggle')); toast('Trash reminder toggled 🗑  (shift+T)'); }
+      if (alarm && alarm.classList.contains('on')) {
+        document.getElementById('trashAck')?.click();                  // dismiss the active alarm
+      } else if (alarm && alarm._key) {
+        try { localStorage.removeItem(TRASH_ACK); } catch { /* ignore */ } // re-arm: bring it back today
+        refreshTrashAlarm();
+        toast('Trash reminder re-armed 🗑  (shift+T)');
+      } else {
+        toast('No trash reminder right now 🗑');
+      }
       return;
     }
     if (document.activeElement !== input && e.key.length === 1) focusInput();
