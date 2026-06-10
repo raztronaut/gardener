@@ -508,6 +508,69 @@ function wireStreetAlarm() {
   setInterval(refreshStreetAlarm, 30000);
 }
 
+// ---- slash-command registry + palette ---------------------------------------
+// One source of truth for every /command: the submit dispatcher and the
+// Claude-Code-style autocomplete palette both read from here.
+const COMMANDS = [
+  { cmd: 'help', aliases: ['?'], icon: '🌿', desc: 'how the garden works' , run: () => showHelp() },
+  { cmd: 'iterations', aliases: ['changelog'], icon: '❀', desc: 'changelog — how the garden has grown', run: () => showIterations() },
+  { cmd: 'notes', aliases: ['planted'], icon: '🌱', desc: 'recently planted notes', run: () => showNotes() },
+  { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
+  { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
+  { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
+  { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
+];
+
+let palEl = null, palMatches = [], palSel = 0;
+function ensurePalette() {
+  if (palEl) return palEl;
+  palEl = h('div', { id: 'cmdpal', hidden: true });
+  document.body.appendChild(palEl);
+  return palEl;
+}
+function hidePalette() { if (palEl) { palEl.hidden = true; } palMatches = []; palSel = 0; }
+function paletteOpen() { return !!palEl && !palEl.hidden && palMatches.length > 0; }
+
+// Show/filter the palette for the current input value. Visible only while the
+// value is a bare "/fragment" (no spaces) — exactly like a command box.
+function updatePalette(input) {
+  const v = input.value;
+  const m = /^\/([a-z?]*)$/i.exec(v.trim());
+  if (!m || document.body.classList.contains('night')) { hidePalette(); return; }
+  const frag = m[1].toLowerCase();
+  palMatches = COMMANDS.filter((c) => c.cmd.startsWith(frag) || c.aliases.some((a) => a.startsWith(frag)));
+  if (!palMatches.length) { hidePalette(); return; }
+  palSel = Math.min(palSel, palMatches.length - 1);
+  const el = ensurePalette();
+  el.replaceChildren(...palMatches.map((c, i) => h('div', {
+    class: 'cp-row' + (i === palSel ? ' sel' : ''),
+    onmousedown: (ev) => { ev.preventDefault(); runPaletteCmd(input, c); }, // mousedown: beat the blur
+  },
+    h('span', { class: 'cp-ic' }, c.icon),
+    h('code', { class: 'cp-cmd' }, '/' + c.cmd),
+    c.aliases.length ? h('span', { class: 'cp-alias' }, c.aliases.map((a) => '/' + a).join(' ')) : null,
+    h('span', { class: 'cp-desc' }, c.desc))));
+  el.hidden = false;
+}
+function runPaletteCmd(input, c) {
+  input.value = '';
+  hidePalette();
+  c.run();
+}
+// Keyboard: ↑/↓ select · Enter run · Tab complete · Esc close. Attached to the
+// input so it wins before the form submit / global Esc handlers.
+function wireCommandPalette(input) {
+  input.addEventListener('input', () => { palSel = 0; updatePalette(input); });
+  input.addEventListener('keydown', (e) => {
+    if (!paletteOpen()) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); palSel = (palSel + 1) % palMatches.length; updatePalette(input); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = (palSel - 1 + palMatches.length) % palMatches.length; updatePalette(input); }
+    else if (e.key === 'Enter') { e.preventDefault(); runPaletteCmd(input, palMatches[palSel]); }
+    else if (e.key === 'Tab') { e.preventDefault(); input.value = '/' + palMatches[palSel].cmd; updatePalette(input); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hidePalette(); }
+  });
+}
+
 // ---- feedback bar -----------------------------------------------------------
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
@@ -559,6 +622,8 @@ function wireFeedback() {
     if (e.key === 'Escape') { e.preventDefault(); closePanel(); }
   });
 
+  wireCommandPalette(input);
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -566,13 +631,9 @@ function wireFeedback() {
     if (text[0] === '/') { // slash command, not feedback
       const cmd = text.slice(1).toLowerCase().split(/\s+/)[0];
       input.value = '';
-      if (cmd === 'iterations' || cmd === 'changelog') return showIterations();
-      if (cmd === 'help' || cmd === '?') return showHelp();
-      if (cmd === 'notes' || cmd === 'planted') return showNotes();
-      if (cmd === 'events' || cmd === 'e') return showEvents();
-      if (cmd === 'architecture' || cmd === 'arch') return showArchitecture();
-      if (cmd === 'night' || cmd === 'sleep' || cmd === 'dim') return toggleNight();
-      if (cmd === 'refresh' || cmd === 'reload') { toast('Refreshing the garden…'); return setTimeout(() => location.reload(), 250); }
+      hidePalette();
+      const found = COMMANDS.find((c) => c.cmd === cmd || c.aliases.includes(cmd));
+      if (found) return found.run();
       toast(`Unknown command "/${cmd}" — try /help`);
       return;
     }

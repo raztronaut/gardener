@@ -25,7 +25,7 @@
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 
   --radius: 26px;
-  --gap: 13px;   /* tightened slightly to fit the 7th (household) widget */
+  --gap: 9px;   /* tight inter-card margin (−30% from 13px, per feedback) */
   --pad: 20px;   /* slightly tighter card padding → room for the 7th (household) widget on the locked canvas */
 
   --font: "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -79,9 +79,7 @@ html, body {
   display: flex; align-items: center; justify-content: space-between;
   padding: 4px 6px 18px;
 }
-.brand { display: flex; align-items: center; gap: 16px; }
-.brand .mark { width: 52px; height: 52px; border-radius: 14px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.4); object-fit: cover; }
+.brand { display: flex; align-items: center; }
 .brand h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px;
   letter-spacing: .3px; line-height: 1; background: linear-gradient(120deg, var(--ink), var(--mint));
   -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -107,9 +105,10 @@ html, body {
 }
 .card {
   position: relative; grid-column: span 1;
-  background: var(--glass); border: 1px solid var(--stroke);
+  /* Card interior matches the page background itself (no tinted fill) — the
+     border alone defines the box, so widgets sit ON the aurora, not over it. */
+  background: transparent; border: 1px solid var(--stroke);
   border-radius: var(--radius); padding: var(--pad);
-  box-shadow: var(--shadow);
   overflow: hidden; display: flex; flex-direction: column; gap: 12px;
   /* Gentle staggered wake-up: each card eases in just after the previous one.
      --enter-index is set per-card by the runtime in mount order. */
@@ -119,8 +118,7 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .card { animation-duration: .01ms; animation-delay: 0ms; }
 }
-.card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(160deg, rgba(255,255,255,.06), transparent 40%); }
+.card::before { display: none; } /* no sheen — the card interior IS the background */
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
 .card.span-2 { grid-column: span 2; }
 .card.tall { grid-row: span 2; }
@@ -181,6 +179,24 @@ html, body {
   100% { transform: scale(1); }
 }
 body.night #cursor, body.screenshot #cursor { display: none; }
+
+/* ---------- slash-command palette (Claude-Code-style) ----------
+   Floats just above the input; filtered as you type; ↑/↓ + Enter to run. */
+#cmdpal { position: fixed; left: 30px; right: 30px; bottom: 96px; z-index: 60;
+  background: var(--glass-2); border: 1px solid var(--stroke-strong);
+  border-radius: 18px; box-shadow: var(--shadow); overflow: hidden;
+  animation: palUp .18s ease both; }
+#cmdpal[hidden] { display: none; }
+@keyframes palUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.cp-row { display: flex; align-items: baseline; gap: 12px; padding: 11px 18px;
+  border-left: 3px solid transparent; cursor: pointer; }
+.cp-row + .cp-row { border-top: 1px solid var(--stroke); }
+.cp-row.sel { background: rgba(116,247,176,.08); border-left-color: var(--mint); }
+.cp-ic { font-size: 15px; flex: none; }
+.cp-cmd { font-family: var(--font-mono); font-size: 15px; color: var(--mint); flex: none; min-width: 118px; }
+.cp-alias { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); flex: none; }
+.cp-desc { font-size: 14px; color: var(--ink-soft); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 
 /* ---------- night veil (opaque, energy saving) ---------- */
 #nightveil { position: fixed; inset: 0; z-index: 100; background: #000;
