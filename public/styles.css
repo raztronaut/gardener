@@ -286,6 +286,9 @@ body.night #cursor, body.screenshot #cursor { display: none; }
    there's no second outer scrollbar fighting it. */
 .reader { padding: 4px 2px 14px; }
 .panel-body.reading { overflow: hidden; height: calc(100vh - 150px); display: flex; flex-direction: column; }
+/* openPanel wraps content in .panel-inner — it must also stretch so the reader's
+   flex:1 iframe fills the panel instead of collapsing to a tiny box. */
+.panel-body.reading > .panel-inner { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .reader-frame-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .rd-frame { flex: 1; min-height: 0; width: 100%; border: 1px solid var(--stroke);
   border-radius: 14px; background: #fff; }
