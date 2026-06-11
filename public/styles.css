@@ -233,9 +233,12 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 /* ---------- fullscreen widget panel ---------- */
 .panel-widget { padding: 10px 2px; min-height: 220px; }
 
-/* ---------- clickable panel rows ---------- */
-.cl-row.clickable { cursor: pointer; }
+/* ---------- clickable / selectable panel rows ---------- */
+.cl-row.clickable { cursor: pointer; border-radius: 12px;
+  transition: background .12s ease, box-shadow .12s ease; }
 .cl-row.clickable:hover { background: rgba(116,247,176,.06); }
+/* controller/keyboard selection — same affordance as hover, a touch stronger */
+.cl-row.row-sel { background: rgba(116,247,176,.10); box-shadow: inset 3px 0 0 var(--mint); }
 
 /* ---------- event detail ---------- */
 .evd { display: flex; flex-direction: column; gap: 12px; padding: 6px 2px 10px; }
@@ -247,12 +250,13 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 .evd-qr img { width: 92px; height: 92px; image-rendering: pixelated; }
 .evd-qrcap { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-faint); }
 
-/* ---------- article reader (browser-in-a-browser, read-only) ---------- */
+/* ---------- article reader: the ORIGINAL page in a sandboxed iframe ---------- */
 .reader { padding: 4px 2px 14px; }
+.reader-frame-wrap { display: flex; flex-direction: column; height: 72vh; min-height: 440px; }
+.rd-frame { flex: 1; width: 100%; border: 1px solid var(--stroke); border-radius: 14px;
+  background: #fff; margin-top: 6px; }
 .rd-src { font-family: var(--font-mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
-  color: var(--ink-faint); margin-bottom: 12px; }
-.rd-h { font-family: var(--font-display); font-weight: 700; font-size: 19px; color: var(--ink); margin: 18px 0 6px; }
-.rd-p { font-size: 15.5px; line-height: 1.62; color: var(--ink-soft); margin: 0 0 12px; max-width: 64ch; }
+  color: var(--ink-faint); }
 
 /* ---------- hand pruning (right-click → edit in place) ---------- */
 .pruning { outline: 1px dashed var(--stroke-strong); outline-offset: 3px; border-radius: 6px;

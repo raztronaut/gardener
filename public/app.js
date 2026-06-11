@@ -282,6 +282,7 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   // scrolling goes through panelScrollBy() below.
   document.getElementById('panelBody').replaceChildren(h('div', { class: 'panel-inner' }, bodyEl));
   panelScroll.cur = 0; panelScroll.target = 0;
+  panelRowIdx = -1; // fresh row selection per panel view
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the
@@ -963,28 +964,57 @@ function showEventDetail(e) {
 }
 
 // ---- article reader (tap a story in the HN panel) -----------------------------
-async function openReader(url, title) {
-  const box = h('div', { class: 'reader' }, h('div', { class: 'cl-empty' }, 'fetching the page…'));
-  openSubPanel(title || 'Reading…', box);
-  let data = null;
-  try {
-    const r = await fetch(`/api/readable?url=${encodeURIComponent(url)}`, { cache: 'no-store' });
-    data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'failed');
-  } catch {
-    const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=180&format=png`)}`;
-    box.replaceChildren(
-      h('div', { class: 'cl-empty' }, 'Couldn’t extract this page — scan to read it on your phone.'),
+// Render the article's ORIGINAL page (its real HTML/CSS) inside a SANDBOXED,
+// scripts-disabled iframe served same-origin through /api/readable?raw=1 — so
+// it looks like the real site, is read-only (no scripts, links inert), and you
+// just scroll. The iframe is the full panel; on load failure, a QR to the phone.
+function openReader(url, title) {
+  const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  const frame = h('iframe', {
+    class: 'rd-frame',
+    sandbox: 'allow-same-origin', // render + style + load assets; NO scripts, NO navigation
+    src: `/api/readable?raw=1&url=${encodeURIComponent(url)}`,
+    referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
+  });
+  frame.addEventListener('error', () => {
+    const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=200&format=png`)}`;
+    box.replaceChildren(h('div', { class: 'cl-empty' }, 'Couldn’t load this page — scan to read it on your phone.'),
       h('div', { class: 'evd-qr' }, h('img', { src: qr, alt: 'article link' })));
-    return;
-  }
-  const paras = String(data.text || '').split(/\n+/).filter((s) => s.trim().length > 0).slice(0, 400)
-    .map((s) => s.startsWith('## ') ? h('h3', { class: 'rd-h' }, s.slice(3)) : h('p', { class: 'rd-p' }, s));
-  const host = (() => { try { return new URL(data.url || url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
-  document.getElementById('panelTitle').textContent = data.title || title || 'Article';
-  box.replaceChildren(
-    h('div', { class: 'rd-src' }, host),
-    ...(paras.length ? paras : [h('div', { class: 'cl-empty' }, 'Nothing readable found on this page.')]));
+  });
+  const box = h('div', { class: 'reader-frame-wrap' },
+    h('div', { class: 'rd-src' }, host || 'reading'), frame);
+  openSubPanel(title || 'Reading…', box);
+}
+
+// ---- unified panel-row selection --------------------------------------------
+// A panel that lists .clickable rows (events, Hacker News) is navigable: up/down
+// move a highlighted row, and "select" ACTIVATES it by calling .click() — the
+// EXACT same path as a mouse tap, so controller and pointer share one behavior.
+// Used by both the SSE controller bridge and the keyboard.
+function panelRows() {
+  const pb = document.getElementById('panelBody');
+  return pb ? [...pb.querySelectorAll('.cl-row.clickable')] : [];
+}
+let panelRowIdx = -1;
+function setPanelRow(i, scroll = true) {
+  const rows = panelRows();
+  if (!rows.length) { panelRowIdx = -1; return false; }
+  panelRowIdx = (i + rows.length) % rows.length;
+  rows.forEach((r, k) => r.classList.toggle('row-sel', k === panelRowIdx));
+  if (scroll) rows[panelRowIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  return true;
+}
+function movePanelRow(delta) {
+  const rows = panelRows();
+  if (!rows.length) return false;
+  setPanelRow(panelRowIdx < 0 ? (delta > 0 ? 0 : rows.length - 1) : panelRowIdx + delta);
+  return true;
+}
+function activatePanelRow() {
+  const rows = panelRows();
+  const row = rows[panelRowIdx] || rows[0];
+  if (row) { row.click(); return true; }
+  return false;
 }
 
 // ---- game-controller bridge (SN30 Pro via /api/pad/stream SSE) --------------
@@ -1005,24 +1035,34 @@ function wirePad() {
         if (input) { input.value = '/'; focusInput(); palSel = 0; updatePalette(input); }
         break;
       case 'up':
-      case 'down': {
-        if (pal && palMatches.length) {
-          palSel = (palSel + (action === 'down' ? 1 : -1) + palMatches.length) % palMatches.length;
+      case 'down':
+      case 'left':
+      case 'right': {
+        const delta = (action === 'down' || action === 'right') ? 1 : -1;
+        if (pal && palMatches.length) { // palette: move selection
+          palSel = (palSel + delta + palMatches.length) % palMatches.length;
           updatePalette(input);
         } else if (panelOpen()) {
-          panelScrollBy(action === 'down' ? 160 : -160);
+          // a panel with rows → MOVE THE SELECTION (left/right too); else scroll.
+          if (!movePanelRow(delta)) panelScrollBy(delta * 160);
+        } else {
+          moveFocus(delta); // on the wall → move the widget highlight (d-pad or stick)
         }
         break;
       }
-      case 'ok': // A — run palette selection, or open the focused widget
+      case 'ok': // A — unified "select/press"
         if (pal && palMatches[palSel]) runPaletteCmd(input, palMatches[palSel]);
-        else if (!panelOpen()) openFocusedWidget();
+        else if (panelOpen()) activatePanelRow();      // click the selected row (== mouse tap)
+        else if (!openFocusedWidget()) { /* nothing focused */ }
         break;
       case 'fup': moveFocus(-1); break;
       case 'fdown': moveFocus(+1); break;
       case 'fleft': moveFocus(-1); break;
       case 'fright': moveFocus(+1); break;
-      case 'fopen': if (!panelOpen() && !pal) openFocusedWidget(); break;
+      case 'fopen':
+        if (pal) break;
+        if (panelOpen()) activatePanelRow(); else openFocusedWidget();
+        break;
       case 'events':
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showEvents();
@@ -1078,12 +1118,17 @@ function wireFeedback() {
   // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
-    // While a panel (e.g. /events) is open, arrows / page / home-end scroll its body.
+    // While a panel is open: arrows move the row SELECTION when it has clickable
+    // rows (Enter activates — same as a tap), else they scroll. Page/Home/End scroll.
     if (panelOpen()) {
       const sb = document.getElementById('panelBody');
       if (!sb) return;
-      const step = 64, page = sb.clientHeight - 60;
-      const moves = { ArrowDown: step, ArrowUp: -step, PageDown: page, PageUp: -page,
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && panelRows().length) {
+        e.preventDefault(); movePanelRow(e.key === 'ArrowDown' ? 1 : -1); return;
+      }
+      if (e.key === 'Enter' && panelRows().length) { e.preventDefault(); activatePanelRow(); return; }
+      const page = sb.clientHeight - 60;
+      const moves = { ArrowDown: 64, ArrowUp: -64, PageDown: page, PageUp: -page,
         Home: -1e9, End: 1e9, ' ': page };
       if (e.key in moves) { e.preventDefault(); panelScrollBy(moves[e.key]); }
       return;

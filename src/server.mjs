@@ -310,6 +310,27 @@ const server = http.createServer(async (req, res) => {
         } finally { clearTimeout(timer); }
         const html = (await r.text()).slice(0, 3 * 1024 * 1024);
         const title = (html.match(/<title[^>]*>([^<]*)/i) || [])[1]?.trim() || t.hostname;
+
+        // raw=1 → serve the page's ORIGINAL HTML, rendered AS-IS in a sandboxed
+        // iframe (preserves the site's real layout/CSS). Same-origin to us, so
+        // X-Frame-Options can't block it; we strip <script> and inject a <base>
+        // so relative CSS/images resolve, and a CSP that forbids scripts/frames
+        // (read-only, no clicking — just scroll). Returns text/html, not JSON.
+        if (u.searchParams.get('raw') === '1') {
+          const origin = (r.url || t.toString());
+          let doc = html
+            .replace(/<script[\s\S]*?<\/script>/gi, '')
+            .replace(/ on[a-z]+="[^"]*"/gi, '').replace(/ on[a-z]+='[^']*'/gi, '');
+          const baseTag = `<base href="${origin.replace(/"/g, '&quot;')}">`;
+          if (/<head[^>]*>/i.test(doc)) doc = doc.replace(/<head[^>]*>/i, (m) => m + baseTag);
+          else doc = baseTag + doc;
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Content-Security-Policy': "script-src 'none'; frame-src 'none'; object-src 'none'",
+          });
+          return res.end(doc);
+        }
         // crude-but-sturdy extraction: prefer <article>, strip chrome tags, keep block text
         let body = (html.match(/<article[\s\S]*?<\/article>/i) || [html])[0];
         body = body
