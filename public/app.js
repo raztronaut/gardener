@@ -1068,13 +1068,14 @@ async function wireCornerQr() {
   const target = base;
   if (target === cornerQrTarget) return; // unchanged — don't refetch the PNG
   cornerQrTarget = target;
-  // White modules on a transparent background → the code floats over the aurora
-  // with no card. quickchart renders true alpha (dark=ffffff opaque, light=00000000).
+  // Dark-green modules on a clean white plate → high-contrast and reliably
+  // scannable over the dark aurora (dark modules need a light quiet-zone). A
+  // small "Roots" caption sits beneath the code so the wall says what it opens.
   const src = `/api/proxy?url=${encodeURIComponent(
-    `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=ffffff&light=00000000&ecLevel=M&margin=1&size=240&format=png`)}`;
+    `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=0c5c34&light=ffffff&ecLevel=M&margin=1&size=240&format=png`)}`;
   const img = h('img', { alt: 'Scan to open Roots', src });
   img.addEventListener('error', () => { el.hidden = true; cornerQrTarget = null; });
-  el.replaceChildren(img);
+  el.replaceChildren(img, h('span', { class: 'qr-label' }, 'Roots'));
   el.setAttribute('href', target);
   el.setAttribute('aria-label', 'Scan to open Roots');
   el.hidden = false;

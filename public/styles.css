@@ -285,13 +285,17 @@ body.screenshot #streetalarm { display: none !important; }
 /* ---------- header: right side (QR) ---------- */
 .topright { display: flex; align-items: center; gap: 12px; }
 
-/* Corner Plant-a-Note QR — quiet, just the code: white modules, no card, no
-   background, floating over the aurora. A soft drop-shadow keeps it legible. */
-.cornerqr { display: block; width: 70px; height: 70px;
-  background: none; padding: 0; border: 0; box-shadow: none; line-height: 0; }
+/* Corner Plant-a-Note QR — dark-green modules on a small white plate (so the
+   code stays high-contrast and scannable), with a "Roots" caption beneath. */
+.cornerqr { display: flex; flex-direction: column; align-items: center; gap: 5px;
+  width: 70px; background: none; padding: 0; border: 0; box-shadow: none;
+  text-decoration: none; }
 .cornerqr[hidden] { display: none; }
-.cornerqr img { width: 100%; height: 100%; display: block; image-rendering: pixelated;
-  filter: drop-shadow(0 1px 3px rgba(0,0,0,.55)); }
+.cornerqr img { width: 70px; height: 70px; display: block; image-rendering: pixelated;
+  background: #fff; border-radius: 9px; padding: 4px; box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+.cornerqr .qr-label { font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  letter-spacing: .02em; color: var(--mint); line-height: 1; }
 
 /* ---------- command panel (/iterations, /help) ----------
    Anchored to the BOTTOM (just above the feedback bar) and grows UPWARD to only
