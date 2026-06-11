@@ -286,6 +286,50 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, slot, value });
     }
 
+    // ---- readable-article extractor (the wall's "browser in a browser") -----
+    // Fetches an arbitrary PUBLIC http(s) page and returns readable text for the
+    // HN reader panel. Localhost-only server; private-IP ranges still blocked
+    // (same guard as the proxy) but NO allowlist — articles live anywhere.
+    if (req.method === 'GET' && p === '/api/readable') {
+      const target = u.searchParams.get('url');
+      if (!target) return json(res, 400, { error: 'missing url' });
+      try {
+        let t;
+        try { t = new URL(target); } catch { return json(res, 400, { error: 'bad url' }); }
+        if (t.protocol !== 'http:' && t.protocol !== 'https:') return json(res, 400, { error: 'bad scheme' });
+        const addrs = await lookup(t.hostname, { all: true });
+        if (!addrs.length || addrs.some((a) => isPrivateIp(a.address))) return json(res, 400, { error: 'blocked address' });
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 12000);
+        let r;
+        try {
+          r = await fetch(t.toString(), {
+            signal: ac.signal, redirect: 'follow',
+            headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux aarch64) TheGardenerReader/1.0', Accept: 'text/html,*/*;q=0.5' },
+          });
+        } finally { clearTimeout(timer); }
+        const html = (await r.text()).slice(0, 3 * 1024 * 1024);
+        const title = (html.match(/<title[^>]*>([^<]*)/i) || [])[1]?.trim() || t.hostname;
+        // crude-but-sturdy extraction: prefer <article>, strip chrome tags, keep block text
+        let body = (html.match(/<article[\s\S]*?<\/article>/i) || [html])[0];
+        body = body
+          .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<!--[\s\S]*?-->/g, '')
+          .replace(/<(nav|header|footer|aside|form|svg|noscript)[\s\S]*?<\/\1>/gi, '')
+          .replace(/<(h[1-3])[^>]*>/gi, '\n\n## ').replace(/<li[^>]*>/gi, '\n• ')
+          .replace(/<\/(p|div|section|blockquote|li|h[1-6]|tr)>/gi, '\n')
+          .replace(/<br[^>]*>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+          .replace(/&#(\d+);/g, (m_, n) => String.fromCharCode(n)).replace(/&quot;/g, '"').replace(/&#x27;|&apos;/g, "'")
+          .split('\n').map((l) => l.trim().replace(/\s+/g, ' ')).filter((l) => l.length > 1)
+          .join('\n').replace(/\n{3,}/g, '\n\n').slice(0, 60000);
+        return json(res, 200, { title, text: body, url: r.url || target });
+      } catch (e) {
+        return json(res, 502, { error: 'could not fetch the page', detail: String(e.message || e).slice(0, 120) });
+      }
+    }
+
     // ---- FPS test results from the live kiosk (read back via kv / logs).
     if (req.method === 'POST' && p === '/api/fps-result') {
       let b; try { b = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: 'bad json' }); }

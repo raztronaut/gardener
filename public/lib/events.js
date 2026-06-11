@@ -66,7 +66,7 @@ export function isPast(ev, now = new Date()) {
 // proxy fetcher. Returns [{ name, when:Date|null, place, emoji, raw }].
 export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
   const params = new URLSearchParams({
-    select: 'id,title,location_address,available_from,emoji',
+    select: 'id,title,location_address,available_from,available_until,description,url,interest_count,emoji',
     category: 'eq.Events',
     available_from: `gte.${sfToday()}`,
     order: 'available_from.asc',
@@ -95,7 +95,13 @@ export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
       allDay: !!dayKey,
       dayKey: dayKey || (when ? dayKeyOf(when) : null),
       place: cleanPlace(r.location_address),
+      placeFull: tidy(r.location_address),
       emoji: tidy(r.emoji),
+      // detail-view fields (descriptions arrive as HTML — strip to text)
+      description: tidy(String(r.description || '').replace(/<br[^>]*>|<\/p>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')),
+      url: tidy(r.url),
+      until: r.available_until ? new Date(r.available_until) : null,
+      interest: Number(r.interest_count) || 0,
     };
     if (isPast(ev, now)) continue; // prune events already over
     const key = dedupKey(name);

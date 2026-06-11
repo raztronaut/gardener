@@ -94,11 +94,15 @@ function makeCtx(widgetId) {
     error: (msg = 'unavailable') => h('div', { class: 'widget-error' }, '⚠', msg),
   };
   cleanups.push(() => intervals.forEach(clearInterval));
+  // Stop handle for short-lived mounts (the fullscreen widget panel): clears
+  // this ctx's timers without waiting for a page reload.
+  ctx._stop = () => intervals.forEach(clearInterval);
   return ctx;
 }
 
 // ---- widget loader ----------------------------------------------------------
 const SIZE_CLASS = { sm: '', md: '', lg: 'span-2', full: 'span-2', tall: 'tall', wide: 'span-2' };
+const WIDGET_MODS = {}; // id → widget module object (filled by loadWidgets)
 
 // Load ALL widgets CONCURRENTLY while preserving visual order: modules are
 // imported in parallel, then cards are created synchronously in manifest order,
@@ -123,7 +127,8 @@ async function loadWidgets(enabled, mountPoint) {
       return;
     }
     const bare = w.chrome === false;
-    const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim() });
+    WIDGET_MODS[entry.id] = w; // registry for fullscreen remounts (right-stick open)
+    const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim(), 'data-wid': entry.id });
     // Staggered wake-up: each card eases in slightly after the previous one.
     // Cap the index so a large garden can't drag the entrance out too long.
     card.style.setProperty('--enter-index', String(Math.min(index, 16)));
@@ -267,8 +272,9 @@ function focusInput() {
   if (i && document.activeElement !== i) { try { i.focus(); } catch { /* ignore */ } }
 }
 function panelOpen() { return !!document.getElementById('panel')?.classList.contains('open'); }
-function openPanel(title, bodyEl) {
+function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
+  if (!keepStack) { panelStack.length = 0; stopPanelWidget(); } // fresh top-level view resets any stacked detail
   document.getElementById('panelTitle').textContent = title;
   // Content goes inside a transform-scrolled wrapper: native scrollTop scrolling
   // CPU-rasterizes the whole panel every frame in WebKitGTK (measured 3.7fps on
@@ -286,8 +292,28 @@ function openPanel(title, bodyEl) {
     (document.getElementById('panelClose') || p.querySelector('.panel-card'))?.focus();
   });
 }
+// Panel stack: a detail view opened FROM a list (event detail, article reader)
+// pushes the list; closing (Esc/L2/B) restores it instead of dismissing.
+const panelStack = [];
+let panelWidgetStop = null; // stops a fullscreen-mounted widget's timers
+function stopPanelWidget() { try { panelWidgetStop?.(); } catch { /* ignore */ } panelWidgetStop = null; }
+function openSubPanel(title, bodyEl) {
+  const pb = document.getElementById('panelBody');
+  const pt = document.getElementById('panelTitle');
+  if (pb && pt && panelOpen()) panelStack.push({ title: pt.textContent, nodes: [...pb.childNodes], scroll: pb.scrollTop });
+  openPanel(title, bodyEl, { keepStack: true });
+}
 function closePanel() {
   const p = document.getElementById('panel'); if (!p) return;
+  stopPanelWidget();
+  const prev = panelStack.pop();
+  if (prev) { // restore the underlying list view
+    document.getElementById('panelTitle').textContent = prev.title;
+    const pb = document.getElementById('panelBody');
+    pb.replaceChildren(...prev.nodes);
+    pb.scrollTop = prev.scroll || 0;
+    return;
+  }
   p.classList.remove('open'); p.setAttribute('aria-hidden', 'true');
   focusInput();
 }
@@ -382,7 +408,7 @@ async function showEvents() {
       when = `${dayFmt.format(e.when)} ${MON[e.when.getMonth()]} ${e.when.getDate()}`;
       if (!e.allDay) when += ` · ${timeFmt.format(e.when).replace(' ', '')}`; // all-day rows have no real clock time
     }
-    return h('div', { class: 'cl-row ev-row' },
+    return h('div', { class: 'cl-row ev-row clickable', onclick: () => showEventDetail(e) },
       h('div', { class: 'ev-when' }, when),
       h('div', { class: 'cl-main' },
         h('div', { class: 'cl-phrase' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
@@ -408,11 +434,14 @@ async function showHackerNews() {
     return openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No stories right now.')));
   }
   const domainOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'news.ycombinator.com'; } };
-  const rows = stories.map((s, i) => h('div', { class: 'cl-row' },
+  const rows = stories.map((s, i) => h('div', {
+    class: 'cl-row clickable',
+    onclick: () => openReader(s.url || `https://news.ycombinator.com/item?id=${s.id}`, s.title),
+  },
     h('div', { class: 'cl-id' }, String(i + 1)),
     h('div', { class: 'cl-main' },
       h('div', { class: 'cl-phrase' }, s.title),
-      h('div', { class: 'cl-meta' }, `▲ ${s.score || 0} · 💬 ${s.descendants || 0} · ${domainOf(s.url)}`))));
+      h('div', { class: 'cl-meta' }, `▲ ${s.score || 0} · 💬 ${s.descendants || 0} · ${domainOf(s.url)} · tap to read`))));
   openPanel(`Hacker News — top ${stories.length}`, h('div', { class: 'cl' }, ...rows));
 }
 
@@ -441,7 +470,9 @@ function showPadMap() {
     ${dot(533, 190)}${line(533, 190, 612, 176)}${lab(620, 180, 'start', ['A — run selected'])}
     ${dot(495, 221)}${line(495, 221, 612, 224)}${lab(620, 228, 'start', ['B — events panel'])}
     ${dot(457, 190)}${line(457, 190, 430, 296)}${lab(430, 314, 'middle', ['Y — Hacker News'])}
-    <text x="${W / 2}" y="${H - 14}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">8BitDo SN30 Pro · paired over Bluetooth · also type /controls</text>
+    ${dot(415, 248)}${line(415, 248, 560, 312)}${lab(560, 330, 'middle', ['right stick — highlight widgets', 'A opens the highlighted one'])}
+    <text x="${W / 2}" y="${H - 34}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">controller off? hold START + B, then wait ~5 seconds — it re-pairs by itself</text>
+    <text x="${W / 2}" y="${H - 14}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">8BitDo SN30 Pro · Bluetooth · also type /controls</text>
   </svg>`;
   openPanel('Controller — button map', h('div', { class: 'cl', html: svg }));
 }
@@ -865,6 +896,97 @@ function saveEdit(slot, value, msg) {
     .catch(() => toast('could not save the pruning'));
 }
 
+// ---- widget focus (right stick) + fullscreen widget views --------------------
+// The right stick walks a highlight across the widgets; A (or stick-click)
+// opens the highlighted widget as a fullscreen panel. HN and events open their
+// rich panels; everything else re-mounts the same widget module at panel size.
+let focusIdx = -1, focusClearT = 0;
+function focusCards() { return [...document.querySelectorAll('#garden > .card[data-wid]')]; }
+function setFocus(i) {
+  const cards = focusCards();
+  if (!cards.length) return;
+  focusIdx = Math.max(-1, Math.min(cards.length - 1, i));
+  cards.forEach((c, k) => c.classList.toggle('focused', k === focusIdx));
+  clearTimeout(focusClearT);
+  if (focusIdx >= 0) focusClearT = setTimeout(() => setFocus(-1), 14000); // fade after idle
+}
+function moveFocus(delta) {
+  if (panelOpen() || paletteOpen()) return;
+  setFocus(focusIdx < 0 ? 0 : focusIdx + delta);
+}
+function openFocusedWidget() {
+  const card = focusCards()[focusIdx];
+  if (!card) return false;
+  openWidgetPanel(card.dataset.wid);
+  return true;
+}
+function openWidgetPanel(id) {
+  if (id === 'hacker-news') return showHackerNews();
+  if (id === 'sf-events') return showEvents();
+  const w = WIDGET_MODS[id];
+  if (!w || typeof w.mount !== 'function') return;
+  const body = h('div', { class: 'panel-widget' });
+  openPanel(w.title || id, body);
+  const ctx = makeCtx(w.id + ':panel');
+  panelWidgetStop = ctx._stop;
+  Promise.resolve(w.mount(body, ctx)).catch(() => {
+    body.replaceChildren(h('div', { class: 'widget-error' }, 'could not open this widget'));
+  });
+}
+
+// ---- event detail (tap a row in the events panel) -----------------------------
+function showEventDetail(e) {
+  const TZ2 = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  const dt = new Intl.DateTimeFormat('en-US', { timeZone: TZ2, weekday: 'long', month: 'long', day: 'numeric' });
+  const tm = new Intl.DateTimeFormat('en-US', { timeZone: TZ2, hour: 'numeric', minute: '2-digit' });
+  let when = 'Soon';
+  if (e.when) {
+    when = dt.format(e.when);
+    if (!e.allDay) {
+      when += ` · ${tm.format(e.when)}`;
+      if (e.until && !isNaN(e.until) && e.until > e.when) when += ` – ${tm.format(e.until)}`;
+    }
+  }
+  const kids = [
+    h('div', { class: 'evd-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
+    h('div', { class: 'evd-meta' }, when),
+    e.placeFull ? h('div', { class: 'evd-meta' }, e.placeFull) : null,
+    e.description ? h('p', { class: 'evd-desc' }, e.description) : h('p', { class: 'evd-desc dim' }, 'No description provided.'),
+  ];
+  if (e.url) {
+    const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(e.url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=180&format=png`)}`;
+    kids.push(h('div', { class: 'evd-qr' },
+      h('img', { src: qr, alt: 'event link' }),
+      h('div', { class: 'evd-qrcap' }, 'scan for the event page')));
+  }
+  openSubPanel('Event', h('div', { class: 'evd' }, ...kids.filter(Boolean)));
+}
+
+// ---- article reader (tap a story in the HN panel) -----------------------------
+async function openReader(url, title) {
+  const box = h('div', { class: 'reader' }, h('div', { class: 'cl-empty' }, 'fetching the page…'));
+  openSubPanel(title || 'Reading…', box);
+  let data = null;
+  try {
+    const r = await fetch(`/api/readable?url=${encodeURIComponent(url)}`, { cache: 'no-store' });
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'failed');
+  } catch {
+    const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=180&format=png`)}`;
+    box.replaceChildren(
+      h('div', { class: 'cl-empty' }, 'Couldn’t extract this page — scan to read it on your phone.'),
+      h('div', { class: 'evd-qr' }, h('img', { src: qr, alt: 'article link' })));
+    return;
+  }
+  const paras = String(data.text || '').split(/\n+/).filter((s) => s.trim().length > 0).slice(0, 400)
+    .map((s) => s.startsWith('## ') ? h('h3', { class: 'rd-h' }, s.slice(3)) : h('p', { class: 'rd-p' }, s));
+  const host = (() => { try { return new URL(data.url || url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  document.getElementById('panelTitle').textContent = data.title || title || 'Article';
+  box.replaceChildren(
+    h('div', { class: 'rd-src' }, host),
+    ...(paras.length ? paras : [h('div', { class: 'cl-empty' }, 'Nothing readable found on this page.')]));
+}
+
 // ---- game-controller bridge (SN30 Pro via /api/pad/stream SSE) --------------
 // R2/X→palette · stick/d-pad→select or scroll · A/B(ok)→run · L2/Y→back ·
 // L1/R1→page · Start→help · Select→changelog. Actions arrive from the pad
@@ -892,9 +1014,15 @@ function wirePad() {
         }
         break;
       }
-      case 'ok': // A — selection only
+      case 'ok': // A — run palette selection, or open the focused widget
         if (pal && palMatches[palSel]) runPaletteCmd(input, palMatches[palSel]);
+        else if (!panelOpen()) openFocusedWidget();
         break;
+      case 'fup': moveFocus(-1); break;
+      case 'fdown': moveFocus(+1); break;
+      case 'fleft': moveFocus(-1); break;
+      case 'fright': moveFocus(+1); break;
+      case 'fopen': if (!panelOpen() && !pal) openFocusedWidget(); break;
       case 'events':
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showEvents();
@@ -914,6 +1042,7 @@ function wirePad() {
       case 'back':
         if (pal) { hidePalette(); if (input) input.value = ''; }
         else if (panelOpen()) closePanel();
+        else if (focusIdx >= 0) setFocus(-1); // clear widget highlight
         break;
       case 'pageup':
       case 'pagedown':
@@ -1068,11 +1197,10 @@ async function wireCornerQr() {
   const target = base;
   if (target === cornerQrTarget) return; // unchanged — don't refetch the PNG
   cornerQrTarget = target;
-  // Dark-green modules on a clean white plate → high-contrast and reliably
-  // scannable over the dark aurora (dark modules need a light quiet-zone). A
-  // small "Roots" caption sits beneath the code so the wall says what it opens.
+  // Dark-green modules straight on the aurora — NO white plate (per feedback).
+  // ecLevel=H adds redundancy since dark-on-dark is contrast-poor for scanners.
   const src = `/api/proxy?url=${encodeURIComponent(
-    `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=0c5c34&light=ffffff&ecLevel=M&margin=1&size=240&format=png`)}`;
+    `https://quickchart.io/qr?text=${encodeURIComponent(target)}&dark=0c5c34&light=00000000&ecLevel=H&margin=1&size=240&format=png`)}`;
   const img = h('img', { alt: 'Scan to open Roots', src });
   img.addEventListener('error', () => { el.hidden = true; cornerQrTarget = null; });
   el.replaceChildren(img, h('span', { class: 'qr-label' }, 'Roots'));

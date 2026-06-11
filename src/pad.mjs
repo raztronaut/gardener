@@ -31,17 +31,20 @@ const DEFAULT_MAP = {
     8: 'back',      // L2 — back / Esc
     10: 'changelog',// Select
     11: 'help',     // Start
+    12: 'fopen', 13: 'fopen', 14: 'fopen', // stick clicks (L3/R3 vary by firmware) → open focused widget
   },
   // Hold-to-peek buttons: action fires the INSTANT the button goes down, and the
   // end action on release. 9 = R2: hold to peek the controller map.
   peeks: { 9: { down: 'padmap', up: 'padmapend' } },
   // Zoom chord pair: L1(6) = zoom out, R1(7) = zoom in, BOTH together = 100%.
   zoomPair: { 6: 'zoomout', 7: 'zoomin' },
-  // Axes: 0/1 left stick, 6/7 d-pad hat. DO NOT add 4/5 — those are the analog
-  // trigger channels and REST at -32767, which reads as a permanently-held
-  // direction (the "drift" we debugged). 2/3 (right stick) left unmapped.
+  // Axes: 0/1 left stick, 6/7 d-pad hat, 2/3 RIGHT stick (widget focus).
+  // DO NOT add 4/5 — those are the analog trigger channels and REST at -32767,
+  // which reads as a permanently-held direction (the "drift" we debugged).
   vert: [1, 7],
   horiz: [0, 6],
+  rvert: [3],   // right stick → widget-focus navigation
+  rhoriz: [2],
 };
 let MAP = DEFAULT_MAP;
 try { if (process.env.GARDENER_PAD_MAP) MAP = { ...DEFAULT_MAP, ...JSON.parse(process.env.GARDENER_PAD_MAP) }; }
@@ -95,6 +98,8 @@ function onEvent(value, type, number) {
   } else if (t === 2) { // axis
     if (MAP.vert.includes(number)) setHeld('v' + number, value <= -THRESH ? 'up' : value >= THRESH ? 'down' : null);
     else if (MAP.horiz.includes(number)) setHeld('h' + number, value <= -THRESH ? 'left' : value >= THRESH ? 'right' : null);
+    else if ((MAP.rvert || []).includes(number)) setHeld('rv' + number, value <= -THRESH ? 'fup' : value >= THRESH ? 'fdown' : null);
+    else if ((MAP.rhoriz || []).includes(number)) setHeld('rh' + number, value <= -THRESH ? 'fleft' : value >= THRESH ? 'fright' : null);
   }
 }
 

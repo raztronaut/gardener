@@ -227,6 +227,33 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 .cp-desc { font-size: 14px; color: var(--ink-soft); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 
+/* ---------- widget focus (right-stick highlight) ---------- */
+.card.focused { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35); }
+
+/* ---------- fullscreen widget panel ---------- */
+.panel-widget { padding: 10px 2px; min-height: 220px; }
+
+/* ---------- clickable panel rows ---------- */
+.cl-row.clickable { cursor: pointer; }
+.cl-row.clickable:hover { background: rgba(116,247,176,.06); }
+
+/* ---------- event detail ---------- */
+.evd { display: flex; flex-direction: column; gap: 12px; padding: 6px 2px 10px; }
+.evd-name { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.2; color: var(--ink); }
+.evd-meta { font-family: var(--font-mono); font-size: 13.5px; color: var(--mint); letter-spacing: .03em; }
+.evd-desc { font-size: 16px; line-height: 1.55; color: var(--ink-soft); max-width: 62ch; white-space: pre-line; }
+.evd-desc.dim { color: var(--ink-faint); }
+.evd-qr { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 6px; }
+.evd-qr img { width: 92px; height: 92px; image-rendering: pixelated; }
+.evd-qrcap { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* ---------- article reader (browser-in-a-browser, read-only) ---------- */
+.reader { padding: 4px 2px 14px; }
+.rd-src { font-family: var(--font-mono); font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 12px; }
+.rd-h { font-family: var(--font-display); font-weight: 700; font-size: 19px; color: var(--ink); margin: 18px 0 6px; }
+.rd-p { font-size: 15.5px; line-height: 1.62; color: var(--ink-soft); margin: 0 0 12px; max-width: 64ch; }
+
 /* ---------- hand pruning (right-click → edit in place) ---------- */
 .pruning { outline: 1px dashed var(--stroke-strong); outline-offset: 3px; border-radius: 6px;
   caret-color: var(--mint); background: rgba(116,247,176,.06); cursor: text; }
@@ -291,11 +318,10 @@ body.screenshot #streetalarm { display: none !important; }
   width: 70px; background: none; padding: 0; border: 0; box-shadow: none;
   text-decoration: none; }
 .cornerqr[hidden] { display: none; }
-.cornerqr img { width: 70px; height: 70px; display: block; image-rendering: pixelated;
-  background: #fff; border-radius: 9px; padding: 4px; box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,.45); }
-.cornerqr .qr-label { font-family: var(--font-display); font-weight: 700; font-size: 13px;
-  letter-spacing: .02em; color: var(--mint); line-height: 1; }
+.cornerqr img { width: 70px; height: 70px; display: block; image-rendering: pixelated; }
+/* caption matches the widget-title system exactly */
+.cornerqr .qr-label { font-family: var(--font-mono); font-weight: 600; font-size: 11px;
+  letter-spacing: .22em; text-transform: uppercase; color: var(--ink-faint); line-height: 1; }
 
 /* ---------- command panel (/iterations, /help) ----------
    Anchored to the BOTTOM (just above the feedback bar) and grows UPWARD to only
