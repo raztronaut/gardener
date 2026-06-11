@@ -236,6 +236,8 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 
 /* ---------- fullscreen widget panel ---------- */
 .panel-widget { padding: 10px 2px; min-height: 220px; }
+.panel-widget.panel-game { padding: 0; }
+.panel-body.reading, .panel-body:has(.panel-game) { overflow: hidden; } /* game/reader own their height */
 
 /* ---------- clickable / selectable panel rows ----------
    Cursor hover and controller/keyboard selection are IDENTICAL: a mint border

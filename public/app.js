@@ -939,7 +939,25 @@ function openWidgetPanel(id) {
   if (id === 'sf-events') return showEvents();
   if (id === 'house-cleaning') return showRootsChores();
   const w = WIDGET_MODS[id];
-  if (!w || typeof w.mount !== 'function') return;
+  if (!w) return;
+  // A widget may export openFull(body, ctx) for a custom fullscreen experience
+  // (e.g. the Mario game). It can set window.__GARDEN_GAME = {input, stop} to
+  // take over controller input while open (see wirePad).
+  if (typeof w.openFull === 'function') {
+    const body = h('div', { class: 'panel-widget panel-game' });
+    openPanel(w.title || id, body);
+    const ctx = makeCtx(w.id + ':full');
+    panelWidgetStop = () => {
+      try { ctx._stop(); } catch { /* ignore */ }
+      try { window.__GARDEN_GAME?.stop?.(); } catch { /* ignore */ }
+      window.__GARDEN_GAME = null;
+    };
+    Promise.resolve(w.openFull(body, ctx)).catch(() => {
+      body.replaceChildren(h('div', { class: 'widget-error' }, 'could not open this widget'));
+    });
+    return;
+  }
+  if (typeof w.mount !== 'function') return;
   const body = h('div', { class: 'panel-widget' });
   openPanel(w.title || id, body);
   const ctx = makeCtx(w.id + ':panel');
@@ -1109,6 +1127,12 @@ function wirePad() {
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
+    // A running game OVERWRITES all control mappings except 'back' (L2/Esc).
+    if (window.__GARDEN_GAME) {
+      if (action === 'back') { closePanel(); return; }
+      try { window.__GARDEN_GAME.input(action); } catch { /* ignore */ }
+      return;
+    }
     const pal = paletteOpen();
     switch (action) {
       case 'palette':
@@ -1200,6 +1224,7 @@ function wireFeedback() {
   // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
+    if (window.__GARDEN_GAME) return; // a running game handles its own keys
     // While a panel is open: arrows move the row SELECTION when it has clickable
     // rows (Enter activates — same as a tap), else they scroll. Page/Home/End scroll.
     if (panelOpen()) {
@@ -1232,6 +1257,7 @@ function wireFeedback() {
       }
       return;
     }
+    if (window.__GARDEN_GAME) return; // a running game owns the keyboard
     if (document.activeElement && document.activeElement.isContentEditable) return; // hand-pruning in progress
     if (document.activeElement !== input && e.key.length === 1) focusInput();
   }, true);
