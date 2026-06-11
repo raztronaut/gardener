@@ -290,6 +290,7 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   document.getElementById('panelBody').replaceChildren(h('div', { class: 'panel-inner' }, bodyEl));
   panelScroll.cur = 0; panelScroll.target = 0;
   panelRowIdx = -1; // fresh row selection per panel view
+  readerFrame = null;
   document.getElementById('panelBody')?.classList.remove('reading'); // cleared unless openReader re-adds it
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
@@ -319,6 +320,8 @@ function closePanel() {
   if (prev) { // restore the underlying list view
     document.getElementById('panelTitle').textContent = prev.title;
     const pb = document.getElementById('panelBody');
+    pb.classList.remove('reading'); // reader set this; the restored list must scroll again
+    readerFrame = null;
     pb.replaceChildren(...prev.nodes);
     pb.scrollTop = prev.scroll || 0;
     // The reader iframe had grabbed keyboard focus; pull it back to the panel so
@@ -989,15 +992,15 @@ async function showRootsChores() {
   const render = () => {
     if (!rootsLogWho && users[0]) rootsLogWho = users[0].name;
     const who = h('div', { class: 'rc-who' }, ...users.map((u) =>
-      h('button', { class: 'rc-chip' + (u.name === rootsLogWho ? ' on' : ''), type: 'button',
+      h('button', { class: 'rc-chip' + (u.name === rootsLogWho ? ' on' : ''), type: 'button', 'data-psel': '1',
         onclick: () => { rootsLogWho = u.name; render(); } }, u.name)));
     const ptOf = (k) => (k === 'curb' || k === 'vacuum') ? 2 : 1; // matches the API's scoring
     const grid = h('div', { class: 'rc-grid' }, ...chores.filter((c) => !c.freeText).map((c) =>
-      h('button', { class: 'rc-chore' + (picked.has(c.key) ? ' on' : ''), type: 'button',
+      h('button', { class: 'rc-chore' + (picked.has(c.key) ? ' on' : ''), type: 'button', 'data-psel': '1',
         onclick: () => { picked.has(c.key) ? picked.delete(c.key) : picked.add(c.key); render(); } },
         h('span', { class: 'rc-lbl' }, c.label), h('span', { class: 'rc-pt' }, `+${ptOf(c.key)}`))));
     const n = picked.size;
-    const logBtn = h('button', { class: 'rc-log', type: 'button', disabled: !n || !rootsLogWho,
+    const logBtn = h('button', { class: 'rc-log', type: 'button', disabled: !n || !rootsLogWho, 'data-psel': '1',
       onclick: doLog }, n ? `Log ${n} chore${n === 1 ? '' : 's'}` : 'Pick chores to log');
     const top = (status?.day || []).slice(0, 3)
       .map((r, i) => h('span', { class: 'rc-rank' }, `${i + 1} ${r.name} ${r.points}`));
@@ -1006,6 +1009,8 @@ async function showRootsChores() {
       h('div', { class: 'rc-sec' }, 'CHORES'), grid,
       logBtn,
       top.length ? h('div', { class: 'rc-board' }, h('span', { class: 'rc-sec' }, 'TODAY'), ...top) : null);
+    // re-apply the controller selection after the rebuild (order is stable)
+    if (panelRowIdx >= 0) setPanelRow(panelRowIdx, false);
   };
   async function doLog() {
     const list = [...picked];
@@ -1062,11 +1067,13 @@ function showEventDetail(e) {
 function openReader(url, title) {
   const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
   const frame = h('iframe', {
-    class: 'rd-frame',
+    class: 'rd-frame', tabindex: '-1', // don't grab keyboard focus (so Esc/Back works on the FIRST press)
     sandbox: 'allow-same-origin', // render + style + load assets; NO scripts, NO navigation
     src: `/api/readable?raw=1&url=${encodeURIComponent(url)}`,
     referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
   });
+  readerFrame = frame; // so the controller can scroll the article (same-origin iframe)
+  frame.addEventListener('load', () => { document.getElementById('panelClose')?.focus(); });
   frame.addEventListener('error', () => {
     const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=200&format=png`)}`;
     box.replaceChildren(h('div', { class: 'cl-empty' }, 'Couldn’t load this page — scan to read it on your phone.'),
@@ -1076,6 +1083,12 @@ function openReader(url, title) {
     h('div', { class: 'rd-src' }, host || 'reading'), frame);
   openSubPanel(title || 'Reading…', box);
   document.getElementById('panelBody')?.classList.add('reading'); // panel stops scrolling; iframe scrolls
+  document.getElementById('panelClose')?.focus(); // keep keys on the parent, not the iframe
+}
+// True while the article reader is the open view; lets the controller scroll it.
+let readerFrame = null;
+function readerScroll(dy) {
+  try { readerFrame?.contentWindow?.scrollBy({ top: dy, behavior: 'smooth' }); return true; } catch { return false; }
 }
 
 // ---- unified panel-row selection --------------------------------------------
@@ -1085,7 +1098,10 @@ function openReader(url, title) {
 // Used by both the SSE controller bridge and the keyboard.
 function panelRows() {
   const pb = document.getElementById('panelBody');
-  return pb ? [...pb.querySelectorAll('.cl-row.clickable')] : [];
+  // Any clickable list row OR an explicitly-marked control ([data-psel]) is
+  // controller/keyboard navigable — so the Roots chore logger's chips/buttons
+  // work the same as the events/HN rows.
+  return pb ? [...pb.querySelectorAll('.cl-row.clickable, [data-psel]')] : [];
 }
 let panelRowIdx = -1;
 function setPanelRow(i, scroll = true) {
@@ -1148,6 +1164,8 @@ function wirePad() {
         if (pal && palMatches.length) { // palette: move selection
           palSel = (palSel + delta + palMatches.length) % palMatches.length;
           updatePalette(input);
+        } else if (document.getElementById('panelBody')?.classList.contains('reading')) {
+          readerScroll(delta * 220); // controller scrolls the article inside the reader iframe
         } else if (panelOpen()) {
           // a panel with rows → MOVE THE SELECTION (left/right too); else scroll.
           if (!movePanelRow(delta)) panelScrollBy(delta * 160);
