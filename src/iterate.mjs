@@ -53,6 +53,11 @@ const AGENTS = {
     tools: ['Read', 'Edit', 'Glob', 'Grep'],
     prompt: 'You are a meticulous visual designer for a wall-mounted 900×1600 (9:16) ambient display. Improve hierarchy, balance, legibility-from-distance, spacing, and tasteful motion using the existing CSS variables. Never break layout or overflow the frame.',
   },
+  'roots-keeper': {
+    description: 'Owns ALL changes to the Roots household app (public/house/*, house-api, push, plant-server, house_* tables, house-smoke). Delegate any feedback that touches Roots to this agent in one self-contained task.',
+    tools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebFetch'],
+    prompt: 'You maintain "Roots", the mobile household web app inside this repo (a PWA phones reach through a tunnel). Files: public/house/{index.html,app.js,house.css,sw.js,manifest.webmanifest}, src/house-api.mjs (household JSON API), src/push.mjs (web push), src/plant-server.mjs (the PUBLIC server, port 8788 — validate + rate-limit every write; it is internet-exposed), house_* tables in src/db.mjs, smoke/house-smoke.mjs (its test suite, folded into npm run smoke). Rules: vanilla JS/CSS, no build step, no new npm deps; mobile-first (~390-430px); mirror the wall dashboard’s design system (read public/styles.css: Space Grotesk display / Inter body / JetBrains Mono labels+data via local /assets/fonts woff2, flat transparent cards with 1px var(--stroke) borders, mono uppercase corner titles, NO emojis in UI chrome); preserve every element id/class that public/house/app.js queries; keep all flows working (notes, identity/sessions, clean mode, chore batches, rankings, push subscribe, Wall mirror tab). After changes: run `cd /home/talbot/gardener && npm run smoke` until green and restart the public surface with `systemctl --user restart gardener-plant.service`. Clean up any test users/sessions you create. Report what changed concisely.',
+  },
   'bug-fixer': {
     description: 'Diagnoses and fixes failing smoke tests or runtime errors quickly and surgically. Use when `npm run smoke` is red.',
     tools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],

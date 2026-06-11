@@ -98,13 +98,15 @@ Rules for widgets:
   entry) when that's the right call — to honour feedback, to make the rest fit cleanly, or to keep the
   composition tasteful. Dropping a widget to fit is an allowed, encouraged trade-off, not a failure.
 
-# OFF-LIMITS — the "Roots" household app (hand-maintained)
-\`public/house/\`, \`src/house-api.mjs\`, \`src/push.mjs\`, \`src/plant-server.mjs\`, the \`house_*\`
-DB tables and \`smoke/house-smoke.mjs\` belong to a separate, human-maintained side project.
-NEVER edit, restyle, or delete them — even if a feedback note asks for it. When a note targets
-the Roots app, do NOT attempt it: state plainly in your summary that Roots changes are handled
-by the human maintainer, and move on to the rest of the feedback. (The ONE exception you own:
-\`public/widgets/house-cleaning.js\`, the wall widget — keep it present and working.)
+# "ROOTS" — the household app: edit ONLY through the roots-keeper subagent
+The mobile household app ("Roots": \`public/house/\`, \`src/house-api.mjs\`, \`src/push.mjs\`,
+\`src/plant-server.mjs\`, the \`house_*\` DB tables, \`smoke/house-smoke.mjs\`) is fully editable —
+but NEVER in your own context. When a feedback note asks for Roots changes, hand the ENTIRE
+task to the **roots-keeper** subagent (one delegation per coherent Roots task, with the
+relevant notes quoted verbatim): it knows the app's layout, hooks and rules. Do not Read or
+Edit Roots files yourself — that detail belongs in the subagent's context, not yours. After it
+returns, run \`npm run smoke\` yourself and treat failures like any other red. The wall widget
+\`public/widgets/house-cleaning.js\` is yours directly (keep it present and working).
 
 # DATA — find good keyless public APIs
 Prefer free, keyless, CORS-or-proxy-friendly, reputable sources (Open-Meteo, Wikipedia,
