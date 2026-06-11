@@ -2,6 +2,19 @@
    Canvas is locked to 900×1600 (9:16 portrait). Widgets fill cards inside #garden.
    Aesthetic: a luminous garden at dusk — deep teal/green, mist, mint accents, glass. */
 
+/* Local fonts (public/assets/fonts — no CDN; the kiosk is offline-first).
+   These families were always referenced but never installed: the wall rendered
+   OS fallbacks until now. */
+@font-face { font-family: 'Fraunces'; src: url('/assets/fonts/fraunces-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; src: url('/assets/fonts/instrument-serif.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; src: url('/assets/fonts/instrument-serif-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Space Grotesk'; src: url('/assets/fonts/space-grotesk-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Space Grotesk'; src: url('/assets/fonts/space-grotesk-700.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('/assets/fonts/inter-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('/assets/fonts/inter-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('/assets/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; src: url('/assets/fonts/jetbrains-mono-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+
 :root {
   --w: 900px;
   --h: 1600px;
@@ -29,7 +42,7 @@
   --pad: 20px;   /* slightly tighter card padding → room for the 7th (household) widget on the locked canvas */
 
   --font: "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-display: "Fraunces", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
 }
 
