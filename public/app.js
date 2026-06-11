@@ -133,8 +133,8 @@ async function loadWidgets(enabled, mountPoint) {
       // override (if any) wins over the widget's natural title.
       const slot = 'widget-title:' + (w.id || entry.id);
       const titleText = (window.__GARDEN_EDITS || {})[slot] ?? (w.title || w.id);
+      // No icon/emoji — titles are bare mono labels tucked into the corner.
       card.appendChild(h('div', { class: 'card-title' },
-        w.icon ? h('span', { class: 'ic' }, w.icon) : null,
         h('span', { 'data-editable': slot }, titleText)));
       body = h('div', { class: 'card-body' });
       card.appendChild(body);
