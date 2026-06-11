@@ -196,6 +196,10 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 .cp-desc { font-size: 14px; color: var(--ink-soft); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 
+/* ---------- hand pruning (right-click → edit in place) ---------- */
+.pruning { outline: 1px dashed var(--stroke-strong); outline-offset: 3px; border-radius: 6px;
+  caret-color: var(--mint); background: rgba(116,247,176,.06); cursor: text; }
+
 /* ---------- night veil (opaque, energy saving) ---------- */
 #nightveil { position: fixed; inset: 0; z-index: 100; background: #000;
   opacity: 0; pointer-events: none; transition: opacity 1.6s ease; }

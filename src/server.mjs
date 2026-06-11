@@ -11,7 +11,7 @@ import { config, paths } from './config.mjs';
 import {
   addFeedback, getRecentFeedback, countPendingFeedback, deletePendingFeedback,
   getUiVersion, getNight, setNight, latestIteration,
-  recentIterations, latestCommitted,
+  recentIterations, latestCommitted, getEdits, setEdit,
 } from './db.mjs';
 import { recover } from './recover.mjs';
 import { changelogPhrase } from './changelog.mjs';
@@ -213,6 +213,7 @@ function stateObject() {
     now: new Date().toISOString(),
     tz: config.tz,
     pendingFeedback: countPendingFeedback(),
+    edits: getEdits(), // hand-pruned text overrides (right-click editing)
     iteration: (latestCommitted() || {}).id ?? 0, // the "growth number" shown on the header
     lastIteration: it ? {
       id: it.id, status: it.status, trigger: it.trigger,
@@ -272,6 +273,19 @@ const server = http.createServer(async (req, res) => {
       setNight(on);
       return json(res, 200, { ok: true, night: on });
     }
+    // ---- hand edits ("pruning"): persist a right-click text override.
+    // Localhost-only server — only the wall itself can write these.
+    if (req.method === 'POST' && p === '/api/edits') {
+      let slot = '', value = '';
+      try { const b = JSON.parse(await readBody(req)); slot = String(b.slot || ''); value = String(b.value ?? ''); }
+      catch { return json(res, 400, { error: 'bad json' }); }
+      if (!/^[a-z][a-z0-9-]*(:[a-z0-9_-]+)?$/i.test(slot) || slot.length > 64) return json(res, 400, { error: 'bad slot' });
+      value = value.trim().slice(0, 120);
+      setEdit(slot, value);
+      log(`edit ${slot} = ${JSON.stringify(value)}`);
+      return json(res, 200, { ok: true, slot, value });
+    }
+
     // ---- controller (SN30 Pro) bridge: pad service POSTs, kiosk listens (SSE).
     if (req.method === 'GET' && p === '/api/pad/stream') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });

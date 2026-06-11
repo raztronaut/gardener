@@ -129,8 +129,13 @@ async function loadWidgets(enabled, mountPoint) {
     card.style.setProperty('--enter-index', String(Math.min(index, 16)));
     let body = card;
     if (!bare) {
+      // Title text is an editable slot — right-click to hand-prune it. The
+      // override (if any) wins over the widget's natural title.
+      const slot = 'widget-title:' + (w.id || entry.id);
+      const titleText = (window.__GARDEN_EDITS || {})[slot] ?? (w.title || w.id);
       card.appendChild(h('div', { class: 'card-title' },
-        w.icon ? h('span', { class: 'ic' }, w.icon) : null, w.title || w.id));
+        w.icon ? h('span', { class: 'ic' }, w.icon) : null,
+        h('span', { 'data-editable': slot }, titleText)));
       body = h('div', { class: 'card-body' });
       card.appendChild(body);
     }
@@ -158,10 +163,11 @@ async function boot() {
   // not fabricate one and trigger an endless reload loop).
   window.__GARDEN_BOOT_VERSION = typeof state.version === 'number' ? state.version : null;
   setNight(!!state.night);
-  if (state.location) {
-    const sub = document.getElementById('subtitle');
-    if (sub) sub.textContent = state.location;
-  }
+  window.__GARDEN_EDITS = state.edits || {}; // hand-pruned overrides, applied at render
+  const sub = document.getElementById('subtitle');
+  if (sub) sub.textContent = window.__GARDEN_EDITS.subtitle ?? (state.location || sub.textContent);
+  const brand = document.querySelector('[data-editable="brand"]');
+  if (brand && window.__GARDEN_EDITS.brand) brand.textContent = window.__GARDEN_EDITS.brand;
   setIterBadge(state.iteration);
 
   // Load manifest + widgets.
@@ -639,6 +645,71 @@ function wireCommandPalette(input) {
   });
 }
 
+// ---- hand pruning: right-click any [data-editable] text to edit it in place --
+// The caret lands at the clicked character (blinking, contentEditable), Enter or
+// clicking away saves, Esc cancels, Ctrl+Z undoes committed prunings. Overrides
+// persist via POST /api/edits and re-apply at render — only template/widget
+// chrome carries data-editable; fetched content (HN titles, events…) never does.
+const undoPrunes = [];
+let pruning = null; // { el, slot, prev }
+function wireEditing() {
+  document.addEventListener('contextmenu', (e) => {
+    const el = e.target && e.target.closest ? e.target.closest('[data-editable]') : null;
+    if (!el || document.body.classList.contains('night')) return;
+    e.preventDefault();
+    if (pruning && pruning.el !== el) pruning.el.blur();
+    pruning = { el, slot: el.dataset.editable, prev: el.textContent };
+    el.setAttribute('contenteditable', 'plaintext-only');
+    if (!el.isContentEditable) el.setAttribute('contenteditable', 'true'); // engine fallback
+    el.classList.add('pruning');
+    el.focus();
+    try { // place the blinking caret exactly where the user clicked
+      const r = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (r) { const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    } catch { /* caret falls to start — still editable */ }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!pruning || e.target !== pruning.el) return;
+    if (e.key === 'Enter') { e.preventDefault(); pruning.el.blur(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); pruning.el.textContent = pruning.prev; pruning.el.blur(); }
+  }, true);
+  document.addEventListener('focusout', (e) => {
+    if (!pruning || e.target !== pruning.el) return;
+    const { el, slot, prev } = pruning;
+    pruning = null;
+    el.removeAttribute('contenteditable');
+    el.classList.remove('pruning');
+    const next = (el.textContent || '').trim().slice(0, 120);
+    el.textContent = next || prev; // never commit an empty label
+    setTimeout(focusInput, 0);     // hand the kiosk focus back to the note bar
+    if (!next || next === prev) return;
+    undoPrunes.push({ slot, prev });
+    (window.__GARDEN_EDITS || (window.__GARDEN_EDITS = {}))[slot] = next;
+    saveEdit(slot, next, 'pruned ✂️');
+  });
+  // Ctrl+Z — undo the most recent committed pruning (skipped while actively
+  // editing, where the browser's native text undo applies, or mid-note).
+  window.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || pruning) return;
+    const input = document.getElementById('feedbackInput');
+    if (input && document.activeElement === input && input.value) return;
+    const u = undoPrunes.pop();
+    if (!u) return;
+    e.preventDefault();
+    const el = document.querySelector(`[data-editable="${u.slot}"]`);
+    if (el) el.textContent = u.prev;
+    (window.__GARDEN_EDITS || {})[u.slot] = u.prev;
+    saveEdit(u.slot, u.prev, '↩ pruning undone');
+  }, true);
+}
+function saveEdit(slot, value, msg) {
+  fetch('/api/edits', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slot, value }),
+  }).then((r) => toast(r.ok ? msg : 'could not save the pruning'))
+    .catch(() => toast('could not save the pruning'));
+}
+
 // ---- game-controller bridge (SN30 Pro via /api/pad/stream SSE) --------------
 // R2/X→palette · stick/d-pad→select or scroll · A/B(ok)→run · L2/Y→back ·
 // L1/R1→page · Start→help · Select→changelog. Actions arrive from the pad
@@ -739,10 +810,14 @@ function wireFeedback() {
       }
       return;
     }
+    if (document.activeElement && document.activeElement.isContentEditable) return; // hand-pruning in progress
     if (document.activeElement !== input && e.key.length === 1) focusInput();
   }, true);
   // Refocus if the field ever loses focus (kiosk: always ready to type).
-  input.addEventListener('blur', () => { if (!panelOpen()) setTimeout(focusInput, 0); });
+  input.addEventListener('blur', () => setTimeout(() => {
+    // Don't steal focus back while a panel is open or a hand-pruning edit is active.
+    if (!panelOpen() && !(document.activeElement && document.activeElement.isContentEditable)) focusInput();
+  }, 0));
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
   document.getElementById('panelClose')?.addEventListener('click', closePanel);
   document.getElementById('panel')?.addEventListener('click', (e) => { if (e.target.id === 'panel') closePanel(); });
@@ -844,6 +919,7 @@ setInterval(() => { wireCornerQr().catch(() => {}); }, 60000);
 
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();
+wireEditing(); // right-click hand-pruning of titles/labels
 if (!SCREENSHOT) wirePad(); // controller bridge (skip in QA captures)
 wireTrashAlarm();
 wireStreetAlarm();

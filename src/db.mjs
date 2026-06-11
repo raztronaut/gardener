@@ -136,6 +136,21 @@ export function bumpUiVersion() {
 export function getNight() { return getKV('night', '0') === '1'; }
 export function setNight(on) { setKV('night', on ? '1' : '0'); }
 
+// ---- hand edits ("pruning"): persistent text overrides for template/widget
+// chrome (titles, brand, subtitle), keyed by slot; stored in kv as edit:<slot>.
+// An empty value deletes the override (reverts to the natural text).
+export function getEdits() {
+  const out = {};
+  for (const r of db.prepare("SELECT key, value FROM kv WHERE key LIKE 'edit:%' AND value != ''").all()) {
+    out[r.key.slice(5)] = r.value;
+  }
+  return out;
+}
+export function setEdit(slot, value) {
+  if (value) setKV('edit:' + slot, value);
+  else db.prepare('DELETE FROM kv WHERE key = ?').run('edit:' + slot);
+}
+
 // ---- feedback --------------------------------------------------------------
 const _addFeedback = db.prepare('INSERT INTO feedback(ts, text, source) VALUES(?,?,?)');
 export function addFeedback(text, source = 'ui') {
