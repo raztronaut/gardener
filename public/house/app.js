@@ -87,7 +87,7 @@ let activeSession = null; // {id, name} when this user is mid-clean
 function showScreen(name) {
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.screen === name));
-  if (name === 'wall') mountWall(); else unmountWall(); // lazy iframe (battery)
+  if (name === 'wall') mountWall(); else parkWall(); // lazy iframe; kept warm 3 min
   if (name === 'macros') renderMacros();
   if (name === 'dash') refreshDashboard();
   if (name === 'you') renderYou();
@@ -409,23 +409,34 @@ async function disableNotifications() {
 // Screen 4 — Wall (a live mirror of the wall dashboard)
 // The iframe loads the REAL dashboard page (screenshot mode = no input bar or
 // cursor) through the plant-server's read-only passthrough; the page self-polls
-// and uses SSE, so it is inherently always in sync. We mount it only while the
-// tab is open and destroy it on leave (battery + tunnel quota).
+// and uses SSE, so it is inherently always in sync. Lazy-mounted on first open;
+// on leaving the tab it is PARKED (hidden but alive) for 3 minutes so flipping
+// back is instant — the initial boot costs ~20 tunnel round-trips, so tearing
+// it down on every tab switch made re-opens painfully slow.
 // =============================================================================
 const WALL_W = 900, WALL_H = 1600;
-let wallFrame = null;
+const WALL_PARK_MS = 3 * 60 * 1000;
+let wallFrame = null, wallParkTimer = null;
 function mountWall() {
   const wrap = $('#wallWrap');
   if (!wrap) return;
+  clearTimeout(wallParkTimer); wallParkTimer = null;
   if (!wallFrame) {
     // ?screenshot=1 must be on the IFRAME url too: the wall app reads its own
     // location.search to enter screenshot mode (hides the input bar + cursor).
     wallFrame = el('iframe', { class: 'wallframe', src: '/wall?screenshot=1', title: 'live wall dashboard' });
     wrap.replaceChildren(wallFrame);
   }
+  wallFrame.style.visibility = '';
   requestAnimationFrame(sizeWall);
 }
-function unmountWall() { if (wallFrame) { wallFrame.remove(); wallFrame = null; } }
+// Hide but keep warm; fully destroy only after the park window (battery/quota).
+function parkWall() {
+  if (!wallFrame) return;
+  wallFrame.style.visibility = 'hidden';
+  clearTimeout(wallParkTimer);
+  wallParkTimer = setTimeout(() => { wallFrame?.remove(); wallFrame = null; }, WALL_PARK_MS);
+}
 // The 900×1600 page is scaled down to the card's width; the wrapper takes the
 // scaled height so the screen scrolls naturally.
 function sizeWall() {

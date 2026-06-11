@@ -100,41 +100,52 @@ function makeCtx(widgetId) {
 // ---- widget loader ----------------------------------------------------------
 const SIZE_CLASS = { sm: '', md: '', lg: 'span-2', full: 'span-2', tall: 'tall', wide: 'span-2' };
 
-async function loadWidget(entry, mountPoint, index = 0) {
-  let mod;
-  try {
-    mod = await import(`/widgets/${entry.file}?v=${window.__GARDEN_VERSION}`);
-  } catch (e) {
-    markError('import', `${entry.file}: ${e.message}`);
-    mountPoint.appendChild(h('div', { class: 'card' },
-      h('div', { class: 'widget-error' }, '⚠', `widget "${entry.id}" failed to load`)));
-    return;
-  }
-  const w = mod.default || mod.widget || mod;
-  if (!w || typeof w.mount !== 'function') {
-    markError('import', `${entry.file}: no default export with mount()`);
-    return;
-  }
-  const bare = w.chrome === false;
-  const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim() });
-  // Staggered wake-up: each card eases in slightly after the previous one.
-  // Cap the index so a large garden can't drag the entrance out too long.
-  card.style.setProperty('--enter-index', String(Math.min(index, 16)));
-  let body = card;
-  if (!bare) {
-    card.appendChild(h('div', { class: 'card-title' },
-      w.icon ? h('span', { class: 'ic' }, w.icon) : null, w.title || w.id));
-    body = h('div', { class: 'card-body' });
-    card.appendChild(body);
-  }
-  mountPoint.appendChild(card);
-  try {
-    const cleanup = await w.mount(body, makeCtx(w.id));
-    if (typeof cleanup === 'function') cleanups.push(cleanup);
-  } catch (e) {
-    markError('mount', `${entry.id}: ${e.stack || e.message}`);
-    body.appendChild(h('div', { class: 'widget-error' }, '⚠', 'widget crashed on mount'));
-  }
+// Load ALL widgets CONCURRENTLY while preserving visual order: modules are
+// imported in parallel, then cards are created synchronously in manifest order,
+// then every mount() (the data-fetching part) runs in parallel. Sequential
+// awaiting made the remote Wall mirror serialize ~21 tunnel round-trips
+// (~10s boot); parallel collapses that to roughly the slowest single widget.
+async function loadWidgets(enabled, mountPoint) {
+  const mods = await Promise.all(enabled.map((entry) =>
+    import(`/widgets/${entry.file}?v=${window.__GARDEN_VERSION}`).catch((e) => ({ __importError: e }))));
+  const mounts = [];
+  mods.forEach((mod, index) => {
+    const entry = enabled[index];
+    if (mod.__importError) {
+      markError('import', `${entry.file}: ${mod.__importError.message}`);
+      mountPoint.appendChild(h('div', { class: 'card' },
+        h('div', { class: 'widget-error' }, '⚠', `widget "${entry.id}" failed to load`)));
+      return;
+    }
+    const w = mod.default || mod.widget || mod;
+    if (!w || typeof w.mount !== 'function') {
+      markError('import', `${entry.file}: no default export with mount()`);
+      return;
+    }
+    const bare = w.chrome === false;
+    const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim() });
+    // Staggered wake-up: each card eases in slightly after the previous one.
+    // Cap the index so a large garden can't drag the entrance out too long.
+    card.style.setProperty('--enter-index', String(Math.min(index, 16)));
+    let body = card;
+    if (!bare) {
+      card.appendChild(h('div', { class: 'card-title' },
+        w.icon ? h('span', { class: 'ic' }, w.icon) : null, w.title || w.id));
+      body = h('div', { class: 'card-body' });
+      card.appendChild(body);
+    }
+    mountPoint.appendChild(card);
+    mounts.push((async () => {
+      try {
+        const cleanup = await w.mount(body, makeCtx(w.id));
+        if (typeof cleanup === 'function') cleanups.push(cleanup);
+      } catch (e) {
+        markError('mount', `${entry.id}: ${e.stack || e.message}`);
+        body.appendChild(h('div', { class: 'widget-error' }, '⚠', 'widget crashed on mount'));
+      }
+    })());
+  });
+  await Promise.all(mounts);
 }
 
 async function boot() {
@@ -164,10 +175,9 @@ async function boot() {
     .filter((w) => w.enabled !== false)
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
 
-  // Mount sequentially to preserve order (cheap; mounts are async-light).
+  // Concurrent load (order preserved inside loadWidgets) — see its comment.
   try {
-    let i = 0;
-    for (const entry of enabled) await loadWidget(entry, garden, i++);
+    await loadWidgets(enabled, garden);
   } finally {
     // Always publish the contract markers smoke depends on, even on partial failure.
     document.documentElement.dataset.gardenerReady = 'true';

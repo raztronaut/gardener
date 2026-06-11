@@ -65,6 +65,12 @@ function wallRateOk(max = 600, windowMs = 60000) {
   wallHits.push(now);
   return true;
 }
+// Static assets (js/css/widgets/lib) get a SHORT browser cache through the
+// tunnel: each request costs ~300-500ms of tunnel RTT, and a wall-page boot is
+// ~25 of them. 60s staleness only affects the phone MIRROR right after a
+// tending (the wall itself reads localhost and stays no-store). Data/API
+// passthroughs stay uncached.
+const WALL_CACHEABLE = (p) => p === '/app.js' || p === '/styles.css' || p.startsWith('/widgets/') || p.startsWith('/lib/');
 function proxyWall(req, res, path) {
   if (!wallRateOk()) return send(res, 429, 'text/plain', 'too many requests');
   const preq = http.request({
@@ -73,7 +79,7 @@ function proxyWall(req, res, path) {
   }, (pres) => {
     res.writeHead(pres.statusCode || 502, {
       'Content-Type': pres.headers['content-type'] || 'application/octet-stream',
-      'Cache-Control': 'no-store',
+      'Cache-Control': WALL_CACHEABLE(path.split('?')[0]) ? 'public, max-age=60' : 'no-store',
     });
     pres.pipe(res); // stream (also keeps the /api/pad/stream SSE flowing)
   });
