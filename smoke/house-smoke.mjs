@@ -225,10 +225,14 @@ async function main() {
     check('GET /api/night not exposed through plant', (await jget(PB, '/api/night')).status === 404);
     check('wall passthrough blocks traversal', (await jget(PB, '/widgets/..%2f..%2fsrc%2Fdb.mjs')).status === 404);
 
-    console.log('\n[hearth] localhost server is READ-ONLY for house');
+    console.log('\n[hearth] localhost server: read-only EXCEPT chore-logging (Roots widget)');
     check('main GET /api/house/status works', (await jget(MB, '/api/house/status')).ok);
-    check('main rejects house writes (403)', (await jpost(MB, '/api/house/session/start', { userId: u1.user.id })).status === 403);
-    check('main rejects batch chore-log (403)', (await jpost(MB, '/api/house/chores', { userId: u1.user.id, chores: ['trash'] })).status === 403);
+    check('main rejects non-chore house writes (403)', (await jpost(MB, '/api/house/session/start', { userId: u1.user.id })).status === 403);
+    // The wall (localhost) DOES accept chore-logging so the Roots widget can log
+    // a chore from the wall. Use a THROWAWAY user so it never skews Ada's counts,
+    // then wipe that user's day.
+    check('main ACCEPTS chore-log (Roots widget write)', (await jpost(MB, '/api/house/chores', { name: '__walltest', chores: ['trash'] })).ok);
+    await jpost(MB, '/api/house/chores/undo', { name: '__walltest', scope: 'today' });
 
     console.log('\n[hearth] clear my activity today (reset points)');
     // Wipe Ada's whole day — her points should drop to zero / she leaves the board.

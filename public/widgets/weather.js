@@ -136,7 +136,7 @@ export default {
             ctx.h('div', { class: 'wx-meta' },
               ctx.h('div', { class: 'cond' }, cond),
               ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`),
-              ctx.h('div', { class: 'sun' }, `🌅 ${sunrise}   🌇 ${sunset}`))),
+              ctx.h('div', { class: 'sun' }, `Sunrise: ${sunrise}   Sunset: ${sunset}`))),
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Feels like'),

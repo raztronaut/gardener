@@ -127,8 +127,15 @@ async function loadWidgets(enabled, mountPoint) {
       return;
     }
     const bare = w.chrome === false;
-    WIDGET_MODS[entry.id] = w; // registry for fullscreen remounts (right-stick open)
+    WIDGET_MODS[entry.id] = w; // registry for fullscreen remounts (click / right-stick open)
     const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim(), 'data-wid': entry.id });
+    // Click a widget to open it fullscreen — same path as the controller's
+    // highlight+A (openWidgetPanel). Skip clicks the widget handled itself
+    // (e.g. Mario's grow toy calls stopPropagation) and right-click edits.
+    card.addEventListener('click', (e) => {
+      if (e.button !== 0 || e.target.closest('[contenteditable="true"], [data-editable].pruning')) return;
+      openWidgetPanel(entry.id);
+    });
     // Staggered wake-up: each card eases in slightly after the previous one.
     // Cap the index so a large garden can't drag the entrance out too long.
     card.style.setProperty('--enter-index', String(Math.min(index, 16)));
@@ -283,6 +290,7 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   document.getElementById('panelBody').replaceChildren(h('div', { class: 'panel-inner' }, bodyEl));
   panelScroll.cur = 0; panelScroll.target = 0;
   panelRowIdx = -1; // fresh row selection per panel view
+  document.getElementById('panelBody')?.classList.remove('reading'); // cleared unless openReader re-adds it
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the
@@ -313,6 +321,11 @@ function closePanel() {
     const pb = document.getElementById('panelBody');
     pb.replaceChildren(...prev.nodes);
     pb.scrollTop = prev.scroll || 0;
+    // The reader iframe had grabbed keyboard focus; pull it back to the panel so
+    // arrows/Esc work IMMEDIATELY (no phantom second press) and re-assert the row
+    // highlight that the restored DOM nodes still carry.
+    document.getElementById('panelClose')?.focus();
+    setPanelRow(panelRowIdx >= 0 ? panelRowIdx : 0, false);
     return;
   }
   p.classList.remove('open'); p.setAttribute('aria-hidden', 'true');
@@ -924,6 +937,7 @@ function openFocusedWidget() {
 function openWidgetPanel(id) {
   if (id === 'hacker-news') return showHackerNews();
   if (id === 'sf-events') return showEvents();
+  if (id === 'house-cleaning') return showRootsChores();
   const w = WIDGET_MODS[id];
   if (!w || typeof w.mount !== 'function') return;
   const body = h('div', { class: 'panel-widget' });
@@ -933,6 +947,65 @@ function openWidgetPanel(id) {
   Promise.resolve(w.mount(body, ctx)).catch(() => {
     body.replaceChildren(h('div', { class: 'widget-error' }, 'could not open this widget'));
   });
+}
+
+// ---- Roots quick chore log (open the Roots widget fullscreen on the wall) -----
+// Pick who you are, tap chores, Log — writes to the localhost house API (the
+// same data the phone app and leaderboard use). The wall server permits ONLY
+// this write (it's localhost-only). The Roots phone app remains the richer flow.
+let rootsLogWho = '';
+async function showRootsChores() {
+  openPanel('Roots — log a chore', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'loading…')));
+  let chores = [], users = [], status = null;
+  try {
+    [chores, users, status] = await Promise.all([
+      fetch('/api/house/chores').then((r) => r.json()).then((d) => d.chores || []),
+      fetch('/api/house/users').then((r) => r.json()).then((d) => d.users || []),
+      fetch('/api/house/status').then((r) => r.json()).catch(() => null),
+    ]);
+  } catch {
+    return openPanel('Roots — log a chore', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'Roots is unavailable right now.')));
+  }
+  const picked = new Set();
+  const body = h('div', { class: 'rc' });
+  const render = () => {
+    if (!rootsLogWho && users[0]) rootsLogWho = users[0].name;
+    const who = h('div', { class: 'rc-who' }, ...users.map((u) =>
+      h('button', { class: 'rc-chip' + (u.name === rootsLogWho ? ' on' : ''), type: 'button',
+        onclick: () => { rootsLogWho = u.name; render(); } }, u.name)));
+    const ptOf = (k) => (k === 'curb' || k === 'vacuum') ? 2 : 1; // matches the API's scoring
+    const grid = h('div', { class: 'rc-grid' }, ...chores.filter((c) => !c.freeText).map((c) =>
+      h('button', { class: 'rc-chore' + (picked.has(c.key) ? ' on' : ''), type: 'button',
+        onclick: () => { picked.has(c.key) ? picked.delete(c.key) : picked.add(c.key); render(); } },
+        h('span', { class: 'rc-lbl' }, c.label), h('span', { class: 'rc-pt' }, `+${ptOf(c.key)}`))));
+    const n = picked.size;
+    const logBtn = h('button', { class: 'rc-log', type: 'button', disabled: !n || !rootsLogWho,
+      onclick: doLog }, n ? `Log ${n} chore${n === 1 ? '' : 's'}` : 'Pick chores to log');
+    const top = (status?.day || []).slice(0, 3)
+      .map((r, i) => h('span', { class: 'rc-rank' }, `${i + 1} ${r.name} ${r.points}`));
+    body.replaceChildren(
+      h('div', { class: 'rc-sec' }, 'WHO'), who,
+      h('div', { class: 'rc-sec' }, 'CHORES'), grid,
+      logBtn,
+      top.length ? h('div', { class: 'rc-board' }, h('span', { class: 'rc-sec' }, 'TODAY'), ...top) : null);
+  };
+  async function doLog() {
+    const list = [...picked];
+    if (!list.length || !rootsLogWho) return;
+    try {
+      const r = await fetch('/api/house/chores', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: rootsLogWho, chores: list }),
+      });
+      if (!r.ok) throw new Error('failed');
+      toast(`Logged ${list.length} for ${rootsLogWho}`);
+      picked.clear();
+      try { status = await fetch('/api/house/status').then((x) => x.json()); } catch { /* ignore */ }
+      render();
+    } catch { toast('Could not log — try the Roots app'); }
+  }
+  render();
+  openPanel('Roots — log a chore', body);
 }
 
 // ---- event detail (tap a row in the events panel) -----------------------------
@@ -984,6 +1057,7 @@ function openReader(url, title) {
   const box = h('div', { class: 'reader-frame-wrap' },
     h('div', { class: 'rd-src' }, host || 'reading'), frame);
   openSubPanel(title || 'Reading…', box);
+  document.getElementById('panelBody')?.classList.add('reading'); // panel stops scrolling; iframe scrolls
 }
 
 // ---- unified panel-row selection --------------------------------------------
@@ -1016,6 +1090,14 @@ function activatePanelRow() {
   if (row) { row.click(); return true; }
   return false;
 }
+// Cursor hover and controller selection share ONE state: hovering a row makes it
+// the selected row (so the same highlight shows and A acts on what you point at).
+document.addEventListener('mouseover', (e) => {
+  const row = e.target?.closest?.('#panelBody .cl-row.clickable');
+  if (!row) return;
+  const i = panelRows().indexOf(row);
+  if (i >= 0 && i !== panelRowIdx) setPanelRow(i, false);
+}, true);
 
 // ---- game-controller bridge (SN30 Pro via /api/pad/stream SSE) --------------
 // R2/X→palette · stick/d-pad→select or scroll · A/B(ok)→run · L2/Y→back ·

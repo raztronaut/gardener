@@ -322,8 +322,16 @@ const server = http.createServer(async (req, res) => {
             .replace(/<script[\s\S]*?<\/script>/gi, '')
             .replace(/ on[a-z]+="[^"]*"/gi, '').replace(/ on[a-z]+='[^']*'/gi, '');
           const baseTag = `<base href="${origin.replace(/"/g, '&quot;')}">`;
-          if (/<head[^>]*>/i.test(doc)) doc = doc.replace(/<head[^>]*>/i, (m) => m + baseTag);
-          else doc = baseTag + doc;
+          // Style the article's OWN scrollbar to match the wall's mint scrollbar
+          // (the iframe scrolls internally; this is the only bar the reader shows).
+          const skin = `<style id="gardener-reader-skin">
+            html{scrollbar-width:thin;scrollbar-color:#43e6c6 transparent;}
+            ::-webkit-scrollbar{width:12px;height:12px;}
+            ::-webkit-scrollbar-track{background:transparent;}
+            ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#74f7b0,#43e6c6);border-radius:999px;border:3px solid rgba(255,255,255,.0);background-clip:padding-box;min-height:48px;}
+          </style>`;
+          if (/<head[^>]*>/i.test(doc)) doc = doc.replace(/<head[^>]*>/i, (m) => m + baseTag + skin);
+          else doc = baseTag + skin + doc;
           res.writeHead(200, {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-store',
@@ -379,10 +387,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/proxy') return handleProxy(req, res, u);
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
-    // This localhost-only server never accepts house writes (those live solely
-    // on the public plant-server); readOnly:true rejects any non-GET house route.
+    // Localhost wall surface: reads, PLUS the chore-logging write so the Roots
+    // widget can log a chore right from the wall (this server is localhost-only,
+    // so only the kiosk can reach it). Every OTHER house write stays exclusive to
+    // the public plant-server.
     if (p.startsWith('/api/house')) {
-      const handled = await handleHouseApi(req, res, u, { readOnly: true, log });
+      const isChoreWrite = req.method === 'POST' && (p === '/api/house/chores' || p === '/api/house/chores/undo');
+      const handled = await handleHouseApi(req, res, u, { readOnly: !isChoreWrite, log });
       if (handled) return;
     }
 
