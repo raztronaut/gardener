@@ -28,8 +28,6 @@ const DEFAULT_MAP = {
     1: 'events',    // B — SF events panel
     3: 'palette',   // X — palette shortcut
     4: 'hn',        // Y — Hacker News panel
-    6: 'pageup',    // L1
-    7: 'pagedown',  // R1
     8: 'back',      // L2 — back / Esc
     10: 'changelog',// Select
     11: 'help',     // Start
@@ -37,6 +35,8 @@ const DEFAULT_MAP = {
   // Hold-to-peek buttons: action fires the INSTANT the button goes down, and the
   // end action on release. 9 = R2: hold to peek the controller map.
   peeks: { 9: { down: 'padmap', up: 'padmapend' } },
+  // Zoom chord pair: L1(6) = zoom out, R1(7) = zoom in, BOTH together = 100%.
+  zoomPair: { 6: 'zoomout', 7: 'zoomin' },
   // Axes: 0/1 left stick, 6/7 d-pad hat. DO NOT add 4/5 — those are the analog
   // trigger channels and REST at -32767, which reads as a permanently-held
   // direction (the "drift" we debugged). 2/3 (right stick) left unmapped.
@@ -50,7 +50,53 @@ catch { log('bad GARDENER_PAD_MAP — using defaults'); }
 const THRESH = 18000; // stick deflection that counts as a press
 const REPEAT_MS = 190; // held-stick repeat for scrolling
 
+// ---- REAL browser zoom via Chrome DevTools Protocol --------------------------
+// CSS-level zoom scaled the layout but not fixed-position overlays. The kiosk
+// chromium exposes CDP on localhost:9223; setting Page zoom there is identical
+// to pressing Ctrl +/− in Chrome — everything rescales uniformly.
+let zoomLevel = 0; // chrome zoom "levels": factor = 1.2^level
+let cdpWs = null, cdpId = 0;
+async function cdpConnect() {
+  if (cdpWs && cdpWs.readyState === 1) return cdpWs;
+  const list = await (await fetch('http://127.0.0.1:9223/json/list', { signal: AbortSignal.timeout(2000) })).json();
+  const page = list.find((t) => t.type === 'page' && /127\.0\.0\.1:\d+/.test(t.url || ''));
+  if (!page) throw new Error('kiosk page target not found');
+  cdpWs = new WebSocket(page.webSocketDebuggerUrl);
+  await new Promise((res, rej) => { cdpWs.onopen = res; cdpWs.onerror = () => rej(new Error('cdp ws failed')); });
+  return cdpWs;
+}
+function cdpSend(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++cdpId;
+    const onMsg = (ev) => {
+      try { const m = JSON.parse(ev.data); if (m.id === id) { cdpWs.removeEventListener('message', onMsg); resolve(m.result); } }
+      catch { /* ignore */ }
+    };
+    cdpWs.addEventListener('message', onMsg);
+    cdpWs.send(JSON.stringify({ id, method, params }));
+    setTimeout(() => { cdpWs.removeEventListener('message', onMsg); reject(new Error('cdp timeout')); }, 2500);
+  });
+}
+async function browserZoom(dir) { // +1 / -1 / 0=reset
+  try {
+    await cdpConnect();
+    zoomLevel = dir === 0 ? 0 : Math.max(-7, Math.min(7, zoomLevel + dir));
+    const factor = Math.pow(1.2, zoomLevel); // Chrome's own zoom ladder
+    // Emulation.setPageScaleFactor = visual zoom; setDeviceMetricsOverride with
+    // a scaled viewport reflows like true browser zoom. width/height in CSS px.
+    if (zoomLevel === 0) await cdpSend('Emulation.clearDeviceMetricsOverride');
+    else await cdpSend('Emulation.setDeviceMetricsOverride', {
+      width: Math.round(900 / factor), height: Math.round(1600 / factor),
+      deviceScaleFactor: 0, mobile: false, scale: factor,
+    });
+    log(`browser zoom → ${Math.round(factor * 100)}%`);
+  } catch (e) { log(`zoom failed: ${e.message}`); cdpWs = null; }
+}
+
 async function send(action) {
+  if (action === 'zoomin') return browserZoom(1);
+  if (action === 'zoomout') return browserZoom(-1);
+  if (action === 'zoomreset') return browserZoom(0);
   try {
     await fetch(API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -73,6 +119,7 @@ function setHeld(key, dir) {
 }
 
 let rawLogged = 0;
+const zoomDown = new Set(); // which of the zoom-pair buttons are currently held
 function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
@@ -80,6 +127,14 @@ function onEvent(value, type, number) {
   if (t === 1) { // button: value 1=down 0=up
     const peek = (MAP.peeks || {})[number];
     if (peek) { send(value === 1 ? peek.down : peek.up); return; } // both edges
+    const zoom = (MAP.zoomPair || {})[number];
+    if (zoom) { // L1/R1: chord (both down) = reset to 100%
+      if (value === 1) {
+        zoomDown.add(number);
+        send(zoomDown.size >= 2 ? 'zoomreset' : zoom);
+      } else zoomDown.delete(number);
+      return;
+    }
     if (value !== 1) return; // plain buttons act on press
     const action = MAP.buttons[number];
     if (action && action !== 'noop') send(action);

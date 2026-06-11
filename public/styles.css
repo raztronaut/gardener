@@ -121,7 +121,10 @@ html, body {
   /* Card interior matches the page background itself (no tinted fill) — the
      border alone defines the box, so widgets sit ON the aurora, not over it. */
   background: transparent; border: 1px solid var(--stroke);
-  border-radius: var(--radius); padding: var(--pad);
+  border-radius: var(--radius);
+  /* extra top padding reserves headroom for the absolute corner title so card
+     content can never slide up underneath it (it's out of flow) */
+  padding: calc(var(--pad) + 15px) var(--pad) var(--pad);
   overflow: hidden; display: flex; flex-direction: column; gap: 12px;
   /* Gentle staggered wake-up: each card eases in just after the previous one.
      --enter-index is set per-card by the runtime in mount order. */
@@ -142,9 +145,9 @@ html, body {
    top-left corner — they sit 12% into the top/left padding instead of
    respecting it, like etched instrument markings. */
 .card .card-title { position: absolute;
-  /* 12% into the top padding; left clears the 26px corner curve (which clips
-     glyphs placed deeper into the corner — overflow:hidden cuts along the radius). */
-  top: calc(var(--pad) * .12); left: 16px;
+  /* Tucked toward the corner but with breathing room (was 12%-deep — too tight).
+     Left also clears the 26px corner-radius clip. */
+  top: calc(var(--pad) * .45); left: 19px;
   font-family: var(--font-mono); font-size: 11px; font-weight: 600;
   letter-spacing: .22em; text-transform: uppercase; color: var(--ink-faint); }
 .card .card-body { flex: 1; min-height: 0; }
@@ -322,6 +325,20 @@ body.screenshot #streetalarm { display: none !important; }
 /* Native overflow scrolling: the chromium kiosk threads/composites it (smooth);
    panelScrollBy() in app.js drives it. */
 .panel-body { padding: 2px 28px 28px; overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---------- scrollbar: a slim mint stem ---------- */
+.panel-body::-webkit-scrollbar { width: 10px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; margin: 14px 0 22px; }
+.panel-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--mint), var(--mint-2));
+  border-radius: 999px;
+  /* dark inset border slims the pill inside its gutter and gives it a glow halo */
+  border: 3px solid rgba(4, 17, 13, .92);
+  box-shadow: 0 0 12px rgba(116, 247, 176, .45);
+  min-height: 48px;
+}
+.panel-body::-webkit-scrollbar-thumb:hover { box-shadow: 0 0 16px rgba(116, 247, 176, .7); }
+.panel-body::-webkit-scrollbar-corner { background: transparent; }
 .cl { display: flex; flex-direction: column; }
 .cl-row { display: flex; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--stroke); }
 .cl-row:last-child { border-bottom: none; }

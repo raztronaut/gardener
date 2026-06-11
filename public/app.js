@@ -427,7 +427,7 @@ function showPadMap() {
     <image href="/assets/sn30pro.png?v=${window.__GARDEN_VERSION}" x="165" y="120" width="430" height="175"/>
     <!-- callouts: left column -->
     ${dot(225, 134)}${line(225, 134, 150, 52)}${lab(142, 56, 'end', ['L2 — back', 'close panel / palette (Esc)'])}
-    ${dot(245, 150)}${line(245, 150, 150, 102)}${lab(142, 106, 'end', ['L1 / R1 — page', 'scroll long panels'])}
+    ${dot(245, 150)}${line(245, 150, 150, 102)}${lab(142, 106, 'end', ['L1 − / R1 + — zoom', 'both together: 100%'])}
     ${dot(262, 190)}${line(262, 190, 150, 179)}${lab(142, 183, 'end', ['D-pad / stick', 'select &amp; scroll'])}
     ${dot(345, 194)}${line(345, 194, 150, 250)}${lab(142, 254, 'end', ['SELECT — changelog', 'START — help'])}
     <!-- callouts: right column -->
@@ -887,6 +887,8 @@ function wirePad() {
       case 'pagedown':
         if (panelOpen()) panelScrollBy(action === 'pagedown' ? 540 : -540);
         break;
+      // (zoom is handled by the pad service via Chrome DevTools Protocol —
+      //  REAL browser zoom, scales everything uniformly like Ctrl +/−)
       case 'help': panelOpen() ? closePanel() : showHelp(); break;
       case 'changelog': panelOpen() ? closePanel() : showIterations(); break;
       case 'fpstest': runFpsTest(); break;
