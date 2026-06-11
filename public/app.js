@@ -169,6 +169,14 @@ async function boot() {
   const brand = document.querySelector('[data-editable="brand"]');
   if (brand && window.__GARDEN_EDITS.brand) brand.textContent = window.__GARDEN_EDITS.brand;
   setIterBadge(state.iteration);
+  // Restore the controller-set zoom level (L1/R1) across reloads.
+  try {
+    const lvl = parseInt(localStorage.getItem('garden.zoomlvl') || '0', 10) || 0;
+    if (lvl !== 0) {
+      document.documentElement.style.transformOrigin = '50% 0';
+      document.documentElement.style.transform = `scale(${Math.pow(1.2, lvl).toFixed(4)})`;
+    }
+  } catch { /* ignore */ }
 
   // Load manifest + widgets.
   const garden = document.getElementById('garden');
@@ -651,6 +659,23 @@ function wireCommandPalette(input) {
   });
 }
 
+// ---- page zoom (controller L1/R1; chord = 100%) -------------------------------
+// transform:scale() on the ROOT element: a transformed element becomes the
+// containing block for fixed-position descendants, so the cursor/panels/QR all
+// scale uniformly with the page (the thing plain CSS body-zoom got wrong).
+// Zoom-in magnifies from the top-center (edges crop); zoom-out shrinks with the
+// theme-dark backdrop showing around it — never a white letterbox.
+function applyZoom(dir) {
+  let lvl = parseInt(localStorage.getItem('garden.zoomlvl') || '0', 10) || 0;
+  lvl = dir === 0 ? 0 : Math.max(-5, Math.min(5, lvl + dir));
+  const z = Math.pow(1.2, lvl); // Chrome's zoom ladder
+  const root = document.documentElement;
+  root.style.transformOrigin = '50% 0';
+  root.style.transform = lvl === 0 ? '' : `scale(${z.toFixed(4)})`;
+  try { localStorage.setItem('garden.zoomlvl', String(lvl)); } catch { /* ignore */ }
+  toast(`🔍 ${Math.round(z * 100)}%`);
+}
+
 // ---- panel scrolling ----------------------------------------------------------
 // Single entry point for pad/keyboard/wheel scrolling of the open panel. Native
 // scrollBy: the chromium kiosk composites scrolling off the main thread (60fps).
@@ -887,8 +912,9 @@ function wirePad() {
       case 'pagedown':
         if (panelOpen()) panelScrollBy(action === 'pagedown' ? 540 : -540);
         break;
-      // (zoom is handled by the pad service via Chrome DevTools Protocol —
-      //  REAL browser zoom, scales everything uniformly like Ctrl +/−)
+      case 'zoomin': applyZoom(+1); break;
+      case 'zoomout': applyZoom(-1); break;
+      case 'zoomreset': applyZoom(0); break;
       case 'help': panelOpen() ? closePanel() : showHelp(); break;
       case 'changelog': panelOpen() ? closePanel() : showIterations(); break;
       case 'fpstest': runFpsTest(); break;

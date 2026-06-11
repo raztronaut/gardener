@@ -50,53 +50,7 @@ catch { log('bad GARDENER_PAD_MAP — using defaults'); }
 const THRESH = 18000; // stick deflection that counts as a press
 const REPEAT_MS = 190; // held-stick repeat for scrolling
 
-// ---- REAL browser zoom via Chrome DevTools Protocol --------------------------
-// CSS-level zoom scaled the layout but not fixed-position overlays. The kiosk
-// chromium exposes CDP on localhost:9223; setting Page zoom there is identical
-// to pressing Ctrl +/− in Chrome — everything rescales uniformly.
-let zoomLevel = 0; // chrome zoom "levels": factor = 1.2^level
-let cdpWs = null, cdpId = 0;
-async function cdpConnect() {
-  if (cdpWs && cdpWs.readyState === 1) return cdpWs;
-  const list = await (await fetch('http://127.0.0.1:9223/json/list', { signal: AbortSignal.timeout(2000) })).json();
-  const page = list.find((t) => t.type === 'page' && /127\.0\.0\.1:\d+/.test(t.url || ''));
-  if (!page) throw new Error('kiosk page target not found');
-  cdpWs = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((res, rej) => { cdpWs.onopen = res; cdpWs.onerror = () => rej(new Error('cdp ws failed')); });
-  return cdpWs;
-}
-function cdpSend(method, params = {}) {
-  return new Promise((resolve, reject) => {
-    const id = ++cdpId;
-    const onMsg = (ev) => {
-      try { const m = JSON.parse(ev.data); if (m.id === id) { cdpWs.removeEventListener('message', onMsg); resolve(m.result); } }
-      catch { /* ignore */ }
-    };
-    cdpWs.addEventListener('message', onMsg);
-    cdpWs.send(JSON.stringify({ id, method, params }));
-    setTimeout(() => { cdpWs.removeEventListener('message', onMsg); reject(new Error('cdp timeout')); }, 2500);
-  });
-}
-async function browserZoom(dir) { // +1 / -1 / 0=reset
-  try {
-    await cdpConnect();
-    zoomLevel = dir === 0 ? 0 : Math.max(-7, Math.min(7, zoomLevel + dir));
-    const factor = Math.pow(1.2, zoomLevel); // Chrome's own zoom ladder
-    // Emulation.setPageScaleFactor = visual zoom; setDeviceMetricsOverride with
-    // a scaled viewport reflows like true browser zoom. width/height in CSS px.
-    if (zoomLevel === 0) await cdpSend('Emulation.clearDeviceMetricsOverride');
-    else await cdpSend('Emulation.setDeviceMetricsOverride', {
-      width: Math.round(900 / factor), height: Math.round(1600 / factor),
-      deviceScaleFactor: 0, mobile: false, scale: factor,
-    });
-    log(`browser zoom → ${Math.round(factor * 100)}%`);
-  } catch (e) { log(`zoom failed: ${e.message}`); cdpWs = null; }
-}
-
 async function send(action) {
-  if (action === 'zoomin') return browserZoom(1);
-  if (action === 'zoomout') return browserZoom(-1);
-  if (action === 'zoomreset') return browserZoom(0);
   try {
     await fetch(API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

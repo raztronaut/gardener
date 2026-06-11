@@ -48,6 +48,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Root stays theme-dark so controller zoom-out letterboxes in bg color, never white. */
+html { background: var(--bg-0); }
+
 html, body {
   width: var(--w);
   height: var(--h);
