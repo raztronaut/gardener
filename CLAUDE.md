@@ -51,9 +51,21 @@ Its files (all clearly namespaced):
   toggle, cleaning-now, activity, notifications) · **Wall** (a live mirror of the
   wall dashboard in an iframe of `/wall`, scaled 900×1600 → phone width,
   mounted only while the tab is open) · **You** (account: profile + provider
-  badge, optional Google sign-in, the "Enable notifications 🔔" card, the
+  badge, optional Google sign-in, the "Enable notifications" card, the
   household list with last activity + signed-in devices, Sign out).
   Also the PWA pieces: `sw.js` (push service worker) + `manifest.webmanifest`.
+  **Design: Roots mirrors the wall's design system exactly** (public/styles.css
+  is the source of truth): flat transparent cards (1px var(--stroke) border,
+  radius 26px, no glass/shadows/sheens), JetBrains Mono 11px uppercase corner
+  card titles, the same aurora gradient backdrop + palette tokens, Space Grotesk
+  display / Inter body / JetBrains Mono labels+data, and NO emojis anywhere in
+  the UI chrome (tiny inline SVG strokes where an icon is needed; leaderboard
+  positions are plain mono numerals). Push-notification message TEXT may keep
+  emoji — those are strings, not chrome. The fonts are the same local woff2
+  files under public/assets/fonts/; plant-server.mjs's /assets/ route serves
+  them with the right MIME (`.woff2` → font/woff2; it previously only allowed
+  image extensions, so fonts 404'd through the tunnel and phones silently fell
+  back to system fonts — that's fixed and smoke-tested now).
 - `src/house-api.mjs` — the household JSON API router (chore catalog, validation,
   rankings, `houseStatus()`, push subscribe/unsubscribe, VAPID public key, login
   sessions: `/api/house/me·logout·auth-config·google-login·household`).

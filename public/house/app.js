@@ -77,9 +77,27 @@ function avatarFor(name) {
   const hue = AVATAR_HUES[h % AVATAR_HUES.length];
   return { initial: (n[0] || '?').toUpperCase(), bg: `linear-gradient(135deg, hsl(${hue} 70% 62%), hsl(${(hue + 28) % 360} 72% 52%))` };
 }
-// A charming empty state: emoji + line + optional sub-line.
-function emptyState(emoji, line, sub) {
-  return el('div', { class: 'empty' }, el('span', { class: 'emoji' }, emoji), el('span', {}, line), sub ? el('span', { class: 'sub' }, sub) : null);
+// A quiet empty state: a line + optional mono sub-line (no emoji — the app
+// mirrors the wall's strict no-emoji chrome).
+function emptyState(line, sub) {
+  return el('div', { class: 'empty' }, el('span', {}, line), sub ? el('span', { class: 'sub' }, sub) : null);
+}
+// Tiny inline SVG strokes for feed-row icons (UI chrome stays emoji-free).
+const ICON_PATHS = {
+  check: 'M5 12.5l4.2 4.3L19 7.2',
+  bell: 'M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15ZM10.3 18.5a1.8 1.8 0 0 0 3.4 0',
+};
+function icon(name, size = 15) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', String(size)); svg.setAttribute('height', String(size));
+  svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', ICON_PATHS[name] || ICON_PATHS.check);
+  svg.appendChild(path);
+  return svg;
 }
 
 // ---- tab navigation ---------------------------------------------------------
@@ -108,7 +126,7 @@ $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showScreen
     btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Planting…';
     try {
       await api('/api/feedback', { method: 'POST', body: JSON.stringify({ text }) });
-      t.value = ''; updateCount(); msg.className = 'msg ok'; msg.textContent = 'Planted 🌱  the Gardener will tend to it.';
+      t.value = ''; updateCount(); msg.className = 'msg ok'; msg.textContent = 'Planted — the Gardener will tend to it.';
     } catch {
       msg.className = 'msg err'; msg.textContent = 'Could not reach the Gardener — try again.';
     } finally { btn.disabled = false; }
@@ -204,13 +222,12 @@ async function openSession() {
       const inp = el('input', { type: 'text', maxlength: '120', placeholder: 'What else did you do?' });
       inp.addEventListener('input', () => { otherNote = inp.value.trim(); updateConfirm(); });
       list.appendChild(el('div', { class: 'check other' },
-        el('span', { class: 'emoji' }, ch.emoji), el('span', { class: 'label' }, ch.label),
+        el('span', { class: 'label' }, ch.label),
         el('div', { class: 'otherwrap' }, inp)));
       continue;
     }
     const row = el('div', { class: 'check', role: 'button', 'aria-pressed': 'false' },
       el('span', { class: 'box' }, ''),
-      el('span', { class: 'emoji' }, ch.emoji),
       el('span', { class: 'label' }, ch.label));
     row.addEventListener('click', () => {
       const on = selected.has(ch.key);
@@ -284,7 +301,7 @@ async function openSession() {
 
   updateConfirm();
   area.replaceChildren(el('div', { class: 'card' },
-    el('h2', {}, '✅ What did you do?'),
+    el('h2', {}, 'What did you do?'),
     el('p', { class: 'lead', style: 'margin-bottom:14px' }, 'Check off everything you finished, then press Confirm. Tap a chore again to deselect it.'),
     list,
     el('div', { style: 'height:14px' }), confirm, confirmMsg,
@@ -355,7 +372,7 @@ async function refreshNotifyUi() {
     btn.textContent = 'Disable notifications';
     setNotifyMsg('You’ll get a push when someone cleans or logs a chore. ✓', 'ok');
   } else {
-    btn.textContent = 'Enable notifications 🔔';
+    btn.textContent = 'Enable notifications';
     setNotifyMsg('');
   }
 }
@@ -567,7 +584,7 @@ async function renderHousehold() {
   const list = $('#householdList');
   let hh = null;
   try { hh = await api('/api/house/household'); }
-  catch { list.replaceChildren(emptyState('📡', 'Could not load the household.', 'Check your connection and try again.')); return; }
+  catch { list.replaceChildren(emptyState('Could not load the household.', 'Check your connection and try again.')); return; }
   // Latest app-session per user feeds into "last activity" alongside chores.
   const lastSeenByUser = new Map();
   for (const s of hh.sessions) {
@@ -594,7 +611,7 @@ async function renderHousehold() {
     providerBadge(s.provider)))
     : [el('div', { class: 'muted', style: 'padding:4px 0 2px' }, 'No app sessions yet.')];
   list.replaceChildren(
-    ...(rows.length ? rows : [emptyState('🌱', 'No one in the household yet.', 'Pick a name above to be the first.')]),
+    ...(rows.length ? rows : [emptyState('No one in the household yet.', 'Pick a name above to be the first.')]),
     devHead, ...devs);
 }
 
@@ -612,46 +629,45 @@ $$('#rangeToggle button').forEach((b) => b.addEventListener('click', () => {
 async function refreshDashboard() {
   let status = null;
   try { status = await api('/api/house/status'); } catch { renderEmptyDash(); return; }
-  // Leaderboard — ranked rows with medals, colored avatars, point pills.
+  // Leaderboard — ranked rows with plain mono numerals, colored avatars, point pills.
   const board = (range === 'day' ? status.day : status.week);
   const list = $('#rankList');
-  const medals = ['🥇', '🥈', '🥉'];
   list.replaceChildren(...(board.length ? board.map((p, i) => {
     const av = avatarFor(p.name);
     return el('div', { class: 'rank' + (i === 0 ? ' top' : '') },
-      el('div', { class: 'pos' + (i < 3 ? ' medal' : '') }, i < 3 ? medals[i] : String(i + 1)),
+      el('div', { class: 'pos' }, String(i + 1)),
       el('div', { class: 'av', style: `background:${av.bg}` }, av.initial),
       el('div', { class: 'nm' }, p.name, el('small', {}, `${p.chores} ${p.chores === 1 ? 'chore' : 'chores'} · last ${fmtAgo(p.lastTs)}`)),
       el('div', { class: 'pts' }, String(p.points), el('small', {}, 'pts')));
-  }) : [emptyState('🧺', range === 'day' ? 'No chores logged today yet.' : 'No chores logged this week yet.', 'Start Clean Mode to get on the board.')]));
+  }) : [emptyState(range === 'day' ? 'No chores logged today yet.' : 'No chores logged this week yet.', 'Start Clean Mode to get on the board.')]));
 
   // Cleaning now
   const now = $('#cleaningNow');
   now.replaceChildren(...(status.cleaning.length ? status.cleaning.map((c) =>
     el('div', { class: 'pill' }, el('span', { class: 'pulse' }),
       el('span', { html: `<b>${escapeHtml(c.name)}</b> is cleaning <small>· since ${fmtClock(c.startedAt)}</small>` })))
-    : [emptyState('🛋️', 'Nobody is cleaning right now.', 'The house is at rest.')]));
+    : [emptyState('Nobody is cleaning right now.', 'The house is at rest.')]));
 
   // Activity feed
   const feed = $('#activityFeed');
   feed.replaceChildren(...(status.activity.length ? status.activity.map((a) => {
-    const def = (CHORES.find((c) => c.key === a.chore)) || { emoji: '•', label: a.chore };
+    const def = (CHORES.find((c) => c.key === a.chore)) || { label: a.chore };
     const what = a.chore === 'other' && a.note ? a.note : def.label;
-    return el('div', { class: 'row' }, el('span', { class: 'e' }, def.emoji),
+    return el('div', { class: 'row' }, el('span', { class: 'e' }, icon('check')),
       el('span', { class: 'txt', html: `<b>${escapeHtml(a.name)}</b> — ${escapeHtml(what)}` }, el('small', {}, fmtAgo(a.ts))));
-  }) : [emptyState('🌙', 'No activity yet.', 'Logged chores will show up here.')]));
+  }) : [emptyState('No activity yet.', 'Logged chores will show up here.')]));
 
   // Notifications
   const nf = $('#notifFeed');
   nf.replaceChildren(...(status.notifications.length ? status.notifications.map((n) =>
-    el('div', { class: 'row' }, el('span', { class: 'e' }, '🔔'),
+    el('div', { class: 'row' }, el('span', { class: 'e' }, icon('bell')),
       el('span', { class: 'txt' }, n.text, el('small', {}, fmtAgo(n.ts)))))
-    : [emptyState('🔕', 'No notifications yet.', 'Household pings will appear here.')]));
+    : [emptyState('No notifications yet.', 'Household pings will appear here.')]));
 
   updateMacroBadge(status);
 }
 function renderEmptyDash() {
-  $('#rankList').replaceChildren(emptyState('📡', 'Could not reach the household.', 'Check your connection and try again.'));
+  $('#rankList').replaceChildren(emptyState('Could not reach the household.', 'Check your connection and try again.'));
 }
 // Surface a dot on the Macros tab when someone (else) is cleaning.
 function updateMacroBadge(status) {

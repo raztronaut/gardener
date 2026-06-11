@@ -1,17 +1,22 @@
-/* Roots — the household app. Mobile-first; reuses the Gardener dark/mint palette.
+/* Roots — the household app. Mobile-first sibling of the wall dashboard.
    A separate, hand-maintained side project (the daily tending must NOT touch this).
-   Visual language mirrors the wall dashboard: flat, border-only cards sitting ON
-   the aurora background (no glass fills), uppercase eyebrow titles, mint accents.
+   Visual system mirrors public/styles.css EXACTLY: flat transparent cards defined
+   by a 1px stroke only (no glass fills, no shadows, no sheens), radius 26px,
+   JetBrains Mono micro-labels tucked into each card's top-left corner, the same
+   aurora gradient backdrop, and the same three local typefaces.
    Motion is one-shot only — no perpetual animations (battery-friendly on phones). */
-/* Match the wall dashboard's typography exactly — these are the same local woff2
-   faces the garden ships (public/assets/fonts), so Roots reads as the same family. */
+
+/* Same local woff2 faces the wall ships (public/assets/fonts — no CDN).
+   display = Space Grotesk · body = Inter · labels + data = JetBrains Mono. */
 @font-face { font-family:'Space Grotesk'; src:url('/assets/fonts/space-grotesk-500.woff2') format('woff2'); font-weight:500; font-display:swap; }
 @font-face { font-family:'Space Grotesk'; src:url('/assets/fonts/space-grotesk-700.woff2') format('woff2'); font-weight:700; font-display:swap; }
 @font-face { font-family:'Inter'; src:url('/assets/fonts/inter-400.woff2') format('woff2'); font-weight:400; font-display:swap; }
 @font-face { font-family:'Inter'; src:url('/assets/fonts/inter-600.woff2') format('woff2'); font-weight:600; font-display:swap; }
 @font-face { font-family:'JetBrains Mono'; src:url('/assets/fonts/jetbrains-mono-400.woff2') format('woff2'); font-weight:400; font-display:swap; }
 @font-face { font-family:'JetBrains Mono'; src:url('/assets/fonts/jetbrains-mono-600.woff2') format('woff2'); font-weight:600; font-display:swap; }
+
 :root {
+  /* palette — identical tokens to the wall's styles.css */
   --bg-0:#04110d; --bg-1:#07201a; --ink:#eafff4; --ink-soft:#a8c8bd; --ink-faint:#6f9388;
   --mint:#74f7b0; --mint-2:#43e6c6; --gold:#ffd98a; --rose:#ff9bb0; --sky:#7ec8ff;
   --stroke:rgba(140,240,195,.16); --stroke-strong:rgba(140,240,195,.30);
@@ -20,16 +25,20 @@
   --font-display:"Space Grotesk","Inter",system-ui,sans-serif;
   --font-mono:"JetBrains Mono","SF Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --tabbar-h:66px;
-  --r-lg:20px; --r-md:14px; --r-sm:10px;
+  --radius:26px;            /* card radius — same as the wall */
+  --pad:18px;               /* card padding (phone-tightened from the wall's 20px) */
+  --r-md:14px; --r-sm:10px; /* inner elements (rows, inputs, pills) */
   --ease:cubic-bezier(.22,.61,.36,1);
 }
 * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 html, body { min-height:100%; }
 body {
   font-family:var(--font); color:var(--ink); -webkit-font-smoothing:antialiased;
+  /* aurora backdrop — the wall's .aurora gradients verbatim (cheap, no blur) */
   background:
-    radial-gradient(58% 42% at 12% 8%, rgba(30,233,168,.16), transparent 70%),
-    radial-gradient(52% 40% at 92% 32%, rgba(26,160,255,.10), transparent 70%),
+    radial-gradient(58% 42% at 12% 8%, rgba(30,233,168,.22), transparent 70%),
+    radial-gradient(52% 40% at 92% 32%, rgba(26,160,255,.15), transparent 70%),
+    radial-gradient(70% 52% at 8% 102%, rgba(185,139,255,.13), transparent 70%),
     radial-gradient(120% 80% at 50% -10%, #0b3a2c 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 75%);
   background-attachment:fixed; min-height:100vh;
@@ -44,15 +53,16 @@ body {
 header.app-head { padding:calc(20px + env(safe-area-inset-top, 0px)) 4px 16px; display:flex; align-items:center; gap:11px; }
 header.app-head .mark {
   display:grid; place-items:center; width:38px; height:38px; flex:none; border-radius:12px;
-  color:var(--mint); border:1px solid var(--stroke-strong); background:rgba(116,247,176,.06);
+  color:var(--mint); border:1px solid var(--stroke-strong); background:transparent;
 }
 header.app-head .mark svg { display:block; }
 header.app-head h1 {
-  font-family:var(--font-display); font-weight:600; font-size:27px; line-height:1; letter-spacing:.3px;
+  font-family:var(--font-display); font-weight:700; font-size:27px; line-height:1; letter-spacing:.3px;
   background:linear-gradient(120deg, var(--ink), var(--mint));
   -webkit-background-clip:text; background-clip:text; color:transparent;
 }
-header.app-head .who { margin-left:auto; font-size:12px; color:var(--ink-faint); text-align:right; line-height:1.35; }
+header.app-head .who { margin-left:auto; font-family:var(--font-mono); font-size:11px; letter-spacing:.02em;
+  color:var(--ink-faint); text-align:right; line-height:1.4; }
 header.app-head .who b { color:var(--mint); font-weight:600; }
 
 .screen { display:none; flex:1; flex-direction:column; gap:12px; padding-top:2px; }
@@ -66,26 +76,32 @@ header.app-head .who b { color:var(--mint); font-weight:600; }
 .screen.active > :nth-child(4) { animation-delay:.15s; }
 @keyframes rise { from { opacity:0; transform:translateY(12px) scale(.99); } to { opacity:1; transform:none; } }
 
-/* ---- cards: flat, border-only (interior = the page background, like the wall) ---- */
+/* ---- cards: flat, border-only, exactly like the wall ----
+   Interior = the page background itself; the 1px stroke alone defines the box.
+   Top padding reserves ~15px extra headroom for the absolute corner title so
+   content can never slide up underneath it (it's out of flow). */
 .card {
   position:relative; background:transparent; border:1px solid var(--stroke);
-  border-radius:var(--r-lg); padding:18px 16px;
+  border-radius:var(--radius);
+  padding:calc(var(--pad) + 15px) var(--pad) var(--pad);
 }
+/* card titles = the wall's .card-title: bare mono micro-labels etched into the
+   top-left corner. No emoji, no icons. */
 .card h2 {
-  font-family:var(--font); font-weight:600; font-size:12.5px; letter-spacing:.14em;
-  text-transform:uppercase; color:var(--ink-faint); margin-bottom:6px;
-  display:flex; align-items:center; gap:8px;
+  position:absolute; top:9px; left:19px;
+  font-family:var(--font-mono); font-size:11px; font-weight:600;
+  letter-spacing:.22em; text-transform:uppercase; color:var(--ink-faint);
 }
-.card-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
-.card-head h2 { margin:0; }
+/* head rows (toggle / live chip) — the title is out of flow, so only the
+   control remains in the row, pinned right like the wall's corner accessories. */
+.card-head { display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:6px; min-height:0; }
 .lead { color:var(--ink-soft); font-size:13.5px; line-height:1.55; margin-bottom:14px; }
 .lead:last-child { margin-bottom:0; }
 .muted { color:var(--ink-faint); font-size:12.5px; }
 
 /* ---- note hero ---- */
 .hero { padding:8px 4px 4px; }
-.hero-emoji { font-size:32px; display:block; filter:drop-shadow(0 4px 14px rgba(116,247,176,.3)); }
-.hero h2 { font-family:var(--font-display); font-weight:600; font-size:27px; letter-spacing:-.01em; margin:10px 0 6px;
+.hero h2 { font-family:var(--font-display); font-weight:700; font-size:27px; letter-spacing:-.01em; margin:4px 0 6px;
   background:linear-gradient(120deg, var(--ink), var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .hero .lead { font-size:14px; margin:0; max-width:36ch; }
 .compose textarea { min-height:138px; }
@@ -107,7 +123,7 @@ textarea:focus, input:focus {
 
 button.primary {
   width:100%; border:none; cursor:pointer; color:#042018; font-weight:700; font-size:15.5px;
-  padding:14px; border-radius:999px; letter-spacing:.01em;
+  padding:14px; border-radius:999px; letter-spacing:.01em; font-family:var(--font);
   background:linear-gradient(120deg,var(--mint),var(--mint-2));
   box-shadow:0 6px 18px rgba(67,230,198,.22);
   transition:transform .14s var(--ease), box-shadow .2s var(--ease), opacity .2s;
@@ -117,7 +133,7 @@ button.primary:active { transform:scale(.97); box-shadow:0 3px 10px rgba(67,230,
 button.primary:disabled { opacity:.45; box-shadow:none; }
 button.ghost {
   width:100%; border:1px solid var(--stroke); background:transparent; color:var(--ink-soft);
-  font-weight:600; font-size:14.5px; padding:12px; border-radius:999px; cursor:pointer;
+  font-family:var(--font); font-weight:600; font-size:14.5px; padding:12px; border-radius:999px; cursor:pointer;
   transition:transform .14s var(--ease), color .2s, border-color .2s;
 }
 button.ghost:active { transform:scale(.985); }
@@ -131,7 +147,7 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
 .namegrid { display:flex; flex-wrap:wrap; gap:9px; margin:0 0 14px; }
 .chip {
   padding:10px 17px; border-radius:999px; border:1px solid var(--stroke); background:transparent;
-  color:var(--ink); font-size:14.5px; font-weight:600; cursor:pointer;
+  color:var(--ink); font-family:var(--font); font-size:14.5px; font-weight:600; cursor:pointer;
   transition:transform .14s var(--ease), border-color .2s, background .2s;
 }
 .chip:active { transform:scale(.96); }
@@ -147,15 +163,17 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
 .macro {
   width:100%; text-align:left; display:flex; align-items:center; gap:14px; padding:16px 17px;
   border-radius:var(--r-md); cursor:pointer; border:none; color:#042018;
+  font-family:var(--font);
   background:linear-gradient(120deg,var(--mint),var(--mint-2));
   box-shadow:0 8px 22px rgba(67,230,198,.22);
   transition:transform .14s var(--ease), box-shadow .2s var(--ease);
 }
 .macro:active { transform:scale(.985); box-shadow:0 4px 12px rgba(67,230,198,.2); }
 .macro .ic {
-  font-size:24px; display:grid; place-items:center; width:46px; height:46px; flex:none; border-radius:12px;
-  background:rgba(4,32,24,.16);
+  display:grid; place-items:center; width:46px; height:46px; flex:none; border-radius:12px;
+  color:#042018; background:rgba(4,32,24,.16);
 }
+.macro .ic svg { display:block; }
 .macro .mtext { display:flex; flex-direction:column; gap:1px; flex:1; }
 .macro .mtext b { font-size:16.5px; font-weight:800; letter-spacing:-.01em; }
 .macro .mtext span { font-size:12.5px; color:rgba(4,32,24,.72); font-weight:600; }
@@ -190,7 +208,7 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
 .check.done { border-color:var(--mint); background:rgba(116,247,176,.09); }
 .check.done .box { background:var(--mint); border-color:var(--mint); animation:pop .3s var(--ease); }
 @keyframes pop { 0% { transform:scale(.55); } 60% { transform:scale(1.18); } 100% { transform:scale(1); } }
-.check .emoji { font-size:20px; flex:none; } .check .label { font-size:14.5px; flex:1; font-weight:500; }
+.check .label { font-size:14.5px; flex:1; font-weight:500; }
 .check.done .label { color:var(--mint); }
 .otherwrap { display:flex; gap:9px; margin-top:8px; width:100%; }
 .otherwrap input { flex:1; }
@@ -205,10 +223,12 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
 .linkbtn:active { opacity:.7; }
 .session-actions { display:flex; flex-direction:column; gap:9px; margin-top:14px; }
 
-/* ---- dashboard: day/week segmented control ---- */
+/* ---- dashboard: day/week segmented control (mono = data labels) ---- */
 .toggle { display:inline-flex; border:1px solid var(--stroke); border-radius:999px; padding:3px; gap:2px; background:transparent; }
 .toggle button {
-  border:none; background:none; color:var(--ink-faint); font-weight:600; font-size:13px; padding:7px 16px; border-radius:999px; cursor:pointer;
+  border:none; background:none; color:var(--ink-faint); cursor:pointer;
+  font-family:var(--font-mono); font-weight:600; font-size:12px; letter-spacing:.06em;
+  padding:7px 16px; border-radius:999px;
   transition:color .2s, background .2s var(--ease);
 }
 .toggle button.on { background:linear-gradient(120deg,var(--mint),var(--mint-2)); color:#042018; }
@@ -219,23 +239,26 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
   display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:var(--r-md);
   border:1px solid var(--stroke); background:transparent;
 }
-.rank.top { border-color:rgba(255,217,138,.38); background:rgba(255,217,138,.05); }
+.rank.top { border-color:rgba(255,217,138,.38); }
+/* positions are plain mono numerals — instrument markings, not medals */
 .rank .pos {
-  width:26px; flex:none; text-align:center; font-family:var(--font-mono); font-size:13px; color:var(--ink-faint);
-  font-variant-numeric:tabular-nums;
+  width:26px; flex:none; text-align:center; font-family:var(--font-mono); font-size:13px;
+  font-weight:600; color:var(--ink-faint); font-variant-numeric:tabular-nums;
 }
-.rank .pos.medal { font-size:19px; }
+.rank.top .pos { color:var(--gold); }
 .rank .av {
   width:36px; height:36px; flex:none; border-radius:50%; display:grid; place-items:center;
   font-weight:700; font-size:15px; color:#03130d; text-transform:uppercase;
 }
 .rank .nm { flex:1; font-size:15px; font-weight:600; min-width:0; letter-spacing:-.005em; }
-.rank .nm small { display:block; font-weight:400; color:var(--ink-faint); font-size:11.5px; margin-top:2px;
+.rank .nm small { display:block; font-weight:400; color:var(--ink-faint); font-family:var(--font-mono);
+  font-size:10.5px; letter-spacing:.02em; margin-top:2px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.rank .pts { display:flex; align-items:baseline; gap:3px; flex:none;
-  font-family:var(--font-display); font-size:21px; font-weight:600; color:var(--mint);
+/* the big number is display type (Space Grotesk); the unit label is mono */
+.rank .pts { display:flex; align-items:baseline; gap:4px; flex:none;
+  font-family:var(--font-display); font-size:21px; font-weight:700; color:var(--mint);
   font-variant-numeric:tabular-nums; }
-.rank .pts small { font-size:10.5px; color:var(--ink-faint); font-family:var(--font); font-weight:500; letter-spacing:.04em; }
+.rank .pts small { font-size:10px; color:var(--ink-faint); font-family:var(--font-mono); font-weight:600; letter-spacing:.08em; text-transform:uppercase; }
 .rank.top .pts { color:var(--gold); }
 .rank .bar { display:none; }
 
@@ -244,10 +267,12 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
 .feed .row { display:flex; gap:11px; align-items:flex-start; padding:10px 1px; border-bottom:1px solid var(--stroke); font-size:13.5px; }
 .feed .row:last-child { border-bottom:none; padding-bottom:2px; }
 .feed .row:first-child { padding-top:6px; }
+/* row icon: a tiny SVG stroke in a bordered square (no emoji) */
 .feed .row .e {
-  font-size:15px; flex:none; width:30px; height:30px; display:grid; place-items:center; border-radius:9px;
-  background:transparent; border:1px solid var(--stroke);
+  flex:none; width:30px; height:30px; display:grid; place-items:center; border-radius:9px;
+  background:transparent; border:1px solid var(--stroke); color:var(--ink-faint);
 }
+.feed .row .e svg { display:block; }
 .feed .row .txt { flex:1; line-height:1.45; padding-top:4px; min-width:0; color:var(--ink-soft); }
 .feed .row .txt b { color:var(--ink); font-weight:600; }
 .feed .row .txt small { display:block; color:var(--ink-faint); font-size:11px; margin-top:2px; font-family:var(--font-mono); letter-spacing:.02em; }
@@ -256,17 +281,16 @@ button.ghost:hover { color:var(--ink); border-color:var(--stroke-strong); }
 .cleaning-now { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
 .cleaning-now .pill {
   display:flex; align-items:center; gap:11px; padding:12px 14px; border-radius:var(--r-md);
-  background:rgba(116,247,176,.07); border:1px solid var(--stroke-strong); font-size:14.5px;
+  background:transparent; border:1px solid var(--stroke-strong); font-size:14.5px;
 }
 .cleaning-now .pill b { color:var(--mint); font-weight:600; }
-.cleaning-now .pill small { color:var(--ink-faint); }
+.cleaning-now .pill small { color:var(--ink-faint); font-family:var(--font-mono); font-size:11px; }
 
 .empty {
-  color:var(--ink-soft); font-size:13.5px; text-align:center; padding:24px 12px 18px; line-height:1.5;
-  display:flex; flex-direction:column; align-items:center; gap:6px;
+  color:var(--ink-soft); font-size:13.5px; text-align:center; padding:20px 12px 14px; line-height:1.5;
+  display:flex; flex-direction:column; align-items:center; gap:5px;
 }
-.empty .emoji { font-size:30px; opacity:.8; filter:grayscale(.2); }
-.empty .sub { color:var(--ink-faint); font-size:12px; }
+.empty .sub { color:var(--ink-faint); font-family:var(--font-mono); font-size:11px; letter-spacing:.02em; }
 
 /* ---- bottom tab bar ---- */
 nav.tabbar {
@@ -280,7 +304,7 @@ nav.tabbar {
 nav.tabbar button {
   position:relative; flex:1; border:none; background:none; color:var(--ink-faint); cursor:pointer;
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
-  font-size:10.5px; font-weight:600; letter-spacing:.03em; padding:2px 2px 4px;
+  padding:2px 2px 4px;
   transition:color .2s var(--ease);
 }
 /* icon sits in a pill that lights up when active (crisp, flat) */
@@ -290,7 +314,9 @@ nav.tabbar button .ti {
   transition:background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease);
 }
 nav.tabbar button .ti svg { display:block; }
-nav.tabbar button .tl { line-height:1; }
+/* tab labels = mono micro-labels, same voice as the card titles */
+nav.tabbar button .tl { line-height:1; font-family:var(--font-mono); font-size:9px; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase; }
 nav.tabbar button.on { color:var(--mint); }
 nav.tabbar button.on .ti { background:rgba(116,247,176,.12); border-color:var(--stroke-strong); color:var(--mint); }
 nav.tabbar button .dot {
@@ -301,7 +327,7 @@ nav.tabbar button .dot {
 /* ---- macros: quiet "manage account" link under the cards ---- */
 .acct-link {
   border:none; background:none; cursor:pointer; align-self:center;
-  color:var(--ink-faint); font-size:12.5px; font-weight:600; letter-spacing:.02em;
+  color:var(--ink-faint); font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.04em;
   padding:6px 10px; text-decoration:underline; text-underline-offset:3px;
   transition:color .2s var(--ease);
 }
@@ -310,18 +336,18 @@ nav.tabbar button .dot {
 /* ---- wall view (live mirror, scaled 900×1600 → card width) ---- */
 .livechip {
   display:inline-flex; align-items:center; gap:6px; flex:none;
-  font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--mint);
-  border:1px solid var(--stroke-strong); border-radius:999px; padding:4px 10px;
+  font-family:var(--font-mono); font-size:10px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:4px 10px;
 }
 .wallwrap {
   position:relative; width:100%; overflow:hidden; margin-top:4px;
-  border:1px solid var(--stroke); border-radius:var(--r-md); background:#000;
+  border:1px solid var(--stroke); border-radius:var(--r-md); background:var(--bg-0);
   min-height:120px;
 }
 .wallwrap .wallframe {
   position:absolute; top:0; left:0; width:900px; height:1600px; border:0;
   transform-origin:top left; pointer-events:none; /* view-only */
-  background:#000;
+  background:var(--bg-0);
 }
 
 /* ---- You: profile card ---- */
@@ -335,12 +361,12 @@ nav.tabbar button .dot {
   font-weight:700; font-size:23px; color:#03130d; text-transform:uppercase;
 }
 .pmeta { min-width:0; flex:1; }
-.pname { font-family:var(--font-display); font-size:21px; font-weight:600; letter-spacing:-.01em;
+.pname { font-family:var(--font-display); font-size:21px; font-weight:700; letter-spacing:-.01em;
   display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
-.pemail { color:var(--ink-faint); font-size:12.5px; margin-top:3px;
+.pemail { color:var(--ink-faint); font-family:var(--font-mono); font-size:11px; letter-spacing:.02em; margin-top:3px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .badge {
-  flex:none; font-family:var(--font); font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  flex:none; font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
   color:var(--ink-soft); border:1px solid var(--stroke); border-radius:999px; padding:3px 9px;
 }
 .badge.google { color:var(--sky); border-color:rgba(126,200,255,.35); }
@@ -357,21 +383,23 @@ nav.tabbar button .dot {
   font-weight:700; font-size:13.5px; color:#03130d; text-transform:uppercase; object-fit:cover;
 }
 .member .mn { flex:1; min-width:0; font-size:14.5px; font-weight:600; letter-spacing:-.005em; }
-.member .mn small { display:block; font-weight:400; color:var(--ink-faint); font-size:11.5px; margin-top:2px;
+.member .mn small { display:block; font-weight:400; color:var(--ink-faint); font-family:var(--font-mono);
+  font-size:10.5px; letter-spacing:.02em; margin-top:2px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .member .mn small.now { color:var(--mint); font-weight:600; }
 .member .mn small.now::before { content:''; display:inline-block; width:7px; height:7px; border-radius:50%;
   background:var(--mint); box-shadow:0 0 8px 1px rgba(116,247,176,.55); margin-right:6px; vertical-align:0; }
 .youtag {
-  flex:none; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  flex:none; font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase;
   color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:3px 9px;
 }
 .subhead {
-  margin:12px 0 2px; color:var(--ink-faint); font-size:11px; font-weight:600;
-  letter-spacing:.12em; text-transform:uppercase;
+  margin:12px 0 2px; color:var(--ink-faint); font-family:var(--font-mono); font-size:11px; font-weight:600;
+  letter-spacing:.22em; text-transform:uppercase;
 }
 
-.foot { text-align:center; color:var(--ink-faint); font-size:11px; padding:16px 0 4px; letter-spacing:.03em; opacity:.8; }
+.foot { text-align:center; color:var(--ink-faint); font-family:var(--font-mono); font-size:10px;
+  padding:16px 0 4px; letter-spacing:.06em; opacity:.8; }
 
 @media (prefers-reduced-motion: reduce) {
   .screen.active .card, .screen.active .hero, .screen.active #activeArea > * { animation:none !important; }

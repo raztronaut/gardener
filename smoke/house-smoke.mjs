@@ -50,6 +50,11 @@ async function main() {
     check('GET /house/app.js serves app js', (await jget(PB, '/house/app.js')).ok);
     check('GET /house/house.css serves css', (await jget(PB, '/house/house.css')).ok);
     check('blocks /house/ traversal', (await jget(PB, '/house/..%2f..%2fpackage.json')).status === 404);
+    // Local fonts must pass through the tunnel surface — when this 404'd, phones
+    // silently fell back to system fonts and the wall/Roots typography diverged.
+    const woff = await jget(PB, '/assets/fonts/space-grotesk-500.woff2');
+    check('GET /assets/fonts/*.woff2 is 200 font/woff2', woff.ok && (woff.headers.get('content-type') || '') === 'font/woff2', `status ${woff.status} type ${woff.headers.get('content-type')}`);
+    check('blocks /assets/fonts/ traversal', (await jget(PB, '/assets/fonts/..%2f..%2f..%2fpackage.json')).status === 404);
 
     console.log('\n[hearth] chore catalog');
     const chores = (await (await jget(PB, '/api/house/chores')).json()).chores;

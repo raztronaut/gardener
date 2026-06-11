@@ -19,6 +19,11 @@ function log(msg) {
 }
 
 const IMG = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.ico': 'image/x-icon' };
+// /assets/ also serves the local woff2 faces (public/assets/fonts/) so the
+// Roots app gets the SAME typography as the wall through the tunnel. Without
+// these MIME entries every font request 404'd and phones silently fell back
+// to system fonts.
+const ASSET_MIME = { ...IMG, '.woff2': 'font/woff2', '.woff': 'font/woff' };
 // Static MIME for the Hearth app's own files (served only from public/house/).
 const HOUSE_MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon' };
 
@@ -149,14 +154,16 @@ const server = http.createServer(async (req, res) => {
     // allowlisted assets/data, proxied read-only from the localhost server.
     if (req.method === 'GET' && p === '/wall') return proxyWall(req, res, '/?screenshot=1');
     if (req.method === 'GET' && wallPathAllowed(p)) return proxyWall(req, res, p + (u.search || ''));
-    // The logo only (and only image files under /assets, traversal-guarded).
+    // Logo + local fonts only (image/font files under /assets, traversal-guarded;
+    // the single allowed subdirectory is /assets/fonts/ for the woff2 faces).
     if (req.method === 'GET' && p.startsWith('/assets/')) {
       const name = p.slice('/assets/'.length);
       const ext = extname(name).toLowerCase();
-      if (name.includes('/') || name.includes('..') || !IMG[ext]) return send(res, 404, 'text/plain', 'not found');
+      const base = name.startsWith('fonts/') ? name.slice('fonts/'.length) : name;
+      if (base.includes('/') || name.includes('..') || !ASSET_MIME[ext]) return send(res, 404, 'text/plain', 'not found');
       try {
         const data = await fs.readFile(join(paths.PUBLIC, 'assets', name));
-        return send(res, 200, IMG[ext], data);
+        return send(res, 200, ASSET_MIME[ext], data);
       } catch { return send(res, 404, 'text/plain', 'not found'); }
     }
     // Accept a planted note.
