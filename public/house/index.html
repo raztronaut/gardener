@@ -77,13 +77,7 @@
           </button>
         </div>
         <div id="sessionArea"></div>
-        <div class="card" id="notifyCard">
-          <h2>🔔 Notifications</h2>
-          <p class="lead">Get a phone push when someone starts Clean Mode or logs a chore — even with Roots closed.</p>
-          <button class="primary" id="notifyBtn">Enable notifications 🔔</button>
-          <div class="msg" id="notifyMsg" role="status"></div>
-          <p class="muted" id="notifyHint" style="margin-top:10px; display:none"></p>
-        </div>
+        <button class="acct-link" id="manageAccount" type="button">manage account → You tab</button>
       </div>
     </section>
 
@@ -111,6 +105,44 @@
       <div class="card">
         <h2>🔔 Notifications</h2>
         <div class="feed" id="notifFeed"></div>
+      </div>
+    </section>
+
+    <!-- Screen 4: Wall — the live wall dashboard, mirrored through the tunnel.
+         The iframe is injected only while this tab is open (battery) and removed
+         on leave; the page inside self-polls + uses SSE, so it's always in sync. -->
+    <section class="screen" id="screen-wall">
+      <div class="card wall-card">
+        <div class="card-head">
+          <h2>🖥 The wall · live</h2>
+          <span class="livechip"><span class="pulse"></span>live</span>
+        </div>
+        <p class="lead">The wall display at home, exactly as it looks right now. View-only.</p>
+        <div class="wallwrap" id="wallWrap"></div>
+      </div>
+    </section>
+
+    <!-- Screen 5: You — account / who is using the app -->
+    <section class="screen" id="screen-you">
+      <div class="card" id="youCard">
+        <h2>🌿 You</h2>
+        <div id="youBody"></div>
+      </div>
+      <div class="card" id="googleCard" hidden>
+        <h2>🔑 Google sign-in</h2>
+        <div id="googleBody"></div>
+      </div>
+      <div class="card" id="notifyCard">
+        <h2>🔔 Notifications</h2>
+        <p class="lead">Get a phone push when someone starts Clean Mode or logs a chore — even with Roots closed.</p>
+        <button class="primary" id="notifyBtn">Enable notifications 🔔</button>
+        <div class="msg" id="notifyMsg" role="status"></div>
+        <p class="muted" id="notifyHint" style="margin-top:10px; display:none"></p>
+      </div>
+      <div class="card" id="householdCard">
+        <h2>🏠 Household</h2>
+        <p class="lead">Everyone in the house, and which devices are signed in.</p>
+        <div id="householdList"></div>
       </div>
     </section>
 
@@ -146,6 +178,24 @@
           <path d="M7.5 6H5a2.6 2.6 0 0 0 2.7 2.8M16.5 6H19a2.6 2.6 0 0 1-2.7 2.8" />
         </svg>
       </span><span class="tl">Dashboard</span>
+    </button>
+    <button data-screen="wall" type="button">
+      <span class="ti" aria-hidden="true">
+        <!-- wall display (portrait screen) -->
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="3.5" width="10" height="17" rx="2" />
+          <path d="M10.5 17.5h3" />
+        </svg>
+      </span><span class="tl">Wall</span>
+    </button>
+    <button data-screen="you" type="button">
+      <span class="ti" aria-hidden="true">
+        <!-- person with a leaf -->
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.4" />
+          <path d="M5.5 20c.7-3.4 3.3-5.2 6.5-5.2s5.8 1.8 6.5 5.2" />
+        </svg>
+      </span><span class="tl">You</span>
     </button>
   </nav>
 

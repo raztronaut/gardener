@@ -290,6 +290,79 @@ nav.tabbar button .dot {
   box-shadow:0 0 0 2px rgba(4,16,12,.95);
 }
 
+/* ---- macros: quiet "manage account" link under the cards ---- */
+.acct-link {
+  border:none; background:none; cursor:pointer; align-self:center;
+  color:var(--ink-faint); font-size:12.5px; font-weight:600; letter-spacing:.02em;
+  padding:6px 10px; text-decoration:underline; text-underline-offset:3px;
+  transition:color .2s var(--ease);
+}
+.acct-link:hover, .acct-link:active { color:var(--mint); }
+
+/* ---- wall view (live mirror, scaled 900×1600 → card width) ---- */
+.livechip {
+  display:inline-flex; align-items:center; gap:6px; flex:none;
+  font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--mint);
+  border:1px solid var(--stroke-strong); border-radius:999px; padding:4px 10px;
+}
+.wallwrap {
+  position:relative; width:100%; overflow:hidden; margin-top:4px;
+  border:1px solid var(--stroke); border-radius:var(--r-md); background:#000;
+  min-height:120px;
+}
+.wallwrap .wallframe {
+  position:absolute; top:0; left:0; width:900px; height:1600px; border:0;
+  transform-origin:top left; pointer-events:none; /* view-only */
+  background:#000;
+}
+
+/* ---- You: profile card ---- */
+.profile { display:flex; align-items:center; gap:14px; padding:6px 0 0; }
+.avatar-lg {
+  width:56px; height:56px; flex:none; border-radius:50%; object-fit:cover;
+  border:1px solid var(--stroke-strong);
+}
+.avatar-lg.bubble {
+  display:grid; place-items:center; border:none;
+  font-weight:700; font-size:23px; color:#03130d; text-transform:uppercase;
+}
+.pmeta { min-width:0; flex:1; }
+.pname { font-family:var(--font-display); font-size:21px; font-weight:600; letter-spacing:-.01em;
+  display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+.pemail { color:var(--ink-faint); font-size:12.5px; margin-top:3px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.badge {
+  flex:none; font-family:var(--font); font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-soft); border:1px solid var(--stroke); border-radius:999px; padding:3px 9px;
+}
+.badge.google { color:var(--sky); border-color:rgba(126,200,255,.35); }
+.gsi-host { display:flex; justify-content:center; min-height:44px; }
+
+/* ---- You: household list ---- */
+#householdList { display:flex; flex-direction:column; gap:7px; }
+.member {
+  display:flex; align-items:center; gap:11px; padding:9px 12px;
+  border:1px solid var(--stroke); border-radius:var(--r-md); background:transparent;
+}
+.member .av {
+  width:32px; height:32px; flex:none; border-radius:50%; display:grid; place-items:center;
+  font-weight:700; font-size:13.5px; color:#03130d; text-transform:uppercase; object-fit:cover;
+}
+.member .mn { flex:1; min-width:0; font-size:14.5px; font-weight:600; letter-spacing:-.005em; }
+.member .mn small { display:block; font-weight:400; color:var(--ink-faint); font-size:11.5px; margin-top:2px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.member .mn small.now { color:var(--mint); font-weight:600; }
+.member .mn small.now::before { content:''; display:inline-block; width:7px; height:7px; border-radius:50%;
+  background:var(--mint); box-shadow:0 0 8px 1px rgba(116,247,176,.55); margin-right:6px; vertical-align:0; }
+.youtag {
+  flex:none; font-size:10px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:3px 9px;
+}
+.subhead {
+  margin:12px 0 2px; color:var(--ink-faint); font-size:11px; font-weight:600;
+  letter-spacing:.12em; text-transform:uppercase;
+}
+
 .foot { text-align:center; color:var(--ink-faint); font-size:11px; padding:16px 0 4px; letter-spacing:.03em; opacity:.8; }
 
 @media (prefers-reduced-motion: reduce) {

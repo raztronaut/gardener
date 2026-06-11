@@ -4,6 +4,7 @@
 // an acknowledged feedback write and never leaves a torn DB.
 import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { paths, ensureDirs } from './config.mjs';
 
 ensureDirs();
@@ -98,6 +99,22 @@ db.exec(`
     created_at  INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_push_endpoint ON house_push_subscriptions(endpoint);
+  -- App login sessions (one row per signed-in device). The token is an opaque
+  -- bearer secret the client stores in localStorage and sends as the
+  -- 'x-roots-token' header. provider is 'name' (picked/typed a name) or
+  -- 'google' (verified Google ID token); email/picture only set for google.
+  CREATE TABLE IF NOT EXISTS house_sessions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    token       TEXT NOT NULL UNIQUE,
+    user_id     INTEGER NOT NULL REFERENCES house_users(id),
+    provider    TEXT NOT NULL DEFAULT 'name',   -- 'name' | 'google'
+    email       TEXT,
+    picture     TEXT,
+    created_at  INTEGER NOT NULL,
+    last_seen   INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_house_sessions_token ON house_sessions(token);
+  CREATE INDEX IF NOT EXISTS idx_house_sessions_seen ON house_sessions(last_seen);
 `);
 
 // ---- key/value state -------------------------------------------------------
@@ -341,6 +358,69 @@ export function addHouseNotification(text, kind = 'info') {
 }
 const _recentNotifs = db.prepare('SELECT id, ts, text, kind FROM house_notifications ORDER BY ts DESC LIMIT ?');
 export function recentHouseNotifications(limit = 30) { return _recentNotifs.all(Math.min(limit, 100)); }
+
+// ---- app login sessions -------------------------------------------------------
+// One row per signed-in device/browser. The token is the only credential: an
+// unguessable opaque string (UUID + 32 hex chars of CSPRNG) the client keeps in
+// localStorage and presents via the 'x-roots-token' header. Reading a session
+// by token "touches" last_seen, so the Account screen can show which devices
+// have been active recently. "Active" = last_seen within 30 days.
+const HOUSE_SESSION_ACTIVE_MS = 30 * 24 * 3600 * 1000;
+const _addHouseSession = db.prepare(`
+  INSERT INTO house_sessions(token, user_id, provider, email, picture, created_at, last_seen)
+  VALUES(@token, @user_id, @provider, @email, @picture, @created_at, @last_seen)`);
+const _houseSessionByToken = db.prepare(`
+  SELECT s.*, u.name FROM house_sessions s JOIN house_users u ON u.id = s.user_id
+  WHERE s.token = ?`);
+const _touchHouseSession = db.prepare('UPDATE house_sessions SET last_seen = ? WHERE id = ?');
+export function createHouseSession({ userId, provider = 'name', email = null, picture = null }) {
+  const token = randomUUID() + randomBytes(16).toString('hex');
+  const now = Date.now();
+  _addHouseSession.run({
+    token, user_id: userId, provider: String(provider),
+    email: email ? String(email).slice(0, 200) : null,
+    picture: picture ? String(picture).slice(0, 500) : null,
+    created_at: now, last_seen: now,
+  });
+  return _houseSessionByToken.get(token);
+}
+export function getHouseSessionByToken(token, { touch = true } = {}) {
+  if (!token || typeof token !== 'string' || token.length > 200) return null;
+  const s = _houseSessionByToken.get(token);
+  if (!s) return null;
+  if (touch) { try { _touchHouseSession.run(Date.now(), s.id); s.last_seen = Date.now(); } catch { /* read-only fs etc. */ } }
+  return s;
+}
+const _delHouseSession = db.prepare('DELETE FROM house_sessions WHERE token = ?');
+export function deleteHouseSession(token) { return _delHouseSession.run(String(token || '')).changes; }
+// Sessions seen within the active window, joined to users (newest first).
+const _activeHouseSessions = db.prepare(`
+  SELECT s.id, s.user_id, s.provider, s.email, s.picture, s.created_at, s.last_seen, u.name
+  FROM house_sessions s JOIN house_users u ON u.id = s.user_id
+  WHERE s.last_seen >= ? ORDER BY s.last_seen DESC`);
+export function activeHouseSessions(sinceMs = Date.now() - HOUSE_SESSION_ACTIVE_MS) {
+  return _activeHouseSessions.all(sinceMs);
+}
+// Most-recent session for a Google email — how a returning Google account is
+// linked back to the same house_user even if their display name has drifted.
+const _houseSessionByEmail = db.prepare(`
+  SELECT s.*, u.name FROM house_sessions s JOIN house_users u ON u.id = s.user_id
+  WHERE s.email = ? COLLATE NOCASE ORDER BY s.last_seen DESC LIMIT 1`);
+export function latestHouseSessionByEmail(email) {
+  if (!email) return null;
+  return _houseSessionByEmail.get(String(email));
+}
+// Cleanup helper (used by smoke/maintenance only — not exposed over HTTP).
+const _delSessionsForUser = db.prepare('DELETE FROM house_sessions WHERE user_id = ?');
+export function deleteHouseSessionsForUser(userId) { return _delSessionsForUser.run(userId).changes; }
+
+// Per-user "last activity" for the Account screen's household list: the latest
+// chore each member logged (NULL if they never logged one).
+const _usersWithActivity = db.prepare(`
+  SELECT u.id, u.name, u.created_at,
+    (SELECT MAX(e.ts) FROM chore_events e WHERE e.user_id = u.id) AS last_chore_ts
+  FROM house_users u ORDER BY u.name COLLATE NOCASE ASC`);
+export function listHouseUsersWithActivity() { return _usersWithActivity.all(); }
 
 // ---- web push subscriptions -------------------------------------------------
 // Upsert by endpoint (re-subscribing the same browser refreshes its keys rather

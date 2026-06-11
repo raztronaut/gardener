@@ -31,7 +31,8 @@ async function main() {
   // Boot the plant server first and let it create the fresh schema, THEN the
   // localhost server — so two processes don't race to CREATE TABLE on a brand-new
   // temp DB (which can transiently lock under WAL on a cold start).
-  const plant = spawn(process.execPath, [join(ROOT, 'src', 'plant-server.mjs')], { env: { ...env, GARDENER_PLANT_PORT: String(PLANT_PORT) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  // GARDENER_PORT points the plant server's /wall passthrough at the smoke main server.
+  const plant = spawn(process.execPath, [join(ROOT, 'src', 'plant-server.mjs')], { env: { ...env, GARDENER_PLANT_PORT: String(PLANT_PORT), GARDENER_PORT: String(MAIN_PORT) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let perr = ''; plant.stderr.on('data', (d) => { perr += d; }); plant.stdout.on('data', () => {});
   let main;
   let merr = '';
@@ -66,6 +67,37 @@ async function main() {
     check('rejects bogus name', (await jpost(PB, '/api/house/users', { name: '<script>' })).status === 400);
     const users = (await (await jget(PB, '/api/house/users')).json()).users;
     check('lists both users', users.length === 2);
+
+    console.log('\n[hearth] login sessions (token + /me + logout)');
+    // Creating/picking a name also mints a login session (token in the response).
+    check('user create returns a session token', typeof u1.token === 'string' && u1.token.length >= 40, `got ${u1.token && u1.token.length}`);
+    check('user create returns session info (provider name)', u1.session && u1.session.provider === 'name' && u1.session.user.id === u1.user.id);
+    const meHdr = { 'x-roots-token': u1.token };
+    const me = await fetch(`${PB}/api/house/me`, { headers: meHdr });
+    check('GET /me with token returns the user', me.ok && (await me.clone().json()).user.name === 'Ada');
+    const meBody = await me.json();
+    check('/me reports provider + (null) email/picture', meBody.provider === 'name' && meBody.email === null && meBody.picture === null);
+    check('GET /me without token is 401', (await jget(PB, '/api/house/me')).status === 401);
+    check('GET /me with a bogus token is 401', (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': 'nope-' + 'x'.repeat(40) } })).status === 401);
+    // Sessions show up in the household view.
+    const hh = await (await jget(PB, '/api/house/household')).json();
+    check('household lists users + sessions', Array.isArray(hh.users) && Array.isArray(hh.sessions) && hh.sessions.some((s) => s.name === 'Ada' && s.provider === 'name'));
+    // A second session for Grace, then log it out — Ada's must survive.
+    check('Grace also got a token', typeof u2.token === 'string' && u2.token.length >= 40);
+    const lo = await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roots-token': u2.token }, body: '{}' });
+    check('logout deletes the session', lo.ok && (await lo.json()).removed === 1);
+    check('logged-out token now 401s on /me', (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': u2.token } })).status === 401);
+    check('other sessions survive a logout', (await fetch(`${PB}/api/house/me`, { headers: meHdr })).ok);
+    check('logout without a token is still ok (idempotent)', (await jpost(PB, '/api/house/logout', {})).ok);
+
+    console.log('\n[hearth] auth-config + google-login guardrails');
+    const ac = await (await jget(PB, '/api/house/auth-config')).json();
+    // GARDENER_GOOGLE_CLIENT_ID is unset in smoke → bare {} (no client id leaks).
+    check('auth-config is {} when Google is unconfigured', ac && typeof ac === 'object' && !('googleClientId' in ac), JSON.stringify(ac));
+    const gl1 = (await jpost(PB, '/api/house/google-login', { credential: 'garbage.token' })).status;
+    check('google-login rejects garbage when unconfigured (400)', gl1 === 400, `got ${gl1}`);
+    const gl2 = (await jpost(PB, '/api/house/google-login', {})).status;
+    check('google-login rejects empty body (400)', gl2 === 400, `got ${gl2}`);
 
     console.log('\n[hearth] clean session + notification');
     const start = await (await jpost(PB, '/api/house/session/start', { userId: u1.user.id })).json();
@@ -161,6 +193,32 @@ async function main() {
     const st2 = await (await jget(PB, '/api/house/status')).json();
     check('Ada no longer cleaning', !st2.cleaning.some((c) => c.name === 'Ada'));
     check('session_end notification emitted', st2.notifications.some((n) => n.kind === 'session_end'));
+
+    console.log('\n[hearth] subscribe associates the login session\'s user');
+    // No userId/name in the body — the x-roots-token alone should link the sub.
+    const tokSub = { subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/SMOKE-TOK-' + Date.now(), keys: { p256dh: 'BPexampleKeyMaterialAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', auth: 'YXV0aHNlY3JldEFB' } } };
+    const tokSubRes = await fetch(`${PB}/api/house/subscribe`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roots-token': u1.token }, body: JSON.stringify(tokSub) });
+    check('subscribe with only a token is accepted', tokSubRes.ok);
+    check('cleanup: unsubscribe token sub', (await jpost(PB, '/api/house/unsubscribe', { endpoint: tokSub.subscription.endpoint })).ok);
+
+    console.log('\n[hearth] wall view passthrough (read-only, allowlisted)');
+    const wall = await jget(PB, '/wall');
+    check('GET /wall is 200 text/html', wall.ok && /text\/html/.test(wall.headers.get('content-type') || ''), `status ${wall.status}`);
+    check('/wall serves the live dashboard page', /The\s*&nbsp;?Gardener/i.test(await wall.text()));
+    check('GET /app.js passthrough 200', (await jget(PB, '/app.js')).ok);
+    check('GET /styles.css passthrough 200', (await jget(PB, '/styles.css')).ok);
+    const wState = await jget(PB, '/api/state');
+    check('GET /api/state passthrough 200 + json', wState.ok && typeof (await wState.json()).version === 'number');
+    check('GET /api/version passthrough 200', (await jget(PB, '/api/version')).ok);
+    check('GET /widgets/manifest.json passthrough 200', (await jget(PB, '/widgets/manifest.json')).ok);
+    // Writes are NEVER forwarded — POST to an allowlisted path is refused.
+    check('POST /api/state via passthrough refused', (await fetch(`${PB}/api/state`, { method: 'POST' })).status >= 400);
+    check('POST /api/night via passthrough refused', (await jpost(PB, '/api/night', { on: true })).status >= 400);
+    check('POST /api/pad/action not exposed', (await jpost(PB, '/api/pad/action', { action: 'up' })).status >= 400);
+    // Sensitive reads are NOT in the allowlist.
+    check('GET /api/feedback not exposed through plant', (await jget(PB, '/api/feedback')).status === 404);
+    check('GET /api/night not exposed through plant', (await jget(PB, '/api/night')).status === 404);
+    check('wall passthrough blocks traversal', (await jget(PB, '/widgets/..%2f..%2fsrc%2Fdb.mjs')).status === 404);
 
     console.log('\n[hearth] localhost server is READ-ONLY for house');
     check('main GET /api/house/status works', (await jget(MB, '/api/house/status')).ok);

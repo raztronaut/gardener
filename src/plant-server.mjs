@@ -37,6 +37,51 @@ function send(res, code, type, body) {
   res.end(body);
 }
 
+// ---- "Wall" view: read-only passthrough to the localhost dashboard ----------
+// Lets Roots embed the REAL live wall page (which self-polls + uses SSE) through
+// the tunnel. STRICT allowlist, GET only, streamed: /wall renders the dashboard
+// in screenshot mode (no input bar / cursor — view-only), plus exactly the
+// assets/data the page needs. POSTs are never forwarded, and sensitive routes
+// (/api/feedback GET, /api/night, /api/pad/action, …) are NOT exposed.
+const WALL_EXACT = new Set([
+  '/app.js', '/styles.css',
+  '/api/state', '/api/version', '/api/iterations', '/api/proxy',
+  '/api/house/status', '/api/pad/stream',
+]);
+function wallPathAllowed(p) {
+  if (WALL_EXACT.has(p)) return true;
+  if (p.includes('..') || p.includes('//')) return false;
+  if (p.startsWith('/widgets/')) return p.endsWith('.js') || p === '/widgets/manifest.json';
+  if (p.startsWith('/lib/')) return p.endsWith('.js');
+  return false;
+}
+// Generous read budget for the wall view (a page load is ~25 requests) that
+// still bounds a flood from a stranger with the URL.
+const wallHits = [];
+function wallRateOk(max = 600, windowMs = 60000) {
+  const now = Date.now();
+  while (wallHits.length && now - wallHits[0] > windowMs) wallHits.shift();
+  if (wallHits.length >= max) return false;
+  wallHits.push(now);
+  return true;
+}
+function proxyWall(req, res, path) {
+  if (!wallRateOk()) return send(res, 429, 'text/plain', 'too many requests');
+  const preq = http.request({
+    host: '127.0.0.1', port: config.port, path, method: 'GET',
+    headers: { accept: req.headers.accept || '*/*' },
+  }, (pres) => {
+    res.writeHead(pres.statusCode || 502, {
+      'Content-Type': pres.headers['content-type'] || 'application/octet-stream',
+      'Cache-Control': 'no-store',
+    });
+    pres.pipe(res); // stream (also keeps the /api/pad/stream SSE flowing)
+  });
+  preq.on('error', () => { try { send(res, 502, 'text/plain', 'wall unavailable'); } catch { /* ignore */ } });
+  req.on('close', () => preq.destroy());
+  preq.end();
+}
+
 async function readBody(req, limit = 8 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
@@ -94,6 +139,10 @@ const server = http.createServer(async (req, res) => {
       const handled = await handleHouseApi(req, res, u, { log });
       if (handled) return;
     }
+    // Wall view: the live dashboard page (screenshot mode = view-only) + its
+    // allowlisted assets/data, proxied read-only from the localhost server.
+    if (req.method === 'GET' && p === '/wall') return proxyWall(req, res, '/?screenshot=1');
+    if (req.method === 'GET' && wallPathAllowed(p)) return proxyWall(req, res, p + (u.search || ''));
     // The logo only (and only image files under /assets, traversal-guarded).
     if (req.method === 'GET' && p.startsWith('/assets/')) {
       const name = p.slice('/assets/'.length);

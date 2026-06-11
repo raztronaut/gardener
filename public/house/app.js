@@ -1,9 +1,11 @@
 // Roots — household app frontend (vanilla, no build, no deps).
 // A separate, hand-maintained side project (the daily tending must NOT touch this).
-// Three screens behind a bottom tab bar: Plant a Note · Community Macros · Dashboard.
+// Five screens behind a bottom tab bar:
+// Plant a Note · Community Macros · Dashboard · Wall (live) · You (account).
 'use strict';
 
-const LS_USER = 'hearth.user'; // { id, name }
+const LS_USER = 'hearth.user';   // { id, name }
+const LS_TOKEN = 'hearth.token'; // opaque session token (sent as x-roots-token)
 const TZ = 'America/Los_Angeles';
 
 // ---- tiny helpers -----------------------------------------------------------
@@ -21,8 +23,11 @@ function el(tag, attrs = {}, ...kids) {
   return n;
 }
 async function api(path, opts) {
-  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
-  if (!r.ok) { let detail = ''; try { detail = (await r.json()).error || ''; } catch { /* ignore */ } throw new Error(detail || ('HTTP ' + r.status)); }
+  const headers = { 'Content-Type': 'application/json' };
+  const tok = getToken();
+  if (tok) headers['x-roots-token'] = tok; // sessions enrich identity on every call
+  const r = await fetch(path, { headers, ...opts });
+  if (!r.ok) { let detail = ''; try { detail = (await r.json()).error || ''; } catch { /* ignore */ } const e = new Error(detail || ('HTTP ' + r.status)); e.status = r.status; throw e; }
   return r.json();
 }
 function fmtAgo(ts) {
@@ -38,6 +43,24 @@ function fmtClock(ts) { try { return new Intl.DateTimeFormat('en-US', { timeZone
 function getUser() { try { return JSON.parse(localStorage.getItem(LS_USER) || 'null'); } catch { return null; } }
 function setUser(u) { try { localStorage.setItem(LS_USER, JSON.stringify(u)); } catch { /* ignore */ } currentUser = u; renderWho(); }
 let currentUser = getUser();
+
+// ---- login session (token in localStorage, identity from GET /api/house/me) --
+function getToken() { try { return localStorage.getItem(LS_TOKEN) || ''; } catch { return ''; } }
+function setToken(t) { try { t ? localStorage.setItem(LS_TOKEN, t) : localStorage.removeItem(LS_TOKEN); } catch { /* ignore */ } }
+let currentSession = null; // { user, provider, email, picture } from /me
+// Validate the stored token on boot. A dead token is silently dropped — the
+// localStorage name identity keeps working exactly as before (backward compat).
+async function loadMe() {
+  if (!getToken()) { currentSession = null; return null; }
+  try {
+    currentSession = await api('/api/house/me');
+    if (currentSession && currentSession.user) setUser({ id: currentSession.user.id, name: currentSession.user.name });
+  } catch (e) {
+    if (e.status === 401) setToken('');
+    currentSession = null;
+  }
+  return currentSession;
+}
 
 function renderWho() {
   const w = $('#who');
@@ -64,8 +87,10 @@ let activeSession = null; // {id, name} when this user is mid-clean
 function showScreen(name) {
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.screen === name));
+  if (name === 'wall') mountWall(); else unmountWall(); // lazy iframe (battery)
   if (name === 'macros') renderMacros();
   if (name === 'dash') refreshDashboard();
+  if (name === 'you') renderYou();
 }
 $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showScreen(b.dataset.screen)));
 
@@ -102,7 +127,6 @@ async function renderMacros() {
   if (currentUser) { idCard.hidden = true; area.hidden = false; }
   else { idCard.hidden = false; area.hidden = true; await renderNamePicker(); return; }
   await refreshActiveState();
-  refreshNotifyUi();
 }
 
 async function renderNamePicker() {
@@ -114,17 +138,22 @@ async function renderNamePicker() {
     el('button', { class: 'chip', type: 'button', onclick: () => pickName(u.name) }, u.name))
     : [el('span', { class: 'muted' }, 'No one yet — be the first below.')]));
 }
-async function pickName(name) {
-  const msg = $('#nameMsg'); msg.className = 'msg'; msg.textContent = 'Saving…';
+async function pickName(name, msgEl) {
+  const msg = msgEl || $('#nameMsg'); msg.className = 'msg'; msg.textContent = 'Saving…';
   try {
-    const { user } = await api('/api/house/users', { method: 'POST', body: JSON.stringify({ name }) });
-    setUser({ id: user.id, name: user.name });
+    const r = await api('/api/house/users', { method: 'POST', body: JSON.stringify({ name }) });
+    // Name pick/create is also a login: the server minted a session for this
+    // device — keep its token so identity survives and writes carry it.
+    if (r.token) { setToken(r.token); currentSession = r.session || null; }
+    setUser({ id: r.user.id, name: r.user.name });
     msg.textContent = '';
-    renderMacros();
+    if ($('#screen-macros').classList.contains('active')) renderMacros();
+    if ($('#screen-you').classList.contains('active')) renderYou();
   } catch (e) { msg.className = 'msg err'; msg.textContent = e.message || 'Could not save name.'; }
 }
 $('#addName').addEventListener('click', () => { const v = $('#newName').value.trim(); if (v) { $('#newName').value = ''; pickName(v); } });
 $('#newName').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#addName').click(); });
+$('#manageAccount').addEventListener('click', () => showScreen('you'));
 
 $('#startClean').addEventListener('click', async () => {
   if (!currentUser) return;
@@ -377,6 +406,188 @@ async function disableNotifications() {
 })();
 
 // =============================================================================
+// Screen 4 — Wall (a live mirror of the wall dashboard)
+// The iframe loads the REAL dashboard page (screenshot mode = no input bar or
+// cursor) through the plant-server's read-only passthrough; the page self-polls
+// and uses SSE, so it is inherently always in sync. We mount it only while the
+// tab is open and destroy it on leave (battery + tunnel quota).
+// =============================================================================
+const WALL_W = 900, WALL_H = 1600;
+let wallFrame = null;
+function mountWall() {
+  const wrap = $('#wallWrap');
+  if (!wrap) return;
+  if (!wallFrame) {
+    // ?screenshot=1 must be on the IFRAME url too: the wall app reads its own
+    // location.search to enter screenshot mode (hides the input bar + cursor).
+    wallFrame = el('iframe', { class: 'wallframe', src: '/wall?screenshot=1', title: 'live wall dashboard' });
+    wrap.replaceChildren(wallFrame);
+  }
+  requestAnimationFrame(sizeWall);
+}
+function unmountWall() { if (wallFrame) { wallFrame.remove(); wallFrame = null; } }
+// The 900×1600 page is scaled down to the card's width; the wrapper takes the
+// scaled height so the screen scrolls naturally.
+function sizeWall() {
+  const wrap = $('#wallWrap');
+  if (!wrap || !wallFrame) return;
+  const scale = (wrap.clientWidth || 1) / WALL_W;
+  wallFrame.style.transform = `scale(${scale})`;
+  wrap.style.height = Math.round(WALL_H * scale) + 'px';
+}
+window.addEventListener('resize', sizeWall);
+
+// =============================================================================
+// Screen 5 — You (account: profile, optional Google sign-in, household, sign out)
+// =============================================================================
+let authConfig = null; // { googleClientId? } — probed once per app load
+async function loadAuthConfig() {
+  if (authConfig) return authConfig;
+  try { authConfig = await api('/api/house/auth-config'); } catch { authConfig = {}; }
+  return authConfig;
+}
+
+async function renderYou() {
+  await loadAuthConfig();
+  if (getToken() && !currentSession) await loadMe();
+  renderYouProfile();
+  renderGoogleCard();
+  refreshNotifyUi();
+  renderHousehold();
+}
+
+function providerBadge(provider) {
+  return el('span', { class: 'badge' + (provider === 'google' ? ' google' : '') },
+    provider === 'google' ? 'Google' : 'name');
+}
+
+function renderYouProfile() {
+  const body = $('#youBody');
+  if (!currentUser) {
+    // Signed out → the name picker IS the login (primary, always available).
+    const msg = el('div', { class: 'msg', role: 'status' });
+    const grid = el('div', { class: 'namegrid' }, el('span', { class: 'muted' }, 'loading names…'));
+    api('/api/house/users').then(({ users }) => {
+      grid.replaceChildren(...(users.length ? users.map((u) =>
+        el('button', { class: 'chip', type: 'button', onclick: () => pickName(u.name, msg) }, u.name))
+        : [el('span', { class: 'muted' }, 'No one yet — type your name below.')]));
+    }).catch(() => grid.replaceChildren(el('span', { class: 'muted' }, 'Could not load names — check the connection.')));
+    const inp = el('input', { type: 'text', maxlength: '40', placeholder: '…or type your name' });
+    const add = el('button', { class: 'primary', type: 'button', onclick: () => { const v = inp.value.trim(); if (v) { inp.value = ''; pickName(v, msg); } } }, 'Add');
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') add.click(); });
+    body.replaceChildren(
+      el('p', { class: 'lead' }, 'Pick your name to sign in — that’s all it takes.'),
+      grid, el('div', { class: 'namerow' }, inp, add), msg);
+    return;
+  }
+  const provider = currentSession ? currentSession.provider : 'name';
+  const email = currentSession && currentSession.email;
+  const picture = currentSession && currentSession.picture;
+  const av = avatarFor(currentUser.name);
+  const avatar = picture
+    ? el('img', { class: 'avatar-lg', src: picture, alt: '', referrerpolicy: 'no-referrer' })
+    : el('div', { class: 'avatar-lg bubble', style: `background:${av.bg}` }, av.initial);
+  body.replaceChildren(
+    el('div', { class: 'profile' },
+      avatar,
+      el('div', { class: 'pmeta' },
+        el('div', { class: 'pname' }, currentUser.name, providerBadge(provider)),
+        el('div', { class: 'pemail' }, email || 'signed in on this device'))),
+    el('div', { style: 'height:14px' }),
+    el('button', { class: 'ghost', type: 'button', onclick: doSignOut }, 'Sign out'));
+}
+
+async function doSignOut() {
+  try { if (getToken()) await api('/api/house/logout', { method: 'POST' }); } catch { /* best effort */ }
+  setToken(''); currentSession = null;
+  try { localStorage.removeItem(LS_USER); } catch { /* ignore */ }
+  currentUser = null; renderWho();
+  renderYou(); // the profile card becomes the name picker again
+}
+
+// --- optional Google Sign-In (Google Identity Services) ----------------------
+// GIS is loaded ONLY when the server says a client id is configured AND the
+// Account screen is open. Unconfigured (today's reality): a quiet note instead.
+function renderGoogleCard() {
+  const card = $('#googleCard'), body = $('#googleBody');
+  if (currentSession && currentSession.provider === 'google') { card.hidden = true; return; } // already linked
+  card.hidden = false;
+  const cid = authConfig && authConfig.googleClientId;
+  if (!cid) {
+    body.replaceChildren(el('p', { class: 'muted' }, 'Google sign-in activates at the permanent address once configured.'));
+    return;
+  }
+  const host = el('div', { class: 'gsi-host' });
+  body.replaceChildren(
+    el('p', { class: 'lead' }, currentUser
+      ? 'Sign in with Google to verify this device — your profile photo and email come along.'
+      : 'Or sign in with your Google account.'),
+    host);
+  ensureGis(() => {
+    try {
+      window.google.accounts.id.initialize({ client_id: cid, callback: onGoogleCredential });
+      window.google.accounts.id.renderButton(host, { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with' });
+    } catch { host.textContent = 'Google sign-in could not load.'; }
+  });
+}
+function ensureGis(cb) {
+  if (window.google && window.google.accounts && window.google.accounts.id) { cb(); return; }
+  let s = document.getElementById('gsiScript');
+  if (!s) {
+    s = el('script', { id: 'gsiScript', src: 'https://accounts.google.com/gsi/client', async: 'true', defer: 'true' });
+    document.head.appendChild(s);
+  }
+  s.addEventListener('load', () => cb(), { once: true });
+}
+async function onGoogleCredential(resp) {
+  const body = $('#googleBody');
+  try {
+    const r = await api('/api/house/google-login', { method: 'POST', body: JSON.stringify({ credential: resp && resp.credential }) });
+    setToken(r.token); currentSession = r.session || null;
+    setUser({ id: r.user.id, name: r.user.name });
+    renderYou();
+  } catch (e) {
+    body.appendChild(el('div', { class: 'msg err' }, e.message || 'Google sign-in failed — try again.'));
+  }
+}
+
+// --- household: every member + last activity, and signed-in devices ----------
+async function renderHousehold() {
+  const list = $('#householdList');
+  let hh = null;
+  try { hh = await api('/api/house/household'); }
+  catch { list.replaceChildren(emptyState('📡', 'Could not load the household.', 'Check your connection and try again.')); return; }
+  // Latest app-session per user feeds into "last activity" alongside chores.
+  const lastSeenByUser = new Map();
+  for (const s of hh.sessions) {
+    if ((lastSeenByUser.get(s.userId) || 0) < s.lastSeen) lastSeenByUser.set(s.userId, s.lastSeen);
+  }
+  const rows = hh.users.map((u) => {
+    const av = avatarFor(u.name);
+    const lastTs = Math.max(u.lastChoreTs || 0, lastSeenByUser.get(u.id) || 0);
+    const status = u.cleaningNow
+      ? el('small', { class: 'now' }, 'cleaning now')
+      : el('small', {}, lastTs ? 'active ' + fmtAgo(lastTs) : 'no activity yet');
+    return el('div', { class: 'member' },
+      el('div', { class: 'av', style: `background:${av.bg}` }, av.initial),
+      el('div', { class: 'mn' }, u.name, status),
+      currentUser && u.id === currentUser.id ? el('span', { class: 'youtag' }, 'you') : null);
+  });
+  const devHead = el('div', { class: 'subhead' }, 'Signed in on a device · last 30 days');
+  const devs = hh.sessions.length ? hh.sessions.map((s) => el('div', { class: 'member dev' },
+    s.picture
+      ? el('img', { class: 'av', src: s.picture, alt: '', referrerpolicy: 'no-referrer' })
+      : el('div', { class: 'av', style: `background:${avatarFor(s.name).bg}` }, avatarFor(s.name).initial),
+    el('div', { class: 'mn' }, s.name,
+      el('small', {}, (s.provider === 'google' && s.email ? s.email + ' · ' : '') + 'seen ' + fmtAgo(s.lastSeen))),
+    providerBadge(s.provider)))
+    : [el('div', { class: 'muted', style: 'padding:4px 0 2px' }, 'No app sessions yet.')];
+  list.replaceChildren(
+    ...(rows.length ? rows : [emptyState('🌱', 'No one in the household yet.', 'Pick a name above to be the first.')]),
+    devHead, ...devs);
+}
+
+// =============================================================================
 // Screen 3 — Dashboard (leaderboard + day/week toggle + activity + notifs)
 // =============================================================================
 let range = 'day';
@@ -442,8 +653,15 @@ function updateMacroBadge(status) {
 
 // ---- boot + live refresh ----------------------------------------------------
 renderWho();
-// Deep-link: /#note /#macros /#dash open that screen directly (default: dash).
-const bootScreen = ['note', 'macros', 'dash'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dash';
+// Validate the stored session token (if any) and enrich identity from /me.
+// Failure is silent: the localStorage name keeps working exactly as before.
+loadMe().then((s) => {
+  if (!s) return;
+  renderWho();
+  if ($('#screen-you').classList.contains('active')) renderYou();
+}).catch(() => {});
+// Deep-link: /#note /#macros /#dash /#wall /#you open that screen (default: dash).
+const bootScreen = ['note', 'macros', 'dash', 'wall', 'you'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dash';
 showScreen(bootScreen);
 loadChores();
 // Poll for live "currently cleaning" + leaderboard updates while the app is open.

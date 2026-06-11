@@ -11,7 +11,10 @@ import {
   addHouseNotification, recentHouseNotifications,
   rankingSince, recentActivity,
   addPushSubscription, removePushSubscription,
+  createHouseSession, getHouseSessionByToken, deleteHouseSession,
+  activeHouseSessions, latestHouseSessionByEmail, listHouseUsersWithActivity,
 } from './db.mjs';
+import { config } from './config.mjs';
 import { getVapidPublicKey, sendToAll } from './push.mjs';
 
 // Canonical chore catalog. `key` is stored; `label`/`emoji` drive the UI and the
@@ -88,6 +91,45 @@ function makeLimiter(max, windowMs) {
   };
 }
 const writeLimit = makeLimiter(60, 60_000); // 60 writes / minute across the surface
+// google-login does an outbound verification fetch — keep it on a tighter leash
+// so a stranger can't use us as a tokeninfo relay.
+const googleLimit = makeLimiter(10, 60_000);
+
+// ---- login sessions ----------------------------------------------------------
+// The opaque bearer token rides in the 'x-roots-token' header. Sessions ENRICH
+// identity (provider/email/picture, "active devices") — they are deliberately
+// NOT required for writes, so a household member without one is never locked out.
+function sessionFromReq(req, { touch = true } = {}) {
+  const token = (req.headers['x-roots-token'] || '').toString();
+  if (!token) return null;
+  try { return getHouseSessionByToken(token, { touch }); } catch { return null; }
+}
+function sessionPublic(s) {
+  return {
+    user: { id: s.user_id, name: s.name },
+    provider: s.provider, email: s.email || null, picture: s.picture || null,
+    createdAt: s.created_at, lastSeen: s.last_seen,
+  };
+}
+
+// Verify a Google ID token via Google's tokeninfo endpoint (no deps). Returns
+// the payload object on success, or null. We check the audience, expiry and
+// that Google verified the email — tokeninfo itself validates the signature.
+async function verifyGoogleIdToken(idToken, clientId, log) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 8000);
+  try {
+    const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken), { signal: ac.signal });
+    if (!r.ok) return null;
+    const p = await r.json();
+    if (!p || p.aud !== clientId) return null;
+    if (!p.exp || parseInt(p.exp, 10) * 1000 < Date.now()) return null;
+    if (p.email_verified !== 'true' && p.email_verified !== true) return null;
+    if (!p.sub || !p.email) return null;
+    return p;
+  } catch (e) { log(`google tokeninfo error: ${e.message || e}`); return null; }
+  finally { clearTimeout(timer); }
+}
 
 // ---- the router -------------------------------------------------------------
 // Handles every path under /api/house/*. Returns true if it handled the request
@@ -110,6 +152,36 @@ export async function handleHouseApi(req, res, url, opts = {}) {
     }
     if (req.method === 'GET' && p === '/api/house/rankings') {
       json(res, 200, { day: rankingSince(dayStartMs()), week: rankingSince(weekStartMs()) }); return true;
+    }
+    // Auth surface the client probes on boot: {googleClientId} when Google
+    // sign-in is configured, {} otherwise (name login stays primary either way).
+    if (req.method === 'GET' && p === '/api/house/auth-config') {
+      json(res, 200, config.googleClientId ? { googleClientId: config.googleClientId } : {}); return true;
+    }
+    // Who am I? Token → identity (and touch last_seen so the device shows as
+    // active). 401 when the token is missing/unknown — the client then falls
+    // back to its localStorage name identity.
+    if (req.method === 'GET' && p === '/api/house/me') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'no session' }); return true; }
+      json(res, 200, sessionPublic(s)); return true;
+    }
+    // The Account screen's "household" view: every member + their last logged
+    // chore + whether they're cleaning right now, plus recently-active app
+    // sessions (who's signed in on a device, last 30 days).
+    if (req.method === 'GET' && p === '/api/house/household') {
+      const cleaningIds = new Set(activeSessions().map((s) => s.user_id));
+      const users = listHouseUsersWithActivity().map((u) => ({
+        id: u.id, name: u.name, createdAt: u.created_at,
+        lastChoreTs: u.last_chore_ts || null,
+        cleaningNow: cleaningIds.has(u.id),
+      }));
+      const sessions = activeHouseSessions().map((s) => ({
+        userId: s.user_id, name: s.name, provider: s.provider,
+        email: s.email || null, picture: s.picture || null,
+        createdAt: s.created_at, lastSeen: s.last_seen,
+      }));
+      json(res, 200, { users, sessions, now: Date.now() }); return true;
     }
     // Web Push: the VAPID public key the browser needs to subscribe. A read, so
     // it's available everywhere the API is mounted (the wall server never sends).
@@ -139,7 +211,52 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       if (!/^[\p{L}\p{N} '._-]{1,40}$/u.test(name)) { json(res, 400, { error: 'invalid name' }); return true; }
       const user = upsertHouseUser(name);
       if (!user) { json(res, 400, { error: 'invalid name' }); return true; }
-      json(res, 200, { ok: true, user }); return true;
+      // Name pick/create doubles as login: mint a session so this device gets
+      // durable identity (the client stores the token + sends it on writes).
+      let session = null;
+      try { session = createHouseSession({ userId: user.id, provider: 'name' }); }
+      catch (e) { log(`session create failed: ${e}`); }
+      json(res, 200, { ok: true, user, token: session ? session.token : null, session: session ? sessionPublic(session) : null }); return true;
+    }
+
+    // Sign out this device: forget the presented token. Always "ok" — a missing
+    // or already-deleted token is just as signed-out.
+    if (req.method === 'POST' && p === '/api/house/logout') {
+      const token = (req.headers['x-roots-token'] || '').toString();
+      let removed = 0;
+      if (token) removed = deleteHouseSession(token);
+      json(res, 200, { ok: true, removed }); return true;
+    }
+
+    // Sign in with Google: the GIS button POSTs its ID token (credential) here.
+    // We verify it server-side against Google's tokeninfo endpoint, then
+    // find-or-create the house_user and mint a provider:'google' session.
+    if (req.method === 'POST' && p === '/api/house/google-login') {
+      if (!config.googleClientId) { json(res, 400, { error: 'google sign-in not configured' }); return true; }
+      if (!googleLimit()) { json(res, 429, { error: 'slow down' }); return true; }
+      const b = await parseJson(req);
+      const credential = (b && b.credential || '').toString();
+      // An ID token is a three-part JWT; sanity-check shape before phoning Google.
+      if (!credential || credential.length > 4096 || credential.split('.').length !== 3) {
+        json(res, 400, { error: 'invalid credential' }); return true;
+      }
+      const payload = await verifyGoogleIdToken(credential, config.googleClientId, log);
+      if (!payload) { json(res, 401, { error: 'google token rejected' }); return true; }
+      // Link back to an existing member: a previous google session with the
+      // same email wins; otherwise dedupe by display name (given_name) via the
+      // case-insensitive upsert — "Gui" signing in with Google stays "Gui".
+      let user = null;
+      const prior = latestHouseSessionByEmail(payload.email);
+      if (prior) user = getHouseUser(prior.user_id);
+      if (!user) {
+        const display = (payload.given_name || payload.name || payload.email.split('@')[0] || '').toString().trim().slice(0, 40);
+        user = upsertHouseUser(display.replace(/[^\p{L}\p{N} '._-]/gu, '').trim() || 'Guest');
+      }
+      if (!user) { json(res, 400, { error: 'could not create user' }); return true; }
+      const picture = /^https:\/\//.test(payload.picture || '') ? payload.picture.slice(0, 500) : null;
+      const session = createHouseSession({ userId: user.id, provider: 'google', email: payload.email, picture });
+      log(`google login: ${user.name} <${payload.email}>`);
+      json(res, 200, { ok: true, user, token: session.token, session: sessionPublic(session) }); return true;
     }
 
     if (req.method === 'POST' && p === '/api/house/session/start') {
@@ -247,7 +364,11 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       if (!/^https:\/\//.test(endpoint) || endpoint.length > 1024 || !p256dh || !auth) {
         json(res, 400, { error: 'invalid subscription' }); return true;
       }
-      const user = b && (b.userId || b.name) ? resolveUser(b) : null;
+      // Who owns this device? Prefer an explicit userId/name from the body, but
+      // fall back to the login session automatically (so a signed-in device is
+      // associated with its user even if the client sends nothing).
+      let user = b && (b.userId || b.name) ? resolveUser(b) : null;
+      if (!user) { const s = sessionFromReq(req, { touch: false }); if (s) user = getHouseUser(s.user_id); }
       try {
         addPushSubscription({ userId: user ? user.id : null, endpoint, p256dh, auth });
         log(`push subscribe${user ? ` (${user.name})` : ''}: …${endpoint.slice(-12)}`);

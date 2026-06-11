@@ -44,20 +44,25 @@ files, tables, endpoints, or its wall widget. Leave it strictly alone.
 `public/house/` dir, `src/house-api.mjs`, `src/push.mjs`, the `house_*` tables, the
 `/api/house/*` routes, `GARDENER_*` env names, and the `hearth-icon-*.png` assets.)
 Its files (all clearly namespaced):
-- `public/house/` — the Roots app (`index.html`, `app.js`, `house.css`): three
+- `public/house/` — the Roots app (`index.html`, `app.js`, `house.css`): five
   screens behind a bottom tab bar — Plant a Note · Community Macros (Start Clean
   Mode + a chore checklist of toggle checkboxes that batch-log on Confirm, plus
-  Undo/Clear-today + identity + an "Enable notifications 🔔" card) ·
-  Dashboard (leaderboard, day/week toggle, cleaning-now, activity, notifications).
+  Undo/Clear-today + identity mini-flow) · Dashboard (leaderboard, day/week
+  toggle, cleaning-now, activity, notifications) · **Wall** (a live mirror of the
+  wall dashboard in an iframe of `/wall`, scaled 900×1600 → phone width,
+  mounted only while the tab is open) · **You** (account: profile + provider
+  badge, optional Google sign-in, the "Enable notifications 🔔" card, the
+  household list with last activity + signed-in devices, Sign out).
   Also the PWA pieces: `sw.js` (push service worker) + `manifest.webmanifest`.
 - `src/house-api.mjs` — the household JSON API router (chore catalog, validation,
-  rankings, `houseStatus()`, push subscribe/unsubscribe, VAPID public key).
+  rankings, `houseStatus()`, push subscribe/unsubscribe, VAPID public key, login
+  sessions: `/api/house/me·logout·auth-config·google-login·household`).
   Imported by `plant-server.mjs` (full read+write, rate-limited) and `server.mjs`
   (read-only `/api/house/status` + `/api/house/vapid-public` for the widget).
 - `src/push.mjs` — Web Push helpers: owns the VAPID keypair and the fan-out send.
 - `db.mjs` — the `house_users / clean_sessions / chore_events / house_notifications
-  / house_push_subscriptions` tables + helpers (in the clearly-marked Roots
-  section). Do not touch them.
+  / house_push_subscriptions / house_sessions` tables + helpers (in the
+  clearly-marked Roots section). Do not touch them.
 - `public/widgets/house-cleaning.js` — the ONE wall widget that surfaces Roots on
   the dashboard ("🧹 \<name\> is cleaning" + today's top cleaners + recent chores),
   reading the localhost read-only `/api/house/status`. The agent may restyle the
@@ -82,3 +87,40 @@ logged** — same text as the in-app notification; dead subscriptions are pruned
 directly. **iOS (16.4+) only delivers web push to an INSTALLED PWA** — the user
 must use Share → "Add to Home Screen" and open Roots from that icon before the
 "Enable notifications" button works (the UI shows that hint on iOS Safari).
+
+**Login sessions + optional Google Sign-In.** Picking/typing a name on the
+identity flow now ALSO mints a server-side session (`house_sessions` table:
+token UNIQUE, user_id, provider `name`|`google`, email, picture, created_at,
+last_seen). The client stores the opaque token in localStorage (`hearth.token`)
+and sends it as the `x-roots-token` header on every API call; `GET
+/api/house/me` resolves it (touching last_seen), `POST /api/house/logout`
+deletes it. Sessions ENRICH identity — requests WITHOUT a token still work
+exactly as before (the household is never locked out), and push subscribe calls
+fall back to the session's user when no userId is sent. `GET
+/api/house/household` powers the You tab (all members + last chore/session
+activity + cleaning-now, plus sessions seen in the last 30 days).
+Google Sign-In is OPTIONAL and currently UNCONFIGURED — everything degrades
+gracefully: `GET /api/house/auth-config` returns `{}` and the You tab shows a
+quiet note instead of the button. To enable it:
+1. In Google Cloud Console → APIs & Services → Credentials, create an **OAuth
+   client ID** of type *Web application*.
+2. Add the authorized JavaScript origin
+   `https://spiritless-karissa-attent.ngrok-free.dev` (the permanent tunnel).
+3. Put `GARDENER_GOOGLE_CLIENT_ID=<the client id>` in `.env` and restart
+   `gardener-plant.service`.
+The Account screen then lazily loads GIS (`https://accounts.google.com/gsi/client`)
+and renders the button; the credential is POSTed to `/api/house/google-login`,
+verified server-side via Google's tokeninfo endpoint (aud/exp/email_verified —
+no new deps), linked to an existing member by prior session email or by
+given_name (case-insensitive upsert), and answered with a `provider:google`
+session carrying email + photo.
+
+**Wall view (read-only passthrough).** The plant-server proxies `GET /wall` →
+`http://127.0.0.1:8787/?screenshot=1` (screenshot mode hides the input bar +
+cursor, so it's view-only) plus a STRICT GET-only allowlist of the wall page's
+needs: `/app.js`, `/styles.css`, `/widgets/*` (.js + manifest.json), `/lib/*.js`,
+`/api/state`, `/api/version`, `/api/iterations`, `/api/proxy`,
+`/api/house/status`, `/api/pad/stream` (SSE, streamed). POSTs are never
+forwarded and nothing else (no `/api/feedback` GET, `/api/night`,
+`/api/pad/action`) is exposed. The Roots Wall tab embeds it in a scaled iframe
+that exists only while the tab is open.

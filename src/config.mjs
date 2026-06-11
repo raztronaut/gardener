@@ -45,6 +45,9 @@ export const config = {
   // Public base URL (e.g. an ngrok tunnel) the QR-notes widget encodes so phones
   // can plant notes remotely. Empty → the widget falls back to the page origin.
   publicUrl: (E.GARDENER_PUBLIC_URL || '').replace(/\/+$/, ''),
+  // Roots (household app): Google OAuth client id for optional Sign in with
+  // Google. Empty (the default) = name-only login; everything degrades cleanly.
+  googleClientId: E.GARDENER_GOOGLE_CLIENT_ID || '',
   port: num(E.GARDENER_PORT, 8787),
   host: E.GARDENER_HOST || '127.0.0.1',
   display: E.DISPLAY || ':0',
