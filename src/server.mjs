@@ -10,7 +10,7 @@ import { join, normalize, extname, resolve } from 'node:path';
 import { config, paths } from './config.mjs';
 import {
   addFeedback, getRecentFeedback, countPendingFeedback, deletePendingFeedback,
-  getUiVersion, getNight, setNight, latestIteration,
+  getUiVersion, getNight, setNight, latestIteration, setKV, getKV,
   recentIterations, latestCommitted, getEdits, setEdit,
 } from './db.mjs';
 import { recover } from './recover.mjs';
@@ -284,6 +284,15 @@ const server = http.createServer(async (req, res) => {
       setEdit(slot, value);
       log(`edit ${slot} = ${JSON.stringify(value)}`);
       return json(res, 200, { ok: true, slot, value });
+    }
+
+    // ---- FPS test results from the live kiosk (read back via kv / logs).
+    if (req.method === 'POST' && p === '/api/fps-result') {
+      let b; try { b = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: 'bad json' }); }
+      const compact = JSON.stringify(b).slice(0, 1500);
+      setKV('fps_last', JSON.stringify({ at: Date.now(), r: JSON.parse(compact) }));
+      log(`fps result: ${compact}`);
+      return json(res, 200, { ok: true });
     }
 
     // ---- controller (SN30 Pro) bridge: pad service POSTs, kiosk listens (SSE).

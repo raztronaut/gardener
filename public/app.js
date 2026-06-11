@@ -265,7 +265,12 @@ function panelOpen() { return !!document.getElementById('panel')?.classList.cont
 function openPanel(title, bodyEl) {
   const p = document.getElementById('panel'); if (!p) return;
   document.getElementById('panelTitle').textContent = title;
-  document.getElementById('panelBody').replaceChildren(bodyEl);
+  // Content goes inside a transform-scrolled wrapper: native scrollTop scrolling
+  // CPU-rasterizes the whole panel every frame in WebKitGTK (measured 3.7fps on
+  // the Jetson), while translateY runs on the compositor (~57fps). All panel
+  // scrolling goes through panelScrollBy() below.
+  document.getElementById('panelBody').replaceChildren(h('div', { class: 'panel-inner' }, bodyEl));
+  panelScroll.cur = 0; panelScroll.target = 0;
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the
@@ -590,6 +595,7 @@ const COMMANDS = [
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
+  { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
@@ -643,6 +649,123 @@ function wireCommandPalette(input) {
     else if (e.key === 'Tab') { e.preventDefault(); input.value = '/' + palMatches[palSel].cmd; updatePalette(input); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hidePalette(); }
   });
+}
+
+// ---- panel scrolling ----------------------------------------------------------
+// Single entry point for pad/keyboard/wheel scrolling of the open panel. Native
+// scrollBy: the chromium kiosk composites scrolling off the main thread (60fps).
+const panelScroll = { cur: 0, target: 0 }; // retained for openPanel reset compat
+function panelScrollBy(px) {
+  const body = document.getElementById('panelBody');
+  if (body) body.scrollBy({ top: px, behavior: 'smooth' });
+}
+// Mouse wheel already scrolls a native overflow container; nothing to intercept.
+
+// ---- FPS test (/fps, pad action 'fpstest') -----------------------------------
+// Measures REAL requestAnimationFrame rates in this renderer (surf/WebKitGTK on
+// the wall) across three scenarios: idle, panel scrolling, and a transform
+// animation. Results render in a panel and POST to /api/fps-result so the
+// outside world (Claude, scripts) can read what the wall actually achieves.
+function fpsMeasure(ms, onFrame) {
+  return new Promise((resolve) => {
+    let frames = 0, t0 = 0, last = 0, worst = 0, over20 = 0;
+    function tick(t) {
+      if (!t0) { t0 = t; last = t; requestAnimationFrame(tick); return; }
+      frames++;
+      const d = t - last; last = t;
+      if (d > worst) worst = d;
+      if (d > 20) over20++; // frames that missed the 60fps budget (16.7ms)
+      if (onFrame) { try { onFrame(t); } catch { /* keep measuring */ } }
+      if (t - t0 < ms) requestAnimationFrame(tick);
+      else resolve({ fps: +(frames / ((t - t0) / 1000)).toFixed(1), worstMs: Math.round(worst), missed: over20, frames });
+    }
+    requestAnimationFrame(tick);
+  });
+}
+async function runFpsTest() {
+  toast('⏱ measuring — 10s, don’t touch');
+  closePanel(); hidePalette();
+  const idle = await fpsMeasure(2500);
+  // scroll scenario: real content (the changelog panel), scrolled EXACTLY the
+  // way users scroll it — smooth glides via panelScrollBy (compositor-animated
+  // in chromium). rAF is sampled across three full glides.
+  await showIterations();
+  await new Promise((r) => setTimeout(r, 900));
+  let dir = 1, lastKick = 0;
+  const scroll = await fpsMeasure(3000, (t) => {
+    if (t - lastKick > 950) { lastKick = t; panelScrollBy(1200 * dir); dir = -dir; }
+  });
+  closePanel();
+  // transform scenario: a GPU-layer card sweeping back and forth
+  const probe = h('div', { style: { position: 'fixed', left: '0', top: '42%', width: '220px', height: '130px',
+    background: 'var(--glass-2)', border: '1px solid var(--stroke-strong)', borderRadius: '22px',
+    zIndex: '150', willChange: 'transform' } });
+  document.body.appendChild(probe);
+  const anim = await fpsMeasure(3000, (t) => { probe.style.transform = `translateX(${Math.round((Math.sin(t / 280) + 1) * 330)}px)`; });
+  probe.remove();
+  const result = { idle, scroll, anim };
+  fetch('/api/fps-result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result) }).catch(() => {});
+  const row = (k, m) => h('div', { class: 'cl-row' },
+    h('div', { class: 'cl-id' }, m.fps >= 55 ? '✓' : m.fps >= 40 ? '~' : '✗'),
+    h('div', { class: 'cl-main' },
+      h('div', { class: 'cl-phrase' }, `${k}: ${m.fps} fps`),
+      h('div', { class: 'cl-meta' }, `worst frame ${m.worstMs}ms · ${m.missed} frames missed the 60fps budget`)));
+  openPanel('Render performance — 60fps test', h('div', { class: 'cl' }, row('idle', idle), row('scrolling', scroll), row('animation', anim)));
+  return result;
+}
+
+// Deep scroll diagnosis (pad action 'fpstestb'): discriminates layer-SIZE from
+// layer-NESTING as the reason panel scrolling won't composite.
+async function runFpsTestB() {
+  toast('⏱ deep scroll diagnosis');
+  // A: BIG (840×1300) fixed text layer translated per frame — tests pure size.
+  const rows = [];
+  for (let i = 0; i < 40; i++) rows.push(h('div', { style: { padding: '10px 0', borderBottom: '1px solid rgba(140,240,195,.16)', fontSize: '15px' } }, `Row ${i} — the quick brown fox jumps over the lazy dog`));
+  const layer = h('div', { style: { willChange: 'transform' } }, ...rows);
+  const big = h('div', { style: { position: 'fixed', left: '30px', top: '40px', width: '840px', height: '1300px', overflow: 'hidden', zIndex: '140', background: 'rgba(12,32,27,.92)' } }, layer);
+  document.body.appendChild(big);
+  let y = 0, dir = 1;
+  const bigfixed = await fpsMeasure(2500, () => { y += 8 * dir; if (y > 600 || y < 0) dir = -dir; layer.style.transform = `translateY(${-y}px)`; });
+  big.remove();
+  // B: the real panel path, but with position:relative + translateZ forced.
+  await showIterations();
+  await new Promise((r) => setTimeout(r, 900));
+  const inner = document.querySelector('#panel .panel-inner');
+  if (inner) { inner.style.position = 'relative'; inner.style.transform = 'translateZ(0)'; }
+  let steps = 0, dir2 = 1;
+  const nested3d = await fpsMeasure(2500, () => { panelScrollBy(8 * dir2); if (++steps % 80 === 0) dir2 = -dir2; });
+  closePanel();
+  const result = { bigfixed, nested3d };
+  fetch('/api/fps-result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result) }).catch(() => {});
+  return result;
+}
+
+// Size-bisect + tiling validation (pad action 'fpstestc'): at what layer size
+// does compositor promotion die, and do small composited TILES inside a moving
+// parent stay on the GPU?
+async function runFpsTestC() {
+  toast('⏱ size/tiling diagnosis');
+  const mkRows = (n) => { const a = []; for (let i = 0; i < n; i++) a.push(h('div', { style: { padding: '9px 0', borderBottom: '1px solid rgba(140,240,195,.16)', fontSize: '15px' } }, `Row ${i} — the quick brown fox jumps over the lazy dog`)); return a; };
+  const sweep = async (layer) => { let y = 0, dir = 1; return fpsMeasure(2200, () => { y += 8 * dir; if (y > 250 || y < 0) dir = -dir; layer.style.transform = `translateY(${-y}px)`; }); };
+  const host = (hgt, kid) => h('div', { style: { position: 'fixed', left: '30px', top: '40px', width: '840px', height: hgt + 'px', overflow: 'hidden', zIndex: '140', background: 'rgba(12,32,27,.92)' } }, kid);
+  const out = {};
+  for (const [key, hgt, rows] of [['h400', 400, 13], ['h800', 800, 25]]) {
+    const layer = h('div', { style: { willChange: 'transform' } }, ...mkRows(rows));
+    const box = host(hgt, layer);
+    document.body.appendChild(box);
+    out[key] = await sweep(layer);
+    box.remove();
+  }
+  // tiled: parent translated, five ~260px children each its own composited layer
+  const tiles = [];
+  for (let t = 0; t < 5; t++) tiles.push(h('div', { style: { willChange: 'transform', transform: 'translateZ(0)' } }, ...mkRows(8)));
+  const parent = h('div', {}, ...tiles);
+  const box = host(1300, parent);
+  document.body.appendChild(box);
+  out.tiled = await sweep(parent);
+  box.remove();
+  fetch('/api/fps-result', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) }).catch(() => {});
+  return out;
 }
 
 // ---- hand pruning: right-click any [data-editable] text to edit it in place --
@@ -732,7 +855,7 @@ function wirePad() {
           palSel = (palSel + (action === 'down' ? 1 : -1) + palMatches.length) % palMatches.length;
           updatePalette(input);
         } else if (panelOpen()) {
-          panelBody()?.scrollBy({ top: action === 'down' ? 140 : -140, behavior: 'smooth' });
+          panelScrollBy(action === 'down' ? 160 : -160);
         }
         break;
       }
@@ -757,10 +880,13 @@ function wirePad() {
         break;
       case 'pageup':
       case 'pagedown':
-        if (panelOpen()) panelBody()?.scrollBy({ top: action === 'pagedown' ? 520 : -520, behavior: 'smooth' });
+        if (panelOpen()) panelScrollBy(action === 'pagedown' ? 540 : -540);
         break;
       case 'help': panelOpen() ? closePanel() : showHelp(); break;
       case 'changelog': panelOpen() ? closePanel() : showIterations(); break;
+      case 'fpstest': runFpsTest(); break;
+      case 'fpstestb': runFpsTestB(); break;
+      case 'fpstestc': runFpsTestC(); break;
       default: break; // left/right/noop — unused for now
     }
   };
@@ -790,7 +916,7 @@ function wireFeedback() {
       const step = 64, page = sb.clientHeight - 60;
       const moves = { ArrowDown: step, ArrowUp: -step, PageDown: page, PageUp: -page,
         Home: -1e9, End: 1e9, ' ': page };
-      if (e.key in moves) { e.preventDefault(); sb.scrollBy({ top: moves[e.key], behavior: 'smooth' }); }
+      if (e.key in moves) { e.preventDefault(); panelScrollBy(moves[e.key]); }
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;

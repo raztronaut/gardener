@@ -277,7 +277,11 @@ body.screenshot #streetalarm { display: none !important; }
     var(--glass-2);
   border: 1px solid var(--stroke-strong); border-radius: 28px;
   box-shadow: 0 -10px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(120,247,176,.05);
-  overflow: hidden; animation: panelRise .5s cubic-bezier(.16,.84,.3,1) both; }
+  /* overflow stays VISIBLE: a rounded-corner clip (border-radius + overflow:
+     hidden) forces WebKitGTK to software-rasterize the transformed scroll layer
+     inside (measured 3.9fps). The rectangular clip on .panel-body does the real
+     clipping; the radius here is purely visual. */
+  overflow: visible; animation: panelRise .5s cubic-bezier(.16,.84,.3,1) both; }
 /* A thin luminous accent along the top edge — the seam it unfurls from. */
 .panel-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
   background: linear-gradient(90deg, transparent, var(--mint), var(--mint-2), transparent); opacity: .7; }
@@ -297,7 +301,9 @@ body.screenshot #streetalarm { display: none !important; }
   padding: 7px 14px; cursor: pointer; white-space: nowrap; }
 .panel-close:hover { color: var(--ink); border-color: var(--stroke-strong); }
 .panel-card:focus { outline: none; }
-.panel-body { padding: 2px 28px 28px; overflow-y: auto; }
+/* Native overflow scrolling: the chromium kiosk threads/composites it (smooth);
+   panelScrollBy() in app.js drives it. */
+.panel-body { padding: 2px 28px 28px; overflow-y: auto; overscroll-behavior: contain; }
 .cl { display: flex; flex-direction: column; }
 .cl-row { display: flex; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--stroke); }
 .cl-row:last-child { border-bottom: none; }

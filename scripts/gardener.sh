@@ -89,10 +89,21 @@ case "$cmd" in
     # Force WebKitGTK's accelerated-compositing path so CSS transform/opacity
     # animations run on the Jetson GPU instead of being CPU-rasterized (which
     # made them choppy, especially with the cards' box-shadows + gradients).
-    export WEBKIT_FORCE_COMPOSITING_MODE=1
-    # Prefer the patched surf (Escape unbound, built by scripts/build-surf.sh)
-    # so the dashboard can use Esc; fall back to the system surf otherwise.
-    SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
-    exec "$SURF" -F "http://127.0.0.1:$PORT" ;;
+    # KIOSK ENGINE — chromium by default: measured on this Jetson, surf/WebKitGTK
+    # CPU-paints every frame (~3.4Mpx/s; scrolling 4fps, fps ∝ painted area; no
+    # GPU layer caching — engine limit, not tunable), while chromium is fully
+    # GPU-composited and holds 60fps. Set GARDENER_KIOSK=surf to use the patched
+    # memory-light surf instead (Esc works there too; scrolling will be choppy).
+    ENGINE="$(grep -E '^GARDENER_KIOSK=' .env 2>/dev/null | cut -d= -f2 || true)"
+    if [ "$ENGINE" = "surf" ]; then
+      export WEBKIT_FORCE_COMPOSITING_MODE=1
+      SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
+      exec "$SURF" -F "http://127.0.0.1:$PORT"
+    fi
+    exec /snap/bin/chromium --kiosk "http://127.0.0.1:$PORT" \
+      --user-data-dir="$HOME/.config/gardener-kiosk-chrome" \
+      --noerrdialogs --disable-session-crashed-bubble --disable-infobars \
+      --no-first-run --password-store=basic \
+      --window-position=0,0 --window-size=900,1600 ;;
   *) echo "usage: gardener.sh {server|iterate|day|evening|night|sync|plant|tunnel|kiosk}"; exit 2 ;;
 esac
