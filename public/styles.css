@@ -73,7 +73,9 @@ html, body {
    frame, so any 60fps animation (even a tiny spinner) would re-blur it and peg a
    CPU core. Soft gradients give the same glow for ~free and stay free under motion. */
 .aurora {
-  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+  /* absolute (not fixed): inside #zoomroot everything must zoom TOGETHER —
+     fixed children escape the CSS zoom and mis-register (white bands). */
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
   background:
     radial-gradient(58% 42% at 12% 8%, rgba(30,233,168,.22), transparent 70%),
     radial-gradient(52% 40% at 92% 32%, rgba(26,160,255,.15), transparent 70%),
@@ -209,7 +211,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 
 /* ---------- slash-command palette (Claude-Code-style) ----------
    Floats just above the input; filtered as you type; ↑/↓ + Enter to run. */
-#cmdpal { position: fixed; left: 30px; right: 30px; bottom: 96px; z-index: 60;
+#cmdpal { position: absolute; left: 30px; right: 30px; bottom: 96px; z-index: 60; /* absolute: zooms with #zoomroot */
   background: var(--glass-2); border: 1px solid var(--stroke-strong);
   border-radius: 18px; box-shadow: var(--shadow); overflow: hidden;
   animation: palUp .18s ease both; }
@@ -295,7 +297,7 @@ body.screenshot #streetalarm { display: none !important; }
    Anchored to the BOTTOM (just above the feedback bar) and grows UPWARD to only
    the height its content needs — so it reads as unfurling up out of the input.
    One-shot entrance animations only (no perpetual motion → idle-friendly). */
-#panel { position: fixed; inset: 0; z-index: 90; display: none;
+#panel { position: absolute; inset: 0; z-index: 90; display: none; /* absolute: zooms with #zoomroot */
   align-items: flex-end; justify-content: center;
   background: rgba(2, 10, 8, 0.72); padding: 44px 34px 104px; }
 #panel.open { display: flex; animation: panelVeil .28s ease both; }
