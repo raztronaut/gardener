@@ -35,7 +35,7 @@ export default {
       .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:4px; }
       .wx-meta .cond { font-size:19px; font-weight:600; color:var(--ink); }
       .wx-meta .range { font-family:var(--font-mono); font-size:13.5px; color:var(--ink-faint); letter-spacing:.02em; }
-      .wx-meta .sun { font-family:var(--font-mono); font-size:13.5px; color:var(--gold); letter-spacing:.02em; }
+      .wx-meta .sun { font-family:var(--font-mono); font-size:13.5px; color:var(--ink-soft); letter-spacing:.02em; }
       .wx-stats { display:flex; gap:10px; }
       .wx-stat { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:14px;
         padding:4px 13px; display:flex; flex-direction:column; gap:1px; }

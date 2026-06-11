@@ -229,7 +229,10 @@ body.night #cursor, body.screenshot #cursor { display: none; }
   text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 
 /* ---------- widget focus (right-stick highlight) ---------- */
-.card.focused { border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35); }
+/* Controller focus AND cursor hover share the same mint ring + glow. */
+.card.focused, #garden > .card[data-wid]:hover {
+  border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35);
+  cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
 
 /* ---------- fullscreen widget panel ---------- */
 .panel-widget { padding: 10px 2px; min-height: 220px; }
@@ -278,7 +281,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
    by the served doc). The panel body itself does NOT scroll while reading, so
    there's no second outer scrollbar fighting it. */
 .reader { padding: 4px 2px 14px; }
-.panel-body.reading { overflow: hidden; height: 72vh; display: flex; flex-direction: column; }
+.panel-body.reading { overflow: hidden; height: calc(100vh - 150px); display: flex; flex-direction: column; }
 .reader-frame-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 .rd-frame { flex: 1; min-height: 0; width: 100%; border: 1px solid var(--stroke);
   border-radius: 14px; background: #fff; }
