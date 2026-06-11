@@ -9,6 +9,12 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <!-- Zoom root: controller zoom (L1/R1) scales THIS wrapper. Fixed-position
+       descendants scale with it (a transformed ancestor becomes their containing
+       block); body/canvas stay untransformed + dark, so no white letterbox and
+       no root-scroller scrolling. nightveil + cursor live OUTSIDE on purpose
+       (full-screen blackout and a constant-size pointer at any zoom). -->
+  <div id="zoomroot">
   <!-- The aurora backdrop (template-owned, stable) -->
   <div class="aurora" aria-hidden="true">
     <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
@@ -61,6 +67,8 @@
       <div class="panel-body" id="panelBody"></div>
     </div>
   </div>
+
+  </div><!-- /zoomroot -->
 
   <!-- Opaque night overlay (energy saving). Pure black; covers everything. -->
   <div id="nightveil" aria-hidden="true"></div>

@@ -172,10 +172,7 @@ async function boot() {
   // Restore the controller-set zoom level (L1/R1) across reloads.
   try {
     const lvl = parseInt(localStorage.getItem('garden.zoomlvl') || '0', 10) || 0;
-    if (lvl !== 0) {
-      document.documentElement.style.transformOrigin = '50% 0';
-      document.documentElement.style.transform = `scale(${Math.pow(1.2, lvl).toFixed(4)})`;
-    }
+    if (lvl !== 0) setZoomLevel(lvl);
   } catch { /* ignore */ }
 
   // Load manifest + widgets.
@@ -613,7 +610,7 @@ let palEl = null, palMatches = [], palSel = 0;
 function ensurePalette() {
   if (palEl) return palEl;
   palEl = h('div', { id: 'cmdpal', hidden: true });
-  document.body.appendChild(palEl);
+  (document.getElementById('zoomroot') || document.body).appendChild(palEl); // scales with the page
   return palEl;
 }
 function hidePalette() { if (palEl) { palEl.hidden = true; } palMatches = []; palSel = 0; }
@@ -665,13 +662,23 @@ function wireCommandPalette(input) {
 // scale uniformly with the page (the thing plain CSS body-zoom got wrong).
 // Zoom-in magnifies from the top-center (edges crop); zoom-out shrinks with the
 // theme-dark backdrop showing around it — never a white letterbox.
+function setZoomLevel(lvl) {
+  const z = Math.pow(1.2, lvl); // Chrome's zoom ladder
+  const root = document.getElementById('zoomroot');
+  if (!root) return z;
+  if (lvl === 0) { root.style.zoom = ''; root.style.width = ''; root.style.height = ''; }
+  else {
+    root.style.zoom = z.toFixed(4);
+    root.style.width = (900 / z).toFixed(1) + 'px';   // compensated → zoomed layout
+    root.style.height = (1600 / z).toFixed(1) + 'px'; //   is exactly the screen
+  }
+  checkOverflow(); // reflow changes fit — keep the guards honest
+  return z;
+}
 function applyZoom(dir) {
   let lvl = parseInt(localStorage.getItem('garden.zoomlvl') || '0', 10) || 0;
   lvl = dir === 0 ? 0 : Math.max(-5, Math.min(5, lvl + dir));
-  const z = Math.pow(1.2, lvl); // Chrome's zoom ladder
-  const root = document.documentElement;
-  root.style.transformOrigin = '50% 0';
-  root.style.transform = lvl === 0 ? '' : `scale(${z.toFixed(4)})`;
+  const z = setZoomLevel(lvl);
   try { localStorage.setItem('garden.zoomlvl', String(lvl)); } catch { /* ignore */ }
   toast(`🔍 ${Math.round(z * 100)}%`);
 }
@@ -1075,6 +1082,11 @@ async function wireCornerQr() {
 // The tunnel URL can rotate (cloudflared fallback restarts) without a version
 // bump/page reload — re-check periodically so the wall QR never goes stale.
 setInterval(() => { wireCornerQr().catch(() => {}); }, 60000);
+
+// The kiosk page must NEVER scroll: focusing the note bar auto-scrolls the root
+// scroller over zoom-scaled content (even with overflow:hidden), exposing raw
+// canvas. Pin it at the origin.
+window.addEventListener('scroll', () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); }, { passive: true });
 
 if (SCREENSHOT) document.body.classList.add('screenshot');
 wireFeedback();

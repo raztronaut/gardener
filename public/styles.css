@@ -50,6 +50,11 @@
 
 /* Root stays theme-dark so controller zoom-out letterboxes in bg color, never white. */
 html { background: var(--bg-0); }
+/* Controller-zoom wrapper. CSS `zoom` (not transform) so content REFLOWS like
+   real Chrome zoom; width/height are compensated in JS (900/z × 1600/z) so the
+   zoomed layout is always exactly the 900×1600 screen — nothing can overflow,
+   crop, or expose white canvas. */
+#zoomroot { width: var(--w); height: var(--h); position: relative; }
 
 html, body {
   width: var(--w);
@@ -85,7 +90,7 @@ html, body {
 /* ---------- shell layout ---------- */
 #stage {
   position: relative; z-index: 1;
-  width: var(--w); height: var(--h);
+  width: 100%; height: 100%; /* fills #zoomroot so controller zoom can REFLOW it */
   display: grid;
   grid-template-rows: auto 1fr auto;
   padding: 30px 26px 22px;
