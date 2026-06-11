@@ -398,45 +398,23 @@ function showPadMap() {
     `<text x="${x}" y="${y + i * 17}" text-anchor="${anchor}" font-size="13.5" font-family="Inter,sans-serif"
        fill="${i === 0 ? '#74f7b0' : '#a8c8bd'}" font-weight="${i === 0 ? '700' : '400'}">${t}</text>`).join('');
   const line = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(140,240,195,.35)" stroke-width="1.2"/>`;
-  const btn = (cx, cy, r, t) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <text x="${cx}" y="${cy + 4.5}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#eafff4" font-family="Inter,sans-serif">${t}</text>`;
+  const dot = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#74f7b0" opacity=".9"/>`;
+  // Official 8BitDo front render (public/assets/sn30pro.png, 430×175) placed at
+  // (165,120); callout anchors below are measured button positions in the photo.
   const svg = `
   <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
-    <!-- shoulders -->
-    <rect x="252" y="40" width="80" height="20" rx="9" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <text x="292" y="54" text-anchor="middle" font-size="11.5" font-weight="700" fill="#eafff4">L2</text>
-    <rect x="428" y="40" width="80" height="20" rx="9" fill="rgba(116,247,176,.22)" stroke="#74f7b0"/>
-    <text x="468" y="54" text-anchor="middle" font-size="11.5" font-weight="700" fill="#eafff4">R2</text>
-    <rect x="252" y="66" width="80" height="18" rx="8" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <text x="292" y="79" text-anchor="middle" font-size="11" font-weight="700" fill="#eafff4">L1</text>
-    <rect x="428" y="66" width="80" height="18" rx="8" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <text x="468" y="79" text-anchor="middle" font-size="11" font-weight="700" fill="#eafff4">R1</text>
-    <!-- body -->
-    <rect x="220" y="92" width="320" height="150" rx="42" fill="rgba(12,32,27,.85)" stroke="rgba(140,240,195,.45)" stroke-width="1.5"/>
-    <!-- d-pad -->
-    <rect x="258" y="148" width="22" height="58" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <rect x="240" y="166" width="58" height="22" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <!-- face buttons (Nintendo diamond) -->
-    ${btn(469, 144, 13, 'X')} ${btn(440, 170, 13, 'Y')} ${btn(498, 170, 13, 'A')} ${btn(469, 196, 13, 'B')}
-    <!-- select/start -->
-    <rect x="340" y="160" width="28" height="11" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <rect x="392" y="160" width="28" height="11" rx="5" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <text x="354" y="186" text-anchor="middle" font-size="9.5" fill="#6f9388">SELECT</text>
-    <text x="406" y="186" text-anchor="middle" font-size="9.5" fill="#6f9388">START</text>
-    <!-- stick -->
-    <circle cx="320" cy="212" r="18" fill="rgba(116,247,176,.10)" stroke="rgba(140,240,195,.5)"/>
-    <circle cx="320" cy="212" r="9" fill="rgba(116,247,176,.25)"/>
+    <image href="/assets/sn30pro.png?v=${window.__GARDEN_VERSION}" x="165" y="120" width="430" height="175"/>
     <!-- callouts: left column -->
-    ${line(252, 50, 150, 50)}${lab(142, 54, 'end', ['L2 — back', 'close panel / palette (Esc)'])}
-    ${line(252, 75, 150, 100)}${lab(142, 104, 'end', ['L1 / R1 — page', 'scroll long panels'])}
-    ${line(269, 177, 150, 177)}${lab(142, 181, 'end', ['D-pad / stick', 'select &amp; scroll'])}
-    ${line(340, 165, 150, 248)}${lab(142, 252, 'end', ['SELECT — changelog', 'START — help'])}
+    ${dot(225, 134)}${line(225, 134, 150, 52)}${lab(142, 56, 'end', ['L2 — back', 'close panel / palette (Esc)'])}
+    ${dot(245, 150)}${line(245, 150, 150, 102)}${lab(142, 106, 'end', ['L1 / R1 — page', 'scroll long panels'])}
+    ${dot(262, 190)}${line(262, 190, 150, 179)}${lab(142, 183, 'end', ['D-pad / stick', 'select &amp; scroll'])}
+    ${dot(345, 194)}${line(345, 194, 150, 250)}${lab(142, 254, 'end', ['SELECT — changelog', 'START — help'])}
     <!-- callouts: right column -->
-    ${line(508, 50, 612, 50)}${lab(620, 54, 'start', ['R2 — commands', 'tap: palette · hold: this map'])}
-    ${line(482, 144, 612, 122)}${lab(620, 126, 'start', ['X — palette'])}
-    ${line(511, 170, 612, 170)}${lab(620, 174, 'start', ['A — run selected'])}
-    ${line(482, 196, 612, 218)}${lab(620, 222, 'start', ['B — events panel'])}
-    ${line(453, 170, 430, 290)}${lab(430, 308, 'middle', ['Y — Hacker News'])}
+    ${dot(535, 134)}${line(535, 134, 612, 52)}${lab(620, 56, 'start', ['R2 — commands', 'tap: palette · hold: this map'])}
+    ${dot(495, 161)}${line(495, 161, 612, 124)}${lab(620, 128, 'start', ['X — palette'])}
+    ${dot(533, 190)}${line(533, 190, 612, 176)}${lab(620, 180, 'start', ['A — run selected'])}
+    ${dot(495, 221)}${line(495, 221, 612, 224)}${lab(620, 228, 'start', ['B — events panel'])}
+    ${dot(457, 190)}${line(457, 190, 430, 296)}${lab(430, 314, 'middle', ['Y — Hacker News'])}
     <text x="${W / 2}" y="${H - 14}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">8BitDo SN30 Pro · paired over Bluetooth · also type /controls</text>
   </svg>`;
   openPanel('Controller — button map', h('div', { class: 'cl', html: svg }));
