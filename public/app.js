@@ -431,7 +431,7 @@ function showPadMap() {
     ${dot(262, 190)}${line(262, 190, 150, 179)}${lab(142, 183, 'end', ['D-pad / stick', 'select &amp; scroll'])}
     ${dot(345, 194)}${line(345, 194, 150, 250)}${lab(142, 254, 'end', ['SELECT — changelog', 'START — help'])}
     <!-- callouts: right column -->
-    ${dot(535, 134)}${line(535, 134, 612, 52)}${lab(620, 56, 'start', ['R2 — commands', 'tap: palette · hold: this map'])}
+    ${dot(535, 134)}${line(535, 134, 612, 52)}${lab(620, 56, 'start', ['R2 — hold to peek', 'this map (release to close)'])}
     ${dot(495, 161)}${line(495, 161, 612, 124)}${lab(620, 128, 'start', ['X — palette'])}
     ${dot(533, 190)}${line(533, 190, 612, 176)}${lab(620, 180, 'start', ['A — run selected'])}
     ${dot(495, 221)}${line(495, 221, 612, 224)}${lab(620, 228, 'start', ['B — events panel'])}
@@ -841,6 +841,7 @@ function saveEdit(slot, value, msg) {
 function wirePad() {
   const input = document.getElementById('feedbackInput');
   const panelBody = () => document.querySelector('#panel .panel-body');
+  let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
     const pal = paletteOpen();
     switch (action) {
@@ -870,9 +871,13 @@ function wirePad() {
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showHackerNews();
         break;
-      case 'padmap':
+      case 'padmap': // R2 down — peek the controller map instantly
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showPadMap();
+        padMapPeek = true;
+        break;
+      case 'padmapend': // R2 released — close the peeked map
+        if (padMapPeek) { padMapPeek = false; if (panelOpen()) closePanel(); }
         break;
       case 'back':
         if (pal) { hidePalette(); if (input) input.value = ''; }
