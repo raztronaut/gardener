@@ -9,6 +9,6 @@
     { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 6 },
     { "id": "sun-moon", "file": "sun-moon.js", "enabled": true, "order": 7 },
     { "id": "mario", "file": "mario.js", "enabled": true, "order": 8 },
-    { "id": "on-this-day", "file": "on-this-day.js", "enabled": true, "order": 9 }
+    { "id": "tides", "file": "tides.js", "enabled": true, "order": 9 }
   ]
 }
