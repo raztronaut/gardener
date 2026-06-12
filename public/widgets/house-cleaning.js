@@ -31,7 +31,12 @@ export default {
       .rt .live .t { font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); font-weight:400; }
       .rt .chip { display:flex; align-items:center; gap:7px; flex:none;
         font-size:14.5px; color:var(--ink); background:rgba(255,255,255,.045);
-        border:1px solid var(--stroke); border-radius:999px; padding:5px 12px; }
+        border:1px solid var(--stroke); border-radius:999px; padding:4px 12px 4px 5px; }
+      /* tiny profile avatar — Google photo or a colored initial bubble */
+      .rt .av { width:22px; height:22px; border-radius:50%; flex:none; object-fit:cover;
+        display:flex; align-items:center; justify-content:center;
+        font-size:11px; font-weight:700; color:#0b1f17; }
+      .rt .live .av { width:20px; height:20px; }
       .rt .chip .pts { font-family:var(--font-display); font-weight:700; color:var(--mint); font-size:15.5px; }
       .rt .recent { font-size:13.5px; color:var(--ink-faint); display:flex; align-items:center; gap:6px;
         min-width:0; overflow:hidden; }
@@ -45,6 +50,18 @@ export default {
     const CHORE_LABEL = { trash: 'took the trash out', counters: 'wiped counters', vacuum: 'vacuumed', dishwasher_run: 'ran the dishwasher', dishwasher_empty: 'put dishes away', curb: 'trash to the curb', other: 'a chore' };
     const ago = (ts) => { const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? 'now' : s < 3600 ? Math.round(s / 60) + 'm' : s < 86400 ? Math.round(s / 3600) + 'h' : Math.round(s / 86400) + 'd'; };
     const MEDAL = ['🥇', '🥈'];
+    // A small avatar: the user's chosen picture (uploaded photo or Google photo),
+    // else a deterministic colored-initial bubble. `avatarUrl` is resolved by the
+    // API (uploaded > google); googlePicture is the legacy fallback field.
+    const AV_HUES = [150, 168, 186, 42, 200, 128, 96, 18];
+    const avatar = (u) => {
+      const url = (u && u.avatarUrl) || (u && u.googlePicture);
+      if (url) return h('img', { class: 'av', src: url, alt: '', referrerpolicy: 'no-referrer' });
+      const name = String((u && u.name) || '?');
+      let hsh = 0; for (let i = 0; i < name.length; i++) hsh = (hsh * 31 + name.charCodeAt(i)) >>> 0;
+      const hue = AV_HUES[hsh % AV_HUES.length];
+      return h('span', { class: 'av', style: `background:linear-gradient(135deg,hsl(${hue} 70% 62%),hsl(${(hue + 28) % 360} 72% 52%))` }, (name[0] || '?').toUpperCase());
+    };
 
     const render = async () => {
       let s;
@@ -66,7 +83,7 @@ export default {
       for (const c of cleaning.slice(0, 2)) {
         const mins = c.started_at ? Math.max(1, Math.round((Date.now() - c.started_at) / 60000)) : null;
         parts.push(h('div', { class: 'live' },
-          h('span', { class: 'dot' }), `${c.name} cleaning`,
+          h('span', { class: 'dot' }), avatar(c), `${c.name} cleaning`,
           mins ? h('span', { class: 't' }, `${mins}m`) : null));
       }
 
@@ -75,7 +92,7 @@ export default {
       if (board.length) {
         if (parts.length) parts.push(h('div', { class: 'sep' }));
         board.forEach((p, i) => parts.push(h('div', { class: 'chip' },
-          MEDAL[i] || '', p.name, h('span', { class: 'pts' }, String(p.points)))));
+          avatar(p), MEDAL[i] || '', p.name, h('span', { class: 'pts' }, String(p.points)))));
       }
 
       // Priority 3 — the single most recent completion.
