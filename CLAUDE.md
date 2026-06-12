@@ -127,6 +127,41 @@ no new deps), linked to an existing member by prior session email or by
 given_name (case-insensitive upsert), and answered with a `provider:google`
 session carrying email + photo.
 
+**Mandatory Google login GATE (when configured).** When `auth-config` returns a
+`googleClientId`, the app raises a full-screen, on-brand login gate (aurora bg,
+Space Grotesk "Roots" wordmark, ONLY a "Sign in with Google" button) on boot and
+keeps the tab bar + every screen hidden (`body.gated`) until there's a valid
+`/me` session. After a successful `google-login` the gate is dismissed, the app
+revealed, and the current user set from the session; Sign out (You tab) returns
+to the gate. SAFETY FALLBACK: when `auth-config` returns `{}` (dev / unconfigured)
+the gate NEVER shows and the classic name-pick / type-your-name login runs exactly
+as before, so an unconfigured install is never bricked. The read-only wall
+surface (`/api/house/status`) is unaffected — the gate is purely client-side.
+
+**Rename yourself + profile picture (Roots, June 2026).**
+- New idempotent column `house_users.avatar TEXT` (migrated via a try/catch
+  `ALTER TABLE … ADD COLUMN`). Semantics: `'google'`/`NULL` → the Google account
+  photo (latest `house_sessions.picture` for that user) if present, else the
+  colored-initial bubble; `'preset:<id>'` → one of a curated, client-rendered
+  set (NO uploads). Presets (10): 4 gradient monograms (`hue-mint/teal/gold/rose`)
+  + 6 mint inline-SVG glyphs (`leaf/sprout/sun/moon/star/drop`). The allow-list
+  lives in `AVATAR_PRESETS` in `house-api.mjs` (server validates) mirrored by the
+  same ids in `app.js` (`renderAvatar()` renders them deterministically).
+- New session-gated, rate-limited write endpoints (own row only — the body can't
+  target another user; the session's `user_id` is authoritative):
+  - `POST /api/house/profile/name { name }` — rename in place (same row → UNIQUE
+    stays happy; live name propagates through every join). 1–24 chars, trimmed,
+    non-blank → 400; a name another member owns → **409**; missing token → 401.
+  - `POST /api/house/profile/avatar { avatar }` — `'google'` (stored as NULL) or a
+    curated preset id; anything else (incl. arbitrary urls) → 400; missing token → 401.
+- `GET /api/house/me`, `/api/house/household`, and `houseStatus()` (so BOTH
+  servers' `/api/house/status` get it for free) now ADD `avatar` + `googlePicture`
+  to each listed user / leaderboard / activity row (additive — the wall widget
+  ignores them, backward-compatible). A central `renderAvatar({avatar,
+  googlePicture, name})` helper draws the profile card, household list, leaderboard
+  rows, activity rows, and the You-tab avatar PICKER (preset grid + "use Google
+  photo"). Rename is an inline pencil-edit on the profile card (optimistic + 409 toast).
+
 **Wall view (read-only passthrough).** The plant-server proxies `GET /wall` →
 `http://127.0.0.1:8787/?screenshot=1` (screenshot mode hides the input bar +
 cursor, so it's view-only) plus a STRICT GET-only allowlist of the wall page's

@@ -27,7 +27,11 @@ async function waitUp(url, n = 40) { for (let i = 0; i < n; i++) { try { if ((aw
 
 async function main() {
   const tmpData = mkdtempSync(join(tmpdir(), 'hearth-smoke-'));
-  const env = { ...process.env, GARDENER_DATA: tmpData, GARDENER_HOST: '127.0.0.1', GARDENER_NO_RECOVER: '1' };
+  // Pin Google sign-in OFF for the smoke so the unconfigured path (auth-config
+  // {}, google-login guardrails, and the "no gate" fallback) is deterministic
+  // regardless of whether a real GARDENER_GOOGLE_CLIENT_ID is set in .env. The
+  // gate's server-side contract ("no token → 401") is asserted directly.
+  const env = { ...process.env, GARDENER_DATA: tmpData, GARDENER_HOST: '127.0.0.1', GARDENER_NO_RECOVER: '1', GARDENER_GOOGLE_CLIENT_ID: '' };
   // Boot the plant server first and let it create the fresh schema, THEN the
   // localhost server — so two processes don't race to CREATE TABLE on a brand-new
   // temp DB (which can transiently lock under WAL on a cold start).
@@ -103,6 +107,45 @@ async function main() {
     check('google-login rejects garbage when unconfigured (400)', gl1 === 400, `got ${gl1}`);
     const gl2 = (await jpost(PB, '/api/house/google-login', {})).status;
     check('google-login rejects empty body (400)', gl2 === 400, `got ${gl2}`);
+    // Auth GATE soundness: the gate only raises when a client id is configured.
+    // The CLIENT decides from auth-config (={} here → no gate) + /me. The server
+    // contract the gate relies on is "no token → 401", which we assert below.
+    check('gate contract: /me is 401 without a token (no gate bypass)', (await jget(PB, '/api/house/me')).status === 401);
+
+    console.log('\n[hearth] profile: rename + avatar (session-gated, own row only)');
+    // Dedicated throwaway users so Ada/Grace counts below stay untouched.
+    const r1 = await (await jpost(PB, '/api/house/users', { name: 'Renamer' })).json();
+    const r2 = await (await jpost(PB, '/api/house/users', { name: 'Blocker' })).json();
+    const rTok = { 'Content-Type': 'application/json', 'x-roots-token': r1.token };
+    // --- rename ---
+    check('rename rejects without a token (401)', (await jpost(PB, '/api/house/profile/name', { name: 'Nope' })).status === 401);
+    const ren = await fetch(`${PB}/api/house/profile/name`, { method: 'POST', headers: rTok, body: JSON.stringify({ name: 'Renamed' }) });
+    const renB = await ren.json();
+    check('rename happy-path returns the new name', ren.ok && renB.ok && renB.user.name === 'Renamed', JSON.stringify(renB));
+    check('rename propagates to /me (live name via join)', (await (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': r1.token } })).json()).user.name === 'Renamed');
+    check('rename rejects blank (400)', (await fetch(`${PB}/api/house/profile/name`, { method: 'POST', headers: rTok, body: JSON.stringify({ name: '   ' }) })).status === 400);
+    const tooLong = await fetch(`${PB}/api/house/profile/name`, { method: 'POST', headers: rTok, body: JSON.stringify({ name: 'x'.repeat(40) }) });
+    check('rename trims to <=24 chars (accepts, truncated)', tooLong.ok && (await tooLong.json()).user.name.length <= 24);
+    // 409 collision: rename onto a name another user already owns.
+    const coll = await fetch(`${PB}/api/house/profile/name`, { method: 'POST', headers: rTok, body: JSON.stringify({ name: 'Blocker' }) });
+    check('rename collision is 409', coll.status === 409, `got ${coll.status}`);
+    // --- avatar ---
+    check('avatar rejects without a token (401)', (await jpost(PB, '/api/house/profile/avatar', { avatar: 'preset:leaf' })).status === 401);
+    const av1 = await fetch(`${PB}/api/house/profile/avatar`, { method: 'POST', headers: rTok, body: JSON.stringify({ avatar: 'preset:leaf' }) });
+    check('avatar set to a valid preset', av1.ok && (await av1.json()).user.avatar === 'preset:leaf');
+    check('avatar reflected in /me', (await (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': r1.token } })).json()).avatar === 'preset:leaf');
+    check('avatar rejects an invalid value (400)', (await fetch(`${PB}/api/house/profile/avatar`, { method: 'POST', headers: rTok, body: JSON.stringify({ avatar: 'preset:evil' }) })).status === 400);
+    check('avatar rejects an arbitrary url (no uploads) (400)', (await fetch(`${PB}/api/house/profile/avatar`, { method: 'POST', headers: rTok, body: JSON.stringify({ avatar: 'https://evil/x.png' }) })).status === 400);
+    const avG = await fetch(`${PB}/api/house/profile/avatar`, { method: 'POST', headers: rTok, body: JSON.stringify({ avatar: 'google' }) });
+    check('avatar "google" resets to default (null)', avG.ok && (await avG.json()).user.avatar === null);
+    // --- avatar fields present in /me + /household ---
+    const meAv = await (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': r1.token } })).json();
+    check('/me includes avatar + googlePicture fields', ('avatar' in meAv) && ('googlePicture' in meAv));
+    const hhAv = await (await jget(PB, '/api/house/household')).json();
+    check('/household users include avatar + googlePicture fields', hhAv.users.every((u) => ('avatar' in u) && ('googlePicture' in u)));
+    // Clean up the throwaway sessions/users we minted (real user is only 'Gui').
+    await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: rTok, body: '{}' });
+    await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roots-token': r2.token }, body: '{}' });
 
     console.log('\n[hearth] clean session + notification');
     const start = await (await jpost(PB, '/api/house/session/start', { userId: u1.user.id })).json();
@@ -192,6 +235,10 @@ async function main() {
     check('status shows Ada cleaning', st.cleaning.some((c) => c.name === 'Ada'));
     check('status has day/week/activity/notifications', Array.isArray(st.day) && Array.isArray(st.week) && Array.isArray(st.activity) && Array.isArray(st.notifications));
     check('chore notification emitted', st.notifications.some((n) => n.kind === 'chore'));
+    // Backward-compatible avatar enrichment: leaderboard + activity rows now ALSO
+    // carry avatar + googlePicture (additive — the wall widget ignores them).
+    check('status leaderboard rows carry avatar + googlePicture', st.day.every((r) => ('avatar' in r) && ('googlePicture' in r)));
+    check('status activity rows carry avatar + googlePicture', st.activity.every((r) => ('avatar' in r) && ('googlePicture' in r)));
 
     console.log('\n[hearth] end session');
     check('end session ok', (await jpost(PB, '/api/house/session/end', { sessionId: sid })).ok);

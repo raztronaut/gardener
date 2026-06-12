@@ -13,6 +13,7 @@ import {
   addPushSubscription, removePushSubscription,
   createHouseSession, getHouseSessionByToken, deleteHouseSession,
   activeHouseSessions, latestHouseSessionByEmail, listHouseUsersWithActivity,
+  renameHouseUser, setHouseUserAvatar, googlePictureByUser,
 } from './db.mjs';
 import { config } from './config.mjs';
 import { getVapidPublicKey, sendToAll } from './push.mjs';
@@ -29,6 +30,19 @@ export const CHORES = [
   { key: 'other', label: 'Other', emoji: '✍️', past: 'did', freeText: true },
 ];
 const CHORE_BY_KEY = new Map(CHORES.map((c) => [c.key, c]));
+
+// Curated avatar presets — the ONLY values the avatar picker may set besides
+// 'google' (use the Google account photo / colored-initial fallback). NO file
+// uploads: every preset is a deterministic, client-rendered spec (gradient
+// monogram or an inline-SVG mint glyph), so nothing is ever stored as an image
+// on the public surface. The client renders these by id; the server only needs
+// the id set to validate writes. Keep this list in sync with renderAvatar() in
+// public/house/app.js. 4 gradient-hue monograms + 6 glyphs = 10 options.
+export const AVATAR_PRESETS = [
+  'preset:hue-mint', 'preset:hue-teal', 'preset:hue-gold', 'preset:hue-rose',
+  'preset:leaf', 'preset:sprout', 'preset:sun', 'preset:moon', 'preset:star', 'preset:drop',
+];
+const AVATAR_VALUES = new Set(['google', ...AVATAR_PRESETS]);
 
 // ---- time windows (documented choice) --------------------------------------
 // Day  = since local midnight in America/Los_Angeles (the wall's timezone).
@@ -49,14 +63,21 @@ export function weekStartMs(now = new Date()) { return now.getTime() - 7 * 24 * 
 
 // ---- household status snapshot (shared by app dashboard + wall widget) ------
 export function houseStatus() {
+  // The most-recent Google photo per user, so every surface (Roots screens AND
+  // the wall widget) can render the right avatar from status alone. Computed
+  // once per snapshot and merged in additively — old fields are untouched, so
+  // this stays backward-compatible with the wall widget.
+  const pics = googlePictureByUser();
+  const withAv = (row) => ({ ...row, avatar: row.avatar || null, googlePicture: pics.get(row.user_id) || null });
   const cleaning = activeSessions().map((s) => ({
     name: s.name, sessionId: s.id, startedAt: s.started_at,
+    avatar: s.avatar || null, googlePicture: pics.get(s.user_id) || null,
   }));
   return {
     cleaning,
-    day: rankingSince(dayStartMs()),
-    week: rankingSince(weekStartMs()),
-    activity: recentActivity(12),
+    day: rankingSince(dayStartMs()).map(withAv),
+    week: rankingSince(weekStartMs()).map(withAv),
+    activity: recentActivity(12).map(withAv),
     notifications: recentHouseNotifications(12),
     now: Date.now(),
   };
@@ -105,9 +126,16 @@ function sessionFromReq(req, { touch = true } = {}) {
   try { return getHouseSessionByToken(token, { touch }); } catch { return null; }
 }
 function sessionPublic(s) {
+  // Enrich with the user's chosen avatar + their best Google photo so the You
+  // profile card (and anything reading /me) can render the right image. The
+  // google photo prefers THIS session's picture, falling back to any stored one.
+  const u = getHouseUser(s.user_id);
+  const pics = googlePictureByUser();
+  const googlePicture = s.picture || pics.get(s.user_id) || null;
   return {
-    user: { id: s.user_id, name: s.name },
+    user: { id: s.user_id, name: s.name, avatar: (u && u.avatar) || null, googlePicture },
     provider: s.provider, email: s.email || null, picture: s.picture || null,
+    avatar: (u && u.avatar) || null, googlePicture,
     createdAt: s.created_at, lastSeen: s.last_seen,
   };
 }
@@ -171,8 +199,10 @@ export async function handleHouseApi(req, res, url, opts = {}) {
     // sessions (who's signed in on a device, last 30 days).
     if (req.method === 'GET' && p === '/api/house/household') {
       const cleaningIds = new Set(activeSessions().map((s) => s.user_id));
+      const pics = googlePictureByUser();
       const users = listHouseUsersWithActivity().map((u) => ({
         id: u.id, name: u.name, createdAt: u.created_at,
+        avatar: u.avatar || null, googlePicture: pics.get(u.id) || null,
         lastChoreTs: u.last_chore_ts || null,
         cleaningNow: cleaningIds.has(u.id),
       }));
@@ -257,6 +287,43 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       const session = createHouseSession({ userId: user.id, provider: 'google', email: payload.email, picture });
       log(`google login: ${user.name} <${payload.email}>`);
       json(res, 200, { ok: true, user, token: session.token, session: sessionPublic(session) }); return true;
+    }
+
+    // Rename yourself. SESSION-GATED: only a signed-in user may rename, and only
+    // their OWN row (the session's user_id — the body can't target anyone else).
+    // 1–24 chars, trimmed, non-blank; a name another member already owns → 409.
+    if (req.method === 'POST' && p === '/api/house/profile/name') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to rename' }); return true; }
+      const b = await parseJson(req);
+      const name = (b && b.name || '').toString().trim().slice(0, 24);
+      if (!name) { json(res, 400, { error: 'name required' }); return true; }
+      if (!/^[\p{L}\p{N} '._-]{1,24}$/u.test(name)) { json(res, 400, { error: 'invalid name' }); return true; }
+      const r = renameHouseUser(s.user_id, name);
+      if (r.collision) { json(res, 409, { error: 'that name is taken' }); return true; }
+      if (!r.ok) { json(res, 400, { error: 'could not rename' }); return true; }
+      log(`rename: user #${s.user_id} → ${r.user.name}`);
+      // Return a refreshed session view so the client can re-sync identity.
+      const fresh = sessionFromReq(req, { touch: false });
+      json(res, 200, { ok: true, user: { id: r.user.id, name: r.user.name }, session: fresh ? sessionPublic(fresh) : null }); return true;
+    }
+
+    // Choose your avatar. SESSION-GATED (own row only). The value must be
+    // 'google' (use the Google photo / colored-initial fallback) or one of the
+    // curated presets — never an arbitrary string/url (no uploads on the public
+    // surface). Persisted to house_users.avatar; reflected everywhere via joins.
+    if (req.method === 'POST' && p === '/api/house/profile/avatar') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to set an avatar' }); return true; }
+      const b = await parseJson(req);
+      let avatar = (b && b.avatar != null ? b.avatar : '').toString();
+      if (avatar === '' || avatar === 'google') avatar = 'google';
+      if (!AVATAR_VALUES.has(avatar)) { json(res, 400, { error: 'invalid avatar' }); return true; }
+      // Store null for the default ('google') so an unset user reads the same.
+      const user = setHouseUserAvatar(s.user_id, avatar === 'google' ? null : avatar);
+      const fresh = sessionFromReq(req, { touch: false });
+      log(`avatar: user #${s.user_id} → ${avatar}`);
+      json(res, 200, { ok: true, user: { id: user.id, name: user.name, avatar: user.avatar || null }, session: fresh ? sessionPublic(fresh) : null }); return true;
     }
 
     if (req.method === 'POST' && p === '/api/house/session/start') {

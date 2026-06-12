@@ -77,6 +77,72 @@ function avatarFor(name) {
   const hue = AVATAR_HUES[h % AVATAR_HUES.length];
   return { initial: (n[0] || '?').toUpperCase(), bg: `linear-gradient(135deg, hsl(${hue} 70% 62%), hsl(${(hue + 28) % 360} 72% 52%))` };
 }
+
+// ---- avatars (preset specs + central renderer) ------------------------------
+// The curated preset set — MUST stay in sync with AVATAR_PRESETS in
+// src/house-api.mjs (the server validates writes against the same ids). Two
+// kinds: gradient monograms (a fixed hue, the person's initial) and mint glyphs
+// (an inline SVG stroke on a tinted disc). No images are stored server-side;
+// everything here is rendered deterministically client-side. Emoji-free.
+const GLYPH_PATHS = {
+  leaf: 'M19 5c0 7-4.5 11-11 12 0-7 4.5-11 11-12ZM8 17c2-3 5-5.5 8-6.5',
+  sprout: 'M12 20v-7.5M12 12.5C12 9.2 14.4 7 17.8 7c0 3.3-2.4 5.5-5.8 5.5ZM12 10.5C12 7.7 10 5.7 7 5.7 7 8.5 9 10.5 12 10.5Z',
+  sun: 'M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9ZM12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4',
+  moon: 'M19 14.5A7.5 7.5 0 0 1 9.5 5 7.5 7.5 0 1 0 19 14.5Z',
+  star: 'M12 4l2.3 5.2 5.7.5-4.3 3.8 1.3 5.5L12 16.7 7 19.3l1.3-5.5L4 10l5.7-.5Z',
+  drop: 'M12 4.5c3 4 5 6.5 5 9a5 5 0 0 1-10 0c0-2.5 2-5 5-9Z',
+};
+const AVATAR_PRESET_HUE = { 'hue-mint': 150, 'hue-teal': 186, 'hue-gold': 42, 'hue-rose': 350 };
+// The picker's display order + labels (gradient monograms first, then glyphs).
+const AVATAR_PRESETS = [
+  { id: 'preset:hue-mint', kind: 'mono', label: 'Mint' },
+  { id: 'preset:hue-teal', kind: 'mono', label: 'Teal' },
+  { id: 'preset:hue-gold', kind: 'mono', label: 'Gold' },
+  { id: 'preset:hue-rose', kind: 'mono', label: 'Rose' },
+  { id: 'preset:leaf', kind: 'glyph', glyph: 'leaf', label: 'Leaf' },
+  { id: 'preset:sprout', kind: 'glyph', glyph: 'sprout', label: 'Sprout' },
+  { id: 'preset:sun', kind: 'glyph', glyph: 'sun', label: 'Sun' },
+  { id: 'preset:moon', kind: 'glyph', glyph: 'moon', label: 'Moon' },
+  { id: 'preset:star', kind: 'glyph', glyph: 'star', label: 'Star' },
+  { id: 'preset:drop', kind: 'glyph', glyph: 'drop', label: 'Drop' },
+];
+const AVATAR_PRESET_BY_ID = new Map(AVATAR_PRESETS.map((p) => [p.id, p]));
+function glyphSvg(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.7');
+  svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', GLYPH_PATHS[name] || GLYPH_PATHS.leaf);
+  svg.appendChild(path); return svg;
+}
+// THE central avatar renderer used by every surface (profile card, household,
+// leaderboard, activity rows, picker). Resolves {avatar, googlePicture, name}:
+//   • 'preset:<id>'                → that monogram/glyph
+//   • else, if a Google photo set  → the photo (<img>)
+//   • else                         → the colored-initial bubble (avatarFor)
+// `cls` is the base class (e.g. 'av' or 'avatar-lg'); extra classes append.
+function renderAvatar(person, cls = 'av') {
+  const name = (person && person.name) || '?';
+  const avatar = person && person.avatar;
+  const gpic = person && person.googlePicture;
+  if (avatar && avatar.indexOf('preset:') === 0) {
+    const spec = AVATAR_PRESET_BY_ID.get(avatar);
+    if (spec && spec.kind === 'glyph') {
+      const n = el('div', { class: cls + ' glyph' }); n.appendChild(glyphSvg(spec.glyph)); return n;
+    }
+    if (spec && spec.kind === 'mono') {
+      const hue = AVATAR_PRESET_HUE[avatar.slice('preset:'.length)] || 150;
+      const bg = `linear-gradient(135deg, hsl(${hue} 70% 62%), hsl(${(hue + 28) % 360} 72% 52%))`;
+      return el('div', { class: cls, style: `background:${bg}` }, (String(name)[0] || '?').toUpperCase());
+    }
+  }
+  // 'google' / unset → photo if we have one, else the colored initial bubble.
+  if (gpic) return el('img', { class: cls, src: gpic, alt: '', referrerpolicy: 'no-referrer' });
+  const av = avatarFor(name);
+  return el('div', { class: cls, style: `background:${av.bg}` }, av.initial);
+}
 // A quiet empty state: a line + optional mono sub-line (no emoji — the app
 // mirrors the wall's strict no-emoji chrome).
 function emptyState(line, sub) {
@@ -475,6 +541,40 @@ async function loadAuthConfig() {
   return authConfig;
 }
 
+// =============================================================================
+// Login gate — MANDATORY Google sign-in when configured.
+// When auth-config returns a googleClientId, the whole app sits behind a
+// full-screen gate until there's a valid /me session. When it returns {} (dev /
+// unconfigured), the gate never shows and the classic name-login flow runs
+// exactly as before — so an unconfigured install is never bricked.
+// =============================================================================
+function googleConfigured() { return !!(authConfig && authConfig.googleClientId); }
+function showGate(show) {
+  const gate = $('#loginGate');
+  document.body.classList.toggle('gated', !!show);
+  if (gate) gate.hidden = !show;
+  if (show) renderGateButton();
+}
+function renderGateButton() {
+  const host = $('#gateGsi'); const cid = authConfig && authConfig.googleClientId;
+  if (!host || !cid) return;
+  ensureGis(() => {
+    try {
+      window.google.accounts.id.initialize({ client_id: cid, callback: onGoogleCredential });
+      window.google.accounts.id.renderButton(host, { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 280 });
+    } catch { host.textContent = 'Google sign-in could not load — reload the page.'; }
+  });
+}
+// Boot auth: probe auth-config + validate any stored token, then decide whether
+// to raise the gate (configured + no session) or let the app through.
+async function bootAuth() {
+  await loadAuthConfig();
+  if (getToken()) { try { await loadMe(); } catch { /* ignore */ } }
+  if (googleConfigured() && !currentSession) { showGate(true); return false; }
+  showGate(false);
+  return true;
+}
+
 async function renderYou() {
   await loadAuthConfig();
   if (getToken() && !currentSession) await loadMe();
@@ -510,19 +610,136 @@ function renderYouProfile() {
   }
   const provider = currentSession ? currentSession.provider : 'name';
   const email = currentSession && currentSession.email;
-  const picture = currentSession && currentSession.picture;
-  const av = avatarFor(currentUser.name);
-  const avatar = picture
-    ? el('img', { class: 'avatar-lg', src: picture, alt: '', referrerpolicy: 'no-referrer' })
-    : el('div', { class: 'avatar-lg bubble', style: `background:${av.bg}` }, av.initial);
+  // Resolve the current user's avatar from the live session (avatar spec +
+  // google photo) — the same {avatar, googlePicture, name} shape every surface uses.
+  const me = profilePerson();
+  const avatar = renderAvatar(me, 'avatar-lg');
+
+  // The name line is either a static display (with a pencil edit affordance) or
+  // an inline editor (text field + Save/Cancel) when editing.
+  const nameLine = el('div', { class: 'pname' });
+  function showNameDisplay() {
+    const pencil = el('button', { class: 'nameedit', type: 'button', title: 'Rename', 'aria-label': 'Rename' });
+    pencil.appendChild(editIcon());
+    pencil.addEventListener('click', showNameEditor);
+    nameLine.replaceChildren(currentUser.name, providerBadge(provider), pencil);
+  }
+  function showNameEditor() {
+    const inp = el('input', { type: 'text', maxlength: '24', value: currentUser.name });
+    const save = el('button', { class: 'primary slim rsave', type: 'button' }, 'Save');
+    const cancel = el('button', { class: 'ghost rcancel', type: 'button' }, 'Cancel');
+    const row = el('div', { class: 'renamerow' }, inp, save, cancel);
+    nameLine.replaceChildren(row);
+    inp.focus(); inp.select();
+    cancel.addEventListener('click', showNameDisplay);
+    const submit = async () => {
+      const next = inp.value.trim();
+      if (!next) { inp.focus(); return; }
+      if (next === currentUser.name) { showNameDisplay(); return; }
+      save.disabled = true;
+      const prev = currentUser.name;
+      // Optimistic: reflect immediately, roll back + toast on error/409.
+      setUser({ id: currentUser.id, name: next }); showNameDisplay();
+      try {
+        const r = await api('/api/house/profile/name', { method: 'POST', body: JSON.stringify({ name: next }) });
+        if (r.session) currentSession = r.session;
+        setUser({ id: r.user.id, name: r.user.name });
+        showNameDisplay();
+      } catch (e) {
+        setUser({ id: currentUser.id, name: prev }); showNameDisplay();
+        toast(e.status === 409 ? 'That name is already taken.' : (e.message || 'Could not rename.'), 'err');
+      }
+    };
+    save.addEventListener('click', submit);
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') showNameDisplay(); });
+  }
+  showNameDisplay();
+
   body.replaceChildren(
     el('div', { class: 'profile' },
       avatar,
       el('div', { class: 'pmeta' },
-        el('div', { class: 'pname' }, currentUser.name, providerBadge(provider)),
+        nameLine,
         el('div', { class: 'pemail' }, email || 'signed in on this device'))),
+    renderAvatarPicker(),
     el('div', { style: 'height:14px' }),
     el('button', { class: 'ghost', type: 'button', onclick: doSignOut }, 'Sign out'));
+}
+
+// The current user as the {avatar, googlePicture, name} shape renderAvatar wants.
+function profilePerson() {
+  return {
+    name: currentUser ? currentUser.name : '?',
+    avatar: currentSession ? currentSession.avatar : null,
+    googlePicture: currentSession ? (currentSession.googlePicture || currentSession.picture) : null,
+  };
+}
+// A small pencil/edit glyph (inline SVG, emoji-free).
+function editIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', '15'); svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round'); svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', 'M14.5 6.5l3 3M4 20l1-3.5L16 5.5a1.6 1.6 0 0 1 2.3 0l.2.2a1.6 1.6 0 0 1 0 2.3L7.5 19 4 20Z');
+  svg.appendChild(p); return svg;
+}
+// A tiny non-blocking toast (e.g. a 409 rename collision). One at a time.
+let toastTimer = null;
+function toast(text, kind) {
+  let t = $('#rootsToast');
+  if (!t) { t = el('div', { id: 'rootsToast' }); document.body.appendChild(t); }
+  t.className = 'msg ' + (kind || ''); t.textContent = text;
+  t.style.cssText = 'position:fixed;left:50%;bottom:calc(var(--tabbar-h) + 22px);transform:translateX(-50%);z-index:60;'
+    + 'background:rgba(4,16,12,.96);border:1px solid var(--stroke-strong);border-radius:999px;padding:10px 18px;max-width:90%;';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.remove(); }, 3200);
+}
+
+// The avatar PICKER: the curated presets as a grid + a "use Google photo" /
+// default option. Selecting one persists via /api/house/profile/avatar and
+// updates the profile card + every other surface (via the live avatar field).
+function renderAvatarPicker() {
+  const current = (currentSession && currentSession.avatar) || 'google';
+  const wrap = el('div', {});
+  wrap.appendChild(el('div', { class: 'avpicker-head' }, el('span', { class: 'lbl' }, 'Your avatar')));
+  const grid = el('div', { class: 'avgrid' });
+  // The "Google photo / default" option first.
+  const defOpt = avatarOption('google',
+    renderAvatar({ name: currentUser.name, avatar: null, googlePicture: profilePerson().googlePicture }, 'av'),
+    current === 'google');
+  grid.appendChild(defOpt);
+  for (const spec of AVATAR_PRESETS) {
+    grid.appendChild(avatarOption(spec.id,
+      renderAvatar({ name: currentUser.name, avatar: spec.id }, 'av'),
+      current === spec.id));
+  }
+  wrap.appendChild(grid);
+  return wrap;
+
+  function avatarOption(id, node, selected) {
+    const btn = el('button', { class: 'avopt' + (selected ? ' sel' : ''), type: 'button', title: id === 'google' ? 'Use Google photo' : (AVATAR_PRESET_BY_ID.get(id) || {}).label });
+    btn.appendChild(node);
+    btn.addEventListener('click', () => pickAvatar(id, btn, grid));
+    return btn;
+  }
+}
+async function pickAvatar(id, btn, grid) {
+  const prev = (currentSession && currentSession.avatar) || 'google';
+  if (id === prev) return;
+  // Optimistic highlight.
+  $$('.avopt', grid).forEach((b) => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  if (currentSession) currentSession.avatar = id === 'google' ? null : id;
+  try {
+    const r = await api('/api/house/profile/avatar', { method: 'POST', body: JSON.stringify({ avatar: id }) });
+    if (r.session) currentSession = r.session;
+    renderYouProfile(); // re-render the card avatar with the new choice
+  } catch (e) {
+    if (currentSession) currentSession.avatar = prev === 'google' ? null : prev;
+    renderYouProfile();
+    toast(e.message || 'Could not set avatar.', 'err');
+  }
 }
 
 async function doSignOut() {
@@ -530,7 +747,10 @@ async function doSignOut() {
   setToken(''); currentSession = null;
   try { localStorage.removeItem(LS_USER); } catch { /* ignore */ }
   currentUser = null; renderWho();
-  renderYou(); // the profile card becomes the name picker again
+  // When Google is the gate, signing out returns to it. Otherwise the You
+  // profile card falls back to the classic name picker exactly as before.
+  if (googleConfigured()) { showGate(true); }
+  else renderYou();
 }
 
 // --- optional Google Sign-In (Google Identity Services) ----------------------
@@ -568,14 +788,27 @@ function ensureGis(cb) {
   s.addEventListener('load', () => cb(), { once: true });
 }
 async function onGoogleCredential(resp) {
-  const body = $('#googleBody');
+  // This callback fires both from the You-tab button and the boot gate, so we
+  // surface errors into whichever message slot is on screen.
+  const gated = document.body.classList.contains('gated');
+  const errSlot = gated ? $('#gateMsg') : $('#googleBody');
+  if (gated && errSlot) { errSlot.className = 'msg'; errSlot.textContent = 'Signing in…'; }
   try {
     const r = await api('/api/house/google-login', { method: 'POST', body: JSON.stringify({ credential: resp && resp.credential }) });
     setToken(r.token); currentSession = r.session || null;
     setUser({ id: r.user.id, name: r.user.name });
-    renderYou();
+    if (gated) {
+      // Successful sign-in dismisses the gate and reveals the app on the
+      // default screen (You stays in sync via renderYou on its next open).
+      showGate(false); renderWho();
+      if (!$('.screen.active')) showScreen('dash'); else showScreen($('.screen.active').id.replace('screen-', ''));
+    } else {
+      renderYou();
+    }
   } catch (e) {
-    body.appendChild(el('div', { class: 'msg err' }, e.message || 'Google sign-in failed — try again.'));
+    const msg = e.message || 'Google sign-in failed — try again.';
+    if (gated) { if (errSlot) { errSlot.className = 'msg err'; errSlot.textContent = msg; } }
+    else if ($('#googleBody')) $('#googleBody').appendChild(el('div', { class: 'msg err' }, msg));
   }
 }
 
@@ -591,21 +824,18 @@ async function renderHousehold() {
     if ((lastSeenByUser.get(s.userId) || 0) < s.lastSeen) lastSeenByUser.set(s.userId, s.lastSeen);
   }
   const rows = hh.users.map((u) => {
-    const av = avatarFor(u.name);
     const lastTs = Math.max(u.lastChoreTs || 0, lastSeenByUser.get(u.id) || 0);
     const status = u.cleaningNow
       ? el('small', { class: 'now' }, 'cleaning now')
       : el('small', {}, lastTs ? 'active ' + fmtAgo(lastTs) : 'no activity yet');
     return el('div', { class: 'member' },
-      el('div', { class: 'av', style: `background:${av.bg}` }, av.initial),
+      renderAvatar(u, 'av'),
       el('div', { class: 'mn' }, u.name, status),
       currentUser && u.id === currentUser.id ? el('span', { class: 'youtag' }, 'you') : null);
   });
   const devHead = el('div', { class: 'subhead' }, 'Signed in on a device · last 30 days');
   const devs = hh.sessions.length ? hh.sessions.map((s) => el('div', { class: 'member dev' },
-    s.picture
-      ? el('img', { class: 'av', src: s.picture, alt: '', referrerpolicy: 'no-referrer' })
-      : el('div', { class: 'av', style: `background:${avatarFor(s.name).bg}` }, avatarFor(s.name).initial),
+    renderAvatar({ name: s.name, avatar: null, googlePicture: s.picture }, 'av'),
     el('div', { class: 'mn' }, s.name,
       el('small', {}, (s.provider === 'google' && s.email ? s.email + ' · ' : '') + 'seen ' + fmtAgo(s.lastSeen))),
     providerBadge(s.provider)))
@@ -633,10 +863,9 @@ async function refreshDashboard() {
   const board = (range === 'day' ? status.day : status.week);
   const list = $('#rankList');
   list.replaceChildren(...(board.length ? board.map((p, i) => {
-    const av = avatarFor(p.name);
     return el('div', { class: 'rank' + (i === 0 ? ' top' : '') },
       el('div', { class: 'pos' }, String(i + 1)),
-      el('div', { class: 'av', style: `background:${av.bg}` }, av.initial),
+      renderAvatar(p, 'av'),
       el('div', { class: 'nm' }, p.name, el('small', {}, `${p.chores} ${p.chores === 1 ? 'chore' : 'chores'} · last ${fmtAgo(p.lastTs)}`)),
       el('div', { class: 'pts' }, String(p.points), el('small', {}, 'pts')));
   }) : [emptyState(range === 'day' ? 'No chores logged today yet.' : 'No chores logged this week yet.', 'Start Clean Mode to get on the board.')]));
@@ -653,7 +882,10 @@ async function refreshDashboard() {
   feed.replaceChildren(...(status.activity.length ? status.activity.map((a) => {
     const def = (CHORES.find((c) => c.key === a.chore)) || { label: a.chore };
     const what = a.chore === 'other' && a.note ? a.note : def.label;
-    return el('div', { class: 'row' }, el('span', { class: 'e' }, icon('check')),
+    // The row's leading mark is now the actor's avatar (avatar spec / google
+    // photo / colored initial) — same shape every surface uses.
+    const av = renderAvatar(a, 'e av');
+    return el('div', { class: 'row' }, av,
       el('span', { class: 'txt', html: `<b>${escapeHtml(a.name)}</b> — ${escapeHtml(what)}` }, el('small', {}, fmtAgo(a.ts))));
   }) : [emptyState('No activity yet.', 'Logged chores will show up here.')]));
 
@@ -680,16 +912,18 @@ function updateMacroBadge(status) {
 
 // ---- boot + live refresh ----------------------------------------------------
 renderWho();
-// Validate the stored session token (if any) and enrich identity from /me.
-// Failure is silent: the localStorage name keeps working exactly as before.
-loadMe().then((s) => {
-  if (!s) return;
-  renderWho();
-  if ($('#screen-you').classList.contains('active')) renderYou();
-}).catch(() => {});
 // Deep-link: /#note /#macros /#dash /#wall /#you open that screen (default: dash).
 const bootScreen = ['note', 'macros', 'dash', 'wall', 'you'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'dash';
-showScreen(bootScreen);
+// Boot auth FIRST: probe auth-config + validate any stored token. When Google
+// is configured and there's no session, raise the gate and don't reveal a
+// screen yet (onGoogleCredential opens one after a successful sign-in). When
+// it's not configured, the gate stays down and everything works as before.
+bootAuth().then((through) => {
+  renderWho();
+  if (!through) return; // gate is up; wait for sign-in
+  showScreen(bootScreen);
+  if ($('#screen-you').classList.contains('active')) renderYou();
+}).catch(() => { showScreen(bootScreen); });
 loadChores();
 // Poll for live "currently cleaning" + leaderboard updates while the app is open.
 // 30s (not 7s) and ONLY while the tab is visible: every request goes through the

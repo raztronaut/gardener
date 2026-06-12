@@ -117,6 +117,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_house_sessions_seen ON house_sessions(last_seen);
 `);
 
+// Idempotent migration: a chosen avatar for each house_user. Stored value is
+// either 'google' / null (use the Google account photo if any, else the colored
+// initial bubble) or 'preset:<id>' (a client-rendered, deterministic avatar — no
+// files are ever uploaded/stored on the public surface). Wrapped in try/catch so
+// re-running on an already-migrated DB is a no-op.
+try { db.exec('ALTER TABLE house_users ADD COLUMN avatar TEXT'); } catch { /* column already exists */ }
+
 // ---- key/value state -------------------------------------------------------
 const _get = db.prepare('SELECT value FROM kv WHERE key = ?');
 const _set = db.prepare('INSERT INTO kv(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
@@ -279,11 +286,11 @@ export function clearStaleLock() {
 // ============================================================================
 
 // ---- users -----------------------------------------------------------------
-const _houseUsers = db.prepare('SELECT id, name, created_at FROM house_users ORDER BY name COLLATE NOCASE ASC');
+const _houseUsers = db.prepare('SELECT id, name, avatar, created_at FROM house_users ORDER BY name COLLATE NOCASE ASC');
 export function listHouseUsers() { return _houseUsers.all(); }
-const _houseUserByName = db.prepare('SELECT id, name, created_at FROM house_users WHERE name = ? COLLATE NOCASE');
+const _houseUserByName = db.prepare('SELECT id, name, avatar, created_at FROM house_users WHERE name = ? COLLATE NOCASE');
 export function getHouseUserByName(name) { return _houseUserByName.get(String(name)); }
-const _houseUserById = db.prepare('SELECT id, name, created_at FROM house_users WHERE id = ?');
+const _houseUserById = db.prepare('SELECT id, name, avatar, created_at FROM house_users WHERE id = ?');
 export function getHouseUser(id) { return _houseUserById.get(id); }
 const _addHouseUser = db.prepare('INSERT INTO house_users(name, created_at) VALUES(?,?)');
 // Create-or-get by (case-insensitive) name; returns the canonical row.
@@ -299,12 +306,45 @@ export function upsertHouseUser(name) {
     return _houseUserByName.get(clean); // raced an insert → return the winner
   }
 }
+// Rename a user IN PLACE (same row, so the UNIQUE constraint is happy and every
+// join — leaderboard/household/notifications read the live name — propagates).
+// Returns { ok } on success, { collision } if another user already owns the
+// (case-insensitive) name. Scoped by id so a session can only rename its OWN row.
+const _renameHouseUser = db.prepare('UPDATE house_users SET name = ? WHERE id = ?');
+export function renameHouseUser(id, name) {
+  const clean = String(name).trim().slice(0, 40);
+  if (!clean) return { error: 'blank' };
+  const owner = _houseUserByName.get(clean);
+  if (owner && owner.id !== id) return { collision: true };
+  // A no-op (same name, maybe just a case change) still applies cleanly.
+  try { _renameHouseUser.run(clean, id); return { ok: true, user: getHouseUser(id) }; }
+  catch { return { collision: true }; } // lost a UNIQUE race
+}
+// Persist the chosen avatar spec ('google' | null | 'preset:<id>') for a user.
+const _setHouseUserAvatar = db.prepare('UPDATE house_users SET avatar = ? WHERE id = ?');
+export function setHouseUserAvatar(id, avatar) {
+  _setHouseUserAvatar.run(avatar == null ? null : String(avatar).slice(0, 40), id);
+  return getHouseUser(id);
+}
+// The most-recent Google account photo per user (from house_sessions), so any
+// surface can fall back to it when the user's avatar is 'google'/unset. Returns
+// a Map(userId → pictureUrl). One small query; callers cache it per request.
+const _googlePics = db.prepare(`
+  SELECT s.user_id AS user_id, s.picture AS picture
+  FROM house_sessions s
+  WHERE s.provider = 'google' AND s.picture IS NOT NULL
+  ORDER BY s.last_seen ASC`);
+export function googlePictureByUser() {
+  const m = new Map();
+  for (const r of _googlePics.all()) if (r.picture) m.set(r.user_id, r.picture); // ASC → newest wins
+  return m;
+}
 
 // ---- clean sessions ---------------------------------------------------------
 const _activeSessionForUser = db.prepare('SELECT * FROM clean_sessions WHERE user_id = ? AND ended_at IS NULL ORDER BY id DESC LIMIT 1');
 export function activeSessionForUser(userId) { return _activeSessionForUser.get(userId); }
 const _activeSessions = db.prepare(`
-  SELECT s.id, s.user_id, s.started_at, u.name
+  SELECT s.id, s.user_id, s.started_at, u.name, u.avatar
   FROM clean_sessions s JOIN house_users u ON u.id = s.user_id
   WHERE s.ended_at IS NULL ORDER BY s.started_at ASC`);
 export function activeSessions() { return _activeSessions.all(); }
@@ -432,7 +472,7 @@ export function deleteHouseSessionsForUser(userId) { return _delSessionsForUser.
 // Per-user "last activity" for the Account screen's household list: the latest
 // chore each member logged (NULL if they never logged one).
 const _usersWithActivity = db.prepare(`
-  SELECT u.id, u.name, u.created_at,
+  SELECT u.id, u.name, u.avatar, u.created_at,
     (SELECT MAX(e.ts) FROM chore_events e WHERE e.user_id = u.id) AS last_chore_ts
   FROM house_users u ORDER BY u.name COLLATE NOCASE ASC`);
 export function listHouseUsersWithActivity() { return _usersWithActivity.all(); }
@@ -463,7 +503,7 @@ export function countPushSubscriptions() { return db.prepare('SELECT COUNT(*) n 
 const CHORE_POINTS = { curb: 2, vacuum: 2 };
 export function chorePoints(chore) { return CHORE_POINTS[chore] || 1; }
 const _eventsSince = db.prepare(`
-  SELECT e.user_id, u.name, e.chore, e.ts
+  SELECT e.user_id, u.name, u.avatar, e.chore, e.ts
   FROM chore_events e JOIN house_users u ON u.id = e.user_id
   WHERE e.ts >= ? ORDER BY e.ts ASC`);
 export function rankingSince(sinceMs) {
@@ -471,7 +511,7 @@ export function rankingSince(sinceMs) {
   const by = new Map();
   for (const r of rows) {
     let agg = by.get(r.user_id);
-    if (!agg) { agg = { user_id: r.user_id, name: r.name, points: 0, chores: 0, lastTs: 0 }; by.set(r.user_id, agg); }
+    if (!agg) { agg = { user_id: r.user_id, name: r.name, avatar: r.avatar || null, points: 0, chores: 0, lastTs: 0 }; by.set(r.user_id, agg); }
     agg.points += chorePoints(r.chore);
     agg.chores += 1;
     if (r.ts > agg.lastTs) agg.lastTs = r.ts;
@@ -479,7 +519,7 @@ export function rankingSince(sinceMs) {
   return [...by.values()].sort((a, b) => b.points - a.points || b.lastTs - a.lastTs);
 }
 const _recentActivity = db.prepare(`
-  SELECT e.id, e.chore, e.note, e.ts, u.name
+  SELECT e.id, e.chore, e.note, e.ts, e.user_id, u.name, u.avatar
   FROM chore_events e JOIN house_users u ON u.id = e.user_id
   ORDER BY e.ts DESC LIMIT ?`);
 export function recentActivity(limit = 20) { return _recentActivity.all(Math.min(limit, 100)); }

@@ -17,6 +17,32 @@
   <link rel="stylesheet" href="/house/house.css" />
 </head>
 <body>
+  <!-- Login gate: shown full-screen BEFORE the app when Google sign-in is
+       configured and there's no valid session. On-brand (aurora bg, wordmark).
+       Hidden by default; app.js reveals it after probing auth-config + /me.
+       When Google is NOT configured this stays hidden and the classic name
+       login flow runs exactly as before (dev installs are never bricked). -->
+  <div id="loginGate" hidden>
+    <div class="gate-inner">
+      <span class="gate-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 10.5h16" />
+          <path d="M12 10.5V5.4" />
+          <path d="M12 7.6c0-2.1 1.6-3.6 3.8-3.6 0 2.1-1.6 3.6-3.8 3.6Z" />
+          <path d="M12 7.6c0-2.1-1.6-3.6-3.8-3.6 0 2.1 1.6 3.6 3.8 3.6Z" />
+          <path d="M12 10.5V20" />
+          <path d="M12 13.4c-1.9.9-3 2.7-3.3 5.3" />
+          <path d="M12 13.4c1.9.9 3 2.7 3.3 5.3" />
+        </svg>
+      </span>
+      <h1 class="gate-name">Roots</h1>
+      <p class="gate-tag">The household app</p>
+      <div class="gate-gsi" id="gateGsi"></div>
+      <div class="msg" id="gateMsg" role="status"></div>
+      <p class="gate-foot">Sign in to tend the house</p>
+    </div>
+  </div>
+
   <div id="app">
     <header class="app-head">
       <span class="mark" aria-hidden="true">
