@@ -13,10 +13,14 @@ import {
   addPushSubscription, removePushSubscription,
   createHouseSession, getHouseSessionByToken, deleteHouseSession,
   activeHouseSessions, latestHouseSessionByEmail, listHouseUsersWithActivity,
-  renameHouseUser, setHouseUserAvatar, googlePictureByUser,
+  renameHouseUser, setHouseUserAvatar, setHouseUserAvatarFile, googlePictureByUser,
 } from './db.mjs';
-import { config } from './config.mjs';
+import { config, paths } from './config.mjs';
 import { getVapidPublicKey, sendToAll } from './push.mjs';
+import { promises as fsp } from 'node:fs';
+import { statSync, createReadStream } from 'node:fs';
+import { join, basename } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 // Canonical chore catalog. `key` is stored; `label`/`emoji` drive the UI and the
 // notification text. The last item is free-text ("other"). Edit here only.
@@ -44,6 +48,33 @@ export const AVATAR_PRESETS = [
 ];
 const AVATAR_VALUES = new Set(['google', ...AVATAR_PRESETS]);
 
+// ---- uploaded profile photos ------------------------------------------------
+// REAL photo uploads (the user wants their own picture, not a template). The
+// client reads a File, downscales + center-crops it on a canvas to ~256×256 and
+// sends a base64 data URL; we decode it with Buffer, validate type + size hard
+// (internet-exposed surface), and write one file per user under the gitignored
+// <GARDENER_DATA>/avatars/ dir — image bytes NEVER touch SQLite. The DB keeps
+// avatar='upload' + the filename + a version stamp; the served URL embeds ?v=
+// so caches bust on change. Served only by integer userId (path-traversal safe).
+const PHOTO_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const EXT_MIME = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+const PHOTO_MAX_BYTES = 512 * 1024;          // decoded image cap (client downscales first)
+const PHOTO_MAX_DATAURL = 1024 * 1024;       // raw request body cap (base64 inflates ~33%)
+
+// Resolve the URL a client should render for a person's avatar, in priority:
+//   1. an uploaded photo  → /api/house/avatar/<id>?v=<stamp>
+//   2. a Google photo     → that https url
+//   3. neither            → null (the client draws the colored-initial bubble)
+// Works off whatever shape the row has (avatar/avatar_file/avatar_v + a resolved
+// googlePicture). Additive + backward-compatible — the wall widget reads this.
+function avatarUrlFor(row, googlePicture) {
+  if (row && row.avatar === 'upload' && row.avatar_file) {
+    const id = row.id != null ? row.id : row.user_id;
+    return `/api/house/avatar/${id}?v=${row.avatar_v || 1}`;
+  }
+  return googlePicture || null;
+}
+
 // ---- time windows (documented choice) --------------------------------------
 // Day  = since local midnight in America/Los_Angeles (the wall's timezone).
 // Week = a rolling 7-day window (now - 7d), which is simplest and always shows
@@ -68,11 +99,18 @@ export function houseStatus() {
   // once per snapshot and merged in additively — old fields are untouched, so
   // this stays backward-compatible with the wall widget.
   const pics = googlePictureByUser();
-  const withAv = (row) => ({ ...row, avatar: row.avatar || null, googlePicture: pics.get(row.user_id) || null });
-  const cleaning = activeSessions().map((s) => ({
-    name: s.name, sessionId: s.id, startedAt: s.started_at,
-    avatar: s.avatar || null, googlePicture: pics.get(s.user_id) || null,
-  }));
+  const withAv = (row) => {
+    const googlePicture = pics.get(row.user_id) || null;
+    return { ...row, avatar: row.avatar || null, googlePicture, avatarUrl: avatarUrlFor({ ...row, id: row.user_id }, googlePicture) };
+  };
+  const cleaning = activeSessions().map((s) => {
+    const googlePicture = pics.get(s.user_id) || null;
+    return {
+      name: s.name, sessionId: s.id, startedAt: s.started_at,
+      avatar: s.avatar || null, googlePicture,
+      avatarUrl: avatarUrlFor({ ...s, id: s.user_id }, googlePicture),
+    };
+  });
   return {
     cleaning,
     day: rankingSince(dayStartMs()).map(withAv),
@@ -98,6 +136,30 @@ function readBody(req, limit = 8 * 1024) {
 }
 async function parseJson(req) {
   try { return JSON.parse(await readBody(req) || '{}'); } catch { return null; }
+}
+// Like parseJson but with a larger body cap (profile-photo uploads are bigger
+// than the 8 KB JSON default). Returns 'TOO_LARGE' when the cap is exceeded so
+// the caller can answer 413, or null on parse failure.
+async function parseJsonLarge(req, limit) {
+  let raw;
+  try { raw = await readBody(req, limit); } catch (e) { return /too large/.test(e.message) ? 'TOO_LARGE' : null; }
+  try { return JSON.parse(raw || '{}'); } catch { return null; }
+}
+// Best-effort magic-byte check that a decoded buffer actually IS the declared
+// image type (so a mislabelled blob is never written to the served avatars dir).
+function sniffImage(buf, ext) {
+  if (!buf || buf.length < 12) return false;
+  if (ext === 'png') return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+  if (ext === 'jpg') return buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+  if (ext === 'webp') return buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP';
+  return false;
+}
+// Unlink an orphaned uploaded avatar file (best-effort; basename-guarded so a
+// stray DB value can never reach outside the avatars dir). Fire-and-forget.
+function deleteAvatarFile(file, log) {
+  if (!file) return;
+  const target = join(paths.AVATARS, basename(String(file)));
+  fsp.unlink(target).catch((e) => { if (e && e.code !== 'ENOENT') log(`avatar unlink: ${e}`); });
 }
 
 // Per-route rate limiter (a stranger with the public URL must not flood writes).
@@ -132,10 +194,13 @@ function sessionPublic(s) {
   const u = getHouseUser(s.user_id);
   const pics = googlePictureByUser();
   const googlePicture = s.picture || pics.get(s.user_id) || null;
+  // Resolve the user's effective avatar URL (uploaded photo > google photo >
+  // null) so the You profile card renders the real picture from /me alone.
+  const avatarUrl = avatarUrlFor(u || { id: s.user_id }, googlePicture);
   return {
-    user: { id: s.user_id, name: s.name, avatar: (u && u.avatar) || null, googlePicture },
+    user: { id: s.user_id, name: s.name, avatar: (u && u.avatar) || null, googlePicture, avatarUrl },
     provider: s.provider, email: s.email || null, picture: s.picture || null,
-    avatar: (u && u.avatar) || null, googlePicture,
+    avatar: (u && u.avatar) || null, googlePicture, avatarUrl,
     createdAt: s.created_at, lastSeen: s.last_seen,
   };
 }
@@ -200,12 +265,15 @@ export async function handleHouseApi(req, res, url, opts = {}) {
     if (req.method === 'GET' && p === '/api/house/household') {
       const cleaningIds = new Set(activeSessions().map((s) => s.user_id));
       const pics = googlePictureByUser();
-      const users = listHouseUsersWithActivity().map((u) => ({
-        id: u.id, name: u.name, createdAt: u.created_at,
-        avatar: u.avatar || null, googlePicture: pics.get(u.id) || null,
-        lastChoreTs: u.last_chore_ts || null,
-        cleaningNow: cleaningIds.has(u.id),
-      }));
+      const users = listHouseUsersWithActivity().map((u) => {
+        const googlePicture = pics.get(u.id) || null;
+        return {
+          id: u.id, name: u.name, createdAt: u.created_at,
+          avatar: u.avatar || null, googlePicture, avatarUrl: avatarUrlFor(u, googlePicture),
+          lastChoreTs: u.last_chore_ts || null,
+          cleaningNow: cleaningIds.has(u.id),
+        };
+      });
       const sessions = activeHouseSessions().map((s) => ({
         userId: s.user_id, name: s.name, provider: s.provider,
         email: s.email || null, picture: s.picture || null,
@@ -227,6 +295,29 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       if (!s) { json(res, 404, { error: 'no such session' }); return true; }
       const u = getHouseUser(s.user_id);
       json(res, 200, { session: { ...s, name: u?.name }, chores: choresForSession(s.id) }); return true;
+    }
+    // Serve a user's uploaded profile photo. Read-only, so it's mounted on BOTH
+    // the public plant-server AND the localhost wall server (the wall widget
+    // renders avatarUrl). Keyed ONLY by integer userId — no client filename ever
+    // reaches the filesystem — and the stored name is basename()'d as a belt-and
+    // -braces traversal guard. 404 when the user has no uploaded photo / no file.
+    if (req.method === 'GET' && p.startsWith('/api/house/avatar/')) {
+      const id = parseInt(p.slice('/api/house/avatar/'.length), 10);
+      const u = id > 0 ? getHouseUser(id) : null;
+      if (!u || u.avatar !== 'upload' || !u.avatar_file) { json(res, 404, { error: 'no photo' }); return true; }
+      const file = join(paths.AVATARS, basename(String(u.avatar_file)));
+      let st = null; try { st = statSync(file); } catch { /* missing */ }
+      if (!st || !st.isFile()) { json(res, 404, { error: 'no photo' }); return true; }
+      const ext = (u.avatar_file.split('.').pop() || '').toLowerCase();
+      res.writeHead(200, {
+        'Content-Type': EXT_MIME[ext] || 'application/octet-stream',
+        'Content-Length': st.size,
+        // Long cache — the URL carries ?v=<stamp> that changes on every upload.
+        'Cache-Control': 'public, max-age=604800, immutable',
+      });
+      if (req.method === 'HEAD') { res.end(); return true; }
+      createReadStream(file).pipe(res);
+      return true;
     }
 
     if (readOnly) { json(res, 403, { error: 'read-only surface' }); return true; }
@@ -308,22 +399,75 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       json(res, 200, { ok: true, user: { id: r.user.id, name: r.user.name }, session: fresh ? sessionPublic(fresh) : null }); return true;
     }
 
-    // Choose your avatar. SESSION-GATED (own row only). The value must be
-    // 'google' (use the Google photo / colored-initial fallback) or one of the
-    // curated presets — never an arbitrary string/url (no uploads on the public
-    // surface). Persisted to house_users.avatar; reflected everywhere via joins.
+    // Choose your NON-photo avatar. SESSION-GATED (own row only). The value must
+    // be 'google'/'remove' (use the Google photo / colored-initial fallback) —
+    // the dormant presets stay accepted for backward-compat, but the UI no longer
+    // offers them: the primary, visible choice is now a real uploaded photo (see
+    // POST /api/house/profile/photo). Never an arbitrary string/url. 'remove' (or
+    // 'google') also forgets any uploaded photo. Persisted to house_users.avatar.
     if (req.method === 'POST' && p === '/api/house/profile/avatar') {
       const s = sessionFromReq(req);
       if (!s) { json(res, 401, { error: 'sign in to set an avatar' }); return true; }
       const b = await parseJson(req);
       let avatar = (b && b.avatar != null ? b.avatar : '').toString();
-      if (avatar === '' || avatar === 'google') avatar = 'google';
+      if (avatar === '' || avatar === 'google' || avatar === 'remove') avatar = 'google';
       if (!AVATAR_VALUES.has(avatar)) { json(res, 400, { error: 'invalid avatar' }); return true; }
+      const before = getHouseUser(s.user_id);
+      // Forget any uploaded photo when switching away from it (the column is
+      // cleared by setHouseUserAvatar; also unlink the orphaned file from disk).
+      const prevFile = before && before.avatar === 'upload' ? before.avatar_file : null;
       // Store null for the default ('google') so an unset user reads the same.
       const user = setHouseUserAvatar(s.user_id, avatar === 'google' ? null : avatar);
+      if (prevFile) deleteAvatarFile(prevFile, log);
       const fresh = sessionFromReq(req, { touch: false });
       log(`avatar: user #${s.user_id} → ${avatar}`);
       json(res, 200, { ok: true, user: { id: user.id, name: user.name, avatar: user.avatar || null }, session: fresh ? sessionPublic(fresh) : null }); return true;
+    }
+
+    // Upload a REAL profile photo. SESSION-GATED (own row only — the session's
+    // user_id is authoritative; the body can't target another user). The client
+    // downscales + center-crops on a canvas and sends a base64 data URL; we
+    // validate the declared type, decode with Buffer, enforce the decoded-size
+    // cap, write the file atomically under <DATA>/avatars/, then point the DB at
+    // it (bumping the version stamp so the served URL busts caches).
+    if (req.method === 'POST' && p === '/api/house/profile/photo') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to upload a photo' }); return true; }
+      const b = await parseJsonLarge(req, PHOTO_MAX_DATAURL);
+      if (b === 'TOO_LARGE') { json(res, 413, { error: 'image too large' }); return true; }
+      const dataUrl = (b && b.dataUrl != null ? b.dataUrl : '').toString();
+      const m = /^data:([a-z/+.-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl);
+      if (!m) { json(res, 400, { error: 'expected a base64 image data URL' }); return true; }
+      const mime = m[1].toLowerCase();
+      const ext = PHOTO_MIME[mime];
+      if (!ext) { json(res, 400, { error: 'image must be JPEG, PNG or WebP' }); return true; }
+      let buf;
+      try { buf = Buffer.from(m[2].replace(/\s+/g, ''), 'base64'); } catch { buf = null; }
+      if (!buf || !buf.length) { json(res, 400, { error: 'could not decode image' }); return true; }
+      if (buf.length > PHOTO_MAX_BYTES) { json(res, 413, { error: 'image too large (max 512 KB)' }); return true; }
+      // Sanity-check the magic bytes match the declared type (don't trust the
+      // header alone — never write a mislabelled blob to the served avatars dir).
+      if (!sniffImage(buf, ext)) { json(res, 400, { error: 'not a valid image' }); return true; }
+      const before = getHouseUser(s.user_id);
+      const prevFile = before && before.avatar === 'upload' ? before.avatar_file : null;
+      // Content-addressed-ish unique name (userId + random) so a stale cached
+      // URL never resolves to a new photo; the old file is unlinked below.
+      const fname = `user-${s.user_id}-${randomBytes(6).toString('hex')}.${ext}`;
+      const dest = join(paths.AVATARS, fname);
+      try {
+        await fsp.mkdir(paths.AVATARS, { recursive: true });
+        // Atomic write: a temp file in the same dir, then rename into place.
+        const tmp = dest + '.tmp';
+        await fsp.writeFile(tmp, buf, { mode: 0o644 });
+        await fsp.rename(tmp, dest);
+      } catch (e) { log(`avatar write error: ${e}`); json(res, 500, { error: 'could not save photo' }); return true; }
+      const user = setHouseUserAvatarFile(s.user_id, fname);
+      if (prevFile && prevFile !== fname) deleteAvatarFile(prevFile, log);
+      const fresh = sessionFromReq(req, { touch: false });
+      const pics = googlePictureByUser();
+      const avatarUrl = avatarUrlFor(user, pics.get(s.user_id) || null);
+      log(`avatar upload: user #${s.user_id} → ${fname} (${buf.length}b)`);
+      json(res, 200, { ok: true, avatarUrl, user: { id: user.id, name: user.name, avatar: 'upload', avatarUrl }, session: fresh ? sessionPublic(fresh) : null }); return true;
     }
 
     if (req.method === 'POST' && p === '/api/house/session/start') {

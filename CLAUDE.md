@@ -139,28 +139,45 @@ as before, so an unconfigured install is never bricked. The read-only wall
 surface (`/api/house/status`) is unaffected — the gate is purely client-side.
 
 **Rename yourself + profile picture (Roots, June 2026).**
-- New idempotent column `house_users.avatar TEXT` (migrated via a try/catch
-  `ALTER TABLE … ADD COLUMN`). Semantics: `'google'`/`NULL` → the Google account
-  photo (latest `house_sessions.picture` for that user) if present, else the
-  colored-initial bubble; `'preset:<id>'` → one of a curated, client-rendered
-  set (NO uploads). Presets (10): 4 gradient monograms (`hue-mint/teal/gold/rose`)
-  + 6 mint inline-SVG glyphs (`leaf/sprout/sun/moon/star/drop`). The allow-list
-  lives in `AVATAR_PRESETS` in `house-api.mjs` (server validates) mirrored by the
-  same ids in `app.js` (`renderAvatar()` renders them deterministically).
-- New session-gated, rate-limited write endpoints (own row only — the body can't
+- Columns on `house_users` (all idempotent try/catch `ALTER TABLE … ADD COLUMN`):
+  `avatar TEXT`, `avatar_file TEXT`, `avatar_v INTEGER`. Semantics of `avatar`:
+  `'google'`/`NULL` → the Google account photo (latest `house_sessions.picture`
+  for that user) if present, else the colored-initial bubble; `'upload'` → a REAL
+  uploaded profile photo (filename in `avatar_file`, version stamp in `avatar_v`).
+  `'preset:<id>'` values are DORMANT legacy (still render, but the UI no longer
+  offers the template picker — the user wanted a real photo). Image bytes are
+  NEVER stored in SQLite; uploaded files live one-per-user under the gitignored
+  `<GARDENER_DATA>/avatars/` dir (path via `paths.AVATARS` in `config.mjs`).
+- **Uploaded profile photos.** The You tab shows a round preview + "Upload a
+  photo" (`<input type=file accept=image/* capture>` — phones can use the camera)
+  + "Use my Google photo" / "Remove photo". On select the client reads the File,
+  downscales + center-crops it to 256×256 on a canvas, exports JPEG ~0.85, and
+  POSTs a base64 data URL. The bubble is the only non-photo fallback.
+- Session-gated, rate-limited write endpoints (own row only — the body can't
   target another user; the session's `user_id` is authoritative):
-  - `POST /api/house/profile/name { name }` — rename in place (same row → UNIQUE
-    stays happy; live name propagates through every join). 1–24 chars, trimmed,
-    non-blank → 400; a name another member owns → **409**; missing token → 401.
-  - `POST /api/house/profile/avatar { avatar }` — `'google'` (stored as NULL) or a
-    curated preset id; anything else (incl. arbitrary urls) → 400; missing token → 401.
+  - `POST /api/house/profile/name { name }` — rename in place (1–24 chars; another
+    member's name → **409**; missing token → 401).
+  - `POST /api/house/profile/photo { dataUrl }` — base64 image upload. Validates
+    content-type ∈ {image/jpeg, image/png, image/webp}, magic bytes, decoded size
+    ≤ 512 KB (→ **413**), raw body ≤ 1 MB. Writes atomically to `avatars/`
+    (`user-<id>-<rand>.<ext>`), sets `avatar='upload'` + bumps `avatar_v`, unlinks
+    the old file, returns the new `avatarUrl`. Non-image/mislabelled → 400; no
+    token → 401.
+  - `POST /api/house/profile/avatar { avatar }` — `'google'`/`'remove'` (stored as
+    NULL, clears + unlinks any uploaded file) or a dormant preset id; arbitrary
+    urls → 400; no token → 401.
+- `GET /api/house/avatar/<userId>` — streams the stored photo with the right
+  content-type + a long immutable cache (the URL carries `?v=<avatar_v>` so it
+  busts on change). Keyed by integer userId, basename-guarded (path-traversal
+  safe), 404 when there's no uploaded photo. Mounted read-only on BOTH the public
+  plant-server AND the localhost wall server (the cleaning widget reads it).
 - `GET /api/house/me`, `/api/house/household`, and `houseStatus()` (so BOTH
-  servers' `/api/house/status` get it for free) now ADD `avatar` + `googlePicture`
-  to each listed user / leaderboard / activity row (additive — the wall widget
-  ignores them, backward-compatible). A central `renderAvatar({avatar,
-  googlePicture, name})` helper draws the profile card, household list, leaderboard
-  rows, activity rows, and the You-tab avatar PICKER (preset grid + "use Google
-  photo"). Rename is an inline pencil-edit on the profile card (optimistic + 409 toast).
+  servers' `/api/house/status`) now ADD `avatar` + `googlePicture` + **`avatarUrl`**
+  to each user / leaderboard / activity / cleaning row. `avatarUrl` resolves
+  uploaded photo → Google photo → null (additive; the wall widget already consumes
+  `avatarUrl`). `renderAvatar()` renders `avatarUrl`/`googlePicture` as an `<img>`,
+  else the colored-initial bubble (dormant presets still draw for legacy rows).
+  Rename + photo upload are both inline on the profile card (optimistic + toast).
 
 **Wall view (read-only passthrough).** The plant-server proxies `GET /wall` →
 `http://127.0.0.1:8787/?screenshot=1` (screenshot mode hides the input bar +

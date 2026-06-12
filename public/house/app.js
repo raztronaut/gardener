@@ -118,15 +118,20 @@ function glyphSvg(name) {
   svg.appendChild(path); return svg;
 }
 // THE central avatar renderer used by every surface (profile card, household,
-// leaderboard, activity rows, picker). Resolves {avatar, googlePicture, name}:
-//   • 'preset:<id>'                → that monogram/glyph
-//   • else, if a Google photo set  → the photo (<img>)
-//   • else                         → the colored-initial bubble (avatarFor)
+// leaderboard, activity rows, preview). Resolves a person to an image or bubble:
+//   1. avatarUrl (an UPLOADED photo, or a Google photo the server resolved) → <img>
+//   2. a Google photo (googlePicture, when avatarUrl wasn't supplied)        → <img>
+//   3. a dormant 'preset:<id>' spec (legacy rows only — no longer offered)   → glyph/mono
+//   4. else                                                                  → colored-initial bubble
 // `cls` is the base class (e.g. 'av' or 'avatar-lg'); extra classes append.
 function renderAvatar(person, cls = 'av') {
   const name = (person && person.name) || '?';
   const avatar = person && person.avatar;
-  const gpic = person && person.googlePicture;
+  // Prefer the server-resolved avatarUrl (uploaded photo > google photo). Fall
+  // back to a bare googlePicture for any surface that doesn't supply avatarUrl.
+  const url = (person && person.avatarUrl) || (person && person.googlePicture) || null;
+  if (url) return el('img', { class: cls, src: url, alt: '', referrerpolicy: 'no-referrer' });
+  // Legacy preset rows (the picker is gone, but old DB values still render).
   if (avatar && avatar.indexOf('preset:') === 0) {
     const spec = AVATAR_PRESET_BY_ID.get(avatar);
     if (spec && spec.kind === 'glyph') {
@@ -138,8 +143,6 @@ function renderAvatar(person, cls = 'av') {
       return el('div', { class: cls, style: `background:${bg}` }, (String(name)[0] || '?').toUpperCase());
     }
   }
-  // 'google' / unset → photo if we have one, else the colored initial bubble.
-  if (gpic) return el('img', { class: cls, src: gpic, alt: '', referrerpolicy: 'no-referrer' });
   const av = avatarFor(name);
   return el('div', { class: cls, style: `background:${av.bg}` }, av.initial);
 }
@@ -614,6 +617,7 @@ function renderYouProfile() {
   // google photo) — the same {avatar, googlePicture, name} shape every surface uses.
   const me = profilePerson();
   const avatar = renderAvatar(me, 'avatar-lg');
+  avatar.id = 'profileAvatar'; // the uploader updates this preview in place
 
   // The name line is either a static display (with a pencil edit affordance) or
   // an inline editor (text field + Save/Cancel) when editing.
@@ -661,7 +665,7 @@ function renderYouProfile() {
       el('div', { class: 'pmeta' },
         nameLine,
         el('div', { class: 'pemail' }, email || 'signed in on this device'))),
-    renderAvatarPicker(),
+    renderAvatarUploader(),
     el('div', { style: 'height:14px' }),
     el('button', { class: 'ghost', type: 'button', onclick: doSignOut }, 'Sign out'));
 }
@@ -671,6 +675,7 @@ function profilePerson() {
   return {
     name: currentUser ? currentUser.name : '?',
     avatar: currentSession ? currentSession.avatar : null,
+    avatarUrl: currentSession ? currentSession.avatarUrl : null,
     googlePicture: currentSession ? (currentSession.googlePicture || currentSession.picture) : null,
   };
 }
@@ -696,50 +701,112 @@ function toast(text, kind) {
   toastTimer = setTimeout(() => { t.remove(); }, 3200);
 }
 
-// The avatar PICKER: the curated presets as a grid + a "use Google photo" /
-// default option. Selecting one persists via /api/house/profile/avatar and
-// updates the profile card + every other surface (via the live avatar field).
-function renderAvatarPicker() {
-  const current = (currentSession && currentSession.avatar) || 'google';
-  const wrap = el('div', {});
-  wrap.appendChild(el('div', { class: 'avpicker-head' }, el('span', { class: 'lbl' }, 'Your avatar')));
-  const grid = el('div', { class: 'avgrid' });
-  // The "Google photo / default" option first.
-  const defOpt = avatarOption('google',
-    renderAvatar({ name: currentUser.name, avatar: null, googlePicture: profilePerson().googlePicture }, 'av'),
-    current === 'google');
-  grid.appendChild(defOpt);
-  for (const spec of AVATAR_PRESETS) {
-    grid.appendChild(avatarOption(spec.id,
-      renderAvatar({ name: currentUser.name, avatar: spec.id }, 'av'),
-      current === spec.id));
-  }
-  wrap.appendChild(grid);
-  return wrap;
+// The avatar UPLOADER (replaces the old preset grid — the user wants a REAL
+// photo, not a template). A round preview + "Upload a photo" (a file input; the
+// `capture` hint lets phones use the camera) + "Use my Google photo" (when one
+// exists) + "Remove photo". On select we read the File, downscale + center-crop
+// it to ~256×256 on a canvas, export JPEG ~0.85, and POST the data URL — the
+// preview updates optimistically. The colored-initial bubble is the only
+// non-photo fallback (no preset glyphs anywhere in the UI now).
+const AV_TARGET = 256;        // exported square edge (px)
+const AV_QUALITY = 0.85;      // JPEG/WebP quality
+function renderAvatarUploader() {
+  const me = profilePerson();
+  const wrap = el('div', { class: 'avup' });
+  wrap.appendChild(el('div', { class: 'avpicker-head' }, el('span', { class: 'lbl' }, 'Profile photo')));
 
-  function avatarOption(id, node, selected) {
-    const btn = el('button', { class: 'avopt' + (selected ? ' sel' : ''), type: 'button', title: id === 'google' ? 'Use Google photo' : (AVATAR_PRESET_BY_ID.get(id) || {}).label });
-    btn.appendChild(node);
-    btn.addEventListener('click', () => pickAvatar(id, btn, grid));
-    return btn;
+  const preview = renderAvatar(me, 'avatar-lg'); preview.classList.add('avup-preview');
+  const fileInput = el('input', { type: 'file', accept: 'image/*', capture: 'user', style: 'display:none' });
+  const uploadBtn = el('button', { class: 'primary slim', type: 'button' }, 'Upload a photo');
+  uploadBtn.addEventListener('click', () => fileInput.click());
+
+  const actions = el('div', { class: 'avup-actions' });
+  // "Use my Google photo" only when a Google photo is available to fall back to.
+  if (me.googlePicture) {
+    const gBtn = el('button', { class: 'ghost slim', type: 'button' }, 'Use my Google photo');
+    gBtn.addEventListener('click', () => setNonPhotoAvatar('google', preview));
+    actions.appendChild(gBtn);
+  }
+  // "Remove photo" only when there IS an uploaded photo to remove.
+  if (me.avatar === 'upload') {
+    const rmBtn = el('button', { class: 'ghost slim', type: 'button' }, 'Remove photo');
+    rmBtn.addEventListener('click', () => setNonPhotoAvatar('remove', preview));
+    actions.appendChild(rmBtn);
+  }
+
+  const msg = el('div', { class: 'msg', role: 'status' });
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    fileInput.value = ''; // allow re-selecting the same file
+    if (f) uploadPhoto(f, preview, msg);
+  });
+
+  wrap.append(
+    el('div', { class: 'avup-row' }, preview, el('div', { class: 'avup-ctl' }, uploadBtn, actions)),
+    fileInput, msg);
+  return wrap;
+}
+
+// Read → downscale + center-crop → export a small JPEG data URL → POST it.
+async function uploadPhoto(file, preview, msg) {
+  if (!/^image\//.test(file.type || '')) { msg.className = 'msg err'; msg.textContent = 'Pick an image file.'; return; }
+  msg.className = 'msg'; msg.textContent = 'Resizing…';
+  let dataUrl;
+  try { dataUrl = await downscaleToDataUrl(file); }
+  catch { msg.className = 'msg err'; msg.textContent = 'Could not read that image.'; return; }
+  // Optimistic preview from the freshly-rendered local data URL.
+  swapPreview(preview, el('img', { class: 'avatar-lg avup-preview', src: dataUrl, alt: '' }));
+  msg.textContent = 'Uploading…';
+  try {
+    const r = await api('/api/house/profile/photo', { method: 'POST', body: JSON.stringify({ dataUrl }) });
+    if (r.session) currentSession = r.session;
+    else if (currentSession) { currentSession.avatar = 'upload'; currentSession.avatarUrl = r.avatarUrl; }
+    msg.className = 'msg ok'; msg.textContent = 'Photo updated.';
+    renderYouProfile(); // re-render so the served URL + Remove button appear
+  } catch (e) {
+    renderYouProfile(); // roll back the optimistic preview to the real state
+    toast(e.status === 413 ? 'That image is too large.' : (e.message || 'Could not upload photo.'), 'err');
   }
 }
-async function pickAvatar(id, btn, grid) {
-  const prev = (currentSession && currentSession.avatar) || 'google';
-  if (id === prev) return;
-  // Optimistic highlight.
-  $$('.avopt', grid).forEach((b) => b.classList.remove('sel'));
-  btn.classList.add('sel');
-  if (currentSession) currentSession.avatar = id === 'google' ? null : id;
+
+// Revert to a non-photo avatar: 'google' (use the Google photo) or 'remove'
+// (drop the uploaded photo → google/bubble). Both go through /profile/avatar.
+async function setNonPhotoAvatar(which, preview) {
   try {
-    const r = await api('/api/house/profile/avatar', { method: 'POST', body: JSON.stringify({ avatar: id }) });
+    const r = await api('/api/house/profile/avatar', { method: 'POST', body: JSON.stringify({ avatar: which }) });
     if (r.session) currentSession = r.session;
-    renderYouProfile(); // re-render the card avatar with the new choice
-  } catch (e) {
-    if (currentSession) currentSession.avatar = prev === 'google' ? null : prev;
+    else if (currentSession) { currentSession.avatar = null; currentSession.avatarUrl = null; }
     renderYouProfile();
-    toast(e.message || 'Could not set avatar.', 'err');
-  }
+  } catch (e) { toast(e.message || 'Could not update avatar.', 'err'); }
+}
+
+// Swap the preview node in place (keeps id/classes the layout depends on).
+function swapPreview(oldNode, newNode) {
+  newNode.id = oldNode.id || 'profileAvatar';
+  if (oldNode.parentNode) oldNode.parentNode.replaceChild(newNode, oldNode);
+}
+
+// Draw the image onto a square canvas, center-cropped + downscaled to AV_TARGET,
+// and export it as a compact JPEG data URL (well under the server's 512 KB cap).
+function downscaleToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const side = Math.min(img.naturalWidth, img.naturalHeight) || 1;
+        const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+        const c = document.createElement('canvas');
+        c.width = AV_TARGET; c.height = AV_TARGET;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, AV_TARGET, AV_TARGET);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', AV_QUALITY));
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+    img.src = url;
+  });
 }
 
 async function doSignOut() {

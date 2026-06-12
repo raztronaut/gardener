@@ -78,13 +78,16 @@ export const paths = {
   DB: join(DATA, 'gardener.db'),
   SCREENSHOTS: join(DATA, 'screenshots'),
   ITERATIONS: join(DATA, 'iterations'),
+  // Roots (household app): uploaded profile photos live here, one file per user
+  // (gitignored data dir; image bytes are NEVER stored in SQLite). Created below.
+  AVATARS: join(DATA, 'avatars'),
   CHROME_PROFILE: join(DATA, '.chrome-profile'),
   SERVER_LOG: join(DATA, 'server.log'),
   ITERATE_LOG: join(DATA, 'iterate.log'),
 };
 
 export function ensureDirs() {
-  for (const d of [paths.DATA, paths.SCREENSHOTS, paths.ITERATIONS, paths.CHROME_PROFILE]) {
+  for (const d of [paths.DATA, paths.SCREENSHOTS, paths.ITERATIONS, paths.CHROME_PROFILE, paths.AVATARS]) {
     mkdirSync(d, { recursive: true });
   }
 }

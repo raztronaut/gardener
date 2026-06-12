@@ -143,7 +143,41 @@ async function main() {
     check('/me includes avatar + googlePicture fields', ('avatar' in meAv) && ('googlePicture' in meAv));
     const hhAv = await (await jget(PB, '/api/house/household')).json();
     check('/household users include avatar + googlePicture fields', hhAv.users.every((u) => ('avatar' in u) && ('googlePicture' in u)));
-    // Clean up the throwaway sessions/users we minted (real user is only 'Gui').
+    check('/household users include avatarUrl field', hhAv.users.every((u) => ('avatarUrl' in u)));
+
+    console.log('\n[hearth] profile photo UPLOAD (session-gated, validated, served)');
+    // A tiny valid 1×1 PNG (real magic bytes) as a base64 data URL — the happy path.
+    const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const pngDataUrl = 'data:image/png;base64,' + PNG_1PX;
+    check('photo upload rejects without a token (401)', (await jpost(PB, '/api/house/profile/photo', { dataUrl: pngDataUrl })).status === 401);
+    const up = await fetch(`${PB}/api/house/profile/photo`, { method: 'POST', headers: rTok, body: JSON.stringify({ dataUrl: pngDataUrl }) });
+    const upB = await up.json();
+    check('photo upload happy-path returns an avatarUrl', up.ok && typeof upB.avatarUrl === 'string' && upB.avatarUrl.startsWith(`/api/house/avatar/${r1.user.id}`), JSON.stringify(upB).slice(0, 120));
+    check('upload sets avatar="upload" in /me', (await (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': r1.token } })).json()).avatar === 'upload');
+    check('upload reflects avatarUrl in /me', (await (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': r1.token } })).json()).avatarUrl === upB.avatarUrl);
+    // The served photo comes back with the right content-type + bytes.
+    const served = await jget(PB, upB.avatarUrl);
+    check('GET avatar serves image/png', served.ok && (served.headers.get('content-type') || '') === 'image/png', `status ${served.status} type ${served.headers.get('content-type')}`);
+    const servedBytes = new Uint8Array(await served.arrayBuffer());
+    check('served avatar has PNG magic bytes', servedBytes[0] === 0x89 && servedBytes[1] === 0x50 && servedBytes[2] === 0x4e && servedBytes[3] === 0x47);
+    check('avatar served read-only on the MAIN (wall) server too', (await jget(MB, upB.avatarUrl.split('?')[0])).ok);
+    // avatarUrl shows up in /household + /status after upload.
+    const hhUp = await (await jget(PB, '/api/house/household')).json();
+    check('avatarUrl appears in /household after upload', (hhUp.users.find((u) => u.id === r1.user.id) || {}).avatarUrl === upB.avatarUrl);
+    // --- validation ---
+    check('photo upload rejects a non-image data URL (400)', (await fetch(`${PB}/api/house/profile/photo`, { method: 'POST', headers: rTok, body: JSON.stringify({ dataUrl: 'data:text/plain;base64,aGVsbG8=' }) })).status === 400);
+    check('photo upload rejects a mislabelled blob (400)', (await fetch(`${PB}/api/house/profile/photo`, { method: 'POST', headers: rTok, body: JSON.stringify({ dataUrl: 'data:image/png;base64,bm90LWEtcG5n' }) })).status === 400);
+    // Oversized: a >512 KB decoded PNG-headed buffer → 413 (decoded-size cap).
+    const bigB64 = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(600 * 1024, 0x41)]).toString('base64');
+    const big = await fetch(`${PB}/api/house/profile/photo`, { method: 'POST', headers: rTok, body: JSON.stringify({ dataUrl: 'data:image/png;base64,' + bigB64 }) });
+    check('photo upload rejects oversized image (413)', big.status === 413, `got ${big.status}`);
+    // --- remove reverts to google/bubble ---
+    const rm = await fetch(`${PB}/api/house/profile/avatar`, { method: 'POST', headers: rTok, body: JSON.stringify({ avatar: 'remove' }) });
+    check('remove photo reverts avatar to null', rm.ok && (await rm.json()).user.avatar === null);
+    check('avatar 404s after the photo is removed', (await jget(PB, `/api/house/avatar/${r1.user.id}`)).status === 404);
+    check('/me avatarUrl is null after removal (no google photo)', (await (await fetch(`${PB}/api/house/me`, { headers: { 'x-roots-token': r1.token } })).json()).avatarUrl === null);
+
+    // Clean up the throwaway sessions/users we minted (real user is only 'Guilherme').
     await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: rTok, body: '{}' });
     await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-roots-token': r2.token }, body: '{}' });
 
