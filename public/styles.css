@@ -45,6 +45,10 @@
      of sampling the backdrop we layer a light gradient over a semi-transparent
      base. Every card shares these exact parameters → one consistent material.
      All static (rendered once) → ~0% idle CPU. */
+  /* Liquid-glass surface, BLUR-FREE by necessity: a real backdrop-filter blur
+     on 7+ fullscreen cards measured 7fps on this Jetson (GPU fill-rate bound,
+     even on chromium — tested via /fps). So we fake the material with static
+     layered gradients + inset highlights instead (renders once, ~0% idle CPU). */
   --glass-base: rgba(20, 50, 42, 0.50);
   --glass-fill: linear-gradient(157deg,
       rgba(204, 255, 234, 0.15) 0%,
