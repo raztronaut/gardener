@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Liquid Glass — real lib demo</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  /* A rich, busy backdrop so the refraction is obvious — a photo + the garden aurora.
+     Real liquid glass warps + blurs whatever is BEHIND it, so we need texture. */
+  body {
+    font-family: "Space Grotesk", system-ui, sans-serif; color: #eafff4;
+    background:
+      radial-gradient(60% 45% at 12% 8%, rgba(30,233,168,.5), transparent 70%),
+      radial-gradient(55% 42% at 90% 28%, rgba(26,160,255,.45), transparent 70%),
+      radial-gradient(70% 55% at 50% 105%, rgba(185,139,255,.4), transparent 70%),
+      url("https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=1200&q=80") center/cover,
+      #04110d;
+    overflow: hidden;
+  }
+  .wrap { position: fixed; inset: 0; }
+  .hint { position: fixed; left: 0; right: 0; bottom: 18px; text-align: center;
+    font-size: 14px; letter-spacing: .04em; color: rgba(234,255,244,.8);
+    text-shadow: 0 2px 8px rgba(0,0,0,.6); pointer-events: none; }
+  .hint b { color: #74f7b0; }
+  .title { position: fixed; top: 24px; left: 0; right: 0; text-align: center;
+    font-weight: 700; font-size: 26px; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
+  .fallback { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    padding: 40px; text-align: center; font-size: 18px; line-height: 1.6; }
+  .glass-label { font-weight: 600; font-size: 18px; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "liquid-glass-react": "https://esm.sh/liquid-glass-react@1.1.1?deps=react@18.3.1,react-dom@18.3.1"
+  }
+}
+</script>
+</head>
+<body>
+  <div class="title">Liquid Glass — the real <code>liquid-glass-react</code> lib</div>
+  <div class="wrap" id="root"></div>
+  <div class="fallback" id="fallback">
+    Couldn't load the lib from the CDN (the kiosk may be offline).<br>
+    This demo needs internet to pull React + liquid-glass-react from esm.sh.
+  </div>
+  <div class="hint"><b>Drag</b> the glass panels around · this is the genuine lib (live backdrop refraction + blur)</div>
+
+  <script type="module">
+    const fail = (e) => { console.error(e); document.getElementById('fallback').style.display = 'flex'; };
+    try {
+      const React = (await import('react')).default;
+      const { createRoot } = await import('react-dom/client');
+      const LiquidGlass = (await import('liquid-glass-react')).default;
+      const h = React.createElement;
+
+      // A few draggable glass panels over the busy backdrop, with different
+      // displacement/blur so the effect range is visible.
+      const Panel = ({ x, y, scale, blur, label }) => h(LiquidGlass, {
+        displacementScale: scale,
+        blurAmount: blur,
+        saturation: 140,
+        aberrationIntensity: 2,
+        elasticity: 0.3,
+        cornerRadius: 28,
+        padding: '28px 34px',
+        draggable: true,
+        style: { position: 'absolute', left: x, top: y },
+      }, h('div', { className: 'glass-label' }, label));
+
+      const App = () => h(React.Fragment, null,
+        h(Panel, { x: '8%',  y: '26%', scale: 70, blur: 0.06, label: 'displacement 70 · blur .06' }),
+        h(Panel, { x: '46%', y: '44%', scale: 100, blur: 0.02, label: 'warp 100 · crisp' }),
+        h(Panel, { x: '24%', y: '64%', scale: 40, blur: 0.18, label: 'frosty · blur .18' }),
+      );
+
+      createRoot(document.getElementById('root')).render(h(App));
+    } catch (e) { fail(e); }
+  </script>
+</body>
+</html>
