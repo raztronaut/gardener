@@ -54,6 +54,9 @@
       rgba(204, 255, 234, 0.15) 0%,
       rgba(126, 218, 191, 0.06) 40%,
       rgba(34, 94, 78, 0.045) 100%);
+  /* light green tint laid OVER the pre-blurred aurora so cards read as frosted
+     glass while the backdrop still glows through (glassier than an opaque base) */
+  --glass-tint: rgba(16, 44, 37, 0.34);
   --glass-rim: rgba(198, 255, 231, 0.26);
   --glass-edge:
       inset 0 1px 0 rgba(238, 255, 249, 0.42),       /* top specular highlight */
@@ -154,7 +157,18 @@ html, body {
   position: relative; grid-column: span 1;
   /* Liquid-glass material (see --glass-* in :root): a translucent frosted pane
      floating over the aurora, with a specular top rim and gathered depth. */
-  background: var(--glass-fill), var(--glass-base);
+  /* REAL frosted glass without per-frame blur: a PRE-blurred copy of the static
+     aurora, attached to the viewport (background-attachment:fixed) so each card
+     shows the slice directly behind it — pixel-identical to backdrop-filter but
+     cached as one image (60fps, vs 7fps for live blur on this Jetson). A light
+     tint + specular gradient sit on top. */
+  background:
+    var(--glass-fill),
+    linear-gradient(0deg, var(--glass-tint), var(--glass-tint)),
+    url('/assets/aurora-blur.jpg');
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-attachment: scroll, scroll, fixed;
   border: 1px solid var(--glass-rim);
   box-shadow: var(--glass-edge), var(--glass-drop);
   border-radius: var(--radius);
