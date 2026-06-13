@@ -1,10 +1,12 @@
 // Weather — current conditions + sunrise/sunset + a linear hourly temperature
 // timeline, via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
-const WMO = (c) => c === 0 ? ['Clear', '☀️'] : (c <= 2) ? ['Partly cloudy', '🌤️'] : c === 3 ? ['Overcast', '☁️']
-  : (c >= 45 && c <= 48) ? ['Fog', '🌫️'] : (c >= 51 && c <= 57) ? ['Drizzle', '🌦️']
-  : (c >= 61 && c <= 67) ? ['Rain', '🌧️'] : (c >= 71 && c <= 77) ? ['Snow', '🌨️']
-  : (c >= 80 && c <= 82) ? ['Showers', '🌧️'] : (c >= 85 && c <= 86) ? ['Snow', '🌨️']
-  : (c >= 95) ? ['Storm', '⛈️'] : ['—', '🌡️'];
+// [label, icon-slug] — slugs map to self-hosted animated Meteocons SVGs in
+// public/assets/weather/ (clouds drift, the sun slowly radiates; transparent).
+const WMO = (c) => c === 0 ? ['Clear', 'clear-day'] : (c <= 2) ? ['Partly cloudy', 'partly-cloudy-day'] : c === 3 ? ['Overcast', 'overcast']
+  : (c >= 45 && c <= 48) ? ['Fog', 'fog'] : (c >= 51 && c <= 57) ? ['Drizzle', 'drizzle']
+  : (c >= 61 && c <= 67) ? ['Rain', 'rain'] : (c >= 71 && c <= 77) ? ['Snow', 'snow']
+  : (c >= 80 && c <= 82) ? ['Showers', 'rain'] : (c >= 85 && c <= 86) ? ['Snow', 'snow']
+  : (c >= 95) ? ['Storm', 'thunderstorms'] : ['—', 'thermometer'];
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
@@ -27,7 +29,8 @@ export default {
     ctx.style(`
       .wx { display:flex; flex-direction:column; gap:5px; height:100%; justify-content:space-between; }
       .wx-top { display:flex; align-items:center; gap:14px; }
-      .wx-emoji { font-size:36px; line-height:1; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+      .wx-emoji { width:64px; height:64px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+      .wx-icon { display:block; }
       .wx-temp { display:flex; align-items:baseline; gap:11px; }
       .wx-temp .f { font-family:var(--font-display); font-size:40px; font-weight:600; line-height:.85;
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
@@ -68,7 +71,8 @@ export default {
       const refresh = async () => {
         const d = await ctx.fetchJSON(url);
         const cur = d.current;
-        const [cond, emoji] = WMO(cur.weather_code);
+        const [cond, iconSlug] = WMO(cur.weather_code);
+        const wxIcon = (slug, px) => ctx.h('img', { class: 'wx-icon', src: `/assets/weather/${slug}.svg`, width: px, height: px, alt: '' });
         const tF = Math.round(cur.temperature_2m);
         const hi = Math.round(d.daily.temperature_2m_max[0]);
         const lo = Math.round(d.daily.temperature_2m_min[0]);
@@ -117,10 +121,10 @@ export default {
         }, ctx.h('div', { class: 'tv' }, `${p.t}°`), ctx.h('div', { class: 'dot' })));
 
         const axis = pts.map((p) => {
-          const [, e] = WMO(p.code);
+          const [, slug] = WMO(p.code);
           const label = p.first ? 'now' : `${((p.hr + 11) % 12) + 1}${p.hr < 12 ? 'a' : 'p'}`;
           return ctx.h('div', { class: 'hr' },
-            ctx.h('div', { class: 'e' }, e),
+            ctx.h('div', { class: 'e' }, wxIcon(slug, 22)),
             ctx.h('div', { class: 't' }, label));
         });
 
@@ -129,7 +133,7 @@ export default {
 
         body.replaceChildren(ctx.h('div', { class: 'wx' },
           ctx.h('div', { class: 'wx-top' },
-            ctx.h('div', { class: 'wx-emoji' }, emoji),
+            ctx.h('div', { class: 'wx-emoji' }, wxIcon(iconSlug, 64)),
             ctx.h('div', { class: 'wx-temp' },
               ctx.h('div', { class: 'f' }, `${tF}°F`),
               ctx.h('div', { class: 'c' }, `${fToC(tF)}°C`)),
