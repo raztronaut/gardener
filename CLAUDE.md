@@ -34,6 +34,29 @@ chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.f
 - `npm run iterate -- manual` — run one tending iteration now.
 - `npm run day | night | display-sync` — display energy control.
 
+## Arcade — retro-console emulator widget
+`public/widgets/emulator.js` (replaced the old Mario widget). The card is a calm
+pixel game-pad tile + a count of ROMs found; `openFull` shows a ROM **picker**
+(navigable by mouse and controller) then boots **EmulatorJS** (loaded at runtime
+from `cdn.emulatorjs.org/stable/data/` — cores are large, never vendored) for the
+chosen game. The card stays light (no EmulatorJS, no animation) so the headless
+smoke render is cheap.
+- **ROMs go in `data/roms/`** (`<GARDENER_DATA>/roms/`, `paths.ROMS` in
+  `config.mjs`, auto-created, gitignored — we never ship ROMs). See
+  `public/widgets/EMULATOR.md` for the extension→console table.
+- Server endpoints (localhost wall server, `src/server.mjs`): `GET /api/roms`
+  → `{ roms: [{name, file, system}] }` (system inferred from extension; dotfiles
+  / unknown extensions ignored; sorted by name) and `GET /roms/<file>` →
+  streams the ROM bytes read-only (basename-guarded, `application/octet-stream`,
+  cache-friendly, 404 if missing). Extension→system→core map lives in both
+  `server.mjs` (`ROM_SYSTEMS`) and the widget (`CORE`).
+- Controller: the SN30 Pro is a browser Gamepad, so EmulatorJS reads it natively
+  in-game. The widget sets `window.__GARDEN_GAME = {input, stop}`; in the picker
+  `input()` drives selection, in-game it's a no-op (EmulatorJS owns the pad).
+  L2/Esc → the parent calls `stop()`, which HARD-STOPS the emulator AND its audio
+  (exit/pause the core, suspend+close its Web Audio context, clear the DOM, remove
+  the loader script, delete the `EJS_*` globals).
+
 ## "Roots" — household side app (HAND-MAINTAINED — daily tending MUST NOT modify)
 There is a separate, mobile-first household web app called **Roots** ("The House")
 served on the PUBLIC plant-server surface (the tunnel) at `/` (with `/plant.html`

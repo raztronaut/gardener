@@ -81,13 +81,16 @@ export const paths = {
   // Roots (household app): uploaded profile photos live here, one file per user
   // (gitignored data dir; image bytes are NEVER stored in SQLite). Created below.
   AVATARS: join(DATA, 'avatars'),
+  // Emulator widget: console ROMs the user drops in (gitignored — we never ship
+  // ROMs). The Arcade widget lists these and EmulatorJS plays the selected one.
+  ROMS: join(DATA, 'roms'),
   CHROME_PROFILE: join(DATA, '.chrome-profile'),
   SERVER_LOG: join(DATA, 'server.log'),
   ITERATE_LOG: join(DATA, 'iterate.log'),
 };
 
 export function ensureDirs() {
-  for (const d of [paths.DATA, paths.SCREENSHOTS, paths.ITERATIONS, paths.CHROME_PROFILE, paths.AVATARS]) {
+  for (const d of [paths.DATA, paths.SCREENSHOTS, paths.ITERATIONS, paths.CHROME_PROFILE, paths.AVATARS, paths.ROMS]) {
     mkdirSync(d, { recursive: true });
   }
 }

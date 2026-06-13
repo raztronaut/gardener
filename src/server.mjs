@@ -67,6 +67,54 @@ function send(res, code, type, body) {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
   res.end(body);
 }
+
+// ---- retro-console ROMs (the Arcade / emulator widget) ----------------------
+// ROM files live in the gitignored <GARDENER_DATA>/roms/ dir (the user drops
+// them in). We never ship ROMs. The extension maps to an EmulatorJS system; the
+// widget infers the core from it. Unknown/dotfiles are ignored.
+const ROM_SYSTEMS = {
+  '.nes': 'nes', '.fds': 'nes',
+  '.smc': 'snes', '.sfc': 'snes',
+  '.gb': 'gb', '.gbc': 'gbc', '.gba': 'gba',
+  '.n64': 'n64', '.z64': 'n64',
+  '.md': 'segaMD', '.gen': 'segaMD',
+  '.sms': 'segaMS', '.pce': 'pce',
+};
+async function listRoms() {
+  let names = [];
+  try { names = await fs.readdir(paths.ROMS); } catch { return []; }
+  const out = [];
+  for (const file of names) {
+    if (file.startsWith('.')) continue; // ignore dotfiles
+    const system = ROM_SYSTEMS[extname(file).toLowerCase()];
+    if (!system) continue; // unknown extension
+    out.push({ name: file.replace(/\.[^.]+$/, ''), file, system });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+async function serveRom(req, res, urlPath) {
+  // Stream a single ROM, read-only, basename-guarded (no path traversal). Only
+  // files that live directly in data/roms/ with a known extension are served.
+  const raw = decodeURIComponent(urlPath.split('?')[0].replace(/^\/roms\//, ''));
+  const base = raw.split('/').pop() || '';
+  if (!base || base.startsWith('.') || !ROM_SYSTEMS[extname(base).toLowerCase()]) {
+    return send(res, 404, 'text/plain', 'not found');
+  }
+  const full = normalize(join(paths.ROMS, base));
+  if (!full.startsWith(resolve(paths.ROMS))) return send(res, 403, 'text/plain', 'forbidden');
+  try {
+    const data = await fs.readFile(full);
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': data.length,
+      'Cache-Control': 'public, max-age=86400',
+    });
+    res.end(data);
+  } catch {
+    send(res, 404, 'text/plain', 'not found');
+  }
+}
 function json(res, code, obj) { send(res, code, 'application/json; charset=utf-8', JSON.stringify(obj)); }
 
 async function readBody(req, limit = 64 * 1024) {
@@ -385,6 +433,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && p === '/api/proxy') return handleProxy(req, res, u);
+
+    // ---- retro-console emulator (the Arcade widget) -------------------------
+    // List the ROMs the user dropped in data/roms/ (localhost-only server).
+    if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
+    // Stream one ROM's bytes (read-only, basename-guarded path traversal).
+    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/roms/')) return serveRom(req, res, p);
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
     // Localhost wall surface: reads, PLUS the chore-logging write so the Roots
