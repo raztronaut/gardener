@@ -181,11 +181,9 @@ async function boot() {
   const brand = document.querySelector('[data-editable="brand"]');
   if (brand && window.__GARDEN_EDITS.brand) brand.textContent = window.__GARDEN_EDITS.brand;
   setIterBadge(state.iteration);
-  // Restore the controller-set zoom level (L1/R1) across reloads.
-  try {
-    const lvl = parseInt(localStorage.getItem('garden.zoomlvl') || '0', 10) || 0;
-    if (lvl !== 0) setZoomLevel(lvl);
-  } catch { /* ignore */ }
+  // A refresh/reload RESETS zoom to 100% (per request) — don't restore a stale
+  // controller zoom. Clears the persisted level so it can't get stuck.
+  try { localStorage.removeItem('garden.zoomlvl'); setZoomLevel(0); } catch { /* ignore */ }
 
   // Load manifest + widgets.
   const garden = document.getElementById('garden');
@@ -1179,8 +1177,16 @@ function wirePad() {
         else if (panelOpen()) activatePanelRow();      // click the selected row (== mouse tap)
         else if (!openFocusedWidget()) { /* nothing focused */ }
         break;
-      case 'fup': moveFocus(-1); break;
-      case 'fdown': moveFocus(+1); break;
+      // Right stick = free SCROLL whenever a panel/reader is open (a guaranteed
+      // scroll method regardless of list selection), else move the widget focus.
+      case 'fup':
+      case 'fdown': {
+        const dir = action === 'fdown' ? 1 : -1;
+        if (document.getElementById('panelBody')?.classList.contains('reading')) readerScroll(dir * 220);
+        else if (panelOpen()) panelScrollBy(dir * 200);
+        else moveFocus(dir);
+        break;
+      }
       case 'fleft': moveFocus(-1); break;
       case 'fright': moveFocus(+1); break;
       case 'fopen':
