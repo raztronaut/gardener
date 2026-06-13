@@ -6,9 +6,8 @@
     { "id": "house-cleaning", "file": "house-cleaning.js", "enabled": true, "order": 3 },
     { "id": "hacker-news", "file": "hacker-news.js", "enabled": true, "order": 4 },
     { "id": "sf-events", "file": "sf-events.js", "enabled": true, "order": 5 },
-    { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 6 },
-    { "id": "sun-moon", "file": "sun-moon.js", "enabled": true, "order": 7 },
-    { "id": "mario", "file": "mario.js", "enabled": true, "order": 8 },
-    { "id": "tides", "file": "tides.js", "enabled": true, "order": 9 }
+    { "id": "sun-moon", "file": "sun-moon.js", "enabled": true, "order": 6 },
+    { "id": "mario", "file": "mario.js", "enabled": true, "order": 7 },
+    { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 8 }
   ]
 }

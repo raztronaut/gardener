@@ -1,5 +1,6 @@
 // Air Quality — current US AQI + PM2.5, via keyless Open-Meteo (through proxy).
-// Compact half-width card; pairs beside Sun & Moon. AQI breakpoints + color per US EPA.
+// Full-width bottom strip: big reading at left, EPA color scale across the row.
+// AQI breakpoints + color per US EPA.
 const CATS = [
   { max: 50,  label: 'Good',                          short: 'Good',        color: '#74f7b0' },
   { max: 100, label: 'Moderate',                       short: 'Moderate',    color: '#f7d774' },
@@ -14,13 +15,14 @@ export default {
   id: 'air-quality',
   title: 'Air Quality',
   icon: '🌬',
-  size: 'md',
+  size: 'lg',
   chrome: true,
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .aq { display:flex; flex-direction:column; gap:13px; height:100%; justify-content:center; }
-      .aq-head { display:flex; align-items:center; gap:14px; }
+      .aq { display:flex; flex-direction:row; align-items:center; gap:34px; height:100%; }
+      .aq-head { display:flex; align-items:center; gap:14px; flex:0 0 auto; }
+      .aq-scalewrap { flex:1; min-width:0; }
       .aq-num { font-family:var(--font-display); font-size:52px; font-weight:700; line-height:.82;
         color:var(--aq-color, var(--ink)); text-shadow:0 4px 16px rgba(0,0,0,.4); }
       .aq-side { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
@@ -71,7 +73,7 @@ export default {
                 'PM2.5',
                 ctx.h('span', { class: 'v' }, pm == null ? '—' : pm.toFixed(1)),
                 ctx.h('span', { class: 'u' }, 'µg/m³')))),
-          ctx.h('div', {},
+          ctx.h('div', { class: 'aq-scalewrap' },
             ctx.h('div', { class: 'aq-scale' },
               ctx.h('div', { class: 'aq-mark', style: { left: pct + '%' } })),
             ctx.h('div', { class: 'aq-ticks' },

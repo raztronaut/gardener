@@ -37,6 +37,26 @@
   --stroke-strong: rgba(140, 240, 195, 0.30);
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 
+  /* ---- Liquid Glass (Apple-style) card surface ----
+     A faithful approximation of Apple's "Liquid Glass" — translucent so the
+     aurora reads through, a bright specular rim along the top edge where light
+     catches, and soft gathered depth toward the bottom. Implemented BLUR-FREE
+     on purpose: backdrop-filter pegs this Jetson's WebKit renderer, so instead
+     of sampling the backdrop we layer a light gradient over a semi-transparent
+     base. Every card shares these exact parameters → one consistent material.
+     All static (rendered once) → ~0% idle CPU. */
+  --glass-base: rgba(20, 50, 42, 0.50);
+  --glass-fill: linear-gradient(157deg,
+      rgba(204, 255, 234, 0.15) 0%,
+      rgba(126, 218, 191, 0.06) 40%,
+      rgba(34, 94, 78, 0.045) 100%);
+  --glass-rim: rgba(198, 255, 231, 0.26);
+  --glass-edge:
+      inset 0 1px 0 rgba(238, 255, 249, 0.42),       /* top specular highlight */
+      inset 0 0 0 1px rgba(170, 240, 214, 0.05),     /* faint inner rim */
+      inset 0 -26px 42px -24px rgba(0, 28, 20, 0.55); /* depth toward base */
+  --glass-drop: 0 22px 48px -18px rgba(0, 0, 0, 0.55), 0 6px 16px -10px rgba(0, 0, 0, 0.5);
+
   --radius: 26px;
   --gap: 9px;   /* tight inter-card margin (−30% from 13px, per feedback) */
   --pad: 20px;   /* slightly tighter card padding → room for the 7th (household) widget on the locked canvas */
@@ -128,9 +148,11 @@ html, body {
 }
 .card {
   position: relative; grid-column: span 1;
-  /* Card interior matches the page background itself (no tinted fill) — the
-     border alone defines the box, so widgets sit ON the aurora, not over it. */
-  background: transparent; border: 1px solid var(--stroke);
+  /* Liquid-glass material (see --glass-* in :root): a translucent frosted pane
+     floating over the aurora, with a specular top rim and gathered depth. */
+  background: var(--glass-fill), var(--glass-base);
+  border: 1px solid var(--glass-rim);
+  box-shadow: var(--glass-edge), var(--glass-drop);
   border-radius: var(--radius);
   /* extra top padding reserves headroom for the absolute corner title so card
      content can never slide up underneath it (it's out of flow) */
@@ -231,7 +253,8 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 /* ---------- widget focus (right-stick highlight) ---------- */
 /* Controller focus AND cursor hover share the same mint ring + glow. */
 .card.focused, #garden > .card[data-wid]:hover {
-  border-color: var(--mint); box-shadow: 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35);
+  border-color: var(--mint);
+  box-shadow: var(--glass-edge), 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35);
   cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
 
 /* ---------- fullscreen widget panel ---------- */
