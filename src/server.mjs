@@ -120,6 +120,95 @@ async function serveRom(req, res, urlPath) {
     send(res, 404, 'text/plain', 'not found');
   }
 }
+// Arcade — emit the EmulatorJS bootstrap as a REAL same-origin page. The widget
+// points an iframe at /emu-frame.html?core=<id>&rom=<file>&name=<label>. We emit
+// the EJS_* globals + the loader so EmulatorJS runs in a proper document (not a
+// srcdoc): RetroArch can read screen dimensions and the WebGL canvas presents.
+// All params are validated/escaped; the ROM must be a real file in data/roms/.
+const EMU_CORES = new Set(['nes', 'snes', 'gb', 'gba', 'n64', 'segaMD', 'segaMS', 'pce']);
+function htmlEsc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+async function serveEmuFrame(req, res, u) {
+  const core = u.searchParams.get('core') || '';
+  const romFile = u.searchParams.get('rom') || '';
+  const name = (u.searchParams.get('name') || 'Game').slice(0, 80);
+  const base = romFile.split('/').pop() || '';
+  // Validate: known core + a real ROM file (same guard as serveRom).
+  if (!EMU_CORES.has(core) || !base || base.startsWith('.') || !ROM_SYSTEMS[extname(base).toLowerCase()]) {
+    return send(res, 400, 'text/plain', 'bad emu params');
+  }
+  const full = normalize(join(paths.ROMS, base));
+  if (!full.startsWith(resolve(paths.ROMS))) return send(res, 403, 'text/plain', 'forbidden');
+  try { await fs.access(full); } catch { return send(res, 404, 'text/plain', 'rom not found'); }
+
+  const EJS_DATA = 'https://cdn.emulatorjs.org/stable/data/';
+  const J = (v) => JSON.stringify(String(v));
+  const romUrl = '/roms/' + encodeURIComponent(base);
+  const doc = `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;width:100%;height:100%;background:#071a14;overflow:hidden}
+  /* The Jetson kiosk has NO hardware GL — EmulatorJS renders via software
+     SwiftShader, whose per-pixel cost scales with the canvas size. We give the
+     emulator a HALF-resolution stage (#game) and scale the whole thing 2x with a
+     GPU-cheap CSS transform so it fills the panel; this quarters SwiftShader's
+     fill cost (full speed instead of ~13fps at the native 774x1414). The wrapper
+     is the real viewport; #game is half its size, centered, then scaled back up.
+     image-rendering:pixelated keeps the upscale crisp (retro-appropriate). */
+  #wrap{position:fixed;inset:0;overflow:hidden}
+  #game{position:absolute;top:0;left:0;width:50vw;height:50vh;
+        transform:scale(2);transform-origin:top left}
+  #game canvas{image-rendering:pixelated;}
+</style>
+</head><body><div id="wrap"><div id="game"></div></div>
+<script>
+  window.EJS_player='#game';
+  window.EJS_pathtodata=${J(EJS_DATA)};
+  window.EJS_core=${J(core)};
+  window.EJS_gameUrl=${J(romUrl)};
+  window.EJS_gameName=${J(htmlEsc(name))};
+  window.EJS_startOnLoaded=true;
+  window.EJS_threads=true;
+  /* Force the WebGL2 video path: under software SwiftShader (the Jetson GPU is
+     blocklisted; --enable-unsafe-swiftshader gives WebGL via ANGLE/SwiftShader),
+     RetroArch's WebGL1 path renders a black frame, but WebGL2 presents. */
+  window.EJS_defaultOptions={ webgl2Enabled: 'enabled' };
+  window.EJS_color='#74f7b0';
+  window.EJS_backgroundColor='#071a14';
+  /* AUDIO GESTURE GATE — the real reason games "freeze" on a black screen here:
+     RetroArch's audio-synced main loop blocks until its Web Audio context is
+     running, but the context is created inside THIS iframe, which never receives
+     a user gesture (the picker click lands in the parent document), so autoplay
+     policy keeps it 'suspended' and the loop stalls after a few frames. We hook
+     AudioContext so every context RetroArch makes is tracked, then resume them
+     (a) immediately, (b) on a short poll until they're 'running', and (c) on the
+     'emu-kick' message the parent posts from within its real boot gesture and on
+     any local input — Chromium honours resume() once the frame tree is activated. */
+  (function(){
+    var ctxs=[];
+    function resumeAll(){ for(var i=0;i<ctxs.length;i++){ try{ if(ctxs[i].state!=='running') ctxs[i].resume(); }catch(e){} } }
+    ['AudioContext','webkitAudioContext'].forEach(function(n){
+      var Orig=window[n]; if(!Orig) return;
+      function Hooked(){ var c=new Orig(arguments[0]); ctxs.push(c); try{ c.resume(); }catch(e){} return c; }
+      Hooked.prototype=Orig.prototype; window[n]=Hooked;
+    });
+    var t=setInterval(function(){ resumeAll(); if(ctxs.length && ctxs.every(function(c){return c.state==='running';})) clearInterval(t); }, 250);
+    setTimeout(function(){ clearInterval(t); }, 20000);
+    addEventListener('message', function(e){ if(e&&e.data==='emu-kick') resumeAll(); }, false);
+    ['pointerdown','keydown','gamepadconnected'].forEach(function(ev){ addEventListener(ev, resumeAll, true); });
+  })();
+  var s=document.createElement('script');s.src=${J(EJS_DATA + 'loader.js')};document.body.appendChild(s);
+<\/script>
+</body></html>`;
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+    // Same cross-origin isolation as the wall page so SharedArrayBuffer + the CDN
+    // cores load identically inside this iframe.
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'credentialless',
+  });
+  res.end(doc);
+}
+
 function json(res, code, obj) { send(res, code, 'application/json; charset=utf-8', JSON.stringify(obj)); }
 
 async function readBody(req, limit = 64 * 1024) {
@@ -440,6 +529,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/proxy') return handleProxy(req, res, u);
 
     // ---- retro-console emulator (the Arcade widget) -------------------------
+    // Arcade emulator bootstrap page (served, NOT srcdoc): a real same-origin
+    // document so EmulatorJS/RetroArch can query screen dimensions, use storage,
+    // and resolve cdn.emulatorjs.org relative paths normally — a srcdoc iframe
+    // (about:srcdoc base URL, no screen) makes RetroArch render a black frame.
+    // Inherits the cross-origin-isolation headers via serveEmuFrame.
+    if (req.method === 'GET' && p === '/emu-frame.html') return serveEmuFrame(req, res, u);
     // List the ROMs the user dropped in data/roms/ (localhost-only server).
     if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
     // Stream one ROM's bytes (read-only, basename-guarded path traversal).

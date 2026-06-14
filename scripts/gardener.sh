@@ -105,6 +105,7 @@ case "$cmd" in
       --noerrdialogs --disable-session-crashed-bubble --disable-infobars \
       --no-first-run --password-store=basic \
       --disable-features=OverlayScrollbar \
+      --enable-unsafe-swiftshader \
       --remote-debugging-port=9223 \
       --window-position=0,0 --window-size=900,1600 ;;
   *) echo "usage: gardener.sh {server|iterate|day|evening|night|sync|plant|tunnel|kiosk}"; exit 2 ;;

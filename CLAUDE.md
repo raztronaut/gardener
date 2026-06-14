@@ -54,8 +54,42 @@ smoke render is cheap.
   in-game. The widget sets `window.__GARDEN_GAME = {input, stop}`; in the picker
   `input()` drives selection, in-game it's a no-op (EmulatorJS owns the pad).
   L2/Esc → the parent calls `stop()`, which HARD-STOPS the emulator AND its audio
-  (exit/pause the core, suspend+close its Web Audio context, clear the DOM, remove
-  the loader script, delete the `EJS_*` globals).
+  by **removing the iframe** (destroys the document, WASM core and Web Audio
+  context in one shot — a fresh, fully-disposable world per boot).
+
+### How a game actually boots (the architecture that makes it RUN)
+The widget boots a game by pointing an iframe at a **served same-origin page**,
+`GET /emu-frame.html?core=<id>&rom=<file>&name=<label>` (`serveEmuFrame` in
+`server.mjs`), NOT a `srcdoc` — it validates the core + that the ROM is a real
+file in `data/roms/`, then emits the `EJS_*` setup + the CDN `loader.js`. Three
+non-obvious things were required to get a live, playing canvas on this Jetson:
+1. **No hardware GL → software WebGL.** The Tegra GPU is blocklisted in the snap
+   Chromium and `--ignore-gpu-blocklist` does NOT recover it (NOGL). Chrome 149
+   also disabled the automatic software-WebGL fallback. So the kiosk launcher
+   (`scripts/gardener.sh`) passes **`--enable-unsafe-swiftshader`** — without it
+   EmulatorJS aborts with `Failed to initialize webgl` / `GLctx undefined` and a
+   `0×0` canvas. (This only affects pages that request a WebGL context; the
+   dashboard's CSS compositing is unchanged — verified 7 widgets, smoke green.)
+2. **Force WebGL2.** Under SwiftShader RetroArch's WebGL1 path renders a black
+   frame; `EJS_defaultOptions={ webgl2Enabled:'enabled' }` makes it present.
+3. **The audio gesture gate (the real "freeze").** RetroArch's audio-synced main
+   loop blocks until its Web Audio context is `running`, but that context is
+   created INSIDE the iframe, which never gets a user gesture (the picker click
+   lands in the parent), so autoplay policy keeps it `suspended` and the loop
+   stalls after ~4 frames on a black screen. Fix: the served page hooks
+   `AudioContext` and resumes every context it makes (immediately, on a poll
+   until running, on local input, and on the `emu-kick` `postMessage` the widget
+   fires repeatedly from within its real boot gesture for the first ~6s).
+- **Performance:** software SwiftShader fill scales with canvas pixels, so the
+  served page renders into a HALF-resolution `#game` and scales it 2× with a CSS
+  transform (`image-rendering:pixelated`) — ~20fps vs ~13fps at native size.
+  Threaded core (`EJS_threads=true`) is on; it needs SharedArrayBuffer, which is
+  why the wall page keeps **COOP:same-origin + COEP:credentialless** (in
+  `serveStatic`; `/emu-frame.html` sends the same headers). credentialless keeps
+  the CDN cores + cross-origin avatar images loading. The threaded core is a
+  small win here (the bottleneck is the software compositor, not emulation) but
+  COOP/COEP was already verified harmless to the dashboard + Roots Wall mirror,
+  so it stays.
 
 ## "Roots" — household side app (HAND-MAINTAINED — daily tending MUST NOT modify)
 There is a separate, mobile-first household web app called **Roots** ("The House")

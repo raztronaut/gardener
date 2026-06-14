@@ -13,8 +13,9 @@
 // (L2/Esc) is handled by the parent → it calls our stop(), which HARD-STOPS the
 // emulator + its audio.
 
-const EJS_DATA = 'https://cdn.emulatorjs.org/stable/data/';
-// EmulatorJS core ids keyed by the system our server infers from the extension.
+// The EmulatorJS data dir + the actual EJS_* boot setup live SERVER-side in
+// /emu-frame.html (src/server.mjs serveEmuFrame); the widget just points an
+// iframe there. EmulatorJS core ids keyed by the system our server infers.
 const CORE = {
   nes: 'nes', snes: 'snes', gb: 'gb', gbc: 'gb', gba: 'gba',
   n64: 'n64', segaMD: 'segaMD', segaMS: 'segaMS', pce: 'pce',
@@ -221,57 +222,37 @@ export default {
         h('span', {}, h('b', {}, 'L2 / Esc'), ' — back to game list'));
       body.replaceChildren(stage, bar);
 
-      const romUrl = location.origin + '/roms/' + encodeURIComponent(rom.file);
-      const J = JSON.stringify;
-      const doc = `<!doctype html><html><head><meta charset="utf-8">
-<style>html,body{margin:0;width:100%;height:100%;background:#071a14;overflow:hidden}#game{width:100vw;height:100vh}</style>
-</head><body><div id="game"></div>
-<script>
-  window.EJS_player='#game';
-  window.EJS_pathtodata=${J(EJS_DATA)};
-  window.EJS_core=${J(core)};
-  window.EJS_gameUrl=${J(romUrl)};
-  window.EJS_gameName=${J(rom.name)};
-  window.EJS_startOnLoaded=true;
-  window.EJS_threads=true;    /* SAB is available (page is cross-origin isolated
-                                 via COOP/COEP) → use the threaded core */
-  window.EJS_color='#74f7b0';
-  window.EJS_backgroundColor='#071a14';
-  window.EJS_DEBUG_XX=true;
-  window.__emuErr=[];
-  addEventListener('error',function(e){__emuErr.push('ERR '+String(e.message||e))});
-  addEventListener('unhandledrejection',function(e){__emuErr.push('REJ '+String(e.reason&&e.reason.message||e.reason||e))});
-  ['log','warn','error'].forEach(function(k){var o=console[k];console[k]=function(){try{__emuErr.push(k[0].toUpperCase()+': '+[].map.call(arguments,function(a){return (a&&a.message)||String(a)}).join(' ').slice(0,160))}catch(e){};return o.apply(console,arguments)}});
-  window.__sab=(typeof SharedArrayBuffer!=='undefined');
-<\/script>
-</body></html>`;
+      // Point the iframe at a REAL same-origin page (/emu-frame.html), NOT a
+      // srcdoc. In a srcdoc iframe RetroArch can't read screen dimensions and
+      // renders a black frame; a served page gives a proper document + base URL
+      // so the WebGL canvas presents and the game is visible. The server emits
+      // the EJS_* setup + loader and validates the rom/core params.
+      const src = '/emu-frame.html?core=' + encodeURIComponent(core)
+        + '&rom=' + encodeURIComponent(rom.file)
+        + '&name=' + encodeURIComponent(rom.name);
 
       const frame = document.createElement('iframe');
       frame.className = 'eg-frame';
       frame.setAttribute('allow', 'autoplay; gamepad; fullscreen');
-      frame.srcdoc = doc;
+      frame.src = src;
       frame.onerror = () => stage.replaceChildren(
         h('div', { class: 'eg-empty' },
           h('div', {}, 'Could not reach the emulator.'),
           h('div', {}, 'Check the wall’s internet connection, then pick again.')));
-      // Inject the EmulatorJS loader ONLY AFTER the iframe has loaded AND laid out
-      // (two rAFs) — otherwise EmulatorJS measures the still-unsized container as
-      // 0×0 and the core aborts. By now #game has real pixel dimensions.
-      frame.addEventListener('load', () => {
-        try {
-          const d = frame.contentDocument;
-          if (!d || !d.body) return;
-          requestAnimationFrame(() => requestAnimationFrame(() => {
-            try {
-              const s = d.createElement('script');
-              s.src = EJS_DATA + 'loader.js';
-              d.body.appendChild(s);
-            } catch { /* ignore */ }
-          }));
-        } catch { /* ignore */ }
-      });
       emuFrame = frame;
       stage.appendChild(frame);
+
+      // AUDIO GESTURE GATE: this boot() runs inside a REAL user gesture (the
+      // picker click / controller OK), so the frame tree is activated. RetroArch
+      // creates its Web Audio context a couple seconds into core init and its
+      // main loop stalls (black screen, frozen) until that context is 'running'.
+      // We post 'emu-kick' repeatedly for the first few seconds so the iframe
+      // resumes whatever audio context appears. Cleared on teardown.
+      for (let t = 0; t <= 6000; t += 400) {
+        cleanupTimers.push(setTimeout(() => {
+          try { frame.contentWindow?.postMessage('emu-kick', '*'); } catch { /* ignore */ }
+        }, t));
+      }
     }
 
     await showPicker();
