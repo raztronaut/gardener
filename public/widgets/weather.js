@@ -29,7 +29,11 @@ export default {
     ctx.style(`
       .wx { display:flex; flex-direction:column; gap:5px; height:100%; justify-content:space-between; }
       .wx-top { display:flex; align-items:center; gap:14px; }
-      .wx-emoji { width:64px; height:64px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+      .wx-emoji { width:64px; height:64px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
+        animation:wxfloat 5s ease-in-out infinite; }
+      /* the cloud/sun itself gently floats — subtle, compositor-only (transform) */
+      @keyframes wxfloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+      @media (prefers-reduced-motion: reduce) { .wx-emoji { animation:none; } }
       .wx-icon { display:block; }
       .wx-temp { display:flex; align-items:baseline; gap:11px; }
       .wx-temp .f { font-family:var(--font-display); font-size:40px; font-weight:600; line-height:.85;

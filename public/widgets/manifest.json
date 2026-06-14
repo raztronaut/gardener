@@ -1,13 +1,47 @@
 {
   "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest.",
   "widgets": [
-    { "id": "clock", "file": "clock.js", "enabled": true, "order": 1 },
-    { "id": "weather", "file": "weather.js", "enabled": true, "order": 2 },
-    { "id": "house-cleaning", "file": "house-cleaning.js", "enabled": true, "order": 3 },
-    { "id": "hacker-news", "file": "hacker-news.js", "enabled": true, "order": 4 },
-    { "id": "sf-events", "file": "sf-events.js", "enabled": true, "order": 5 },
-    { "id": "sun-moon", "file": "sun-moon.js", "enabled": true, "order": 6 },
-    { "id": "emulator", "file": "emulator.js", "enabled": true, "order": 7 },
-    { "id": "air-quality", "file": "air-quality.js", "enabled": true, "order": 8 }
+    {
+      "id": "clock",
+      "file": "clock.js",
+      "enabled": true,
+      "order": 1
+    },
+    {
+      "id": "weather",
+      "file": "weather.js",
+      "enabled": true,
+      "order": 2
+    },
+    {
+      "id": "house-cleaning",
+      "file": "house-cleaning.js",
+      "enabled": true,
+      "order": 3
+    },
+    {
+      "id": "hacker-news",
+      "file": "hacker-news.js",
+      "enabled": true,
+      "order": 4
+    },
+    {
+      "id": "sf-events",
+      "file": "sf-events.js",
+      "enabled": true,
+      "order": 5
+    },
+    {
+      "id": "emulator",
+      "file": "emulator.js",
+      "enabled": true,
+      "order": 6
+    },
+    {
+      "id": "air-quality",
+      "file": "air-quality.js",
+      "enabled": true,
+      "order": 7
+    }
   ]
 }
