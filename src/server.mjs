@@ -56,6 +56,11 @@ async function serveStatic(req, res, urlPath) {
     res.writeHead(200, {
       'Content-Type': type,
       'Cache-Control': volatile ? 'no-store' : 'public, max-age=3600',
+      // Cross-origin isolation → SharedArrayBuffer, which the EmulatorJS (Arcade)
+      // cores require. credentialless lets cross-origin subresources (CDN cores,
+      // avatar photos) still load without CORP headers.
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'credentialless',
     });
     res.end(data);
   } catch {

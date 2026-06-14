@@ -28,7 +28,7 @@ export default {
   id: 'emulator',
   title: 'Arcade',
   icon: '🕹',
-  size: 'md',
+  size: 'lg',
   chrome: true,
 
   // ---- dashboard card: a calm static tile (no animation, no EmulatorJS) -----
@@ -96,8 +96,9 @@ export default {
       .eg-empty code { color:var(--mint); font-size:13px; }
       /* game */
       .eg-stage { flex:1; min-height:0; width:100%; position:relative; }
-      .eg-stage #game { width:100%; height:100%; }
-      .eg-stage #game canvas { image-rendering:pixelated; }
+      /* absolute-fill the positioned stage so the iframe has DEFINITE pixel
+         dimensions — EmulatorJS measures its container and aborts if it's 0×0. */
+      .eg-frame { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:#071a14; }
       .eg-bar { flex:none; display:flex; align-items:center; justify-content:space-between;
         padding:8px 10px 0; font-family:var(--font-mono); font-size:11px; letter-spacing:.1em;
         text-transform:uppercase; color:var(--ink-faint); }
@@ -112,56 +113,17 @@ export default {
     let mode = 'picker';   // 'picker' | 'game'
     let sel = 0;           // picker selection index
     let roms = [];
-    let injected = null;   // the EmulatorJS loader <script> we added
+    let emuFrame = null;   // the EmulatorJS iframe (one per game)
     let cleanupTimers = []; // any timeouts we set (cleared on stop)
 
-    // Track every AudioContext the page opens while a game is up, so teardown can
-    // GUARANTEE silence — EmulatorJS cores create their audio via Web Audio and
-    // don't always expose a handle we can reach. We wrap the constructor once and
-    // restore it on stop(). This is the load-bearing "kill the audio" mechanism.
-    const liveAudio = new Set();
-    const OrigAC = window.AudioContext || window.webkitAudioContext;
-    function patchAudio() {
-      if (!OrigAC || window.AudioContext?.__emuPatched) return;
-      const Wrapped = function (...a) { const ac = new OrigAC(...a); try { liveAudio.add(ac); } catch {} return ac; };
-      Wrapped.prototype = OrigAC.prototype;
-      Wrapped.__emuPatched = true;
-      try { window.AudioContext = Wrapped; if (window.webkitAudioContext) window.webkitAudioContext = Wrapped; } catch {}
-    }
-    function restoreAudio() { try { if (OrigAC) { window.AudioContext = OrigAC; window.webkitAudioContext = OrigAC; } } catch {} }
-    function killAudio() {
-      for (const ac of liveAudio) { try { ac.suspend?.(); } catch {} try { ac.close?.(); } catch {} }
-      liveAudio.clear();
-    }
-
-    // ---- HARD teardown: kill EmulatorJS + its audio so closing the panel is
-    // silent. The parent calls this via __GARDEN_GAME.stop() when L2/Esc fires.
+    // ---- HARD teardown: removing the iframe destroys EmulatorJS' document,
+    // its globals, its WASM core AND its audio in one shot. This is why we run
+    // the emulator in an iframe — EmulatorJS declares un-deletable global classes
+    // (EJS_STORAGE) and Web Audio contexts we can't reliably reach from outside;
+    // an iframe gives a fresh, fully-disposable world every boot.
     function teardownGame() {
-      try { window.EJS_emulator?.callEvent?.('exit'); } catch { /* ignore */ }
-      // Pause/close every emulator audio surface we can reach.
-      try { window.EJS_emulator?.pause?.(); } catch { /* ignore */ }
-      try { window.EJS_emulator?.elements?.parent && (window.EJS_emulator.elements.parent.innerHTML = ''); } catch { /* ignore */ }
-      try { window.EJS_emulator?.gameManager?.Module?.AL?.currentCtx?.sources?.forEach?.((s) => { try { s.stop(); } catch {} }); } catch { /* ignore */ }
-      // Suspend/close any Web Audio context the core opened (belt + suspenders —
-      // this is what silences SNES/GBA audio that otherwise keeps playing).
-      try {
-        const ctxs = [window.EJS_emulator?.Module?.SDL2?.audioContext,
-          window.EJS_emulator?.gameManager?.Module?.SDL2?.audioContext];
-        for (const ac of ctxs) { try { ac?.suspend?.(); ac?.close?.(); } catch {} }
-      } catch { /* ignore */ }
-      // GUARANTEED audio kill: suspend+close every AudioContext opened since boot.
-      killAudio();
-      // Remove the EmulatorJS DOM (its #game contents AND any .ejs_* nodes it may
-      // have appended) + the injected loader, then delete its globals so a re-pick
-      // boots a fresh instance.
-      const stage = body.querySelector('#game');
-      if (stage) stage.innerHTML = '';
-      try { body.querySelectorAll('[class*="ejs_"]').forEach((el) => el.remove()); } catch { /* ignore */ }
-      try { injected?.remove?.(); } catch { /* ignore */ }
-      injected = null;
-      for (const k of Object.keys(window)) {
-        if (k === 'EJS_emulator' || k.startsWith('EJS_')) { try { delete window[k]; } catch { window[k] = undefined; } }
-      }
+      try { emuFrame?.remove(); } catch { /* ignore */ }
+      emuFrame = null;
     }
 
     // ---- the controller/keyboard bridge stays set the WHOLE time the panel is
@@ -179,7 +141,6 @@ export default {
       },
       stop() {
         teardownGame();
-        restoreAudio();
         window.removeEventListener('keydown', onKey, true);
         cleanupTimers.forEach(clearTimeout);
       },
@@ -243,44 +204,74 @@ export default {
       sel = 0; setSel(0);
     }
 
-    // ---- BOOT EmulatorJS for one ROM -----------------------------------------
+    // ---- BOOT EmulatorJS for one ROM, inside its own IFRAME ------------------
+    // The iframe gets a fresh document so EmulatorJS' global classes never
+    // collide across boots, and `allow="gamepad"` lets the SN30 Pro reach the
+    // emulator's Gamepad reader. Tearing it down = removing the iframe.
     function boot(rom) {
       if (!rom) return;
       const core = CORE[rom.system];
       if (!core) return;
       mode = 'game';
-      teardownGame(); // clear any prior instance + globals
-      patchAudio();   // track AudioContexts the core opens, so stop() can kill them
+      teardownGame(); // remove any prior iframe
 
-      const stage = h('div', { class: 'eg-stage' }, h('div', { id: 'game' }));
+      const stage = h('div', { class: 'eg-stage' });
       const bar = h('div', { class: 'eg-bar' },
         h('button', { class: 'eg-back', type: 'button', onclick: showPicker }, '← Games'),
         h('span', {}, h('b', {}, 'L2 / Esc'), ' — back to game list'));
       body.replaceChildren(stage, bar);
 
-      // Globals MUST be set before loader.js runs (EmulatorJS reads them on load).
-      window.EJS_player = '#game';
-      window.EJS_pathtodata = EJS_DATA;
-      window.EJS_core = core;
-      window.EJS_gameUrl = '/roms/' + encodeURIComponent(rom.file);
-      window.EJS_gameName = rom.name;
-      window.EJS_startOnLoaded = true;
-      window.EJS_color = '#74f7b0'; // mint — matches the wall
-      window.EJS_backgroundColor = '#071a14';
+      const romUrl = location.origin + '/roms/' + encodeURIComponent(rom.file);
+      const J = JSON.stringify;
+      const doc = `<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;width:100%;height:100%;background:#071a14;overflow:hidden}#game{width:100vw;height:100vh}</style>
+</head><body><div id="game"></div>
+<script>
+  window.EJS_player='#game';
+  window.EJS_pathtodata=${J(EJS_DATA)};
+  window.EJS_core=${J(core)};
+  window.EJS_gameUrl=${J(romUrl)};
+  window.EJS_gameName=${J(rom.name)};
+  window.EJS_startOnLoaded=true;
+  window.EJS_threads=true;    /* SAB is available (page is cross-origin isolated
+                                 via COOP/COEP) → use the threaded core */
+  window.EJS_color='#74f7b0';
+  window.EJS_backgroundColor='#071a14';
+  window.EJS_DEBUG_XX=true;
+  window.__emuErr=[];
+  addEventListener('error',function(e){__emuErr.push('ERR '+String(e.message||e))});
+  addEventListener('unhandledrejection',function(e){__emuErr.push('REJ '+String(e.reason&&e.reason.message||e.reason||e))});
+  ['log','warn','error'].forEach(function(k){var o=console[k];console[k]=function(){try{__emuErr.push(k[0].toUpperCase()+': '+[].map.call(arguments,function(a){return (a&&a.message)||String(a)}).join(' ').slice(0,160))}catch(e){};return o.apply(console,arguments)}});
+  window.__sab=(typeof SharedArrayBuffer!=='undefined');
+<\/script>
+</body></html>`;
 
-      const s = document.createElement('script');
-      s.src = EJS_DATA + 'loader.js';
-      s.async = true;
-      s.onerror = () => {
-        const st = body.querySelector('#game');
-        if (st) st.innerHTML = '';
-        body.querySelector('.eg-stage')?.replaceChildren(
-          h('div', { class: 'eg-empty' },
-            h('div', {}, 'Could not reach the emulator.'),
-            h('div', {}, 'Check the wall’s internet connection, then pick again.')));
-      };
-      injected = s;
-      document.body.appendChild(s);
+      const frame = document.createElement('iframe');
+      frame.className = 'eg-frame';
+      frame.setAttribute('allow', 'autoplay; gamepad; fullscreen');
+      frame.srcdoc = doc;
+      frame.onerror = () => stage.replaceChildren(
+        h('div', { class: 'eg-empty' },
+          h('div', {}, 'Could not reach the emulator.'),
+          h('div', {}, 'Check the wall’s internet connection, then pick again.')));
+      // Inject the EmulatorJS loader ONLY AFTER the iframe has loaded AND laid out
+      // (two rAFs) — otherwise EmulatorJS measures the still-unsized container as
+      // 0×0 and the core aborts. By now #game has real pixel dimensions.
+      frame.addEventListener('load', () => {
+        try {
+          const d = frame.contentDocument;
+          if (!d || !d.body) return;
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            try {
+              const s = d.createElement('script');
+              s.src = EJS_DATA + 'loader.js';
+              d.body.appendChild(s);
+            } catch { /* ignore */ }
+          }));
+        } catch { /* ignore */ }
+      });
+      emuFrame = frame;
+      stage.appendChild(frame);
     }
 
     await showPicker();
