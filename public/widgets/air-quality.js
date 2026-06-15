@@ -15,18 +15,17 @@ export default {
   id: 'air-quality',
   title: 'Air Quality',
   icon: '🌬',
-  size: 'lg',
+  size: 'md',
   chrome: true,
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .aq { display:flex; flex-direction:row; align-items:center; gap:34px; height:100%; }
-      .aq-head { display:flex; align-items:center; gap:14px; flex:0 0 auto; }
-      .aq-scalewrap { flex:1; min-width:0; }
-      .aq-num { font-family:var(--font-display); font-size:52px; font-weight:700; line-height:.82;
+      .aq { display:flex; flex-direction:column; gap:11px; height:100%; justify-content:center; }
+      .aq-head { display:flex; align-items:center; gap:14px; }
+      .aq-num { font-family:var(--font-display); font-size:50px; font-weight:700; line-height:.82;
         color:var(--aq-color, var(--ink)); text-shadow:0 4px 16px rgba(0,0,0,.4); }
       .aq-side { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
-      .aq-unit { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); letter-spacing:.1em; }
+      .aq-unit { font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint); letter-spacing:.1em; }
       .aq-cat { font-size:18px; font-weight:700; color:var(--aq-color, var(--ink)); line-height:1.05;
         display:flex; align-items:center; gap:8px; }
       .aq-cat .lbl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -35,6 +34,7 @@ export default {
       .aq-pm .u { font-size:10px; color:var(--ink-faint); }
       .aq-dot { flex:0 0 auto; width:10px; height:10px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
         box-shadow:0 0 11px var(--aq-color, transparent); }
+      .aq-scalewrap { width:100%; }
       .aq-scale { position:relative; height:11px; border-radius:999px;
         background:linear-gradient(90deg,#74f7b0 0%,#f7d774 25%,#f7a374 42%,#f77474 58%,#c074f7 78%,#f74a74 100%);
         opacity:.92; }
