@@ -56,11 +56,6 @@ async function serveStatic(req, res, urlPath) {
     res.writeHead(200, {
       'Content-Type': type,
       'Cache-Control': volatile ? 'no-store' : 'public, max-age=3600',
-      // Cross-origin isolation → SharedArrayBuffer, which the EmulatorJS (Arcade)
-      // cores require. credentialless lets cross-origin subresources (CDN cores,
-      // avatar photos) still load without CORP headers.
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'credentialless',
     });
     res.end(data);
   } catch {
@@ -145,20 +140,32 @@ async function serveEmuFrame(req, res, u) {
   const romUrl = '/roms/' + encodeURIComponent(base);
   const doc = `<!doctype html><html><head><meta charset="utf-8">
 <style>
-  html,body{margin:0;width:100%;height:100%;background:#071a14;overflow:hidden}
+  html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
   /* The Jetson kiosk has NO hardware GL — EmulatorJS renders via software
-     SwiftShader, whose per-pixel cost scales with the canvas size. We give the
-     emulator a HALF-resolution stage (#game) and scale the whole thing 2x with a
-     GPU-cheap CSS transform so it fills the panel; this quarters SwiftShader's
-     fill cost (full speed instead of ~13fps at the native 774x1414). The wrapper
-     is the real viewport; #game is half its size, centered, then scaled back up.
-     image-rendering:pixelated keeps the upscale crisp (retro-appropriate). */
-  #wrap{position:fixed;inset:0;overflow:hidden}
-  #game{position:absolute;top:0;left:0;width:50vw;height:50vh;
-        transform:scale(2);transform-origin:top left}
-  #game canvas{image-rendering:pixelated;}
+     SwiftShader, whose per-pixel cost scales with the canvas size. So #game is
+     rendered at HALF size and scaled 2x by a cheap CSS transform. It keeps a 4:3
+     aspect (the CRT shape), sized to the FULL panel width and CENTERED, with the
+     rest of the tube black — a real game picture, not stretched to portrait. */
+  #wrap{position:fixed;inset:0;overflow:hidden;background:#000;
+        display:flex;align-items:center;justify-content:center}
+  #game{position:absolute;top:50%;left:50%;width:50vw;height:37.5vw;
+        transform:translate(-50%,-50%) scale(2);transform-origin:center center}
+  #game canvas{image-rendering:pixelated;width:100%!important;height:100%!important;}
+  /* ---- CRT "tube TV" overlay: scanlines + slanted-shadow-mask + a curved-glass
+     vignette/bulge. Pure CSS (the software GPU can't afford a per-frame warp
+     shader), tuned to read as a warped tube without touching the render loop. */
+  #crt{position:absolute;top:50%;left:50%;width:100vw;height:75vw;
+       transform:translate(-50%,-50%);pointer-events:none;z-index:5;
+       border-radius:6% / 8%;overflow:hidden;
+       box-shadow:inset 0 0 60px 12px rgba(0,0,0,.55), inset 0 0 160px 40px rgba(0,0,0,.4);}
+  #crt::before{content:"";position:absolute;inset:0;
+       background:repeating-linear-gradient(0deg, rgba(0,0,0,.28) 0 1px, transparent 1px 3px);
+       mix-blend-mode:multiply;}
+  #crt::after{content:"";position:absolute;inset:0;
+       background:radial-gradient(120% 120% at 50% 50%, transparent 58%, rgba(0,0,0,.55) 100%),
+                  radial-gradient(80% 60% at 50% 18%, rgba(255,255,255,.10), transparent 60%);}
 </style>
-</head><body><div id="wrap"><div id="game"></div></div>
+</head><body><div id="wrap"><div id="game"></div><div id="crt"></div></div>
 <script>
   window.EJS_player='#game';
   window.EJS_pathtodata=${J(EJS_DATA)};
@@ -166,7 +173,9 @@ async function serveEmuFrame(req, res, u) {
   window.EJS_gameUrl=${J(romUrl)};
   window.EJS_gameName=${J(htmlEsc(name))};
   window.EJS_startOnLoaded=true;
-  window.EJS_threads=true;
+  window.EJS_threads=false;  /* non-threaded core: needs NO SharedArrayBuffer, so
+                                the wall doesn't need COOP/COEP (which broke the HN
+                                reader). The earlier abort was WebGL, not SAB. */
   /* Force the WebGL2 video path: under software SwiftShader (the Jetson GPU is
      blocklisted; --enable-unsafe-swiftshader gives WebGL via ANGLE/SwiftShader),
      RetroArch's WebGL1 path renders a black frame, but WebGL2 presents. */
@@ -192,19 +201,19 @@ async function serveEmuFrame(req, res, u) {
     });
     var t=setInterval(function(){ resumeAll(); if(ctxs.length && ctxs.every(function(c){return c.state==='running';})) clearInterval(t); }, 250);
     setTimeout(function(){ clearInterval(t); }, 20000);
-    addEventListener('message', function(e){ if(e&&e.data==='emu-kick') resumeAll(); }, false);
+    addEventListener('message', function(e){ if(e&&e.data==='emu-kick'){ resumeAll(); try{ window.focus(); }catch(_){} } }, false);
     ['pointerdown','keydown','gamepadconnected'].forEach(function(ev){ addEventListener(ev, resumeAll, true); });
   })();
+  /* Keyboard reaches EmulatorJS only when THIS iframe has focus — the picker
+     click landed in the parent, so grab focus on load and keep it. */
+  addEventListener('load', function(){ try{ window.focus(); document.body && document.body.focus && document.body.focus(); }catch(e){} });
+  document.documentElement.tabIndex=-1;
   var s=document.createElement('script');s.src=${J(EJS_DATA + 'loader.js')};document.body.appendChild(s);
 <\/script>
 </body></html>`;
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
-    // Same cross-origin isolation as the wall page so SharedArrayBuffer + the CDN
-    // cores load identically inside this iframe.
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'credentialless',
   });
   res.end(doc);
 }

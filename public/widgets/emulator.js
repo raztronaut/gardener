@@ -251,6 +251,9 @@ export default {
       for (let t = 0; t <= 6000; t += 400) {
         cleanupTimers.push(setTimeout(() => {
           try { frame.contentWindow?.postMessage('emu-kick', '*'); } catch { /* ignore */ }
+          // Keyboard/gamepad only reach EmulatorJS when the iframe has focus —
+          // the picker click left focus in the parent, so hand it to the game.
+          try { frame.focus(); frame.contentWindow?.focus(); } catch { /* ignore */ }
         }, t));
       }
     }
