@@ -1070,7 +1070,6 @@ function openReader(url, title) {
     src: `/api/readable?raw=1&url=${encodeURIComponent(url)}`,
     referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
   });
-  readerFrame = frame; // so the controller can scroll the article (same-origin iframe)
   frame.addEventListener('load', () => { document.getElementById('panelClose')?.focus(); });
   frame.addEventListener('error', () => {
     const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=200&format=png`)}`;
@@ -1081,6 +1080,9 @@ function openReader(url, title) {
     h('div', { class: 'rd-src' }, host || 'reading'), frame);
   openSubPanel(title || 'Reading…', box);
   document.getElementById('panelBody')?.classList.add('reading'); // panel stops scrolling; iframe scrolls
+  // Set readerFrame AFTER openSubPanel — openPanel() nulls it, so assigning
+  // before (the old bug) left it null and the joypad couldn't scroll the article.
+  readerFrame = frame;
   document.getElementById('panelClose')?.focus(); // keep keys on the parent, not the iframe
 }
 // True while the article reader is the open view; lets the controller scroll it.
