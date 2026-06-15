@@ -277,9 +277,21 @@ function focusInput() {
   if (i && document.activeElement !== i) { try { i.focus(); } catch { /* ignore */ } }
 }
 function panelOpen() { return !!document.getElementById('panel')?.classList.contains('open'); }
+// The panel's close affordance adapts to how you're driving the wall: with a
+// controller it shows an "L2 · leave" keycap; with mouse/keyboard, "esc · close".
+let padMode = false;
+function updateCloseHint() {
+  const b = document.getElementById('panelClose');
+  if (!b) return;
+  if (padMode) b.innerHTML = '<span class="kcap">L2</span> leave';
+  else b.textContent = 'esc · close ✕';
+}
+function setPadMode(on) { if (padMode !== on) { padMode = on; updateCloseHint(); } }
+
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
   if (!keepStack) { panelStack.length = 0; stopPanelWidget(); } // fresh top-level view resets any stacked detail
+  updateCloseHint();
   document.getElementById('panelTitle').textContent = title;
   // Content goes inside a transform-scrolled wrapper: native scrollTop scrolling
   // CPU-rasterizes the whole panel every frame in WebKitGTK (measured 3.7fps on
@@ -1231,9 +1243,14 @@ function wirePad() {
       default: break; // left/right/noop — unused for now
     }
   };
+  // Real mouse/keyboard switches the close hint back to "esc · close". (The pad
+  // bridge dispatches keys into the emulator iframe, not the main doc, so a
+  // main-document keydown is always a real keyboard.)
+  window.addEventListener('pointerdown', () => setPadMode(false), true);
+  window.addEventListener('keydown', () => setPadMode(false), true);
   const connect = () => {
     const es = new EventSource('/api/pad/stream');
-    es.onmessage = (e) => { try { apply(JSON.parse(e.data).action); } catch { /* ignore */ } };
+    es.onmessage = (e) => { try { const a = JSON.parse(e.data).action; setPadMode(true); apply(a); } catch { /* ignore */ } };
     es.onerror = () => { es.close(); setTimeout(connect, 5000); }; // server restart → reconnect
   };
   connect();

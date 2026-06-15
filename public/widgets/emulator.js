@@ -75,8 +75,11 @@ export default {
   async openFull(body, ctx) {
     const { h } = ctx;
     ctx.style(`
-      .eg { position:relative; width:100%; height:calc(100vh - 150px); min-height:380px;
-        display:flex; flex-direction:column; }
+      /* Full-bleed horizontally: cancel the panel-body's 28px side padding so the
+         game has NO left/right margin (edge to edge), keeping the top. */
+      .eg { position:relative; width:calc(100% + 56px); margin:0 -28px; height:calc(100vh - 150px);
+        min-height:380px; display:flex; flex-direction:column; }
+      .eg .eg-pick { padding-left:28px; padding-right:28px; } /* the picker keeps comfortable insets */
       /* picker */
       .eg-pick { flex:1; min-height:0; display:flex; flex-direction:column; padding:6px 4px 0; }
       .eg-pick-h { flex:none; font-family:var(--font-mono); font-size:11px; letter-spacing:.18em;
@@ -130,9 +133,51 @@ export default {
     // ---- the controller/keyboard bridge stays set the WHOLE time the panel is
     // open. In the picker we navigate ourselves; in-game EmulatorJS reads the
     // pad natively so input() is a no-op. 'back' is handled by the parent.
+    // In-game controller → keyboard BRIDGE. The browser Gamepad API isn't
+    // reliably exposed to the emulator iframe on this kiosk (no gesture inside
+    // it), so we drive the game through our proven evdev→SSE pad path by
+    // synthesizing the keys EmulatorJS maps by default. Directions are held
+    // (keyup refreshed by the stick's repeat); buttons are taps.
+    const KEYMAP = { // action → [key, code, keyCode]
+      up: ['ArrowUp', 'ArrowUp', 38], down: ['ArrowDown', 'ArrowDown', 40],
+      left: ['ArrowLeft', 'ArrowLeft', 37], right: ['ArrowRight', 'ArrowRight', 39],
+      fup: ['ArrowUp', 'ArrowUp', 38], fdown: ['ArrowDown', 'ArrowDown', 40],
+      fleft: ['ArrowLeft', 'ArrowLeft', 37], fright: ['ArrowRight', 'ArrowRight', 39],
+      ok: ['x', 'KeyX', 88],        // A button → NES A
+      events: ['z', 'KeyZ', 90],    // B button → NES B
+      palette: ['s', 'KeyS', 83],   // X
+      hn: ['a', 'KeyA', 65],        // Y
+      help: ['Enter', 'Enter', 13], // Start
+      changelog: ['Shift', 'ShiftLeft', 16], // Select
+      pageup: ['q', 'KeyQ', 81], pagedown: ['e', 'KeyE', 69], // L1/R1
+    };
+    const DIR = new Set(['up', 'down', 'left', 'right', 'fup', 'fdown', 'fleft', 'fright']);
+    const heldKeys = new Map(); // code → keyup timeout
+    function fire(type, k) {
+      const win = emuFrame?.contentWindow, docu = emuFrame?.contentDocument;
+      if (!win || !docu) return;
+      // Dispatch to window, document AND the focused element — EmulatorJS attaches
+      // its keydown listener to one of them and we don't know which; hitting all
+      // three (each its own event instance) guarantees it registers.
+      const targets = [win, docu, docu.activeElement, docu.body].filter(Boolean);
+      for (const t of targets) {
+        try { t.dispatchEvent(new win.KeyboardEvent(type, { key: k[0], code: k[1], keyCode: k[2], which: k[2], bubbles: true, cancelable: true })); } catch { /* ignore */ }
+      }
+    }
+    function gameKey(action) {
+      const k = KEYMAP[action];
+      if (!k) return;
+      const code = k[1];
+      const prev = heldKeys.get(code);
+      if (prev) clearTimeout(prev); else fire('keydown', k); // first press → keydown
+      // hold direction longer (refreshed by stick repeat); tap buttons briefly
+      heldKeys.set(code, setTimeout(() => { fire('keyup', k); heldKeys.delete(code); }, DIR.has(action) ? 240 : 90));
+    }
+
     window.__GARDEN_GAME = {
       input(action) {
-        if (mode !== 'picker' || !roms.length) return; // in-game: EmulatorJS owns the pad
+        if (mode === 'game') { gameKey(action); return; } // drive the emulator
+        if (!roms.length) return;
         const cols = 2;
         if (action === 'up' || action === 'fup') setSel(sel - cols);
         else if (action === 'down' || action === 'fdown') setSel(sel + cols);
@@ -141,6 +186,8 @@ export default {
         else if (action === 'ok' || action === 'fopen') boot(roms[sel]);
       },
       stop() {
+        for (const t of heldKeys.values()) clearTimeout(t);
+        heldKeys.clear();
         teardownGame();
         window.removeEventListener('keydown', onKey, true);
         cleanupTimers.forEach(clearTimeout);

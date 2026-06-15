@@ -443,6 +443,11 @@ body.screenshot #streetalarm { display: none !important; }
   background: rgba(255,255,255,.05); border: 1px solid var(--stroke); border-radius: 999px;
   padding: 7px 14px; cursor: pointer; white-space: nowrap; }
 .panel-close:hover { color: var(--ink); border-color: var(--stroke-strong); }
+/* controller close hint — a little shoulder-button keycap before "leave" */
+.panel-close .kcap { display: inline-block; font-family: var(--font-mono); font-weight: 600;
+  font-size: 11px; letter-spacing: .04em; color: #062018; margin-right: 6px;
+  background: linear-gradient(160deg, var(--mint), var(--mint-2));
+  border-radius: 7px; padding: 2px 7px 3px; box-shadow: 0 1px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.4); }
 .panel-card:focus { outline: none; }
 /* Native overflow scrolling: the chromium kiosk threads/composites it (smooth);
    panelScrollBy() in app.js drives it. */
