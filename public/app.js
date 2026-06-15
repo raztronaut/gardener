@@ -283,8 +283,10 @@ let padMode = false;
 function updateCloseHint() {
   const b = document.getElementById('panelClose');
   if (!b) return;
-  if (padMode) b.innerHTML = '<span class="kcap">L2</span> leave';
-  else b.textContent = 'esc · close ✕';
+  if (!padMode) { b.textContent = 'esc · close ✕'; return; }
+  // Pages: Y goes back. Games: Y is a game button, so L2 leaves.
+  if (window.__GARDEN_GAME) b.innerHTML = '<span class="kcap">L2</span> leave';
+  else b.innerHTML = '<span class="kcap">Y</span> back';
 }
 function setPadMode(on) { if (padMode !== on) { padMode = on; updateCloseHint(); } }
 
@@ -292,6 +294,7 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
   if (!keepStack) { panelStack.length = 0; stopPanelWidget(); } // fresh top-level view resets any stacked detail
   updateCloseHint();
+  setTimeout(updateCloseHint, 60); // re-check after a game widget may set __GARDEN_GAME
   document.getElementById('panelTitle').textContent = title;
   // Content goes inside a transform-scrolled wrapper: native scrollTop scrolling
   // CPU-rasterizes the whole panel every frame in WebKitGTK (measured 3.7fps on
@@ -1212,6 +1215,9 @@ function wirePad() {
         showEvents();
         break;
       case 'hn':
+        // Y is BACK when a page panel is open (controller-natural), else opens HN.
+        // (In games __GARDEN_GAME intercepts before here, so Y stays a game button.)
+        if (panelOpen()) { closePanel(); break; }
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showHackerNews();
         break;
