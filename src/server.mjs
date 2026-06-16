@@ -88,7 +88,9 @@ async function listRoms() {
     if (file.startsWith('.')) continue; // ignore dotfiles
     const system = ROM_SYSTEMS[extname(file).toLowerCase()];
     if (!system) continue; // unknown extension
-    out.push({ name: file.replace(/\.[^.]+$/, ''), file, system });
+    let sizeBytes = 0;
+    try { sizeBytes = (await fs.stat(join(paths.ROMS, file))).size; } catch { /* default 0 */ }
+    out.push({ name: file.replace(/\.[^.]+$/, ''), file, system, sizeBytes });
   }
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;

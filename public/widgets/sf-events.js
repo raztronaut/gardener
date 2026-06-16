@@ -21,6 +21,9 @@ export default {
       .sfe-date .d { font-family:var(--font-display); font-weight:700; font-size:29px; color:var(--mint); }
       .sfe-date .m { font-family:var(--font-mono); font-size:11px; letter-spacing:.12em; color:var(--ink-faint); margin-top:3px; }
       .sfe-date.soon .d { font-size:17px; line-height:1.1; }
+      .sfe-date.now .d { font-size:19px; line-height:1; white-space:nowrap; }
+      .sfe-date.now .ap { font-family:var(--font-mono); font-size:11px; letter-spacing:.1em;
+        color:var(--mint); margin-top:3px; }
       .sfe-main { flex:1; min-width:0; }
       .sfe-name { font-size:16.5px; font-weight:600; line-height:1.22; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -42,10 +45,19 @@ export default {
       if (!picks.length) { body.replaceChildren(ctx.error('no upcoming events right now')); return; }
       const els = picks.map((e) => {
         let dateEl;
+        let isToday = false;
         if (e.when) {
           const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(e.when);
           const diff = Math.round((new Date(dayKey + 'T00:00:00') - startOfToday) / dayMs);
-          if (diff <= 0) dateEl = ctx.h('div', { class: 'sfe-date soon' }, ctx.h('div', { class: 'd' }, 'Today'));
+          isToday = diff <= 0;
+          if (isToday && !e.allDay) {
+            // Today's events show their START TIME right in the date column
+            // (no redundant "Today" label) — e.g. 7:30 / PM stacked.
+            const [hhmm, ap = ''] = timeFmt.format(e.when).split(' ');
+            dateEl = ctx.h('div', { class: 'sfe-date soon now' },
+              ctx.h('div', { class: 'd' }, hhmm),
+              ap ? ctx.h('div', { class: 'ap' }, ap) : null);
+          } else if (isToday) dateEl = ctx.h('div', { class: 'sfe-date soon' }, ctx.h('div', { class: 'd' }, 'Today'));
           else if (diff === 1) dateEl = ctx.h('div', { class: 'sfe-date soon' }, ctx.h('div', { class: 'd' }, 'Tmrw'));
           else dateEl = ctx.h('div', { class: 'sfe-date' },
             ctx.h('div', { class: 'd' }, String(e.when.getDate())),
@@ -54,7 +66,8 @@ export default {
           dateEl = ctx.h('div', { class: 'sfe-date soon' },
             e.emoji ? ctx.h('div', { class: 'em' }, e.emoji) : ctx.h('div', { class: 'd' }, 'Soon'));
         }
-        const time = (e.when && !e.allDay) ? timeFmt.format(e.when).replace(' ', '') : '';
+        // For today the time is already shown in the date column, so skip the pill.
+        const time = (e.when && !e.allDay && !isToday) ? timeFmt.format(e.when).replace(' ', '') : '';
         return ctx.h('div', { class: 'sfe-ev' },
           dateEl,
           ctx.h('div', { class: 'sfe-main' },

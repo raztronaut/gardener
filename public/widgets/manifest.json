@@ -42,12 +42,6 @@
       "file": "air-quality.js",
       "enabled": true,
       "order": 7
-    },
-    {
-      "id": "tides",
-      "file": "tides.js",
-      "enabled": true,
-      "order": 8
     }
   ]
 }

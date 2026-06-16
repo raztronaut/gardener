@@ -36,6 +36,11 @@
         </div>
       </div>
       <div class="topright">
+        <!-- Trash-to-curb dashboard button: shown all day on trash day (Tue) so the
+             bins can be put out & marked done early; the full-screen takeover only
+             fires at night. Toggled by app.js (refreshTrashAlarm). -->
+        <button id="trashpill" class="trashpill" type="button" hidden
+                aria-label="Mark trash taken to the curb">🗑 <span>Trash&nbsp;to&nbsp;curb</span></button>
         <!-- Plant-a-note QR: lives in the corner (not the grid). Populated by app.js
              from state.publicUrl; hidden when no public tunnel URL is available. -->
         <a id="cornerqr" class="cornerqr" href="#" target="_blank" rel="noopener"

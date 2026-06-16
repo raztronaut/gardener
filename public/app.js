@@ -566,48 +566,80 @@ async function toggleNight() {
   } catch { toast('Could not reach the gardener — try again'); }
 }
 
-// ---- Tuesday curb-trash alarm ----------------------------------------------
-// A full-screen flashing-red takeover that runs ALL of Tuesday (from 07:00, once
-// the day is up) until Wednesday 07:00 — local SF time — and PERSISTS until
-// someone acknowledges it. This is the single, unmissable trash reminder (the old
-// small clock pill was retired in favour of it). Acknowledgement
-// is stamped with the alarm's Tuesday date in localStorage, so it stays dismissed
-// for that week and re-arms automatically next Tuesday. (?alarmtest=1 forces it
-// on for QA.) Hidden in screenshot mode so QA captures the dashboard itself.
+// ---- Tuesday curb-trash reminder -------------------------------------------
+// Trash goes to the curb on Tuesday NIGHT (pickup Wednesday morning). Two pieces,
+// one acknowledgement:
+//   • a quiet dashboard PILL (header) that's available all day Tuesday so anyone
+//     can put the bins out early and mark it done; and
+//   • the full-screen flashing-red TAKEOVER that only fires at NIGHT (from 19:00),
+//     the unmissable last call — runs until Wednesday 07:00 or until acknowledged.
+// (It used to take over the whole screen from 7AM — too early; now mornings just
+// show the small button.) Acknowledgement is stamped with the trash cycle's
+// Tuesday date in localStorage, so EITHER control dismisses BOTH for the week and
+// it re-arms automatically next Tuesday. (?alarmtest=1 forces the takeover on for
+// QA.) The takeover is hidden in screenshot mode so QA captures the dashboard.
 const TRASH_ACK = 'garden.trashCurbAck';
+const TRASH_NIGHT_HOUR = 19; // 7 PM — the takeover's "it's trash night" threshold
 function tzNow(parts) {
   const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, ...parts });
 }
-function alarmKey(now) {
+// Identity of the current trash cycle (the Tuesday date), valid for the whole
+// window Tue 00:00 → Wed 07:00; null otherwise. Used as the ack key.
+function trashWeekKey(now) {
   const wd = tzNow({ weekday: 'short' }).format(now);
   const hr = parseInt(tzNow({ hour: 'numeric', hour12: false }).format(now), 10);
   const dayOf = (d) => new Intl.DateTimeFormat('en-CA', {
     timeZone: (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles',
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(d);
-  if (wd === 'Tue' && hr >= 7) return dayOf(now);                        // all Tuesday from 7AM
+  if (wd === 'Tue') return dayOf(now);                                       // all Tuesday
   if (wd === 'Wed' && hr < 7) return dayOf(new Date(now.getTime() - 864e5)); // before Wed 7AM → yesterday (Tue)
   return null;
 }
+// Is it the NIGHT takeover window? Tue from 19:00, through Wed 07:00.
+function isTrashNight(now) {
+  const wd = tzNow({ weekday: 'short' }).format(now);
+  const hr = parseInt(tzNow({ hour: 'numeric', hour12: false }).format(now), 10);
+  if (wd === 'Tue' && hr >= TRASH_NIGHT_HOUR) return true;
+  if (wd === 'Wed' && hr < 7) return true;
+  return false;
+}
 function refreshTrashAlarm() {
   const el = document.getElementById('trashalarm');
-  if (!el) return;
-  const key = qs.has('alarmtest') ? 'test' : alarmKey(new Date());
+  const pill = document.getElementById('trashpill');
+  const test = qs.has('alarmtest');
+  const now = new Date();
+  const key = test ? 'test' : trashWeekKey(now);
+  const night = test ? true : isTrashNight(now);
   let acked = false;
   try { acked = !!key && localStorage.getItem(TRASH_ACK) === key; } catch { /* ignore */ }
-  const show = !!key && !acked && !SCREENSHOT;
-  el._key = key;
-  el.classList.toggle('on', show);
-  el.setAttribute('aria-hidden', show ? 'false' : 'true');
+  // Full-screen takeover: only at night, hidden in screenshot mode.
+  if (el) {
+    const show = !!key && !acked && night && !SCREENSHOT;
+    el._key = key;
+    el.classList.toggle('on', show);
+    el.setAttribute('aria-hidden', show ? 'false' : 'true');
+  }
+  // Dashboard pill: the always-there daytime button on trash day (the takeover
+  // covers it at night). Kept visible in screenshots — it's a real affordance.
+  if (pill) {
+    const showPill = !!key && !acked && !night;
+    pill._key = key;
+    pill.hidden = !showPill;
+  }
+}
+// Mark this trash cycle done (from the pill, the takeover button, or shift+T).
+function ackTrash() {
+  const el = document.getElementById('trashalarm');
+  const key = (el && el._key) || document.getElementById('trashpill')?._key;
+  try { if (key) localStorage.setItem(TRASH_ACK, key); } catch { /* ignore */ }
+  refreshTrashAlarm();
+  toast('Thanks — bins are at the curb 🗑');
 }
 function wireTrashAlarm() {
-  document.getElementById('trashAck')?.addEventListener('click', () => {
-    const el = document.getElementById('trashalarm');
-    try { if (el && el._key) localStorage.setItem(TRASH_ACK, el._key); } catch { /* ignore */ }
-    refreshTrashAlarm();
-    toast('Thanks — trash acknowledged 🗑');
-  });
+  document.getElementById('trashAck')?.addEventListener('click', ackTrash);
+  document.getElementById('trashpill')?.addEventListener('click', ackTrash);
   refreshTrashAlarm();
   setInterval(refreshTrashAlarm, 30000);
 }
@@ -1294,15 +1326,16 @@ function wireFeedback() {
     // capital T typed mid-note never toggles it (the requested no-typing-conflict).
     if (e.shiftKey && (e.key === 'T' || e.key === 't') && input.value.trim() === '') {
       e.preventDefault();
-      const alarm = document.getElementById('trashalarm');
-      if (alarm && alarm.classList.contains('on')) {
-        document.getElementById('trashAck')?.click();                  // dismiss the active alarm
-      } else if (alarm && alarm._key) {
+      const key = trashWeekKey(new Date());
+      if (!key) { toast('No trash reminder right now 🗑'); return; }
+      let acked = false;
+      try { acked = localStorage.getItem(TRASH_ACK) === key; } catch { /* ignore */ }
+      if (acked) {
         try { localStorage.removeItem(TRASH_ACK); } catch { /* ignore */ } // re-arm: bring it back today
         refreshTrashAlarm();
         toast('Trash reminder re-armed 🗑  (shift+T)');
       } else {
-        toast('No trash reminder right now 🗑');
+        ackTrash();                                                    // mark this cycle done
       }
       return;
     }

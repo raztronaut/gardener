@@ -17,7 +17,7 @@ export default {
   id: 'air-quality',
   title: 'Air Quality',
   icon: '🌬',
-  size: 'md',
+  size: 'lg',
   chrome: true,
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};

@@ -24,6 +24,79 @@ const SYS_LABEL = {
   nes: 'NES', snes: 'SNES', gb: 'GAME BOY', gbc: 'GBC', gba: 'GBA',
   n64: 'N64', segaMD: 'GENESIS', segaMS: 'SMS', pce: 'PC ENGINE',
 };
+// Full console names for the detail panel ("metadata and shit").
+const SYS_NAME = {
+  nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
+  gbc: 'Game Boy Color', gba: 'Game Boy Advance', n64: 'Nintendo 64',
+  segaMD: 'Sega Genesis / Mega Drive', segaMS: 'Sega Master System', pce: 'PC Engine / TurboGrafx-16',
+};
+// libretro thumbnail-repo folder names — best-effort progressive enhancement for
+// real boxart/snaps. Homebrew titles 404 here (expected); we just keep the
+// generated cover when that happens.
+const LIBRETRO_FOLDER = {
+  nes: 'Nintendo - Nintendo Entertainment System',
+  snes: 'Nintendo - Super Nintendo Entertainment System',
+  gb: 'Nintendo - Game Boy', gbc: 'Nintendo - Game Boy Color',
+  gba: 'Nintendo - Game Boy Advance', n64: 'Nintendo - Nintendo 64',
+  segaMD: 'Sega - Mega Drive - Genesis', segaMS: 'Sega - Master System - Mark III',
+  pce: 'NEC - PC Engine - TurboGrafx 16',
+};
+
+// Deterministic hash → two hues for a per-title gradient. Stable across renders
+// so a game always wears the same "box art" colours.
+function hashHue(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0);
+}
+// A procedural, always-works cover gradient derived from the title hash. Dark,
+// saturated, retro — tuned to read like a curated shelf even fully offline.
+function coverGradient(name) {
+  const v = hashHue(name);
+  const h1 = v % 360;
+  const h2 = (h1 + 40 + (v >> 9) % 80) % 360;
+  const ang = 130 + (v >> 3) % 60;
+  return `linear-gradient(${ang}deg, hsl(${h1} 62% 26%), hsl(${h2} 58% 14%))`;
+}
+// A tiny deterministic pixel-art glyph (CSS-drawn, no assets) for the cover
+// corner — a little retro motif so tiles aren't bare.
+function pixelMotif(name) {
+  const v = hashHue(name + 'pix');
+  const on = [];
+  for (let i = 0; i < 16; i++) on.push((v >> i) & 1);
+  let rects = '';
+  for (let i = 0; i < 16; i++) {
+    if (!on[i]) continue;
+    const x = i % 4, y = (i / 4) | 0;
+    // mirror horizontally for a symmetric, sprite-like motif
+    rects += `<rect x="${x}" y="${y}" width="1" height="1"/><rect x="${7 - x}" y="${y}" width="1" height="1"/>`;
+  }
+  return `<svg viewBox="0 0 8 8" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" fill="rgba(255,255,255,.7)">${rects}</svg>`;
+}
+// libretro thumbnail URLs (boxart for tiles, snap/title for the detail preview).
+// Images don't need the proxy/allowlist — set src directly; 404s fall back.
+function boxartURL(rom) {
+  const folder = LIBRETRO_FOLDER[rom.system];
+  if (!folder) return null;
+  return `https://thumbnails.libretro.com/${encodeURIComponent(folder)}/Named_Boxarts/${encodeURIComponent(rom.name)}.png`;
+}
+function previewURLs(rom) {
+  const folder = LIBRETRO_FOLDER[rom.system];
+  if (!folder) return [];
+  const base = `https://thumbnails.libretro.com/${encodeURIComponent(folder)}/`;
+  // prefer an in-game snap (closest affordable analog to a "video preview"),
+  // then the title screen.
+  return [
+    `${base}Named_Snaps/${encodeURIComponent(rom.name)}.png`,
+    `${base}Named_Titles/${encodeURIComponent(rom.name)}.png`,
+  ];
+}
+function fmtSize(bytes) {
+  if (!bytes || bytes < 1024) return null;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
 
 export default {
   id: 'emulator',
@@ -80,20 +153,66 @@ export default {
       .eg { position:relative; width:calc(100% + 56px); margin:0 -28px; height:calc(100vh - 150px);
         min-height:380px; display:flex; flex-direction:column; }
       .eg .eg-pick { padding-left:28px; padding-right:28px; } /* the picker keeps comfortable insets */
-      /* picker */
+      /* picker — an OpenEmu-style cover shelf + a detail panel for the selection */
       .eg-pick { flex:1; min-height:0; display:flex; flex-direction:column; padding:6px 4px 0; }
-      .eg-pick-h { flex:none; font-family:var(--font-mono); font-size:11px; letter-spacing:.18em;
-        text-transform:uppercase; color:var(--ink-faint); padding:0 6px 10px; }
-      .eg-grid { flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:1fr 1fr;
-        gap:10px; padding:0 6px 6px; align-content:start; }
-      .eg-rom { display:flex; align-items:center; justify-content:space-between; gap:10px;
-        text-align:left; background:transparent; border:1px solid var(--stroke); border-radius:14px;
-        padding:14px 16px; color:var(--ink); cursor:pointer; font:inherit;
-        transition:border-color .12s ease, box-shadow .12s ease; }
-      .eg-rom .eg-name { font-family:var(--font-mono); font-size:15px; overflow:hidden;
-        text-overflow:ellipsis; white-space:nowrap; }
-      .eg-rom .eg-sys { flex:none; font-family:var(--font-mono); font-size:10px; letter-spacing:.12em;
-        color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:3px 9px; }
+      .eg-pick-h { flex:none; display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+        font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+        color:var(--ink-faint); padding:0 6px 12px; }
+      .eg-pick-h b { color:var(--mint); font-weight:600; }
+      /* the shelf scrolls; the detail panel below is pinned */
+      .eg-grid { flex:1; min-height:0; overflow:auto; display:grid;
+        grid-template-columns:repeat(var(--eg-cols,3), 1fr); gap:16px; padding:4px 6px 8px;
+        align-content:start; }
+      /* a cover tile: a 3:4 portrait box-art card. The generated cover is the
+         base layer (always visible); a real boxart <img> reveals over it on load. */
+      .eg-rom { position:relative; aspect-ratio:3 / 4; display:block; text-align:left;
+        background:transparent; border:1px solid var(--stroke); border-radius:14px; padding:0;
+        color:var(--ink); cursor:pointer; font:inherit; overflow:hidden;
+        transition:border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+      .eg-cover { position:absolute; inset:0; display:flex; flex-direction:column;
+        justify-content:flex-end; padding:14px; }
+      /* deterministic gradient + a CSS-drawn scanline strip (static, no animation) */
+      .eg-cover::before { content:''; position:absolute; inset:0;
+        background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 2px, transparent 2px 4px);
+        opacity:.5; pointer-events:none; }
+      .eg-glint { position:absolute; top:0; left:0; right:0; height:42%;
+        background:linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,0) 70%);
+        pointer-events:none; }
+      .eg-pix { position:absolute; top:12px; left:12px; width:26px; height:26px; opacity:.85; }
+      .eg-pix svg { width:100%; height:100%; display:block; image-rendering:pixelated; }
+      .eg-title { position:relative; font-family:var(--font-display); font-weight:700;
+        font-size:21px; line-height:1.08; letter-spacing:.01em; color:#fff;
+        text-shadow:0 2px 10px rgba(0,0,0,.55); overflow:hidden; display:-webkit-box;
+        -webkit-line-clamp:3; -webkit-box-orient:vertical; }
+      .eg-sys { position:relative; margin-top:8px; align-self:flex-start; font-family:var(--font-mono);
+        font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#06140f;
+        background:var(--mint); border-radius:999px; padding:3px 9px; font-weight:600; }
+      /* real boxart, hidden until it loads (homebrew almost always 404s → stays hidden) */
+      .eg-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+        opacity:0; transition:opacity .25s ease; background:#06120d; }
+      .eg-art.show { opacity:1; }
+      .eg-rom.row-sel { border-color:var(--mint); box-shadow:0 0 0 1px var(--mint), 0 8px 26px rgba(0,0,0,.45);
+        transform:translateY(-2px) scale(1.015); }
+      /* selected-game detail / metadata panel (pinned under the shelf) */
+      .eg-detail { flex:none; display:flex; gap:16px; align-items:stretch; padding:14px 8px 4px;
+        border-top:1px solid var(--stroke); margin-top:4px; }
+      .eg-prev { flex:none; width:128px; aspect-ratio:4 / 3; border-radius:10px; overflow:hidden;
+        border:1px solid var(--stroke); background:#06120d; position:relative; }
+      .eg-prev img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+        opacity:0; transition:opacity .25s ease; }
+      .eg-prev img.show { opacity:1; }
+      .eg-prev .eg-prev-ph { position:absolute; inset:0; display:flex; align-items:center;
+        justify-content:center; font-family:var(--font-mono); font-size:9px; letter-spacing:.12em;
+        text-transform:uppercase; color:var(--ink-faint); text-align:center; padding:8px; }
+      .eg-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; justify-content:center; }
+      .eg-meta-t { font-family:var(--font-display); font-weight:700; font-size:19px; color:var(--ink);
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .eg-meta-rows { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:4px;
+        font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); }
+      .eg-meta-rows span b { color:var(--mint); font-weight:600; }
+      .eg-tag { font-family:var(--font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
+        color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:2px 8px;
+        align-self:flex-start; margin-top:2px; }
       .eg-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
         gap:10px; color:var(--ink-faint); font-family:var(--font-mono); font-size:13px; text-align:center;
         line-height:1.8; padding:30px; }
@@ -178,7 +297,7 @@ export default {
       input(action) {
         if (mode === 'game') { gameKey(action); return; } // drive the emulator
         if (!roms.length) return;
-        const cols = 2;
+        const cols = gridCols();
         if (action === 'up' || action === 'fup') setSel(sel - cols);
         else if (action === 'down' || action === 'fdown') setSel(sel + cols);
         else if (action === 'left' || action === 'fleft') setSel(sel - 1);
@@ -197,7 +316,7 @@ export default {
     function onKey(e) {
       if (mode === 'picker' && roms.length) {
         const k = (e.key || '').toLowerCase();
-        const cols = 2;
+        const cols = gridCols();
         if (k === 'arrowup' || k === 'w') { setSel(sel - cols); e.preventDefault(); }
         else if (k === 'arrowdown' || k === 's') { setSel(sel + cols); e.preventDefault(); }
         else if (k === 'arrowleft' || k === 'a') { setSel(sel - 1); e.preventDefault(); }
@@ -209,12 +328,67 @@ export default {
     window.addEventListener('keydown', onKey, true);
 
     // ---- ROM PICKER ----------------------------------------------------------
+    // Derive the real column count from the rendered grid (so up/down arithmetic
+    // always lands on the right tile even if the layout/column count changes).
+    const PREF_COLS = 3; // default shelf width; also CSS --eg-cols fallback
+    function gridCols() {
+      const grid = body.querySelector('.eg-grid');
+      if (!grid) return PREF_COLS;
+      const cs = getComputedStyle(grid).gridTemplateColumns;
+      const n = cs ? cs.split(' ').filter(Boolean).length : 0;
+      return n > 0 ? n : PREF_COLS;
+    }
+
     function setSel(i) {
       const btns = body.querySelectorAll('.eg-rom');
       if (!btns.length) return;
       sel = (i + btns.length) % btns.length;
       btns.forEach((b, k) => b.classList.toggle('row-sel', k === sel));
       btns[sel].scrollIntoView({ block: 'nearest' });
+      updateDetail();
+    }
+
+    // Refresh the pinned detail/metadata panel for the current selection, and
+    // (best-effort) load a static preview image (snap → title) for that game.
+    let prevReq = 0; // token so a slow image from a previous selection can't win
+    function updateDetail() {
+      const rom = roms[sel];
+      if (!rom) return;
+      const titleEl = body.querySelector('.eg-meta-t');
+      const rowsEl = body.querySelector('.eg-meta-rows');
+      const prevImg = body.querySelector('.eg-prev img');
+      const prevPh = body.querySelector('.eg-prev .eg-prev-ph');
+      if (!titleEl || !rowsEl) return;
+      titleEl.textContent = rom.name.replace(/[-_]/g, ' ');
+      const ext = (rom.file.match(/\.[^.]+$/) || [''])[0].replace('.', '').toUpperCase();
+      const size = fmtSize(rom.sizeBytes);
+      rowsEl.replaceChildren(
+        h('span', { html: `<b>System</b> ${SYS_NAME[rom.system] || rom.system}` }),
+        h('span', { html: `<b>Format</b> .${ext.toLowerCase()}` }),
+        ...(size ? [h('span', { html: `<b>Size</b> ${size}` })] : []),
+      );
+      // preview image — graceful: keep the placeholder until/unless one loads.
+      if (prevImg && prevPh) {
+        const token = ++prevReq;
+        prevImg.classList.remove('show');
+        prevPh.style.display = '';
+        const urls = previewURLs(rom);
+        let idx = 0;
+        const tryNext = () => {
+          if (token !== prevReq) return;        // selection changed → abandon
+          if (idx >= urls.length) return;       // no preview → keep placeholder
+          const img = new Image();
+          img.onload = () => {
+            if (token !== prevReq) return;
+            prevImg.src = img.src;
+            prevImg.classList.add('show');
+            prevPh.style.display = 'none';
+          };
+          img.onerror = () => { if (token === prevReq) { idx++; tryNext(); } };
+          img.src = urls[idx];
+        };
+        tryNext();
+      }
     }
 
     async function showPicker() {
@@ -236,19 +410,50 @@ export default {
         return;
       }
 
-      // Each ROM is a .eg-rom button with data-psel for parity with the rest of
-      // the UI; click === boot (mouse and controller share one path).
+      // Each ROM is a cover tile (an OpenEmu-style 3:4 box). The base layer is a
+      // procedural generated cover (always works); a real boxart <img> reveals
+      // over it if libretro has one (homebrew → 404 → generated cover stays).
+      // Click === boot, hover === select (mouse + controller share one path).
       const grid = h('div', { class: 'eg-grid' },
-        ...roms.map((rom, i) => h('button', {
-          class: 'eg-rom', type: 'button', 'data-psel': '1',
-          onclick: () => boot(rom),
-          onmouseover: () => setSel(i),
-        },
-          h('span', { class: 'eg-name', title: rom.name }, rom.name),
-          h('span', { class: 'eg-sys' }, SYS_LABEL[rom.system] || rom.system))));
+        ...roms.map((rom, i) => {
+          const cover = h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` },
+            h('div', { class: 'eg-glint' }),
+            h('div', { class: 'eg-pix', html: pixelMotif(rom.name) }),
+            h('div', { class: 'eg-title' }, rom.name.replace(/[-_]/g, ' ')),
+            h('div', { class: 'eg-sys' }, SYS_LABEL[rom.system] || rom.system));
+          const tile = h('button', {
+            class: 'eg-rom', type: 'button', 'data-psel': '1', title: rom.name,
+            onclick: () => boot(rom),
+            onmouseover: () => setSel(i),
+          }, cover);
+          // progressive enhancement: try the official boxart, reveal on load.
+          const url = boxartURL(rom);
+          if (url) {
+            const art = h('img', { class: 'eg-art', alt: '', loading: 'lazy' });
+            art.onload = () => art.classList.add('show');
+            art.onerror = () => { /* keep generated cover (normal for homebrew) */ };
+            art.src = url;
+            tile.appendChild(art);
+          }
+          return tile;
+        }));
+
+      // Pinned detail / metadata panel for the current selection.
+      const detail = h('div', { class: 'eg-detail' },
+        h('div', { class: 'eg-prev' },
+          h('div', { class: 'eg-prev-ph' }, 'no preview'),
+          h('img', { alt: '' })),
+        h('div', { class: 'eg-meta' },
+          h('div', { class: 'eg-meta-t' }, ''),
+          h('div', { class: 'eg-meta-rows' }),
+          h('div', { class: 'eg-tag' }, 'Homebrew')));
+
       body.replaceChildren(h('div', { class: 'eg-pick' },
-        h('div', { class: 'eg-pick-h' }, `${roms.length} game${roms.length === 1 ? '' : 's'} · pick one to play`),
-        grid));
+        h('div', { class: 'eg-pick-h' },
+          h('span', { html: `<b>${roms.length}</b> game${roms.length === 1 ? '' : 's'} · pick one to play` }),
+          h('span', {}, 'A / Enter · play')),
+        grid,
+        detail));
       sel = 0; setSel(0);
     }
 
