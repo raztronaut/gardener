@@ -1,15 +1,17 @@
 // Air Quality — current US AQI + PM2.5, via keyless Open-Meteo (through proxy).
-// Full-width bottom strip: big reading at left, EPA color scale across the row.
+// Full-width bottom strip: big reading at left, EPA color scale across the row,
+// plus a short category-aware health note so the number actually means something.
 // AQI breakpoints + color per US EPA.
 const CATS = [
-  { max: 50,  label: 'Good',                          short: 'Good',        color: '#74f7b0' },
-  { max: 100, label: 'Moderate',                       short: 'Moderate',    color: '#f7d774' },
-  { max: 150, label: 'Unhealthy for sensitive groups', short: 'Sensitive',   color: '#f7a374' },
-  { max: 200, label: 'Unhealthy',                       short: 'Unhealthy',   color: '#f77474' },
-  { max: 300, label: 'Very unhealthy',                  short: 'Very bad',    color: '#c074f7' },
-  { max: Infinity, label: 'Hazardous',                  short: 'Hazardous',   color: '#f74a74' },
+  { max: 50,  label: 'Good',                          short: 'Good',        color: '#74f7b0', tip: 'Clean air — breathe easy' },
+  { max: 100, label: 'Moderate',                       short: 'Moderate',    color: '#f7d774', tip: 'Fine for most — sensitive folks take note' },
+  { max: 150, label: 'Unhealthy for sensitive groups', short: 'Sensitive',   color: '#f7a374', tip: 'Sensitive groups: ease up outdoors' },
+  { max: 200, label: 'Unhealthy',                       short: 'Unhealthy',   color: '#f77474', tip: 'Limit prolonged time outdoors' },
+  { max: 300, label: 'Very unhealthy',                  short: 'Very bad',    color: '#c074f7', tip: 'Avoid outdoor exertion' },
+  { max: Infinity, label: 'Hazardous',                  short: 'Hazardous',   color: '#f74a74', tip: 'Stay indoors if you can' },
 ];
 const aqiCat = (v) => CATS.find((c) => v <= c.max) || CATS[CATS.length - 1];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default {
   id: 'air-quality',
@@ -32,6 +34,9 @@ export default {
       .aq-pm { display:flex; align-items:baseline; gap:6px; font-size:13px; color:var(--ink-soft); }
       .aq-pm .v { font-family:var(--font-mono); font-weight:600; color:var(--ink); font-size:15px; }
       .aq-pm .u { font-size:10px; color:var(--ink-faint); }
+      .aq-tip { font-size:13.5px; line-height:1.25; color:var(--ink-soft); display:flex; align-items:center; gap:8px;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .aq-tip .pip { flex:0 0 auto; width:6px; height:6px; border-radius:50%; background:var(--aq-color, var(--ink-faint)); }
       .aq-dot { flex:0 0 auto; width:10px; height:10px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
         box-shadow:0 0 11px var(--aq-color, transparent); }
       .aq-scalewrap { width:100%; }
@@ -54,8 +59,9 @@ export default {
         const cur = d && d.current;
         const aqi = cur ? cur.us_aqi : null;
         const pm = cur ? cur.pm2_5 : null;
+        // A bad/empty reading should not blank a card that already has good data.
         if (aqi == null) {
-          body.replaceChildren(ctx.error('no air-quality reading'));
+          if (!body.dataset.loaded) body.replaceChildren(ctx.error('no air-quality reading'));
           return;
         }
         const cat = aqiCat(aqi);
@@ -73,6 +79,9 @@ export default {
                 'PM2.5',
                 ctx.h('span', { class: 'v' }, pm == null ? '—' : pm.toFixed(1)),
                 ctx.h('span', { class: 'u' }, 'µg/m³')))),
+          ctx.h('div', { class: 'aq-tip', title: cat.tip },
+            ctx.h('span', { class: 'pip' }),
+            ctx.h('span', {}, cat.tip)),
           ctx.h('div', { class: 'aq-scalewrap' },
             ctx.h('div', { class: 'aq-scale' },
               ctx.h('div', { class: 'aq-mark', style: { left: pct + '%' } })),
@@ -82,8 +91,17 @@ export default {
               ctx.h('span', {}, 'Unhealthy'),
               ctx.h('span', {}, 'Hazardous'))));
         body.replaceChildren(card);
+        body.dataset.loaded = '1';
       };
-      await refresh();
+      // Initial load: a few attempts so one slow/aborted response doesn't blank
+      // the widget for a whole refresh cycle.
+      let loaded = false;
+      for (let attempt = 1; attempt <= 3 && !loaded; attempt++) {
+        try { await refresh(); loaded = true; }
+        catch { if (attempt < 3) await sleep(900 * attempt); }
+      }
+      if (!loaded) body.replaceChildren(ctx.error('air quality unavailable — retrying…'));
+      // Steady refresh; on failure KEEP the last good reading (don't blank).
       ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
     } catch (e) {
       body.replaceChildren(ctx.error('air quality unavailable'));
