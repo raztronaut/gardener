@@ -153,66 +153,63 @@ export default {
       .eg { position:relative; width:calc(100% + 56px); margin:0 -28px; height:calc(100vh - 150px);
         min-height:380px; display:flex; flex-direction:column; }
       .eg .eg-pick { padding-left:28px; padding-right:28px; } /* the picker keeps comfortable insets */
-      /* picker — an OpenEmu-style cover shelf + a detail panel for the selection */
+      /* picker — OpenEmu layout: a scrolling cover GRID (left) + a DETAIL
+         sidebar (right) with the big cover, full metadata and a Play button. */
       .eg-pick { flex:1; min-height:0; display:flex; flex-direction:column; padding:6px 4px 0; }
       .eg-pick-h { flex:none; display:flex; align-items:baseline; justify-content:space-between; gap:12px;
         font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase;
         color:var(--ink-faint); padding:0 6px 12px; }
       .eg-pick-h b { color:var(--mint); font-weight:600; }
-      /* the shelf scrolls; the detail panel below is pinned */
+      .eg-cols { flex:1; min-height:0; display:flex; gap:22px; padding:0 6px 8px; }
       .eg-grid { flex:1; min-height:0; overflow:auto; display:grid;
-        grid-template-columns:repeat(var(--eg-cols,3), 1fr); gap:16px; padding:4px 6px 8px;
-        align-content:start; }
-      /* a cover tile: a 3:4 portrait box-art card. The generated cover is the
-         base layer (always visible); a real boxart <img> reveals over it on load. */
+        grid-template-columns:repeat(var(--eg-cols,2), 1fr); gap:18px; align-content:start; padding:3px; }
+      /* a cover tile: a 3:4 portrait box-art card with a real drop shadow */
       .eg-rom { position:relative; aspect-ratio:3 / 4; display:block; text-align:left;
-        background:transparent; border:1px solid var(--stroke); border-radius:14px; padding:0;
-        color:var(--ink); cursor:pointer; font:inherit; overflow:hidden;
-        transition:border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+        background:transparent; border:none; border-radius:14px; padding:0;
+        color:var(--ink); cursor:pointer; font:inherit; overflow:hidden; box-shadow:0 8px 22px rgba(0,0,0,.42);
+        transition:box-shadow .14s ease, transform .14s ease; }
       .eg-cover { position:absolute; inset:0; display:flex; flex-direction:column;
         justify-content:flex-end; padding:14px; }
-      /* deterministic gradient + a CSS-drawn scanline strip (static, no animation) */
       .eg-cover::before { content:''; position:absolute; inset:0;
         background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 2px, transparent 2px 4px);
         opacity:.5; pointer-events:none; }
       .eg-glint { position:absolute; top:0; left:0; right:0; height:42%;
-        background:linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,0) 70%);
-        pointer-events:none; }
+        background:linear-gradient(160deg, rgba(255,255,255,.16), rgba(255,255,255,0) 70%); pointer-events:none; }
       .eg-pix { position:absolute; top:12px; left:12px; width:26px; height:26px; opacity:.85; }
       .eg-pix svg { width:100%; height:100%; display:block; image-rendering:pixelated; }
       .eg-title { position:relative; font-family:var(--font-display); font-weight:700;
-        font-size:21px; line-height:1.08; letter-spacing:.01em; color:#fff;
+        font-size:20px; line-height:1.08; letter-spacing:.01em; color:#fff;
         text-shadow:0 2px 10px rgba(0,0,0,.55); overflow:hidden; display:-webkit-box;
         -webkit-line-clamp:3; -webkit-box-orient:vertical; }
       .eg-sys { position:relative; margin-top:8px; align-self:flex-start; font-family:var(--font-mono);
         font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#06140f;
         background:var(--mint); border-radius:999px; padding:3px 9px; font-weight:600; }
-      /* real boxart, hidden until it loads (homebrew almost always 404s → stays hidden) */
       .eg-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
         opacity:0; transition:opacity .25s ease; background:#06120d; }
       .eg-art.show { opacity:1; }
-      .eg-rom.row-sel { border-color:var(--mint); box-shadow:0 0 0 1px var(--mint), 0 8px 26px rgba(0,0,0,.45);
-        transform:translateY(-2px) scale(1.015); }
-      /* selected-game detail / metadata panel (pinned under the shelf) */
-      .eg-detail { flex:none; display:flex; gap:16px; align-items:stretch; padding:14px 8px 4px;
-        border-top:1px solid var(--stroke); margin-top:4px; }
-      .eg-prev { flex:none; width:128px; aspect-ratio:4 / 3; border-radius:10px; overflow:hidden;
-        border:1px solid var(--stroke); background:#06120d; position:relative; }
-      .eg-prev img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-        opacity:0; transition:opacity .25s ease; }
-      .eg-prev img.show { opacity:1; }
-      .eg-prev .eg-prev-ph { position:absolute; inset:0; display:flex; align-items:center;
-        justify-content:center; font-family:var(--font-mono); font-size:9px; letter-spacing:.12em;
-        text-transform:uppercase; color:var(--ink-faint); text-align:center; padding:8px; }
-      .eg-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; justify-content:center; }
-      .eg-meta-t { font-family:var(--font-display); font-weight:700; font-size:19px; color:var(--ink);
-        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .eg-meta-rows { display:flex; flex-wrap:wrap; gap:6px 16px; margin-top:4px;
-        font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); }
-      .eg-meta-rows span b { color:var(--mint); font-weight:600; }
+      .eg-rom.row-sel { box-shadow:0 0 0 2px var(--mint), 0 14px 32px rgba(0,0,0,.5);
+        transform:translateY(-3px) scale(1.02); }
+      /* ---- detail sidebar (OpenEmu's right-hand info panel) ---- */
+      .eg-side { flex:none; width:300px; display:flex; flex-direction:column; gap:14px; overflow:auto;
+        border-left:1px solid var(--stroke); padding-left:22px; }
+      .eg-bigcover { position:relative; width:100%; aspect-ratio:3 / 4; border-radius:16px; overflow:hidden;
+        box-shadow:0 20px 46px rgba(0,0,0,.55); flex:none; }
+      .eg-bigcover .eg-cover { padding:18px; }
+      .eg-bigcover .eg-title { font-size:30px; -webkit-line-clamp:4; }
+      .eg-bigcover .eg-pix { width:34px; height:34px; top:14px; left:14px; }
+      .eg-side-t { font-family:var(--font-display); font-weight:700; font-size:23px; color:var(--ink); line-height:1.12; }
       .eg-tag { font-family:var(--font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
-        color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:2px 8px;
-        align-self:flex-start; margin-top:2px; }
+        color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:3px 9px; align-self:flex-start; }
+      .eg-side-meta { display:flex; flex-direction:column; }
+      .eg-mrow { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:9px 0;
+        border-bottom:1px solid var(--stroke); }
+      .eg-mrow .k { font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); }
+      .eg-mrow .v { font-family:var(--font-mono); font-size:13px; color:var(--ink); text-align:right; }
+      .eg-mrow .v.mint { color:var(--mint); }
+      .eg-play { margin-top:auto; font-family:var(--font-display); font-weight:600; font-size:18px; color:#062018;
+        background:linear-gradient(120deg, var(--mint), var(--mint-2)); border:none; border-radius:14px;
+        padding:15px; cursor:pointer; letter-spacing:.02em; }
+      .eg-play:hover { filter:brightness(1.07); }
       .eg-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
         gap:10px; color:var(--ink-faint); font-family:var(--font-mono); font-size:13px; text-align:center;
         line-height:1.8; padding:30px; }
@@ -330,7 +327,7 @@ export default {
     // ---- ROM PICKER ----------------------------------------------------------
     // Derive the real column count from the rendered grid (so up/down arithmetic
     // always lands on the right tile even if the layout/column count changes).
-    const PREF_COLS = 3; // default shelf width; also CSS --eg-cols fallback
+    const PREF_COLS = 2; // covers per row beside the detail sidebar (CSS --eg-cols)
     function gridCols() {
       const grid = body.querySelector('.eg-grid');
       if (!grid) return PREF_COLS;
@@ -348,46 +345,66 @@ export default {
       updateDetail();
     }
 
-    // Refresh the pinned detail/metadata panel for the current selection, and
-    // (best-effort) load a static preview image (snap → title) for that game.
-    let prevReq = 0; // token so a slow image from a previous selection can't win
+    // ---- play stats (localStorage): powers "Played N×" / "Last played" ----
+    const STATS_KEY = 'garden.arcade.stats';
+    const loadStats = () => { try { return JSON.parse(localStorage.getItem(STATS_KEY) || '{}'); } catch { return {}; } };
+    const recordPlay = (rom) => {
+      try { const s = loadStats(); const e = s[rom.file] || { plays: 0, last: 0 }; e.plays++; e.last = Date.now(); s[rom.file] = e; localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+    };
+    const agoStr = (ts) => {
+      if (!ts) return 'Never';
+      const d = Math.max(0, Date.now() - ts), day = 864e5;
+      if (d < 36e5) return Math.max(1, Math.round(d / 6e4)) + 'm ago';
+      if (d < day) return Math.round(d / 36e5) + 'h ago';
+      if (d < 7 * day) return Math.round(d / day) + 'd ago';
+      try { return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); } catch { return 'a while ago'; }
+    };
+
+    // Build a cover's inner layers (gradient + glint + pixel motif + title + sys)
+    // — reused for both the grid tiles and the big sidebar cover.
+    function coverInner(rom) {
+      return [
+        h('div', { class: 'eg-glint' }),
+        h('div', { class: 'eg-pix', html: pixelMotif(rom.name) }),
+        h('div', { class: 'eg-title' }, rom.name.replace(/[-_]/g, ' ')),
+        h('div', { class: 'eg-sys' }, SYS_LABEL[rom.system] || rom.system),
+      ];
+    }
+
+    // Refresh the DETAIL SIDEBAR (big cover + metadata + play stats) for the
+    // selection, and best-effort reveal real boxart over the generated cover.
+    let prevReq = 0;
     function updateDetail() {
       const rom = roms[sel];
       if (!rom) return;
-      const titleEl = body.querySelector('.eg-meta-t');
-      const rowsEl = body.querySelector('.eg-meta-rows');
-      const prevImg = body.querySelector('.eg-prev img');
-      const prevPh = body.querySelector('.eg-prev .eg-prev-ph');
-      if (!titleEl || !rowsEl) return;
+      const big = body.querySelector('.eg-bigcover');
+      const titleEl = body.querySelector('.eg-side-t');
+      const metaEl = body.querySelector('.eg-side-meta');
+      if (!big || !titleEl || !metaEl) return;
+
+      big.replaceChildren(h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
       titleEl.textContent = rom.name.replace(/[-_]/g, ' ');
-      const ext = (rom.file.match(/\.[^.]+$/) || [''])[0].replace('.', '').toUpperCase();
+
+      const ext = (rom.file.match(/\.[^.]+$/) || [''])[0].replace('.', '').toLowerCase();
       const size = fmtSize(rom.sizeBytes);
-      rowsEl.replaceChildren(
-        h('span', { html: `<b>System</b> ${SYS_NAME[rom.system] || rom.system}` }),
-        h('span', { html: `<b>Format</b> .${ext.toLowerCase()}` }),
-        ...(size ? [h('span', { html: `<b>Size</b> ${size}` })] : []),
+      const st = loadStats()[rom.file] || { plays: 0, last: 0 };
+      const row = (k, v, mint) => h('div', { class: 'eg-mrow' },
+        h('span', { class: 'k' }, k), h('span', { class: 'v' + (mint ? ' mint' : '') }, v));
+      metaEl.replaceChildren(
+        row('System', SYS_NAME[rom.system] || rom.system),
+        row('Format', '.' + ext),
+        ...(size ? [row('Size', size)] : []),
+        row('Played', st.plays ? `${st.plays}×` : 'Never', !!st.plays),
+        row('Last played', agoStr(st.last)),
       );
-      // preview image — graceful: keep the placeholder until/unless one loads.
-      if (prevImg && prevPh) {
-        const token = ++prevReq;
-        prevImg.classList.remove('show');
-        prevPh.style.display = '';
-        const urls = previewURLs(rom);
-        let idx = 0;
-        const tryNext = () => {
-          if (token !== prevReq) return;        // selection changed → abandon
-          if (idx >= urls.length) return;       // no preview → keep placeholder
-          const img = new Image();
-          img.onload = () => {
-            if (token !== prevReq) return;
-            prevImg.src = img.src;
-            prevImg.classList.add('show');
-            prevPh.style.display = 'none';
-          };
-          img.onerror = () => { if (token === prevReq) { idx++; tryNext(); } };
-          img.src = urls[idx];
-        };
-        tryNext();
+
+      // progressive enhancement: overlay real boxart on the big cover if libretro has it.
+      const token = ++prevReq;
+      const url = boxartURL(rom);
+      if (url) {
+        const img = new Image();
+        img.onload = () => { if (token === prevReq) { const a = h('img', { class: 'eg-art show', src: img.src, alt: '' }); big.appendChild(a); } };
+        img.src = url;
       }
     }
 
@@ -410,50 +427,37 @@ export default {
         return;
       }
 
-      // Each ROM is a cover tile (an OpenEmu-style 3:4 box). The base layer is a
-      // procedural generated cover (always works); a real boxart <img> reveals
-      // over it if libretro has one (homebrew → 404 → generated cover stays).
-      // Click === boot, hover === select (mouse + controller share one path).
+      // Left: a grid of 3:4 cover tiles. Click === boot, hover === select.
       const grid = h('div', { class: 'eg-grid' },
         ...roms.map((rom, i) => {
-          const cover = h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` },
-            h('div', { class: 'eg-glint' }),
-            h('div', { class: 'eg-pix', html: pixelMotif(rom.name) }),
-            h('div', { class: 'eg-title' }, rom.name.replace(/[-_]/g, ' ')),
-            h('div', { class: 'eg-sys' }, SYS_LABEL[rom.system] || rom.system));
           const tile = h('button', {
             class: 'eg-rom', type: 'button', 'data-psel': '1', title: rom.name,
             onclick: () => boot(rom),
             onmouseover: () => setSel(i),
-          }, cover);
-          // progressive enhancement: try the official boxart, reveal on load.
+          }, h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
           const url = boxartURL(rom);
-          if (url) {
+          if (url) { // reveal real boxart over the generated cover if it exists
             const art = h('img', { class: 'eg-art', alt: '', loading: 'lazy' });
             art.onload = () => art.classList.add('show');
-            art.onerror = () => { /* keep generated cover (normal for homebrew) */ };
             art.src = url;
             tile.appendChild(art);
           }
           return tile;
         }));
 
-      // Pinned detail / metadata panel for the current selection.
-      const detail = h('div', { class: 'eg-detail' },
-        h('div', { class: 'eg-prev' },
-          h('div', { class: 'eg-prev-ph' }, 'no preview'),
-          h('img', { alt: '' })),
-        h('div', { class: 'eg-meta' },
-          h('div', { class: 'eg-meta-t' }, ''),
-          h('div', { class: 'eg-meta-rows' }),
-          h('div', { class: 'eg-tag' }, 'Homebrew')));
+      // Right: the OpenEmu-style detail sidebar (filled by updateDetail()).
+      const side = h('div', { class: 'eg-side' },
+        h('div', { class: 'eg-bigcover' }),
+        h('div', { class: 'eg-side-t' }, ''),
+        h('div', { class: 'eg-tag' }, 'Homebrew'),
+        h('div', { class: 'eg-side-meta' }),
+        h('button', { class: 'eg-play', type: 'button', onclick: () => boot(roms[sel]) }, '▶  Play'));
 
       body.replaceChildren(h('div', { class: 'eg-pick' },
         h('div', { class: 'eg-pick-h' },
-          h('span', { html: `<b>${roms.length}</b> game${roms.length === 1 ? '' : 's'} · pick one to play` }),
+          h('span', { html: `<b>${roms.length}</b> game${roms.length === 1 ? '' : 's'} in the library` }),
           h('span', {}, 'A / Enter · play')),
-        grid,
-        detail));
+        h('div', { class: 'eg-cols' }, grid, side)));
       sel = 0; setSel(0);
     }
 
@@ -465,6 +469,7 @@ export default {
       if (!rom) return;
       const core = CORE[rom.system];
       if (!core) return;
+      recordPlay(rom); // bump play count + last-played for the detail panel
       mode = 'game';
       teardownGame(); // remove any prior iframe
 
