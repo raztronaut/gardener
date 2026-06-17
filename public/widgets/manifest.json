@@ -42,6 +42,12 @@
       "file": "air-quality.js",
       "enabled": true,
       "order": 7
+    },
+    {
+      "id": "on-this-day",
+      "file": "on-this-day.js",
+      "enabled": true,
+      "order": 8
     }
   ]
 }
