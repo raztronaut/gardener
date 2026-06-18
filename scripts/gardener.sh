@@ -94,6 +94,12 @@ case "$cmd" in
     # GPU layer caching — engine limit, not tunable), while chromium is fully
     # GPU-composited and holds 60fps. Set GARDENER_KIOSK=surf to use the patched
     # memory-light surf instead (Esc works there too; scrolling will be choppy).
+    # Free Super(Cmd)+Up/Down from GNOME's maximize/unmaximize window shortcuts so
+    # they reach the kiosk page (the wall's Cmd+↑/↓ markdown editor) instead of
+    # un-fullscreening the kiosk window. Idempotent; ignored if not on GNOME.
+    export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
+    gsettings set org.gnome.desktop.wm.keybindings maximize "[]" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings unmaximize "[]" 2>/dev/null || true
     ENGINE="$(grep -E '^GARDENER_KIOSK=' .env 2>/dev/null | cut -d= -f2 || true)"
     if [ "$ENGINE" = "surf" ]; then
       export WEBKIT_FORCE_COMPOSITING_MODE=1
