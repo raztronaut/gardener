@@ -345,9 +345,11 @@ body.night #cursor, body.screenshot #cursor { display: none; }
   caret-color: var(--mint); background: rgba(116,247,176,.06); cursor: text; }
 
 /* ---------- Cmd+↑ markdown editor (full-screen take on the command line) ---------- */
-/* The Cmd+↑ editor rises from the command line and takes the bottom THIRD of the
-   screen (the wall stays visible above); Cmd+↓ drops it back. */
-.mdeditor { position: absolute; left: 0; right: 0; bottom: 0; height: 25vh; min-height: 180px;
+/* The Cmd+↑ note window rises from the command line and overlays the bottom of the
+   screen (the wall stays visible above); Cmd+↓ drops it back. It lives OUTSIDE
+   #zoomroot and is position:fixed, so the controller zoom never drags it around —
+   it's pinned to the viewport and just floats on top. */
+.mdeditor { position: fixed; left: 0; right: 0; bottom: 0; height: 25vh; min-height: 180px;
   z-index: 95; display: flex; flex-direction: column;
   background: var(--glass-2); border-top: 1px solid var(--stroke-strong);
   border-radius: 22px 22px 0 0; box-shadow: 0 -16px 50px rgba(0,0,0,.55);

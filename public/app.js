@@ -1387,7 +1387,7 @@ function openMdEditor() {
       h('span', { class: 'md-hint' }, '↵ plant · ⇧↵ new line · ⌘↓ back to command line')),
     ta);
   mdEl._ta = ta;
-  (document.getElementById('zoomroot') || document.body).appendChild(mdEl);
+  document.body.appendChild(mdEl); // outside #zoomroot → fixed viewport overlay, immune to controller zoom
   setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 0);
 }
 function closeMdEditor() {
