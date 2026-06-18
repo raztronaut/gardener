@@ -314,6 +314,15 @@ export function clearStaleLock() {
     if (!pidAlive(pid) || boot !== BOOT_ID) setKV(LOCK_KEY, '');
   } catch { setKV(LOCK_KEY, ''); }
 }
+// Is a tending cycle running right now? True iff the lock is held by a LIVE
+// process from THIS boot (BOOT_ID is the kernel boot id, shared across processes,
+// so the wall server can see the separate iterate process's lock). Powers /grow.
+export function isIterating() {
+  const cur = getKV(LOCK_KEY, null);
+  if (!cur) return false;
+  try { const { pid, boot } = JSON.parse(cur); return !!pid && boot === BOOT_ID && pidAlive(pid); }
+  catch { return false; }
+}
 
 // ============================================================================
 // "Hearth" household app — data helpers. Separate, hand-maintained side project.

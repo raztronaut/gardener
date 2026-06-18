@@ -226,4 +226,162 @@ export default {
 
     ctx.interval(render, 60000);
   },
+
+  // Full-screen view (tap / controller-open): the same data given room to breathe —
+  // a generous "next free" hero with named faces, then a calm list of upcoming
+  // windows. Reuses the localhost /api/house/calendar read; degrades gracefully.
+  async openFull(body, ctx) {
+    const { h } = ctx;
+    const { tz = 'America/Los_Angeles' } = ctx.config || {};
+    ctx.style(`
+      .calf { display:flex; flex-direction:column; gap:22px; padding:4px 6px 24px; }
+      .calf-roster { display:flex; flex-wrap:wrap; align-items:center; gap:16px 22px; }
+      .calf-mem { display:flex; align-items:center; gap:10px; }
+      .calf-mem .nm { font-size:17px; color:var(--ink-soft); }
+      .calf-mem.off .nm { color:var(--ink-faint); }
+      .calf-synced { margin-left:auto; font-family:var(--font-mono); font-size:13px; letter-spacing:.08em;
+        text-transform:uppercase; color:var(--ink-faint); }
+      .calf-synced b { color:var(--mint); }
+
+      .calf-hero { border:1px solid var(--stroke); border-radius:var(--radius);
+        background:rgba(116,247,176,.05); padding:24px 26px; display:flex; flex-direction:column; gap:16px; }
+      .calf-lead { font-family:var(--font-mono); font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+        color:var(--ink-faint); }
+      .calf-hero .when { display:flex; align-items:baseline; gap:18px; flex-wrap:wrap; }
+      .calf-hero .day { font-family:var(--font-display); font-weight:800; font-size:52px; line-height:.95;
+        background:linear-gradient(120deg,var(--mint),var(--mint-2));
+        -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+      .calf-hero .time { font-family:var(--font-mono); font-size:24px; color:var(--ink-soft); }
+      .calf-hero .who { display:flex; flex-wrap:wrap; align-items:center; gap:14px 18px; }
+      .calf-hero .tag { font-size:18px; font-weight:700; color:var(--mint); }
+      .calf-hero .tag.some { color:var(--ink-soft); }
+
+      .calf-sec { font-family:var(--font-mono); font-size:12px; letter-spacing:.18em; text-transform:uppercase;
+        color:var(--ink-faint); margin-bottom:-6px; }
+      .calf-list { display:flex; flex-direction:column; }
+      .calf-row { display:flex; align-items:center; gap:18px; padding:18px 4px; border-top:1px solid var(--stroke); }
+      .calf-row .day { flex:0 0 92px; font-family:var(--font-display); font-weight:700; font-size:23px; color:var(--ink); }
+      .calf-row .time { flex:1; min-width:0; font-family:var(--font-mono); font-size:18px; color:var(--ink-soft);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .calf-row .faces { display:flex; flex:0 0 auto; }
+      .calf-row .faces .av { margin-left:-9px; }
+      .calf-row .faces .av:first-child { margin-left:0; }
+      .calf-row .free { flex:0 0 auto; font-size:16px; color:var(--ink-faint); min-width:64px; text-align:right; }
+      .calf-row .free.all { color:var(--mint); font-weight:700; }
+
+      .calf .av { position:relative; border-radius:50%; flex:0 0 auto; overflow:hidden;
+        display:flex; align-items:center; justify-content:center; color:#0b0f0d; font-weight:800;
+        font-family:var(--font-display); box-shadow:0 1px 4px rgba(0,0,0,.45); border:2px solid var(--bg-1); }
+      .calf .av.dim { opacity:.4; filter:grayscale(.5); }
+      .calf .av img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+      .calf-msg { font-size:21px; line-height:1.55; color:var(--ink-soft); padding:30px 4px; }
+      .calf-msg .em { color:var(--mint); font-weight:700; }
+    `);
+    body.appendChild(ctx.loading('checking the calendar…'));
+
+    const fmtTime = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' });
+    const tidy = (d) => fmtTime.format(d).toLowerCase().replace(':00', '').replace(/\s/g, '');
+    const dayKey = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    const weekdayLong = (d) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' }).format(d);
+    const weekdayShort = (d) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(d);
+    const dayLabel = (start, long = false) => {
+      const now = new Date();
+      const k = dayKey(start), today = dayKey(now);
+      const tmrw = dayKey(new Date(now.getTime() + 86400000));
+      if (k === today) return 'Today';
+      if (k === tmrw) return 'Tomorrow';
+      return long ? weekdayLong(start) : weekdayShort(start);
+    };
+    const avatar = (m, px, { dim = false } = {}) => {
+      const el = h('div', { class: 'av' + (dim ? ' dim' : ''), title: m.name || '',
+        style: { width: px + 'px', height: px + 'px', fontSize: Math.round(px * 0.42) + 'px', background: colorFor(m.id || m.name) } },
+        initialOf(m.name));
+      if (m.avatarUrl) { const img = h('img', { src: m.avatarUrl, alt: '', loading: 'lazy' }); img.addEventListener('error', () => img.remove()); el.appendChild(img); }
+      return el;
+    };
+    const facesOf = (list, px, max = 8) => {
+      const shown = list.slice(0, max);
+      const kids = shown.map((m) => avatar(m, px));
+      if (list.length > max) kids.push(h('div', { class: 'av',
+        style: { width: px + 'px', height: px + 'px', fontSize: Math.round(px * 0.36) + 'px', background: 'var(--glass)', color: 'var(--ink-soft)' } }, '+' + (list.length - max)));
+      return h('div', { class: 'faces' }, ...kids);
+    };
+
+    const render = async () => {
+      let d;
+      try {
+        const r = await fetch('/api/house/calendar', { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        d = await r.json();
+      } catch {
+        if (!body.dataset.loaded) body.replaceChildren(ctx.error('calendar unavailable'));
+        return;
+      }
+      body.dataset.loaded = '1';
+
+      const members = Array.isArray(d.members) ? d.members : [];
+      const byId = new Map(members.map((m) => [String(m.id), m]));
+      const byName = new Map(members.map((m) => [m.name, m]));
+      const windows = Array.isArray(d.windows) ? d.windows : [];
+      const connected = members.filter((m) => m.connected !== false).length;
+      const freeMembers = (w) => {
+        const ids = Array.isArray(w.freeIds) ? w.freeIds : null;
+        if (ids && ids.length) return ids.map((id) => byId.get(String(id))).filter(Boolean);
+        const names = Array.isArray(w.freeNames) ? w.freeNames : [];
+        return names.map((n) => byName.get(n) || { id: n, name: n, avatarUrl: null });
+      };
+
+      const roster = h('div', { class: 'calf-roster' },
+        ...members.map((m) => h('div', { class: 'calf-mem' + (m.connected === false ? ' off' : '') },
+          avatar(m, 40, { dim: m.connected === false }),
+          h('span', { class: 'nm' }, m.name || '—'))),
+        h('div', { class: 'calf-synced' }, h('b', {}, String(connected)), ' synced'));
+
+      if (!connected) {
+        body.replaceChildren(h('div', { class: 'calf' }, roster,
+          h('div', { class: 'calf-msg' }, 'Sync a calendar in ', h('span', { class: 'em' }, 'Roots'),
+            ' to see when everyone is free.')));
+        return;
+      }
+      if (!windows.length) {
+        body.replaceChildren(h('div', { class: 'calf' }, roster,
+          h('div', { class: 'calf-msg' }, 'No shared free time in the next few days — enjoy the calm.')));
+        return;
+      }
+
+      const heroW = windows[0];
+      const heroFree = freeMembers(heroW);
+      const heroAll = heroW.totalCount > 0 && (heroW.freeCount || heroFree.length) >= heroW.totalCount;
+      const hs = new Date(heroW.start), he = new Date(heroW.end);
+      const hero = h('div', { class: 'calf-hero' },
+        h('div', { class: 'calf-lead' }, 'Next free window'),
+        h('div', { class: 'when' },
+          h('div', { class: 'day' }, dayLabel(hs, true)),
+          h('div', { class: 'time' }, `${tidy(hs)} – ${tidy(he)}`)),
+        h('div', { class: 'who' },
+          facesOf(heroFree, 44, 10),
+          h('div', { class: 'tag' + (heroAll ? '' : ' some') },
+            heroAll ? 'everyone free' : `${heroW.freeCount || heroFree.length} of ${heroW.totalCount || connected} free`)));
+
+      const rest = windows.slice(1, 9);
+      const rows = rest.map((w) => {
+        const s = new Date(w.start), e = new Date(w.end);
+        const fm = freeMembers(w);
+        const total = w.totalCount || connected;
+        const free = w.freeCount != null ? w.freeCount : fm.length;
+        const all = total > 0 && free >= total;
+        return h('div', { class: 'calf-row' },
+          h('div', { class: 'day' }, dayLabel(s)),
+          h('div', { class: 'time' }, `${tidy(s)} – ${tidy(e)}`),
+          facesOf(fm, 32, 6),
+          h('div', { class: 'free' + (all ? ' all' : '') }, all ? 'all free' : `${free} free`));
+      });
+
+      const kids = [roster, hero];
+      if (rows.length) kids.push(h('div', { class: 'calf-sec' }, 'Then'), h('div', { class: 'calf-list' }, ...rows));
+      body.replaceChildren(h('div', { class: 'calf' }, ...kids));
+    };
+
+    ctx.interval(render, 60000);
+  },
 };

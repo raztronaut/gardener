@@ -82,6 +82,7 @@ async function main() {
       ['/api/state', async (r) => { const s = await r.json(); return s.canvas.w === 900 && s.canvas.h === 1600 && typeof s.publicUrl === 'string'; }],
       ['/plant.html', (r) => r.ok], // remote note-planting page (QR target)
       ['/api/iterations', async (r) => r.ok && Array.isArray((await r.json()).iterations)],
+      ['/api/grow', async (r) => { const d = await r.json(); return r.ok && typeof d.running === 'boolean' && typeof d.pending === 'number'; }],
       ['/widgets/manifest.json', (r) => r.ok],
       ['/styles.css', (r) => r.ok],
       ['/app.js', (r) => r.ok],

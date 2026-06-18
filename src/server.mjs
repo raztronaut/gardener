@@ -4,6 +4,7 @@
 // keyless public APIs without CORS headaches.
 import http from 'node:http';
 import { promises as fs, readFileSync, existsSync, appendFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 import { join, normalize, extname, resolve } from 'node:path';
@@ -11,7 +12,7 @@ import { config, paths } from './config.mjs';
 import {
   addFeedback, getRecentFeedback, countPendingFeedback, deletePendingFeedback,
   getUiVersion, getNight, setNight, latestIteration, setKV, getKV,
-  recentIterations, latestCommitted, getEdits, setEdit,
+  recentIterations, latestCommitted, getEdits, setEdit, isIterating,
 } from './db.mjs';
 import { recover } from './recover.mjs';
 import { changelogPhrase } from './changelog.mjs';
@@ -463,6 +464,28 @@ const server = http.createServer(async (req, res) => {
       if (!removed) return json(res, 404, { error: 'not found or already grown in' });
       log(`feedback #${id} deleted (pruned before tending)`);
       return json(res, 200, { ok: true, id });
+    }
+    // ---- /grow: run a tending cycle NOW on the currently-planted notes --------
+    // The wall is localhost-only; this just kicks off the same scheduled iterate
+    // process on demand. iterate.mjs holds a single-writer lock, so a second /grow
+    // while one is running is a no-op — we report that instead of double-spawning.
+    if (req.method === 'GET' && p === '/api/grow') {
+      return json(res, 200, { running: isIterating(), pending: countPendingFeedback() });
+    }
+    if (req.method === 'POST' && p === '/api/grow') {
+      if (isIterating()) return json(res, 409, { ok: false, running: true, error: 'a tending is already growing' });
+      try {
+        const child = spawn(join(paths.ROOT, 'scripts', 'gardener.sh'), ['iterate', 'manual'], {
+          cwd: paths.ROOT, detached: true, stdio: 'ignore',
+          env: { ...process.env },
+        });
+        child.unref();
+        log(`/grow: started a manual tending cycle (pid ${child.pid}, ${countPendingFeedback()} pending notes)`);
+        return json(res, 200, { ok: true, running: true });
+      } catch (e) {
+        log(`/grow: failed to start tending: ${e.message}`);
+        return json(res, 500, { ok: false, error: 'could not start a tending' });
+      }
     }
     if (req.method === 'GET' && p === '/api/night') return json(res, 200, { night: getNight() });
     if (req.method === 'POST' && p === '/api/night') {

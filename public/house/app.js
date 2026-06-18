@@ -175,7 +175,6 @@ function showScreen(name) {
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.screen === name));
   if (name === 'wall') mountWall(); else parkWall(); // lazy iframe; kept warm 3 min
-  if (name === 'note') renderCalendarPane();
   if (name === 'macros') renderMacros();
   if (name === 'dash') refreshDashboard();
   if (name === 'you') renderYou();
@@ -184,10 +183,10 @@ $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showScreen
 
 // =============================================================================
 // Screen 1 — Plant a Note (the "command line")
-// On a wide screen the area above the command line splits into two halves (the
-// garden calendar + a live markdown preview). Cmd+↑ turns the command line into
-// a FULL markdown editor; Cmd+↓ returns to the command-line view. Content is
-// preserved across the toggle (it's the same <textarea>).
+// On a wide screen the area above the command line shows a live markdown preview.
+// Cmd+↑ turns the command line into a FULL markdown editor; Cmd+↓ returns to the
+// command-line view. Content is preserved across the toggle (it's the same
+// <textarea>).
 // =============================================================================
 // A tiny, SAFE markdown renderer (no deps): escapes HTML first, then applies a
 // small subset — headings, bold/italic/code, links, lists, blockquotes, rules,
@@ -1058,31 +1057,6 @@ function fmtDayLabel(ts) {
 }
 function fmtRange(start, end) { return `${fmtClock(start)} – ${fmtClock(end)}`; }
 
-async function renderCalendarPane() {
-  const host = $('#calWindows'); if (!host) return;
-  let cal = null;
-  try { cal = await api('/api/house/calendar'); } catch { /* offline */ }
-  if (!cal) { host.replaceChildren(emptyState('Could not load the calendar.', 'Check your connection and try again.')); return; }
-  const connected = (cal.members || []).filter((m) => m.connected).length;
-  if (!cal.windows || !cal.windows.length) {
-    host.replaceChildren(emptyState(
-      connected ? 'No shared free time in the next few days.' : 'No calendars connected yet.',
-      connected ? 'Everyone is booked — or no overlap yet.' : 'Connect a calendar in the You tab to get started.'));
-    return;
-  }
-  const rows = cal.windows.map((w) => {
-    const all = w.freeCount === w.totalCount && w.totalCount > 0;
-    return el('div', { class: 'cal-win' + (all ? ' all' : '') },
-      el('div', { class: 'cal-when' },
-        el('span', { class: 'cal-day' }, fmtDayLabel(w.start)),
-        el('span', { class: 'cal-time' }, fmtRange(w.start, w.end))),
-      el('div', { class: 'cal-free' },
-        el('span', { class: 'cal-count' }, `${w.freeCount}/${w.totalCount} free`),
-        el('small', {}, (w.freeNames || []).join(', ') || '—')));
-  });
-  host.replaceChildren(...rows);
-}
-
 // --- You-screen calendar settings: connect ICS + manage manual busy blocks ----
 function fmtBusyWhen(start, end) {
   const sameDay = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -1138,7 +1112,7 @@ async function renderCalendarSettings() {
       mine.connected = !!r.connected; mine.eventCount = r.eventCount || 0;
       syncMsg.className = 'msg ok'; syncMsg.textContent = `Synced ${r.eventCount || 0} busy times from Google.`;
       paintStatus(); connectBtn.textContent = 'Refresh from Google';
-      renderCalendarSettings(); renderCalendarPane();
+      renderCalendarSettings();
     } catch (e) {
       syncMsg.className = 'msg err';
       syncMsg.textContent = e.message || 'Couldn’t connect — calendar access may not be enabled yet.';
@@ -1146,7 +1120,7 @@ async function renderCalendarSettings() {
   }
   connectBtn.addEventListener('click', doConnect);
   const disconnect = mine.connected ? el('button', { class: 'ghost slim', type: 'button', onclick: async () => {
-    try { await api('/api/house/calendar/disconnect', { method: 'POST', body: '{}' }); mine.connected = false; mine.eventCount = 0; paintStatus(); renderCalendarSettings(); renderCalendarPane(); }
+    try { await api('/api/house/calendar/disconnect', { method: 'POST', body: '{}' }); mine.connected = false; mine.eventCount = 0; paintStatus(); renderCalendarSettings(); }
     catch (e) { toast(e.message || 'Could not disconnect.', 'err'); }
   } }, 'Disconnect') : null;
 
@@ -1168,7 +1142,7 @@ async function renderCalendarSettings() {
       : [el('span', { class: 'muted', style: 'padding:2px 0' }, 'No manual busy time added.')]));
   }
   async function removeBlock(id) {
-    try { await api('/api/house/calendar/busy/delete', { method: 'POST', body: JSON.stringify({ id }) }); mine.blocks = (mine.blocks || []).filter((x) => x.id !== id); paintBlocks(); renderCalendarPane(); }
+    try { await api('/api/house/calendar/busy/delete', { method: 'POST', body: JSON.stringify({ id }) }); mine.blocks = (mine.blocks || []).filter((x) => x.id !== id); paintBlocks(); }
     catch (e) { toast(e.message || 'Could not remove.', 'err'); }
   }
   paintBlocks();
@@ -1180,7 +1154,7 @@ async function renderCalendarSettings() {
       const r = await api('/api/house/calendar/busy', { method: 'POST', body: JSON.stringify({ start, end, label: labelIn.value.trim() }) });
       mine.blocks = mine.blocks || []; mine.blocks.push({ id: r.id, start, end, label: labelIn.value.trim() || null });
       labelIn.value = ''; busyMsg.className = 'msg ok'; busyMsg.textContent = 'Added.';
-      paintBlocks(); renderCalendarPane();
+      paintBlocks();
     } catch (e) { busyMsg.className = 'msg err'; busyMsg.textContent = e.message || 'Could not add.'; }
     finally { addBusy.disabled = false; }
   });

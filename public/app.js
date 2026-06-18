@@ -372,8 +372,9 @@ function showHelp() {
       cmd('/help', 'show this panel'),
       cmd('/events  ·  /e', 'full-screen list of upcoming SF events (↑ ↓ to scroll)'),
       cmd('/architecture', 'how the gardener works & iterates'),
-      cmd('/iterations', 'changelog of every tending so far'),
+      cmd('/tendings', 'changelog of every tending so far'),
       cmd('/notes', 'notes you’ve planted — and delete any before tending'),
+      cmd('/grow', 'tend the garden now on the notes you’ve planted'),
       cmd('shift + T', 'mark “take trash out” done (on trash day)'),
       cmd('/night', 'toggle the dark screen-saver veil'),
       cmd('/refresh', 'reload the garden now'),
@@ -411,6 +412,69 @@ async function showNotes() {
       })
     : [h('div', { class: 'cl-empty' }, 'No notes yet — just start typing to plant one.')];
   openPanel('Planted notes — delete any you’ve changed your mind about', h('div', { class: 'cl' }, ...rows));
+}
+
+// /grow — run a tending cycle right now on the currently-planted notes. Shows the
+// SELECTION (the pending notes this tending will act on) and lets you prune it
+// before growing, so you control exactly what gets grown in.
+async function showGrow() {
+  const box = h('div', { class: 'grow' });
+  openPanel('Grow the garden now', box);
+  const render = async () => {
+    let status = { running: false, pending: 0 };
+    try { status = await (await fetch('/api/grow', { cache: 'no-store' })).json(); } catch { /* offline */ }
+    let fb = { feedback: [] };
+    try { fb = await (await fetch('/api/feedback?limit=40', { cache: 'no-store' })).json(); } catch { /* offline */ }
+    const pending = (fb.feedback || []).filter((f) => f.consumed_by == null);
+
+    const intro = h('p', { class: 'grow-lead' },
+      'Tending normally runs every morning. ', h('b', {}, '/grow'),
+      ' starts one right now on the notes below — it takes a few minutes, then the garden reloads itself with whatever changed.');
+
+    const selHdr = h('div', { class: 'grow-sec' },
+      pending.length ? `${pending.length} note${pending.length === 1 ? '' : 's'} selected to grow` : 'No notes planted');
+
+    const noteRows = pending.length
+      ? pending.map((f) => h('div', { class: 'cl-row' },
+          h('div', { class: 'cl-id' }, '🌱'),
+          h('div', { class: 'cl-main' },
+            h('div', { class: 'cl-phrase' }, f.text),
+            h('div', { class: 'cl-meta' }, fmtWhen(f.ts))),
+          status.running ? null : h('button', {
+            class: 'note-del', type: 'button', title: 'remove this note from the selection',
+            onClick: async (e) => {
+              e.stopPropagation();
+              const btn = e.currentTarget; btn.disabled = true;
+              try {
+                const r = await fetch(`/api/feedback?id=${f.id}`, { method: 'DELETE' });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                toast('Note removed 🥀'); render();
+              } catch { btn.disabled = false; toast('Could not remove — try again'); }
+            },
+          }, '🗑')))
+      : [h('div', { class: 'cl-empty' }, 'A /grow with no notes runs a self-directed tending — the gardener improves something of its own choosing.')];
+
+    let action;
+    if (status.running) {
+      action = h('div', { class: 'grow-running' },
+        '🌿 A tending is already growing — the garden will reload itself when it finishes (usually a few minutes).');
+    } else {
+      const btn = h('button', { class: 'grow-go', type: 'button' }, '🌱 Grow now');
+      btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'Starting…';
+        try {
+          const r = await fetch('/api/grow', { method: 'POST' });
+          const d = await r.json().catch(() => ({}));
+          if ((r.ok && d.ok) || r.status === 409) { toast(r.status === 409 ? 'Already growing 🌿' : 'Tending started 🌱'); render(); }
+          else throw new Error('start failed');
+        } catch { btn.disabled = false; btn.textContent = '🌱 Grow now'; toast('Could not start — try again'); }
+      });
+      action = btn;
+    }
+
+    box.replaceChildren(intro, selHdr, h('div', { class: 'cl' }, ...noteRows), h('div', { class: 'grow-foot' }, action));
+  };
+  render();
 }
 
 // Full-screen, scrollable list of ALL upcoming SF events (the /events · /e command).
@@ -688,8 +752,9 @@ function wireStreetAlarm() {
 // Claude-Code-style autocomplete palette both read from here.
 const COMMANDS = [
   { cmd: 'help', aliases: ['?'], icon: '🌿', desc: 'how the garden works' , run: () => showHelp() },
-  { cmd: 'iterations', aliases: ['changelog'], icon: '❀', desc: 'changelog — how the garden has grown', run: () => showIterations() },
-  { cmd: 'notes', aliases: ['planted'], icon: '🌱', desc: 'recently planted notes', run: () => showNotes() },
+  { cmd: 'tendings', aliases: ['iterations', 'changelog'], icon: '❀', desc: 'changelog — how the garden has grown', run: () => showIterations() },
+  { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
+  { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },

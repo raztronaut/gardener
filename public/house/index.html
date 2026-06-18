@@ -63,25 +63,19 @@
 
     <!-- Screen 1: Plant a Note — the "command line".
          On a wide screen this becomes a full-height workspace: the area ABOVE the
-         command line is split in half (left = garden calendar, right = live
-         markdown preview), with the command line pinned at the bottom. On a phone
-         it stays the simple stacked compose. Cmd+↑ expands the command line into a
-         full markdown editor; Cmd+↓ returns to the command-line view. -->
+         command line shows a live markdown preview, with the command line pinned at
+         the bottom. On a phone it stays the simple stacked compose. Cmd+↑ expands
+         the command line into a full markdown editor; Cmd+↓ returns to the
+         command-line view. -->
     <section class="screen" id="screen-note">
       <div class="hero" id="noteHero">
         <h2>Plant a note</h2>
         <p class="lead">Tell the Gardener what to grow on the wall display. Your note is tended into the garden at the next morning's tending.</p>
       </div>
 
-      <!-- The split workspace (the two halves above the command line). Visible as
-           a true two-pane split only on wide screens; on a phone the panes simply
-           stack above the compose box. -->
+      <!-- The workspace above the command line. On a wide screen it fills the
+           remaining height; on a phone it simply stacks above the compose box. -->
       <div class="note-split" id="noteSplit">
-        <div class="card note-pane" id="calPane">
-          <h2>Garden calendar</h2>
-          <p class="lead">Shared free time across the household — when everyone's calendars line up.</p>
-          <div id="calWindows" class="cal-windows"></div>
-        </div>
         <div class="card note-pane" id="previewPane">
           <h2>Preview</h2>
           <div id="notePreview" class="md-preview"><p class="muted">Your note renders here as you type. Markdown is supported.</p></div>

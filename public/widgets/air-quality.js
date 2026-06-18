@@ -22,23 +22,26 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .aq { display:flex; flex-direction:column; gap:11px; height:100%; justify-content:center; }
-      .aq-head { display:flex; align-items:center; gap:14px; }
-      .aq-num { font-family:var(--font-display); font-size:50px; font-weight:700; line-height:.82;
-        color:var(--aq-color, var(--ink)); text-shadow:0 4px 16px rgba(0,0,0,.4); }
-      .aq-side { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
-      .aq-unit { font-family:var(--font-mono); font-size:10.5px; color:var(--ink-faint); letter-spacing:.1em; }
-      .aq-cat { font-size:18px; font-weight:700; color:var(--aq-color, var(--ink)); line-height:1.05;
-        display:flex; align-items:center; gap:8px; }
-      .aq-cat .lbl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .aq-pm { display:flex; align-items:baseline; gap:6px; font-size:13px; color:var(--ink-soft); }
-      .aq-pm .v { font-family:var(--font-mono); font-weight:600; color:var(--ink); font-size:15px; }
-      .aq-pm .u { font-size:10px; color:var(--ink-faint); }
-      .aq-tip { font-size:13.5px; line-height:1.25; color:var(--ink-soft); display:flex; align-items:center; gap:8px;
+      .aq { display:flex; flex-direction:column; gap:14px; height:100%; justify-content:center; }
+      /* top row: the AQI reading at left, PM2.5 as a tidy stat block at right */
+      .aq-head { display:flex; align-items:center; gap:16px; }
+      .aq-read { display:flex; align-items:baseline; gap:12px; min-width:0; flex:1; }
+      .aq-num { font-family:var(--font-display); font-size:58px; font-weight:700; line-height:.82;
+        color:var(--aq-color, var(--ink)); flex:0 0 auto; }
+      .aq-meta { display:flex; flex-direction:column; gap:4px; min-width:0; }
+      .aq-unit { font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); letter-spacing:.16em; }
+      .aq-cat { font-size:20px; font-weight:700; color:var(--aq-color, var(--ink)); line-height:1.05;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .aq-tip .pip { flex:0 0 auto; width:6px; height:6px; border-radius:50%; background:var(--aq-color, var(--ink-faint)); }
-      .aq-dot { flex:0 0 auto; width:10px; height:10px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
-        box-shadow:0 0 11px var(--aq-color, transparent); }
+      /* PM2.5 stat block, right-aligned, divided from the reading */
+      .aq-pm { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:3px;
+        padding-left:16px; border-left:1px solid var(--stroke); }
+      .aq-pm .v { font-family:var(--font-mono); font-weight:700; color:var(--ink); font-size:21px; line-height:1; }
+      .aq-pm .k { font-family:var(--font-mono); font-size:9.5px; color:var(--ink-faint); letter-spacing:.12em; }
+      /* health note — a calm full-width line keyed to the category colour */
+      .aq-tip { font-size:14px; line-height:1.3; color:var(--ink-soft); display:flex; align-items:center; gap:9px;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .aq-tip .pip { flex:0 0 auto; width:8px; height:8px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
+        box-shadow:0 0 10px var(--aq-color, transparent); }
       .aq-scalewrap { width:100%; }
       .aq-scale { position:relative; height:11px; border-radius:999px;
         background:linear-gradient(90deg,#74f7b0 0%,#f7d774 25%,#f7a374 42%,#f77474 58%,#c074f7 78%,#f74a74 100%);
@@ -69,16 +72,14 @@ export default {
         const pct = Math.max(2, Math.min(98, (Math.min(aqi, 300) / 300) * 100));
         const card = ctx.h('div', { class: 'aq', style: { '--aq-color': cat.color } },
           ctx.h('div', { class: 'aq-head' },
-            ctx.h('div', { class: 'aq-num' }, String(Math.round(aqi))),
-            ctx.h('div', { class: 'aq-side' },
-              ctx.h('div', { class: 'aq-unit' }, 'US AQI · SF'),
-              ctx.h('div', { class: 'aq-cat' },
-                ctx.h('span', { class: 'aq-dot' }),
-                ctx.h('span', { class: 'lbl', title: cat.label }, cat.short)),
-              ctx.h('div', { class: 'aq-pm' },
-                'PM2.5',
-                ctx.h('span', { class: 'v' }, pm == null ? '—' : pm.toFixed(1)),
-                ctx.h('span', { class: 'u' }, 'µg/m³')))),
+            ctx.h('div', { class: 'aq-read' },
+              ctx.h('div', { class: 'aq-num' }, String(Math.round(aqi))),
+              ctx.h('div', { class: 'aq-meta' },
+                ctx.h('div', { class: 'aq-unit' }, 'US AQI · SF'),
+                ctx.h('div', { class: 'aq-cat', title: cat.label }, cat.short))),
+            ctx.h('div', { class: 'aq-pm' },
+              ctx.h('span', { class: 'v' }, pm == null ? '—' : pm.toFixed(1)),
+              ctx.h('span', { class: 'k' }, 'PM2.5 µg/m³'))),
           ctx.h('div', { class: 'aq-tip', title: cat.tip },
             ctx.h('span', { class: 'pip' }),
             ctx.h('span', {}, cat.tip)),
