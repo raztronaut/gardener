@@ -32,8 +32,8 @@
       "order": 5
     },
     {
-      "id": "emulator",
-      "file": "emulator.js",
+      "id": "calendar",
+      "file": "calendar.js",
       "enabled": true,
       "order": 6
     },
@@ -44,8 +44,8 @@
       "order": 7
     },
     {
-      "id": "calendar",
-      "file": "calendar.js",
+      "id": "emulator",
+      "file": "emulator.js",
       "enabled": true,
       "order": 8
     }

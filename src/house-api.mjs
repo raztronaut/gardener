@@ -224,6 +224,9 @@ async function houseCalendar(log = () => {}) {
     .map((w) => ({
       start: w.start, end: w.end,
       freeCount: w.freeIds.length, totalCount,
+      // ids (as strings, matching members[].id) so the wall widget can render
+      // each free person's avatar; names kept for non-avatar contexts.
+      freeIds: w.freeIds.map((id) => String(id)),
       freeNames: w.freeIds.map((id) => nameById.get(id)).filter(Boolean),
     }))
     // soonest first (the widget wants upcoming windows in chronological order;

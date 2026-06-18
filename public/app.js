@@ -101,7 +101,7 @@ function makeCtx(widgetId) {
 }
 
 // ---- widget loader ----------------------------------------------------------
-const SIZE_CLASS = { sm: '', md: '', lg: 'span-2', full: 'span-2', tall: 'tall', wide: 'span-2' };
+const SIZE_CLASS = { sm: '', md: '', lg: 'span-2', full: 'span-2', tall: 'tall', wide: 'span-2', hero: 'span-2 tall' };
 const WIDGET_MODS = {}; // id → widget module object (filled by loadWidgets)
 
 // Load ALL widgets CONCURRENTLY while preserving visual order: modules are

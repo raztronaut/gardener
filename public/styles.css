@@ -149,7 +149,11 @@ html, body {
   grid-template-columns: repeat(2, 1fr);
   grid-auto-rows: minmax(120px, auto);
   gap: var(--gap);
-  align-content: start;
+  /* Stretch the row tracks to fill the locked canvas: when every widget loads,
+     content already fills the height and this is a no-op; when a widget is slow
+     or its API is down (collapsing toward the 120px min), the slack is absorbed
+     into the existing rows instead of leaving an empty black void at the bottom. */
+  align-content: stretch;
   overflow: hidden;
   padding: 2px;
 }

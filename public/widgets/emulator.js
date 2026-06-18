@@ -102,7 +102,7 @@ export default {
   id: 'emulator',
   title: 'Arcade',
   icon: '🕹',
-  size: 'lg',
+  size: 'md',
   chrome: true,
 
   // ---- dashboard card: a calm static tile (no animation, no EmulatorJS) -----

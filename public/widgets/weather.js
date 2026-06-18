@@ -23,45 +23,47 @@ export default {
   id: 'weather',
   title: 'Weather',
   icon: '🌤',
-  size: 'full',
+  size: 'hero',
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; gap:5px; height:100%; justify-content:space-between; }
-      .wx-top { display:flex; align-items:center; gap:14px; }
-      .wx-emoji { width:64px; height:64px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
+      .wx { display:flex; flex-direction:column; height:100%; gap:18px; }
+      .wx-top { display:flex; align-items:center; gap:16px; }
+      .wx-emoji { width:72px; height:72px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
         animation:wxfloat 5s ease-in-out infinite; }
       /* the cloud/sun itself gently floats — subtle, compositor-only (transform) */
       @keyframes wxfloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
       @media (prefers-reduced-motion: reduce) { .wx-emoji { animation:none; } }
       .wx-icon { display:block; }
-      .wx-temp { display:flex; align-items:baseline; gap:11px; }
-      .wx-temp .f { font-family:var(--font-display); font-size:40px; font-weight:600; line-height:.85;
+      .wx-temp { display:flex; align-items:baseline; gap:12px; }
+      .wx-temp .f { font-family:var(--font-display); font-size:52px; font-weight:600; line-height:.85;
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-      .wx-temp .c { font-family:var(--font-display); font-size:25px; font-weight:600; color:var(--ink-soft); line-height:1; }
-      .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:4px; }
-      .wx-meta .cond { font-size:19px; font-weight:600; color:var(--ink); }
-      .wx-meta .range { font-family:var(--font-mono); font-size:13.5px; color:var(--ink-faint); letter-spacing:.02em; }
-      .wx-meta .sun { font-family:var(--font-mono); font-size:13.5px; color:var(--ink-soft); letter-spacing:.02em; }
-      .wx-stats { display:flex; gap:10px; }
+      .wx-temp .c { font-family:var(--font-display); font-size:30px; font-weight:600; color:var(--ink-soft); line-height:1; }
+      .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:5px; }
+      .wx-meta .cond { font-size:22px; font-weight:600; color:var(--ink); }
+      .wx-meta .range { font-family:var(--font-mono); font-size:14px; color:var(--ink-faint); letter-spacing:.02em; }
+      .wx-meta .sun { font-family:var(--font-mono); font-size:14px; color:var(--ink-soft); letter-spacing:.02em; }
+      .wx-stats { display:flex; gap:12px; }
       .wx-stat { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:14px;
-        padding:4px 13px; display:flex; flex-direction:column; gap:1px; }
-      .wx-stat .k { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); }
-      .wx-stat .v { font-family:var(--font-display); font-size:17px; font-weight:600; color:var(--ink); line-height:1.05; }
+        padding:10px 15px; display:flex; flex-direction:column; gap:3px; }
+      .wx-stat .k { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); }
+      .wx-stat .v { font-family:var(--font-display); font-size:20px; font-weight:600; color:var(--ink); line-height:1.05; }
 
-      /* linear hourly timeline */
-      .wx-tl { display:flex; flex-direction:column; gap:0; }
-      .wx-plot { position:relative; height:21px; }
+      /* linear hourly timeline — sits in its own panel, clearly divided from the
+         stat rows above so the floating temp labels can never collide with them. */
+      .wx-tl { margin-top:auto; display:flex; flex-direction:column; gap:0;
+        padding-top:22px; border-top:1px solid var(--stroke); }
+      .wx-plot { position:relative; height:46px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-pt { position:absolute; transform:translate(-50%,-50%); width:0; height:0; }
       .wx-pt .dot { position:absolute; left:-5px; top:-5px; width:10px; height:10px; border-radius:50%;
         background:var(--mint); box-shadow:0 0 8px rgba(116,247,176,.7); }
-      .wx-pt .tv { position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
-        font-family:var(--font-mono); font-size:14px; font-weight:600; color:var(--ink); white-space:nowrap; }
-      .wx-axis { display:flex; margin-top:3px; }
-      .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; gap:1px; }
-      .wx-axis .hr .e { font-size:14px; line-height:1; }
-      .wx-axis .hr .t { font-size:11.5px; color:var(--ink-faint); font-family:var(--font-mono); }
+      .wx-pt .tv { position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+        font-family:var(--font-mono); font-size:15px; font-weight:600; color:var(--ink); white-space:nowrap; }
+      .wx-axis { display:flex; margin-top:6px; }
+      .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:3px; }
+      .wx-axis .hr .e { font-size:15px; line-height:1; }
+      .wx-axis .hr .t { font-size:12px; color:var(--ink-faint); font-family:var(--font-mono); }
     `);
     body.appendChild(ctx.loading('reading the sky…'));
 
@@ -137,7 +139,7 @@ export default {
 
         body.replaceChildren(ctx.h('div', { class: 'wx' },
           ctx.h('div', { class: 'wx-top' },
-            ctx.h('div', { class: 'wx-emoji' }, wxIcon(iconSlug, 64)),
+            ctx.h('div', { class: 'wx-emoji' }, wxIcon(iconSlug, 72)),
             ctx.h('div', { class: 'wx-temp' },
               ctx.h('div', { class: 'f' }, `${tF}°F`),
               ctx.h('div', { class: 'c' }, `${fToC(tF)}°C`)),
