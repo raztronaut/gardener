@@ -1113,7 +1113,10 @@ function openReader(url, title) {
   const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
   const frame = h('iframe', {
     class: 'rd-frame', tabindex: '-1', // don't grab keyboard focus (so Esc/Back works on the FIRST press)
-    sandbox: 'allow-same-origin', // render + style + load assets; NO scripts, NO navigation
+    // allow-scripts so JS-rendered pages work, but NO allow-same-origin → the
+    // page runs in an opaque/null origin and can't touch our origin, cookies,
+    // localStorage or APIs. (No top-navigation/popups either — read-only.)
+    sandbox: 'allow-scripts',
     src: `/api/readable?raw=1&url=${encodeURIComponent(url)}`,
     referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
   });
@@ -1133,9 +1136,12 @@ function openReader(url, title) {
   document.getElementById('panelClose')?.focus(); // keep keys on the parent, not the iframe
 }
 // True while the article reader is the open view; lets the controller scroll it.
+// The reader iframe is now cross-origin (null-origin sandbox so its JS can run
+// safely), so we can't call its scrollBy directly — we postMessage the injected
+// scroll bridge instead (see serveReadable).
 let readerFrame = null;
 function readerScroll(dy) {
-  try { readerFrame?.contentWindow?.scrollBy({ top: dy, behavior: 'smooth' }); return true; } catch { return false; }
+  try { readerFrame?.contentWindow?.postMessage({ __readerScroll: dy }, '*'); return true; } catch { return false; }
 }
 
 // ---- unified panel-row selection --------------------------------------------

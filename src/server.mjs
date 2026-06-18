@@ -464,31 +464,33 @@ const server = http.createServer(async (req, res) => {
         const html = (await r.text()).slice(0, 3 * 1024 * 1024);
         const title = (html.match(/<title[^>]*>([^<]*)/i) || [])[1]?.trim() || t.hostname;
 
-        // raw=1 → serve the page's ORIGINAL HTML, rendered AS-IS in a sandboxed
-        // iframe (preserves the site's real layout/CSS). Same-origin to us, so
-        // X-Frame-Options can't block it; we strip <script> and inject a <base>
-        // so relative CSS/images resolve, and a CSP that forbids scripts/frames
-        // (read-only, no clicking — just scroll). Returns text/html, not JSON.
+        // raw=1 → serve the page's ORIGINAL HTML, scripts INCLUDED, rendered in a
+        // null-origin sandboxed iframe (the client uses sandbox="allow-scripts"
+        // WITHOUT allow-same-origin, so the page's JS runs but in an opaque origin
+        // — it can't read our cookies/localStorage/DOM or call our APIs). We keep
+        // the page's <script> tags (JS-rendered articles now work), inject a
+        // <base> so relative assets resolve, our mint scrollbar skin, and a tiny
+        // postMessage scroll bridge so the controller can still scroll it (the
+        // parent can't reach a cross-origin iframe's scrollBy directly).
         if (u.searchParams.get('raw') === '1') {
           const origin = (r.url || t.toString());
-          let doc = html
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/ on[a-z]+="[^"]*"/gi, '').replace(/ on[a-z]+='[^']*'/gi, '');
+          let doc = html; // scripts preserved on purpose (safe: null-origin sandbox)
           const baseTag = `<base href="${origin.replace(/"/g, '&quot;')}">`;
-          // Style the article's OWN scrollbar to match the wall's mint scrollbar
-          // (the iframe scrolls internally; this is the only bar the reader shows).
           const skin = `<style id="gardener-reader-skin">
             html{scrollbar-width:thin;scrollbar-color:#43e6c6 transparent;}
             ::-webkit-scrollbar{width:12px;height:12px;}
             ::-webkit-scrollbar-track{background:transparent;}
             ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#74f7b0,#43e6c6);border-radius:999px;border:3px solid rgba(255,255,255,.0);background-clip:padding-box;min-height:48px;}
           </style>`;
-          if (/<head[^>]*>/i.test(doc)) doc = doc.replace(/<head[^>]*>/i, (m) => m + baseTag + skin);
-          else doc = baseTag + skin + doc;
+          // Trusted (first-party) scroll bridge: the controller/keyboard scroll
+          // posts {__readerScroll: dy}; we scroll. Runs in the null-origin frame.
+          const bridge = '<script>(function(){addEventListener("message",function(e){var d=e&&e.data;if(d&&typeof d.__readerScroll==="number"){try{scrollBy({top:d.__readerScroll,behavior:"smooth"})}catch(_){scrollBy(0,d.__readerScroll)}}},false)})();<\/script>';
+          const inject = baseTag + skin + bridge;
+          if (/<head[^>]*>/i.test(doc)) doc = doc.replace(/<head[^>]*>/i, (m) => m + inject);
+          else doc = inject + doc;
           res.writeHead(200, {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'no-store',
-            'Content-Security-Policy': "script-src 'none'; frame-src 'none'; object-src 'none'",
           });
           return res.end(doc);
         }
