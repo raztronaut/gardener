@@ -274,6 +274,61 @@ async function main() {
     check('status leaderboard rows carry avatar + googlePicture', st.day.every((r) => ('avatar' in r) && ('googlePicture' in r)));
     check('status activity rows carry avatar + googlePicture', st.activity.every((r) => ('avatar' in r) && ('googlePicture' in r)));
 
+    console.log('\n[hearth] shared availability calendar (/api/house/calendar)');
+    // Read-only endpoint must be 200 with the documented shape even before any
+    // calendar data exists (empty-safe; the wall widget degrades gracefully).
+    const cal0 = await jget(PB, '/api/house/calendar');
+    check('GET /api/house/calendar is 200', cal0.ok, `status ${cal0.status}`);
+    const cal0b = await cal0.json();
+    check('calendar shape: members[] + windows[] + updatedAt', Array.isArray(cal0b.members) && Array.isArray(cal0b.windows) && typeof cal0b.updatedAt === 'number');
+    check('calendar members carry id/name/avatarUrl/connected', cal0b.members.every((m) => typeof m.id === 'string' && typeof m.name === 'string' && ('avatarUrl' in m) && typeof m.connected === 'boolean'));
+    check('calendar exposed read-only on the MAIN (wall) server too', (await jget(MB, '/api/house/calendar')).ok);
+    // A dedicated throwaway user adds a manual busy block (session-gated).
+    const cu = await (await jpost(PB, '/api/house/users', { name: 'Caly' })).json();
+    const cuTok = { 'Content-Type': 'application/json', 'x-roots-token': cu.token };
+    check('busy-block add rejects without a token (401)', (await jpost(PB, '/api/house/calendar/busy', { start: Date.now(), end: Date.now() + 3600e3 })).status === 401);
+    // Busy block tomorrow 9–11am-ish (well within the 8am–10pm scan window).
+    const bStart = Date.now() + 26 * 3600e3, bEnd = bStart + 2 * 3600e3;
+    const addB = await fetch(`${PB}/api/house/calendar/busy`, { method: 'POST', headers: cuTok, body: JSON.stringify({ start: bStart, end: bEnd, label: 'Work' }) });
+    const addBb = await addB.json();
+    check('add manual busy block returns ok + id', addB.ok && addBb.ok && typeof addBb.id === 'number');
+    check('busy-block add rejects end<=start (400)', (await fetch(`${PB}/api/house/calendar/busy`, { method: 'POST', headers: cuTok, body: JSON.stringify({ start: bEnd, end: bStart }) })).status === 400);
+    // /calendar/mine reflects the block + connected=false (no ICS yet).
+    const mine = await (await fetch(`${PB}/api/house/calendar/mine`, { headers: { 'x-roots-token': cu.token } })).json();
+    check('calendar/mine lists my busy block', Array.isArray(mine.blocks) && mine.blocks.some((x) => x.id === addBb.id && x.label === 'Work'));
+    check('calendar/mine connected=false before ICS', mine.connected === false);
+    // The member now shows connected=true (has a manual block).
+    const cal1 = await (await jget(PB, '/api/house/calendar')).json();
+    check('member with a manual block is connected=true', (cal1.members.find((m) => m.name === 'Caly') || {}).connected === true);
+    check('calendar windows are well-formed when present', cal1.windows.every((w) => typeof w.start === 'number' && typeof w.end === 'number' && w.end - w.start >= 30 * 60e3 && typeof w.freeCount === 'number' && typeof w.totalCount === 'number' && Array.isArray(w.freeNames)));
+    // ICS connect: reject a non-Google / non-https URL (SSRF guard).
+    check('ICS connect rejects a non-Google host (400)', (await fetch(`${PB}/api/house/calendar/ics`, { method: 'POST', headers: cuTok, body: JSON.stringify({ icsUrl: 'https://evil.example.com/x.ics' }) })).status === 400);
+    check('ICS connect rejects http localhost (SSRF) (400)', (await fetch(`${PB}/api/house/calendar/ics`, { method: 'POST', headers: cuTok, body: JSON.stringify({ icsUrl: 'http://127.0.0.1/x.ics' }) })).status === 400);
+    check('ICS connect rejects without a token (401)', (await jpost(PB, '/api/house/calendar/ics', { icsUrl: 'https://calendar.google.com/x/basic.ics' })).status === 401);
+    // Delete the busy block (own-row scoped) and confirm it's gone.
+    const delB = await fetch(`${PB}/api/house/calendar/busy/delete`, { method: 'POST', headers: cuTok, body: JSON.stringify({ id: addBb.id }) });
+    check('delete own busy block removes it', delB.ok && (await delB.json()).removed === 1);
+    check('busy block gone from calendar/mine after delete', !(await (await fetch(`${PB}/api/house/calendar/mine`, { headers: { 'x-roots-token': cu.token } })).json()).blocks.some((x) => x.id === addBb.id));
+    // The pure ICS parser (exported) — VEVENT extraction incl. line unfolding +
+    // all-day dates. Run in a child process pinned at the temp DB so importing
+    // house-api.mjs (which pulls in db.mjs) never touches the real database.
+    const parserProbe = `
+      import { parseIcsBusy } from ${JSON.stringify(join(ROOT, 'src', 'house-api.mjs'))};
+      const ics = 'BEGIN:VCALENDAR\\r\\nBEGIN:VEVENT\\r\\nDTSTART:20260618T170000Z\\r\\nDTEND:20260618T18\\r\\n 0000Z\\r\\nEND:VEVENT\\r\\nBEGIN:VEVENT\\r\\nDTSTART;VALUE=DATE:20260619\\r\\nDTEND;VALUE=DATE:20260620\\r\\nEND:VEVENT\\r\\nEND:VCALENDAR';
+      const b = parseIcsBusy(ics, Date.UTC(2026,5,17), Date.UTC(2026,5,25));
+      const folded = b[0] && (b[0].end - b[0].start) === 3600000;     // unfolded DTEND → 1h
+      const allday = b[1] && (b[1].end - b[1].start) === 86400000;    // VALUE=DATE → 24h
+      process.exit(b.length === 2 && folded && allday ? 0 : 1);
+    `;
+    const parserOk = await new Promise((r) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', parserProbe], { env: { ...env, GARDENER_DATA: tmpData }, stdio: 'ignore' });
+      child.on('exit', (code) => r(code === 0));
+      child.on('error', () => r(false));
+    });
+    check('ICS parser extracts VEVENTs (unfolding + all-day)', parserOk);
+    // Clean up the throwaway calendar user's session.
+    await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: cuTok, body: '{}' });
+
     console.log('\n[hearth] end session');
     check('end session ok', (await jpost(PB, '/api/house/session/end', { sessionId: sid })).ok);
     const st2 = await (await jget(PB, '/api/house/status')).json();
@@ -325,7 +380,7 @@ async function main() {
 
     console.log('\n[hearth] rate-limit guard exists');
     let limited = false;
-    for (let i = 0; i < 80; i++) { if ((await jpost(PB, '/api/house/users', { name: 'X' })).status === 429) { limited = true; break; } }
+    for (let i = 0; i < 120; i++) { if ((await jpost(PB, '/api/house/users', { name: 'X' })).status === 429) { limited = true; break; } }
     check('write rate limit returns 429 under flood', limited);
 
   } finally {

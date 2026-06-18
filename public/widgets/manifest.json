@@ -44,8 +44,8 @@
       "order": 7
     },
     {
-      "id": "on-this-day",
-      "file": "on-this-day.js",
+      "id": "calendar",
+      "file": "calendar.js",
       "enabled": true,
       "order": 8
     }

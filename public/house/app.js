@@ -175,6 +175,7 @@ function showScreen(name) {
   $$('.screen').forEach((s) => s.classList.toggle('active', s.id === 'screen-' + name));
   $$('.tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.screen === name));
   if (name === 'wall') mountWall(); else parkWall(); // lazy iframe; kept warm 3 min
+  if (name === 'note') renderCalendarPane();
   if (name === 'macros') renderMacros();
   if (name === 'dash') refreshDashboard();
   if (name === 'you') renderYou();
@@ -182,20 +183,79 @@ function showScreen(name) {
 $$('.tabbar button').forEach((b) => b.addEventListener('click', () => showScreen(b.dataset.screen)));
 
 // =============================================================================
-// Screen 1 — Plant a Note
+// Screen 1 — Plant a Note (the "command line")
+// On a wide screen the area above the command line splits into two halves (the
+// garden calendar + a live markdown preview). Cmd+↑ turns the command line into
+// a FULL markdown editor; Cmd+↓ returns to the command-line view. Content is
+// preserved across the toggle (it's the same <textarea>).
 // =============================================================================
+// A tiny, SAFE markdown renderer (no deps): escapes HTML first, then applies a
+// small subset — headings, bold/italic/code, links, lists, blockquotes, rules,
+// line breaks. Good enough for a note preview; never injects raw HTML.
+function renderMarkdown(src) {
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  const lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
+  const out = []; let list = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    let m;
+    if (/^\s*$/.test(line)) { closeList(); continue; }
+    if ((m = /^(#{1,4})\s+(.*)$/.exec(line))) { closeList(); out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); continue; }
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) { closeList(); out.push('<hr>'); continue; }
+    if ((m = /^\s*>\s?(.*)$/.exec(line))) { closeList(); out.push(`<blockquote>${inline(m[1])}</blockquote>`); continue; }
+    if ((m = /^\s*[-*+]\s+(.*)$/.exec(line))) { if (list !== 'ul') { closeList(); list = 'ul'; out.push('<ul>'); } out.push(`<li>${inline(m[1])}</li>`); continue; }
+    if ((m = /^\s*\d+\.\s+(.*)$/.exec(line))) { if (list !== 'ol') { closeList(); list = 'ol'; out.push('<ol>'); } out.push(`<li>${inline(m[1])}</li>`); continue; }
+    closeList(); out.push(`<p>${inline(line)}</p>`);
+  }
+  closeList();
+  return out.join('') || '<p class="muted">Nothing yet.</p>';
+}
+
 (function wireNote() {
   const t = $('#noteText'), btn = $('#noteSend'), msg = $('#noteMsg'), count = $('#noteCount');
+  const card = $('#composeCard'), preview = $('#notePreview'), hint = $('#cmdHint'), label = $('#cmdLabel');
   const max = parseInt(t.getAttribute('maxlength') || '500', 10);
   const updateCount = () => { if (count) count.textContent = (max - t.value.length) + ' left'; };
-  t.addEventListener('input', updateCount); updateCount();
+  const updatePreview = () => {
+    if (!t.value.trim()) { if (preview) preview.innerHTML = '<p class="muted">Your note renders here as you type. Markdown is supported.</p>'; return; }
+    if (preview) preview.innerHTML = renderMarkdown(t.value);
+  };
+  t.addEventListener('input', () => { updateCount(); updatePreview(); }); updateCount(); updatePreview();
+
+  // ---- Cmd+↑ / Cmd+↓ : toggle the full markdown editor for the command line.
+  function setMdMode(on) {
+    if (!card) return;
+    card.classList.toggle('md-mode', !!on);
+    document.body.classList.toggle('md-editing', !!on);
+    if (label) label.textContent = on ? 'markdown editor' : 'command line';
+    if (hint) hint.textContent = on ? '⌘↓ back to command line' : '⌘↑ markdown editor';
+    if (on) { updatePreview(); t.focus(); }
+  }
+  // Works whether the keypress lands on the textarea or the document. Cmd (mac)
+  // OR Ctrl (win/linux) + Arrow toggles. Only acts while the Note screen is open.
+  function onKey(e) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    if (!$('#screen-note').classList.contains('active')) return;
+    e.preventDefault();
+    setMdMode(e.key === 'ArrowUp');
+  }
+  t.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey);
+
   btn.addEventListener('click', async () => {
     const text = t.value.trim();
     if (!text) { t.focus(); return; }
     btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Planting…';
     try {
       await api('/api/feedback', { method: 'POST', body: JSON.stringify({ text }) });
-      t.value = ''; updateCount(); msg.className = 'msg ok'; msg.textContent = 'Planted — the Gardener will tend to it.';
+      t.value = ''; updateCount(); updatePreview(); msg.className = 'msg ok'; msg.textContent = 'Planted — the Gardener will tend to it.';
     } catch {
       msg.className = 'msg err'; msg.textContent = 'Could not reach the Gardener — try again.';
     } finally { btn.disabled = false; }
@@ -584,6 +644,7 @@ async function renderYou() {
   renderYouProfile();
   renderGoogleCard();
   refreshNotifyUi();
+  renderCalendarSettings();
   renderHousehold();
 }
 
@@ -910,6 +971,165 @@ async function renderHousehold() {
   list.replaceChildren(
     ...(rows.length ? rows : [emptyState('No one in the household yet.', 'Pick a name above to be the first.')]),
     devHead, ...devs);
+}
+
+// =============================================================================
+// Shared availability calendar — the "garden calendar".
+// Two surfaces: a READ-ONLY pane on the Note screen showing the household's
+// shared free windows (GET /api/house/calendar), and the SETTINGS on the You
+// screen where a member connects a Google Calendar iCal feed + adds manual busy
+// blocks (GET/POST /api/house/calendar/{mine,ics,busy,busy/delete}).
+// =============================================================================
+function fmtDayLabel(ts) {
+  try {
+    const d = new Date(ts), today = new Date();
+    const sameDay = (a, b) => new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(a)
+      === new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(b);
+    if (sameDay(d, today)) return 'Today';
+    if (sameDay(d, new Date(Date.now() + 864e5))) return 'Tomorrow';
+    return new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' }).format(d);
+  } catch { return ''; }
+}
+function fmtRange(start, end) { return `${fmtClock(start)} – ${fmtClock(end)}`; }
+
+async function renderCalendarPane() {
+  const host = $('#calWindows'); if (!host) return;
+  let cal = null;
+  try { cal = await api('/api/house/calendar'); } catch { /* offline */ }
+  if (!cal) { host.replaceChildren(emptyState('Could not load the calendar.', 'Check your connection and try again.')); return; }
+  const connected = (cal.members || []).filter((m) => m.connected).length;
+  if (!cal.windows || !cal.windows.length) {
+    host.replaceChildren(emptyState(
+      connected ? 'No shared free time in the next few days.' : 'No calendars connected yet.',
+      connected ? 'Everyone is booked — or no overlap yet.' : 'Connect a calendar in the You tab to get started.'));
+    return;
+  }
+  const rows = cal.windows.map((w) => {
+    const all = w.freeCount === w.totalCount && w.totalCount > 0;
+    return el('div', { class: 'cal-win' + (all ? ' all' : '') },
+      el('div', { class: 'cal-when' },
+        el('span', { class: 'cal-day' }, fmtDayLabel(w.start)),
+        el('span', { class: 'cal-time' }, fmtRange(w.start, w.end))),
+      el('div', { class: 'cal-free' },
+        el('span', { class: 'cal-count' }, `${w.freeCount}/${w.totalCount} free`),
+        el('small', {}, (w.freeNames || []).join(', ') || '—')));
+  });
+  host.replaceChildren(...rows);
+}
+
+// --- You-screen calendar settings: connect ICS + manage manual busy blocks ----
+function fmtBusyWhen(start, end) {
+  const sameDay = new Intl.DateTimeFormat('en-US', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const d1 = sameDay.format(start), d2 = sameDay.format(end);
+  return d1 === d2 ? `${fmtDayLabel(start)} · ${fmtRange(start, end)}`
+    : `${fmtDayLabel(start)} ${fmtClock(start)} → ${fmtDayLabel(end)} ${fmtClock(end)}`;
+}
+// A datetime-local string (in TZ wall-clock) → epoch ms. The input has no zone,
+// so we interpret its parts in the wall timezone (same convention as the server).
+function localInputToMs(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value || '');
+  if (!m) return NaN;
+  const [, y, mo, d, h, mi] = m.map(Number);
+  // Find the UTC instant whose TZ wall-clock equals these parts.
+  const guess = Date.UTC(y, mo - 1, d, h, mi, 0);
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(guess).map((x) => [x.type, x.value]));
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+  return guess - (asUtc - guess);
+}
+// Default datetime-local value (now, rounded to next hour, in TZ).
+function defaultLocalInput(offsetHours = 1) {
+  const base = Date.now() + offsetHours * 3600e3;
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(base).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${String(+p.hour % 24).padStart(2, '0')}:00`;
+}
+
+async function renderCalendarSettings() {
+  const body = $('#calendarBody'); if (!body) return;
+  if (!currentUser) { body.replaceChildren(el('p', { class: 'muted' }, 'Sign in (pick your name above) to connect a calendar.')); return; }
+  body.replaceChildren(el('span', { class: 'muted' }, 'loading…'));
+  let mine = null;
+  try { mine = await api('/api/house/calendar/mine'); } catch (e) {
+    body.replaceChildren(el('p', { class: 'muted' }, e.status === 401 ? 'Sign in to manage your calendar.' : 'Could not load your calendar.')); return;
+  }
+
+  // --- Google Calendar iCal connect ---
+  const syncMsg = el('div', { class: 'msg', role: 'status' });
+  const icsInput = el('input', { type: 'text', maxlength: '600', placeholder: 'https://calendar.google.com/calendar/ical/…/private-…/basic.ics' });
+  const connectBtn = el('button', { class: 'primary slim', type: 'button' }, mine.connected ? 'Re-sync calendar' : 'Add / Sync Calendar');
+  const status = el('div', { class: 'cal-status' });
+  function paintStatus() {
+    status.replaceChildren(mine.connected
+      ? el('span', { class: 'cal-connected' }, `Google Calendar connected · ${mine.eventCount || 0} events`
+        + (mine.lastSync ? ` · synced ${fmtAgo(mine.lastSync)}` : ''))
+      : el('span', { class: 'muted' }, 'No calendar connected. Paste your private iCal address below.'));
+  }
+  paintStatus();
+  connectBtn.addEventListener('click', async () => {
+    const url = icsInput.value.trim();
+    if (!url) { icsInput.focus(); return; }
+    connectBtn.disabled = true; syncMsg.className = 'msg'; syncMsg.textContent = 'Syncing…';
+    try {
+      const r = await api('/api/house/calendar/ics', { method: 'POST', body: JSON.stringify({ icsUrl: url }) });
+      mine.connected = !!r.connected; mine.eventCount = r.eventCount || 0; mine.lastSync = r.lastSync || Date.now();
+      icsInput.value = ''; syncMsg.className = 'msg ok'; syncMsg.textContent = `Synced ${r.eventCount || 0} events.`;
+      paintStatus(); connectBtn.textContent = 'Re-sync calendar';
+      renderCalendarPane();
+    } catch (e) {
+      syncMsg.className = 'msg err'; syncMsg.textContent = e.message || 'Could not sync that calendar.';
+    } finally { connectBtn.disabled = false; }
+  });
+  const disconnect = mine.connected ? el('button', { class: 'ghost slim', type: 'button', onclick: async () => {
+    try { await api('/api/house/calendar/ics', { method: 'POST', body: JSON.stringify({ icsUrl: '' }) }); mine.connected = false; mine.eventCount = 0; paintStatus(); renderCalendarSettings(); renderCalendarPane(); }
+    catch (e) { toast(e.message || 'Could not disconnect.', 'err'); }
+  } }, 'Disconnect') : null;
+
+  const help = el('p', { class: 'cal-help muted' }, 'In Google Calendar: Settings → your calendar → “Secret address in iCal format” → copy that .ics link here. (Real OAuth isn’t available on this server, so the private iCal link is the keyless way to sync.)');
+
+  // --- manual busy blocks ---
+  const busyMsg = el('div', { class: 'msg', role: 'status' });
+  const startIn = el('input', { type: 'datetime-local', value: defaultLocalInput(1) });
+  const endIn = el('input', { type: 'datetime-local', value: defaultLocalInput(2) });
+  const labelIn = el('input', { type: 'text', maxlength: '120', placeholder: 'label (optional) — e.g. Soccer' });
+  const addBusy = el('button', { class: 'primary slim', type: 'button' }, 'Add busy time');
+  const list = el('div', { class: 'busy-list' });
+  function paintBlocks() {
+    const blocks = (mine.blocks || []).slice().sort((a, b) => a.start - b.start);
+    list.replaceChildren(...(blocks.length ? blocks.map((b) =>
+      el('div', { class: 'busy-row' },
+        el('div', { class: 'busy-meta' }, el('span', { class: 'busy-when' }, fmtBusyWhen(b.start, b.end)), b.label ? el('small', {}, b.label) : null),
+        el('button', { class: 'busy-del', type: 'button', title: 'Remove', 'aria-label': 'Remove busy block', onclick: () => removeBlock(b.id) }, '×')))
+      : [el('span', { class: 'muted', style: 'padding:2px 0' }, 'No manual busy time added.')]));
+  }
+  async function removeBlock(id) {
+    try { await api('/api/house/calendar/busy/delete', { method: 'POST', body: JSON.stringify({ id }) }); mine.blocks = (mine.blocks || []).filter((x) => x.id !== id); paintBlocks(); renderCalendarPane(); }
+    catch (e) { toast(e.message || 'Could not remove.', 'err'); }
+  }
+  paintBlocks();
+  addBusy.addEventListener('click', async () => {
+    const start = localInputToMs(startIn.value), end = localInputToMs(endIn.value);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) { busyMsg.className = 'msg err'; busyMsg.textContent = 'Pick a start and a later end.'; return; }
+    addBusy.disabled = true; busyMsg.className = 'msg'; busyMsg.textContent = 'Adding…';
+    try {
+      const r = await api('/api/house/calendar/busy', { method: 'POST', body: JSON.stringify({ start, end, label: labelIn.value.trim() }) });
+      mine.blocks = mine.blocks || []; mine.blocks.push({ id: r.id, start, end, label: labelIn.value.trim() || null });
+      labelIn.value = ''; busyMsg.className = 'msg ok'; busyMsg.textContent = 'Added.';
+      paintBlocks(); renderCalendarPane();
+    } catch (e) { busyMsg.className = 'msg err'; busyMsg.textContent = e.message || 'Could not add.'; }
+    finally { addBusy.disabled = false; }
+  });
+
+  body.replaceChildren(
+    el('div', { class: 'cal-sub' }, 'Google Calendar'),
+    status,
+    el('div', { class: 'cal-connect' }, icsInput, el('div', { class: 'cal-connect-row' }, connectBtn, disconnect)),
+    syncMsg, help,
+    el('div', { class: 'cal-sub', style: 'margin-top:18px' }, 'Manual busy time'),
+    el('p', { class: 'lead', style: 'margin-bottom:12px' }, 'Add anything your calendar doesn’t cover so the household sees you as busy.'),
+    el('div', { class: 'busy-form' },
+      el('label', { class: 'busy-field' }, el('span', {}, 'From'), startIn),
+      el('label', { class: 'busy-field' }, el('span', {}, 'To'), endIn),
+      labelIn, addBusy),
+    busyMsg, list);
 }
 
 // =============================================================================

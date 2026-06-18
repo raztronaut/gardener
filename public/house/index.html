@@ -61,13 +61,40 @@
       <div class="who" id="who"></div>
     </header>
 
-    <!-- Screen 1: Plant a Note -->
+    <!-- Screen 1: Plant a Note — the "command line".
+         On a wide screen this becomes a full-height workspace: the area ABOVE the
+         command line is split in half (left = garden calendar, right = live
+         markdown preview), with the command line pinned at the bottom. On a phone
+         it stays the simple stacked compose. Cmd+↑ expands the command line into a
+         full markdown editor; Cmd+↓ returns to the command-line view. -->
     <section class="screen" id="screen-note">
-      <div class="hero">
+      <div class="hero" id="noteHero">
         <h2>Plant a note</h2>
         <p class="lead">Tell the Gardener what to grow on the wall display. Your note is tended into the garden at the next morning's tending.</p>
       </div>
-      <div class="card compose">
+
+      <!-- The split workspace (the two halves above the command line). Visible as
+           a true two-pane split only on wide screens; on a phone the panes simply
+           stack above the compose box. -->
+      <div class="note-split" id="noteSplit">
+        <div class="card note-pane" id="calPane">
+          <h2>Garden calendar</h2>
+          <p class="lead">Shared free time across the household — when everyone's calendars line up.</p>
+          <div id="calWindows" class="cal-windows"></div>
+        </div>
+        <div class="card note-pane" id="previewPane">
+          <h2>Preview</h2>
+          <div id="notePreview" class="md-preview"><p class="muted">Your note renders here as you type. Markdown is supported.</p></div>
+        </div>
+      </div>
+
+      <!-- The command line. .md-mode (toggled by Cmd+↑) turns it into a full
+           markdown editor; Cmd+↓ collapses it back. -->
+      <div class="card compose" id="composeCard">
+        <div class="cmd-head">
+          <span class="cmd-label" id="cmdLabel">command line</span>
+          <span class="cmd-hint" id="cmdHint">⌘↑ markdown editor</span>
+        </div>
         <textarea id="noteText" maxlength="500" placeholder="e.g. add a transit board for the 22 bus…"></textarea>
         <div class="compose-row">
           <span class="charcount" id="noteCount">500 left</span>
@@ -168,6 +195,11 @@
         <button class="primary" id="notifyBtn">Enable notifications</button>
         <div class="msg" id="notifyMsg" role="status"></div>
         <p class="muted" id="notifyHint" style="margin-top:10px; display:none"></p>
+      </div>
+      <div class="card" id="calendarCard">
+        <h2>Calendar</h2>
+        <p class="lead">Connect your Google Calendar and add busy time so Roots can find when the household is free. This feeds the shared garden calendar.</p>
+        <div id="calendarBody"></div>
       </div>
       <div class="card" id="householdCard">
         <h2>Household</h2>

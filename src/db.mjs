@@ -115,6 +115,34 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_house_sessions_token ON house_sessions(token);
   CREATE INDEX IF NOT EXISTS idx_house_sessions_seen ON house_sessions(last_seen);
+
+  -- Shared availability calendar (Roots, June 2026). Two pieces per member:
+  --   house_calendars     — one row per user holding their connected calendar
+  --                         feed (a Google Calendar PRIVATE iCal/.ics URL the
+  --                         user pastes from Calendar settings). Optional; the
+  --                         server fetches + parses it for VEVENT busy blocks.
+  --   house_busy_blocks   — manually-entered busy time blocks (start/end epoch
+  --                         ms + optional label). The union of these + the parsed
+  --                         ICS events is a member's busy time; the household's
+  --                         shared FREE windows are computed from everyone's union.
+  CREATE TABLE IF NOT EXISTS house_calendars (
+    user_id     INTEGER PRIMARY KEY REFERENCES house_users(id),
+    ics_url     TEXT,                         -- Google "Secret address in iCal format"
+    last_sync   INTEGER,                      -- epoch ms of the last successful fetch
+    last_status TEXT,                         -- 'ok' | 'error' | NULL
+    event_count INTEGER NOT NULL DEFAULT 0,   -- VEVENTs parsed at last sync
+    updated_at  INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS house_busy_blocks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES house_users(id),
+    start_ms    INTEGER NOT NULL,
+    end_ms      INTEGER NOT NULL,
+    label       TEXT,
+    created_at  INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_busy_user ON house_busy_blocks(user_id);
+  CREATE INDEX IF NOT EXISTS idx_busy_end ON house_busy_blocks(end_ms);
 `);
 
 // Idempotent migration: a chosen avatar for each house_user. Stored value is
@@ -541,5 +569,44 @@ const _recentActivity = db.prepare(`
   FROM chore_events e JOIN house_users u ON u.id = e.user_id
   ORDER BY e.ts DESC LIMIT ?`);
 export function recentActivity(limit = 20) { return _recentActivity.all(Math.min(limit, 100)); }
+
+// ---- shared availability calendar -------------------------------------------
+// Manual busy blocks: a member marks a span they're unavailable. start/end are
+// epoch ms; label is optional free text. Scoped per user for add + delete.
+const _addBusy = db.prepare('INSERT INTO house_busy_blocks(user_id, start_ms, end_ms, label, created_at) VALUES(?,?,?,?,?)');
+export function addBusyBlock({ userId, startMs, endMs, label }) {
+  const info = _addBusy.run(userId, startMs, endMs, label ? String(label).slice(0, 120) : null, Date.now());
+  return info.lastInsertRowid;
+}
+const _delBusyForUser = db.prepare('DELETE FROM house_busy_blocks WHERE id = ? AND user_id = ?');
+export function deleteBusyBlock({ userId, id }) { return _delBusyForUser.run(parseInt(id, 10), userId).changes; }
+// A user's own manual blocks that haven't fully ended yet (upcoming/ongoing).
+const _busyForUser = db.prepare('SELECT id, start_ms, end_ms, label FROM house_busy_blocks WHERE user_id = ? AND end_ms >= ? ORDER BY start_ms ASC');
+export function busyBlocksForUser(userId, sinceMs = Date.now()) { return _busyForUser.all(userId, sinceMs); }
+// Every member's manual blocks overlapping [fromMs, toMs] (for free-window calc).
+const _busyInWindow = db.prepare('SELECT user_id, start_ms, end_ms FROM house_busy_blocks WHERE end_ms >= ? AND start_ms <= ?');
+export function busyBlocksInWindow(fromMs, toMs) { return _busyInWindow.all(fromMs, toMs); }
+// Prune busy blocks that ended before `beforeMs` (housekeeping; not exposed).
+const _pruneBusy = db.prepare('DELETE FROM house_busy_blocks WHERE end_ms < ?');
+export function pruneBusyBlocks(beforeMs) { return _pruneBusy.run(beforeMs).changes; }
+
+// Connected calendar feed (ICS URL) per user — upsert by user_id.
+const _getCal = db.prepare('SELECT user_id, ics_url, last_sync, last_status, event_count, updated_at FROM house_calendars WHERE user_id = ?');
+export function getCalendar(userId) { return _getCal.get(userId); }
+const _upsertCalUrl = db.prepare(`
+  INSERT INTO house_calendars(user_id, ics_url, updated_at)
+  VALUES(@user_id, @ics_url, @updated_at)
+  ON CONFLICT(user_id) DO UPDATE SET ics_url = excluded.ics_url, updated_at = excluded.updated_at`);
+export function setCalendarUrl(userId, icsUrl) {
+  _upsertCalUrl.run({ user_id: userId, ics_url: icsUrl ? String(icsUrl).slice(0, 600) : null, updated_at: Date.now() });
+  return _getCal.get(userId);
+}
+const _setCalSync = db.prepare('UPDATE house_calendars SET last_sync = ?, last_status = ?, event_count = ?, updated_at = ? WHERE user_id = ?');
+export function setCalendarSync(userId, { status, eventCount }) {
+  _setCalSync.run(Date.now(), String(status), eventCount | 0, Date.now(), userId);
+  return _getCal.get(userId);
+}
+const _allCals = db.prepare("SELECT user_id, ics_url, last_sync, last_status, event_count FROM house_calendars WHERE ics_url IS NOT NULL AND ics_url != ''");
+export function listConnectedCalendars() { return _allCals.all(); }
 
 export default db;

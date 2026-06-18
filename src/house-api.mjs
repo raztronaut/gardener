@@ -14,6 +14,8 @@ import {
   createHouseSession, getHouseSessionByToken, deleteHouseSession,
   activeHouseSessions, latestHouseSessionByEmail, listHouseUsersWithActivity,
   renameHouseUser, setHouseUserAvatar, setHouseUserAvatarFile, googlePictureByUser,
+  addBusyBlock, deleteBusyBlock, busyBlocksForUser, busyBlocksInWindow,
+  getCalendar, setCalendarUrl, setCalendarSync, listConnectedCalendars,
 } from './db.mjs';
 import { config, paths } from './config.mjs';
 import { getVapidPublicKey, sendToAll } from './push.mjs';
@@ -121,6 +123,245 @@ export function houseStatus() {
   };
 }
 
+// ============================================================================
+// Shared availability calendar — the "main garden calendar".
+//
+// Each member's BUSY time is the union of (a) manual busy blocks they entered in
+// Roots and (b) the VEVENTs parsed from a connected Google Calendar private
+// iCal (.ics) feed. We DO NOT do real Google OAuth (no secrets / deps / build
+// step here) — the realistic keyless equivalent is pasting the calendar's
+// "Secret address in iCal format" URL, which we fetch + parse server-side. The
+// household's shared FREE windows are the daytime gaps where everyone (or most
+// members) has no busy block, scanned across the next few days.
+// ============================================================================
+const CAL_TZ = TZ;                              // America/Los_Angeles
+const CAL_DAYS = 5;                             // scan the next 5 days
+const CAL_DAY_START_H = 8;                      // daytime window: 8am
+const CAL_DAY_END_H = 22;                       // …to 10pm (local)
+const CAL_SLOT_MS = 30 * 60 * 1000;             // 30-minute granularity
+const CAL_MAX_WINDOWS = 6;                      // at most ~6 windows returned
+const CAL_ICS_MAX_BYTES = 2 * 1024 * 1024;      // hard cap on a fetched ICS body
+const CAL_ICS_CACHE_MS = 5 * 60 * 1000;         // re-fetch a feed at most every 5 min
+// ICS feeds are an OUTBOUND fetch from the public surface — keep it on a tight
+// leash so a stranger with the URL can't use us as a fetch relay / SSRF vector.
+const icsSyncLimit = makeLimiter(20, 60_000);
+
+// Only allow fetching Google's published calendar hosts (the realistic source of
+// a "Secret address in iCal format"). This is also an SSRF guard: no localhost,
+// no arbitrary internal hosts — just Google's calendar CDN over https.
+function icsUrlAllowed(u) {
+  let url; try { url = new URL(u); } catch { return false; }
+  if (url.protocol !== 'https:') return false;
+  const h = url.hostname.toLowerCase();
+  return h === 'calendar.google.com' || h === 'www.google.com' || h.endsWith('.google.com');
+}
+
+// Parse an ICS string into [{start, end}] busy intervals (epoch ms), limited to
+// events that touch [fromMs, toMs]. Minimal, dependency-free VEVENT reader:
+// unfolds wrapped lines, reads DTSTART/DTEND (date-time or all-day date), and
+// ignores everything else. Robust to malformed input (skips bad events).
+export function parseIcsBusy(text, fromMs, toMs) {
+  if (!text || typeof text !== 'string') return [];
+  // RFC5545 line unfolding: a CRLF followed by a space/tab continues the line.
+  const lines = text.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '').split(/\r?\n/);
+  const out = [];
+  let inEvent = false, dtStart = null, dtEnd = null;
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') { inEvent = true; dtStart = null; dtEnd = null; continue; }
+    if (line === 'END:VEVENT') {
+      if (inEvent && dtStart != null) {
+        const end = dtEnd != null ? dtEnd : dtStart + 60 * 60 * 1000; // default 1h
+        if (end > fromMs && dtStart < toMs && end > dtStart) out.push({ start: dtStart, end });
+        if (out.length > 2000) break; // sanity bound
+      }
+      inEvent = false; continue;
+    }
+    if (!inEvent) continue;
+    const colon = line.indexOf(':');
+    if (colon < 0) continue;
+    const key = line.slice(0, colon);
+    const val = line.slice(colon + 1).trim();
+    if (key.startsWith('DTSTART')) dtStart = parseIcsDate(key, val);
+    else if (key.startsWith('DTEND')) dtEnd = parseIcsDate(key, val);
+  }
+  return out;
+}
+// Parse one ICS date/date-time value to epoch ms. Handles:
+//   20260617T180000Z         → UTC instant
+//   20260617T180000          → floating/local (treated as the wall timezone)
+//   20260617 (VALUE=DATE)    → all-day (local midnight)
+function parseIcsDate(key, val) {
+  const m = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/.exec(val);
+  if (!m) return null;
+  const [, Y, Mo, D, h, mi, s, z] = m;
+  const yr = +Y, mon = +Mo - 1, day = +D;
+  if (h == null) return Date.UTC(yr, mon, day); // all-day → treat as UTC midnight
+  if (z === 'Z') return Date.UTC(yr, mon, day, +h, +mi, +s);
+  // Floating/local time: interpret in the wall timezone by finding the UTC
+  // instant whose CAL_TZ wall-clock equals these parts.
+  return localPartsToMs(yr, mon, day, +h, +mi, +s);
+}
+// Convert wall-clock parts in CAL_TZ to an epoch ms (no extra deps): start from
+// the naive UTC guess, then correct by the zone offset at that instant.
+function localPartsToMs(y, mon, d, h, mi, s) {
+  const guess = Date.UTC(y, mon, d, h, mi, s);
+  const off = tzOffsetMs(guess);
+  return guess - off;
+}
+// The CAL_TZ offset (ms) at a given instant, derived from formatToParts.
+function tzOffsetMs(ms) {
+  const f = new Intl.DateTimeFormat('en-US', {
+    timeZone: CAL_TZ, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const p = Object.fromEntries(f.formatToParts(ms).map((x) => [x.type, x.value]));
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+  return asUtc - ms;
+}
+
+// Per-feed in-memory cache of parsed ICS busy intervals so we don't re-fetch on
+// every /api/house/calendar read. Keyed by ICS url. { at, busy:[{start,end}] }.
+const icsCache = new Map();
+async function fetchIcsBusy(icsUrl, fromMs, toMs, log) {
+  if (!icsUrl || !icsUrlAllowed(icsUrl)) return null;
+  const cached = icsCache.get(icsUrl);
+  if (cached && Date.now() - cached.at < CAL_ICS_CACHE_MS) return cached.busy;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 8000);
+  try {
+    const r = await fetch(icsUrl, { signal: ac.signal, redirect: 'follow', headers: { accept: 'text/calendar,*/*' } });
+    if (!r.ok) { icsCache.set(icsUrl, { at: Date.now(), busy: [] }); return []; }
+    // Bound the body size we read (a hostile/huge feed must not exhaust memory).
+    const reader = r.body && r.body.getReader ? r.body.getReader() : null;
+    let text = '';
+    if (reader) {
+      let size = 0; const dec = new TextDecoder();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        size += value.length;
+        if (size > CAL_ICS_MAX_BYTES) { try { await reader.cancel(); } catch { /* ignore */ } break; }
+        text += dec.decode(value, { stream: true });
+      }
+    } else {
+      text = (await r.text()).slice(0, CAL_ICS_MAX_BYTES);
+    }
+    const busy = parseIcsBusy(text, fromMs, toMs);
+    icsCache.set(icsUrl, { at: Date.now(), busy });
+    return busy;
+  } catch (e) {
+    if (log) log(`ics fetch error: ${e.message || e}`);
+    return null;
+  } finally { clearTimeout(timer); }
+}
+
+// Merge overlapping/adjacent [start,end] intervals into a sorted, disjoint set.
+function mergeIntervals(list) {
+  const ivs = list.filter((i) => i && i.end > i.start).sort((a, b) => a.start - b.start);
+  const merged = [];
+  for (const iv of ivs) {
+    const last = merged[merged.length - 1];
+    if (last && iv.start <= last.end) last.end = Math.max(last.end, iv.end);
+    else merged.push({ start: iv.start, end: iv.end });
+  }
+  return merged;
+}
+
+// Build the household's shared availability snapshot. members[] + windows[] +
+// updatedAt, exactly the shape the wall widget consumes. Never throws for "no
+// data" — returns empty arrays. `members` is the household roster; each carries
+// connected=true once they have an ICS feed OR at least one manual busy block.
+async function houseCalendar(log = () => {}) {
+  const now = Date.now();
+  const fromMs = now;
+  const toMs = now + CAL_DAYS * 24 * 3600 * 1000;
+  const pics = googlePictureByUser();
+  const users = listHouseUsersWithActivity();
+
+  // Manual busy blocks for everyone in one query, bucketed by user.
+  const blocksByUser = new Map();
+  for (const b of busyBlocksInWindow(fromMs, toMs)) {
+    if (!blocksByUser.has(b.user_id)) blocksByUser.set(b.user_id, []);
+    blocksByUser.get(b.user_id).push({ start: b.start_ms, end: b.end_ms });
+  }
+  // Connected ICS feeds (fetched/cached) → busy intervals per user.
+  const connectedIds = new Set();
+  const icsByUser = new Map();
+  for (const c of listConnectedCalendars()) {
+    connectedIds.add(c.user_id);
+    const busy = await fetchIcsBusy(c.ics_url, fromMs, toMs, log);
+    if (busy && busy.length) icsByUser.set(c.user_id, busy);
+  }
+
+  // Per-user merged busy set (manual ∪ ICS).
+  const busyByUser = new Map();
+  for (const u of users) {
+    const merged = mergeIntervals([...(blocksByUser.get(u.id) || []), ...(icsByUser.get(u.id) || [])]);
+    busyByUser.set(u.id, merged);
+  }
+
+  const members = users.map((u) => {
+    const gp = pics.get(u.id) || null;
+    const connected = connectedIds.has(u.id) || (blocksByUser.get(u.id) || []).length > 0;
+    return { id: String(u.id), name: u.name, avatarUrl: avatarUrlFor(u, gp), connected };
+  });
+  const totalCount = members.length;
+
+  // Scan 30-min daytime slots; for each, count members who are free (no busy
+  // interval covers the slot). Coalesce consecutive slots with the SAME free
+  // set into windows. Prefer all-free windows; include partials too.
+  const isBusy = (uid, slotStart, slotEnd) => {
+    const ivs = busyByUser.get(uid) || [];
+    for (const iv of ivs) if (iv.start < slotEnd && iv.end > slotStart) return true;
+    return false;
+  };
+  const rawWindows = [];
+  if (totalCount > 0) {
+    let cur = null; // { start, end, freeIds:Set }
+    for (let day = 0; day < CAL_DAYS; day++) {
+      const dayBase = localDayStartMs(now + day * 24 * 3600 * 1000);
+      for (let h = CAL_DAY_START_H; h < CAL_DAY_END_H; h++) {
+        for (let half = 0; half < 2; half++) {
+          const slotStart = dayBase + (h * 3600 + half * 1800) * 1000;
+          const slotEnd = slotStart + CAL_SLOT_MS;
+          if (slotEnd <= now) continue; // skip slots already in the past
+          const freeIds = members.filter((m) => !isBusy(+m.id, slotStart, slotEnd)).map((m) => +m.id);
+          const key = freeIds.slice().sort((a, b) => a - b).join(',');
+          if (freeIds.length === 0) { if (cur) { rawWindows.push(cur); cur = null; } continue; }
+          if (cur && cur.key === key && cur.end === slotStart) { cur.end = slotEnd; }
+          else { if (cur) rawWindows.push(cur); cur = { start: slotStart, end: slotEnd, key, freeIds }; }
+        }
+      }
+      if (cur) { rawWindows.push(cur); cur = null; } // don't span midnight
+    }
+    if (cur) rawWindows.push(cur);
+  }
+
+  const nameById = new Map(members.map((m) => [+m.id, m.name]));
+  const windows = rawWindows
+    .filter((w) => w.end - w.start >= 30 * 60 * 1000) // at least 30 min
+    .map((w) => ({
+      start: w.start, end: w.end,
+      freeCount: w.freeIds.length, totalCount,
+      freeNames: w.freeIds.map((id) => nameById.get(id)).filter(Boolean),
+    }))
+    // soonest first (the widget wants upcoming windows in chronological order;
+    // both all-free and partial windows are included).
+    .sort((a, b) => a.start - b.start)
+    .slice(0, CAL_MAX_WINDOWS);
+
+  return { members, windows, updatedAt: now };
+}
+// Local (CAL_TZ) midnight for the day containing `ms`.
+function localDayStartMs(ms) {
+  const f = new Intl.DateTimeFormat('en-US', {
+    timeZone: CAL_TZ, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const p = Object.fromEntries(f.formatToParts(ms).map((x) => [x.type, x.value]));
+  const h = (+p.hour) % 24, mi = +p.minute, s = +p.second;
+  return ms - (h * 3600 + mi * 60 + s) * 1000 - (ms % 1000);
+}
+
 // ---- request helpers --------------------------------------------------------
 function json(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -173,7 +414,7 @@ function makeLimiter(max, windowMs) {
     return true;
   };
 }
-const writeLimit = makeLimiter(60, 60_000); // 60 writes / minute across the surface
+const writeLimit = makeLimiter(90, 60_000); // 90 writes / minute across the surface
 // google-login does an outbound verification fetch — keep it on a tighter leash
 // so a stranger can't use us as a tokeninfo relay.
 const googleLimit = makeLimiter(10, 60_000);
@@ -237,6 +478,33 @@ export async function handleHouseApi(req, res, url, opts = {}) {
   try {
     // ----- reads -----
     if (req.method === 'GET' && p === '/api/house/status') { json(res, 200, houseStatus()); return true; }
+    // The "main garden calendar": the household's shared free windows + roster.
+    // Read-only + same-origin, so it's mounted on BOTH the public plant-server
+    // AND the localhost wall server (the wall widget consumes it). ALWAYS 200
+    // with empty arrays when there's no data yet — never 500 — so the widget
+    // degrades gracefully. May fetch connected ICS feeds (cached ~5 min).
+    if (req.method === 'GET' && p === '/api/house/calendar') {
+      let payload;
+      try { payload = await houseCalendar(log); }
+      catch (e) { log(`calendar build error: ${e.stack || e}`); payload = { members: [], windows: [], updatedAt: Date.now() }; }
+      json(res, 200, payload); return true;
+    }
+    // The signed-in user's OWN calendar settings: their connected ICS feed
+    // status + their upcoming manual busy blocks. Session-gated (own data only).
+    if (req.method === 'GET' && p === '/api/house/calendar/mine') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to manage your calendar' }); return true; }
+      const cal = getCalendar(s.user_id) || null;
+      const blocks = busyBlocksForUser(s.user_id).map((b) => ({ id: b.id, start: b.start_ms, end: b.end_ms, label: b.label || null }));
+      json(res, 200, {
+        connected: !!(cal && cal.ics_url),
+        lastSync: cal ? cal.last_sync || null : null,
+        lastStatus: cal ? cal.last_status || null : null,
+        eventCount: cal ? cal.event_count || 0 : 0,
+        // The URL itself is a secret — never echo it back; just whether one is set.
+        blocks,
+      }); return true;
+    }
     if (req.method === 'GET' && p === '/api/house/users') { json(res, 200, { users: listHouseUsers() }); return true; }
     if (req.method === 'GET' && p === '/api/house/chores') { json(res, 200, { chores: CHORES }); return true; }
     if (req.method === 'GET' && p === '/api/house/notifications') {
@@ -468,6 +736,66 @@ export async function handleHouseApi(req, res, url, opts = {}) {
       const avatarUrl = avatarUrlFor(user, pics.get(s.user_id) || null);
       log(`avatar upload: user #${s.user_id} → ${fname} (${buf.length}b)`);
       json(res, 200, { ok: true, avatarUrl, user: { id: user.id, name: user.name, avatar: 'upload', avatarUrl }, session: fresh ? sessionPublic(fresh) : null }); return true;
+    }
+
+    // ----- calendar: connect/sync an ICS feed + manual busy blocks -----------
+    // Connect (or update / disconnect) the signed-in user's Google Calendar
+    // private iCal URL ("Secret address in iCal format"). SESSION-GATED (own row
+    // only). We validate the host (https google.com only — SSRF guard), store it,
+    // then fetch+parse it once to confirm it's a real calendar. Sending an empty
+    // url disconnects. The URL is a secret and is never read back.
+    if (req.method === 'POST' && p === '/api/house/calendar/ics') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to connect a calendar' }); return true; }
+      if (!icsSyncLimit()) { json(res, 429, { error: 'slow down — too many calendar syncs' }); return true; }
+      const b = await parseJson(req);
+      let url = (b && b.icsUrl != null ? b.icsUrl : '').toString().trim();
+      // Google's UI offers a webcal:// variant of the same address — accept it.
+      if (/^webcal:\/\//i.test(url)) url = 'https://' + url.slice(url.indexOf('//') + 2);
+      if (url === '') { setCalendarUrl(s.user_id, null); icsCache.clear(); json(res, 200, { ok: true, connected: false }); return true; }
+      if (url.length > 600 || !icsUrlAllowed(url)) {
+        json(res, 400, { error: 'paste a Google Calendar “Secret address in iCal format” (https://calendar.google.com/…/basic.ics)' }); return true;
+      }
+      setCalendarUrl(s.user_id, url);
+      icsCache.delete(url);
+      const now = Date.now();
+      const busy = await fetchIcsBusy(url, now, now + CAL_DAYS * 24 * 3600 * 1000, log);
+      if (busy == null) {
+        setCalendarSync(s.user_id, { status: 'error', eventCount: 0 });
+        log(`ics connect FAILED: user #${s.user_id}`);
+        json(res, 502, { error: 'could not fetch that calendar — check the address and that it is public/secret-iCal' }); return true;
+      }
+      const cal = setCalendarSync(s.user_id, { status: 'ok', eventCount: busy.length });
+      log(`ics connected: user #${s.user_id} (${busy.length} events)`);
+      json(res, 200, { ok: true, connected: true, eventCount: busy.length, lastSync: cal.last_sync }); return true;
+    }
+
+    // Add a manual busy block. SESSION-GATED (own row). { start, end, label? }
+    // are epoch ms (end > start). For the calendar to find shared free time even
+    // when Google Calendar is missing some of a person's commitments.
+    if (req.method === 'POST' && p === '/api/house/calendar/busy') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to add busy time' }); return true; }
+      const b = await parseJson(req);
+      const start = parseInt(b && b.start, 10), end = parseInt(b && b.end, 10);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) { json(res, 400, { error: 'need a valid start + end' }); return true; }
+      // Bound the span: no block longer than 14 days, none starting >120 days out.
+      if (end - start > 14 * 24 * 3600 * 1000) { json(res, 400, { error: 'that block is too long' }); return true; }
+      if (start > Date.now() + 120 * 24 * 3600 * 1000) { json(res, 400, { error: 'that is too far in the future' }); return true; }
+      const label = (b && b.label || '').toString().trim().slice(0, 120) || null;
+      const id = addBusyBlock({ userId: s.user_id, startMs: start, endMs: end, label });
+      log(`busy block #${id} by user #${s.user_id}`);
+      json(res, 200, { ok: true, id }); return true;
+    }
+    // Delete one of YOUR OWN manual busy blocks. SESSION-GATED + id-scoped.
+    if ((req.method === 'POST' || req.method === 'DELETE') && p === '/api/house/calendar/busy/delete') {
+      const s = sessionFromReq(req);
+      if (!s) { json(res, 401, { error: 'sign in to remove busy time' }); return true; }
+      const b = await parseJson(req);
+      const id = parseInt(b && b.id, 10);
+      if (!Number.isFinite(id)) { json(res, 400, { error: 'which block?' }); return true; }
+      const removed = deleteBusyBlock({ userId: s.user_id, id });
+      json(res, 200, { ok: true, removed }); return true;
     }
 
     if (req.method === 'POST' && p === '/api/house/session/start') {
