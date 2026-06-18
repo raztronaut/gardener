@@ -236,6 +236,51 @@ surface (`/api/house/status`) is unaffected — the gate is purely client-side.
   else the colored-initial bubble (dormant presets still draw for legacy rows).
   Rename + photo upload are both inline on the profile card (optimistic + toast).
 
+**Shared availability calendar — REAL Google Calendar (Roots, June 2026).**
+The "garden calendar" finds when the whole household is free. Each member's BUSY
+time is the union of their **real Google Calendar** busy intervals + any **manual**
+busy blocks they typed. The Note-screen pane + the wall widget
+(`public/widgets/calendar.js`, "When We're Free") render the computed shared free
+windows. (This REPLACED an earlier iCal-`.ics`-paste sync — there is no iCal code
+anymore: no `house_calendars` table, no `parseIcsBusy`, no `/calendar/ics`.)
+- **DB:** one table `house_busy(id, user_id, start_ms, end_ms, source 'google'|
+  'manual', label, created_at)` (in `db.mjs`, Roots section). A reconnect REPLACES
+  that user's `source='google'` rows in one transaction; manual rows are
+  independently add/delete-able. The legacy `house_calendars`/`house_busy_blocks`
+  tables are dropped on startup (idempotent `DROP TABLE IF EXISTS`).
+- **The OAuth token flow runs ENTIRELY in the browser (Roots, You tab).** Sign-in
+  gives only an ID token; reading calendars needs an ACCESS token. The "Connect
+  Google Calendar" button uses GIS `google.accounts.oauth2.initTokenClient({
+  client_id, scope:'https://www.googleapis.com/auth/calendar.readonly', callback })`
+  + `.requestAccessToken()` (reusing the already-loaded `gsi/client`). With the
+  token the browser calls `GET …/calendar/v3/users/me/calendarList` then `POST
+  …/calendar/v3/freeBusy` over the next 14 days, collecting BUSY intervals (no
+  event titles — privacy-safe). It then POSTs ONLY the intervals to the server —
+  **the access token never leaves the browser.**
+- **Endpoints (`src/house-api.mjs`, session-gated via `x-roots-token`):**
+  - `POST /api/house/calendar/busy/google { intervals:[{start,end}], source:'google' }`
+    — validates/clamps (finite, end>start, within a 30-day horizon, drops past),
+    caps 1000, and REPLACES the user's google rows. Empty array = disconnect.
+  - `POST /api/house/calendar/disconnect` — forgets the user's google rows.
+  - `POST /api/house/calendar/busy { start, end, label? }` — add ONE manual block.
+  - `POST /api/house/calendar/busy/delete { id }` — delete one of YOUR manual
+    blocks (google rows aren't user-deletable).
+  - `GET /api/house/calendar/mine` — `{ connected, eventCount, blocks }` (blocks =
+    manual only; connected/eventCount reflect the google sync).
+  - `GET /api/house/calendar` — the merged household view `{ members, windows,
+    updatedAt }`; `windows` are upcoming shared free slots (8am–10pm, 30-min
+    granularity, ≤6). Read-only, mounted on BOTH servers, ALWAYS 200 (empty arrays
+    when there's no data) so the wall widget degrades gracefully.
+- **CONSOLE REQUIREMENT (user must do this — not doable from code).** The
+  access-token flow only works once, in Google Cloud Console for this OAuth
+  client/project: (1) **enable the Google Calendar API**; (2) on the **OAuth
+  consent screen** add the scope `…/auth/calendar.readonly` and add the user as a
+  **Test user** (while the app is in Testing); (3) the request only succeeds from a
+  **registered Authorized JavaScript origin** — the permanent ngrok domain
+  `https://spiritless-karissa-attent.ngrok-free.dev`. Until all three are done,
+  Google rejects the token request; Roots CATCHES that and shows "Couldn't
+  connect — calendar access may not be enabled yet" without breaking the app.
+
 **Wall view (read-only passthrough).** The plant-server proxies `GET /wall` →
 `http://127.0.0.1:8787/?screenshot=1` (screenshot mode hides the input bar +
 cursor, so it's view-only) plus a STRICT GET-only allowlist of the wall page's

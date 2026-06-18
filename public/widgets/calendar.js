@@ -1,8 +1,8 @@
 // When We're Free — the household's shared "garden calendar". In the Roots app
-// (profile page) each member syncs their Google Calendar (private iCal URL) or
-// adds busy blocks by hand; the backend merges everyone's busy time and computes
-// the next few windows when the household is actually free. This wall widget shows
-// those upcoming windows as a calm vertical list.
+// (You page) each member connects their real Google Calendar (OAuth, browser-side
+// freeBusy → busy intervals) or adds busy blocks by hand; the backend merges
+// everyone's busy time and computes the next few windows when the household is
+// actually free. This wall widget shows those upcoming windows as a calm list.
 //
 // Reads the localhost read-only /api/house/calendar (same-origin, NOT the external
 // proxy). The endpoint returns 200 with empty arrays when there's no data yet, so

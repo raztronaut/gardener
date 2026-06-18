@@ -977,9 +977,75 @@ async function renderHousehold() {
 // Shared availability calendar — the "garden calendar".
 // Two surfaces: a READ-ONLY pane on the Note screen showing the household's
 // shared free windows (GET /api/house/calendar), and the SETTINGS on the You
-// screen where a member connects a Google Calendar iCal feed + adds manual busy
-// blocks (GET/POST /api/house/calendar/{mine,ics,busy,busy/delete}).
+// screen where a member connects their REAL Google Calendar + adds manual busy
+// blocks (GET/POST /api/house/calendar/{mine,busy/google,busy,busy/delete}).
+//
+// Google Calendar uses the OAuth ACCESS-TOKEN flow (identity sign-in only gives
+// an ID token). All of it runs in the BROWSER: GIS's token client mints a
+// calendar.readonly token, we list the user's calendars + ask the freeBusy API
+// for their busy intervals over the next ~14 days, then POST only those
+// intervals to the server. The token never leaves the browser.
 // =============================================================================
+const CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
+const CAL_BUSY_DAYS = 14; // how far ahead to ask Google for busy time
+
+// Run the GIS OAuth token flow for calendar.readonly and hand back an access
+// token. Rejects (with a friendly message) if GIS can't load or Google denies —
+// e.g. the Calendar API / scope isn't enabled yet on the project. Never throws
+// synchronously; the caller catches and shows a graceful note.
+function requestCalendarToken() {
+  return new Promise((resolve, reject) => {
+    const cid = authConfig && authConfig.googleClientId;
+    if (!cid) { reject(new Error('Google isn’t configured on this server.')); return; }
+    ensureGis(() => {
+      try {
+        if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) {
+          reject(new Error('Google sign-in didn’t load — reload and try again.')); return;
+        }
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: cid,
+          scope: CAL_SCOPE,
+          callback: (resp) => {
+            if (resp && resp.access_token) resolve(resp.access_token);
+            else reject(new Error('Couldn’t connect — calendar access may not be enabled yet.'));
+          },
+          error_callback: () => reject(new Error('Couldn’t connect — calendar access may not be enabled yet.')),
+        });
+        client.requestAccessToken();
+      } catch { reject(new Error('Couldn’t connect — calendar access may not be enabled yet.')); }
+    });
+  });
+}
+
+// With an access token, list the user's calendars then ask the freeBusy API for
+// their BUSY intervals across the next CAL_BUSY_DAYS. Returns [{start,end}] in
+// epoch ms. freeBusy returns busy blocks WITHOUT event titles (privacy-safe).
+async function fetchGoogleBusy(token) {
+  const auth = { Authorization: 'Bearer ' + token };
+  const lr = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', { headers: auth });
+  if (!lr.ok) throw new Error('Couldn’t read your calendar list (' + lr.status + ').');
+  const ld = await lr.json();
+  const items = (ld.items || [])
+    .filter((c) => c.id && c.selected !== false) // only calendars the user shows
+    .map((c) => ({ id: c.id }));
+  if (!items.length) return [];
+  const timeMin = new Date().toISOString();
+  const timeMax = new Date(Date.now() + CAL_BUSY_DAYS * 86400e3).toISOString();
+  const fb = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+    method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timeMin, timeMax, items }),
+  });
+  if (!fb.ok) throw new Error('Couldn’t read your busy times (' + fb.status + ').');
+  const fd = await fb.json();
+  const out = [];
+  for (const cal of Object.values(fd.calendars || {})) {
+    for (const b of (cal.busy || [])) {
+      const start = Date.parse(b.start), end = Date.parse(b.end);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start) out.push({ start, end });
+    }
+  }
+  return out;
+}
 function fmtDayLabel(ts) {
   try {
     const d = new Date(ts), today = new Date();
@@ -1052,38 +1118,39 @@ async function renderCalendarSettings() {
     body.replaceChildren(el('p', { class: 'muted' }, e.status === 401 ? 'Sign in to manage your calendar.' : 'Could not load your calendar.')); return;
   }
 
-  // --- Google Calendar iCal connect ---
+  // --- Google Calendar connect (real OAuth access-token flow, browser-side) ---
   const syncMsg = el('div', { class: 'msg', role: 'status' });
-  const icsInput = el('input', { type: 'text', maxlength: '600', placeholder: 'https://calendar.google.com/calendar/ical/…/private-…/basic.ics' });
-  const connectBtn = el('button', { class: 'primary slim', type: 'button' }, mine.connected ? 'Re-sync calendar' : 'Add / Sync Calendar');
+  const connectBtn = el('button', { class: 'primary slim', type: 'button' }, mine.connected ? 'Refresh from Google' : 'Connect Google Calendar');
   const status = el('div', { class: 'cal-status' });
   function paintStatus() {
     status.replaceChildren(mine.connected
-      ? el('span', { class: 'cal-connected' }, `Google Calendar connected · ${mine.eventCount || 0} events`
-        + (mine.lastSync ? ` · synced ${fmtAgo(mine.lastSync)}` : ''))
-      : el('span', { class: 'muted' }, 'No calendar connected. Paste your private iCal address below.'));
+      ? el('span', { class: 'cal-connected' }, `Google Calendar connected · ${mine.eventCount || 0} busy times`)
+      : el('span', { class: 'muted' }, 'Connect your Google Calendar to share when you’re busy.'));
   }
   paintStatus();
-  connectBtn.addEventListener('click', async () => {
-    const url = icsInput.value.trim();
-    if (!url) { icsInput.focus(); return; }
-    connectBtn.disabled = true; syncMsg.className = 'msg'; syncMsg.textContent = 'Syncing…';
+  async function doConnect() {
+    connectBtn.disabled = true; syncMsg.className = 'msg'; syncMsg.textContent = 'Opening Google…';
     try {
-      const r = await api('/api/house/calendar/ics', { method: 'POST', body: JSON.stringify({ icsUrl: url }) });
-      mine.connected = !!r.connected; mine.eventCount = r.eventCount || 0; mine.lastSync = r.lastSync || Date.now();
-      icsInput.value = ''; syncMsg.className = 'msg ok'; syncMsg.textContent = `Synced ${r.eventCount || 0} events.`;
-      paintStatus(); connectBtn.textContent = 'Re-sync calendar';
-      renderCalendarPane();
+      const token = await requestCalendarToken();
+      syncMsg.textContent = 'Reading your calendar…';
+      const intervals = await fetchGoogleBusy(token);
+      const r = await api('/api/house/calendar/busy/google', { method: 'POST', body: JSON.stringify({ intervals, source: 'google' }) });
+      mine.connected = !!r.connected; mine.eventCount = r.eventCount || 0;
+      syncMsg.className = 'msg ok'; syncMsg.textContent = `Synced ${r.eventCount || 0} busy times from Google.`;
+      paintStatus(); connectBtn.textContent = 'Refresh from Google';
+      renderCalendarSettings(); renderCalendarPane();
     } catch (e) {
-      syncMsg.className = 'msg err'; syncMsg.textContent = e.message || 'Could not sync that calendar.';
+      syncMsg.className = 'msg err';
+      syncMsg.textContent = e.message || 'Couldn’t connect — calendar access may not be enabled yet.';
     } finally { connectBtn.disabled = false; }
-  });
+  }
+  connectBtn.addEventListener('click', doConnect);
   const disconnect = mine.connected ? el('button', { class: 'ghost slim', type: 'button', onclick: async () => {
-    try { await api('/api/house/calendar/ics', { method: 'POST', body: JSON.stringify({ icsUrl: '' }) }); mine.connected = false; mine.eventCount = 0; paintStatus(); renderCalendarSettings(); renderCalendarPane(); }
+    try { await api('/api/house/calendar/disconnect', { method: 'POST', body: '{}' }); mine.connected = false; mine.eventCount = 0; paintStatus(); renderCalendarSettings(); renderCalendarPane(); }
     catch (e) { toast(e.message || 'Could not disconnect.', 'err'); }
   } }, 'Disconnect') : null;
 
-  const help = el('p', { class: 'cal-help muted' }, 'In Google Calendar: Settings → your calendar → “Secret address in iCal format” → copy that .ics link here. (Real OAuth isn’t available on this server, so the private iCal link is the keyless way to sync.)');
+  const help = el('p', { class: 'cal-help muted' }, 'Roots reads only your busy times (not event details) over the next two weeks and shares them with the household so everyone can see when you’re free. Tap “Refresh from Google” anytime to update.');
 
   // --- manual busy blocks ---
   const busyMsg = el('div', { class: 'msg', role: 'status' });
@@ -1121,7 +1188,7 @@ async function renderCalendarSettings() {
   body.replaceChildren(
     el('div', { class: 'cal-sub' }, 'Google Calendar'),
     status,
-    el('div', { class: 'cal-connect' }, icsInput, el('div', { class: 'cal-connect-row' }, connectBtn, disconnect)),
+    el('div', { class: 'cal-connect' }, el('div', { class: 'cal-connect-row' }, connectBtn, disconnect)),
     syncMsg, help,
     el('div', { class: 'cal-sub', style: 'margin-top:18px' }, 'Manual busy time'),
     el('p', { class: 'lead', style: 'margin-bottom:12px' }, 'Add anything your calendar doesn’t cover so the household sees you as busy.'),

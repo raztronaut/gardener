@@ -293,39 +293,39 @@ async function main() {
     const addBb = await addB.json();
     check('add manual busy block returns ok + id', addB.ok && addBb.ok && typeof addBb.id === 'number');
     check('busy-block add rejects end<=start (400)', (await fetch(`${PB}/api/house/calendar/busy`, { method: 'POST', headers: cuTok, body: JSON.stringify({ start: bEnd, end: bStart }) })).status === 400);
-    // /calendar/mine reflects the block + connected=false (no ICS yet).
+    // /calendar/mine reflects the block + connected=false (no Google sync yet).
     const mine = await (await fetch(`${PB}/api/house/calendar/mine`, { headers: { 'x-roots-token': cu.token } })).json();
-    check('calendar/mine lists my busy block', Array.isArray(mine.blocks) && mine.blocks.some((x) => x.id === addBb.id && x.label === 'Work'));
-    check('calendar/mine connected=false before ICS', mine.connected === false);
+    check('calendar/mine lists my manual busy block', Array.isArray(mine.blocks) && mine.blocks.some((x) => x.id === addBb.id && x.label === 'Work'));
+    check('calendar/mine connected=false before Google sync', mine.connected === false);
     // The member now shows connected=true (has a manual block).
     const cal1 = await (await jget(PB, '/api/house/calendar')).json();
     check('member with a manual block is connected=true', (cal1.members.find((m) => m.name === 'Caly') || {}).connected === true);
     check('calendar windows are well-formed when present', cal1.windows.every((w) => typeof w.start === 'number' && typeof w.end === 'number' && w.end - w.start >= 30 * 60e3 && typeof w.freeCount === 'number' && typeof w.totalCount === 'number' && Array.isArray(w.freeNames)));
-    // ICS connect: reject a non-Google / non-https URL (SSRF guard).
-    check('ICS connect rejects a non-Google host (400)', (await fetch(`${PB}/api/house/calendar/ics`, { method: 'POST', headers: cuTok, body: JSON.stringify({ icsUrl: 'https://evil.example.com/x.ics' }) })).status === 400);
-    check('ICS connect rejects http localhost (SSRF) (400)', (await fetch(`${PB}/api/house/calendar/ics`, { method: 'POST', headers: cuTok, body: JSON.stringify({ icsUrl: 'http://127.0.0.1/x.ics' }) })).status === 400);
-    check('ICS connect rejects without a token (401)', (await jpost(PB, '/api/house/calendar/ics', { icsUrl: 'https://calendar.google.com/x/basic.ics' })).status === 401);
-    // Delete the busy block (own-row scoped) and confirm it's gone.
+
+    // Google Calendar busy push: the browser does the OAuth + freeBusy and sends
+    // only the resulting intervals. Session-gated; replaces the user's google rows.
+    check('google busy push rejects without a token (401)', (await jpost(PB, '/api/house/calendar/busy/google', { intervals: [], source: 'google' })).status === 401);
+    check('google busy push rejects a non-array intervals (400)', (await fetch(`${PB}/api/house/calendar/busy/google`, { method: 'POST', headers: cuTok, body: JSON.stringify({ intervals: 'nope', source: 'google' }) })).status === 400);
+    const gStart = Date.now() + 50 * 3600e3, gEnd = gStart + 90 * 60e3;
+    const gPush = await fetch(`${PB}/api/house/calendar/busy/google`, { method: 'POST', headers: cuTok, body: JSON.stringify({ source: 'google', intervals: [{ start: gStart, end: gEnd }, { start: 1, end: 2 }] }) });
+    const gPushb = await gPush.json();
+    check('google busy push stores valid intervals + drops past ones', gPush.ok && gPushb.connected === true && gPushb.eventCount === 1);
+    const mine2 = await (await fetch(`${PB}/api/house/calendar/mine`, { headers: { 'x-roots-token': cu.token } })).json();
+    check('calendar/mine connected=true + eventCount after google sync', mine2.connected === true && mine2.eventCount === 1);
+    check('calendar/mine blocks still hold ONLY manual rows', mine2.blocks.every((x) => x.id != null) && mine2.blocks.length === 1);
+    // A re-push REPLACES the google rows (authoritative).
+    const gPush2 = await fetch(`${PB}/api/house/calendar/busy/google`, { method: 'POST', headers: cuTok, body: JSON.stringify({ source: 'google', intervals: [] }) });
+    check('empty google push disconnects (eventCount 0)', gPush2.ok && (await gPush2.json()).eventCount === 0);
+    // Re-add one then disconnect via the dedicated endpoint.
+    await fetch(`${PB}/api/house/calendar/busy/google`, { method: 'POST', headers: cuTok, body: JSON.stringify({ source: 'google', intervals: [{ start: gStart, end: gEnd }] }) });
+    const disc = await fetch(`${PB}/api/house/calendar/disconnect`, { method: 'POST', headers: cuTok, body: '{}' });
+    check('disconnect clears google rows', disc.ok && (await disc.json()).connected === false);
+    check('disconnect rejects without a token (401)', (await jpost(PB, '/api/house/calendar/disconnect', {})).status === 401);
+
+    // Delete the manual busy block (own-row scoped) and confirm it's gone.
     const delB = await fetch(`${PB}/api/house/calendar/busy/delete`, { method: 'POST', headers: cuTok, body: JSON.stringify({ id: addBb.id }) });
     check('delete own busy block removes it', delB.ok && (await delB.json()).removed === 1);
     check('busy block gone from calendar/mine after delete', !(await (await fetch(`${PB}/api/house/calendar/mine`, { headers: { 'x-roots-token': cu.token } })).json()).blocks.some((x) => x.id === addBb.id));
-    // The pure ICS parser (exported) — VEVENT extraction incl. line unfolding +
-    // all-day dates. Run in a child process pinned at the temp DB so importing
-    // house-api.mjs (which pulls in db.mjs) never touches the real database.
-    const parserProbe = `
-      import { parseIcsBusy } from ${JSON.stringify(join(ROOT, 'src', 'house-api.mjs'))};
-      const ics = 'BEGIN:VCALENDAR\\r\\nBEGIN:VEVENT\\r\\nDTSTART:20260618T170000Z\\r\\nDTEND:20260618T18\\r\\n 0000Z\\r\\nEND:VEVENT\\r\\nBEGIN:VEVENT\\r\\nDTSTART;VALUE=DATE:20260619\\r\\nDTEND;VALUE=DATE:20260620\\r\\nEND:VEVENT\\r\\nEND:VCALENDAR';
-      const b = parseIcsBusy(ics, Date.UTC(2026,5,17), Date.UTC(2026,5,25));
-      const folded = b[0] && (b[0].end - b[0].start) === 3600000;     // unfolded DTEND → 1h
-      const allday = b[1] && (b[1].end - b[1].start) === 86400000;    // VALUE=DATE → 24h
-      process.exit(b.length === 2 && folded && allday ? 0 : 1);
-    `;
-    const parserOk = await new Promise((r) => {
-      const child = spawn(process.execPath, ['--input-type=module', '-e', parserProbe], { env: { ...env, GARDENER_DATA: tmpData }, stdio: 'ignore' });
-      child.on('exit', (code) => r(code === 0));
-      child.on('error', () => r(false));
-    });
-    check('ICS parser extracts VEVENTs (unfolding + all-day)', parserOk);
     // Clean up the throwaway calendar user's session.
     await fetch(`${PB}/api/house/logout`, { method: 'POST', headers: cuTok, body: '{}' });
 
