@@ -124,6 +124,51 @@ async function serveRom(req, res, urlPath) {
 // All params are validated/escaped; the ROM must be a real file in data/roms/.
 const EMU_CORES = new Set(['nes', 'snes', 'gb', 'gba', 'n64', 'segaMD', 'segaMS', 'pce']);
 function htmlEsc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ---- HN reader text extraction (shared by /api/readable text + raw modes) ----
+// Crude-but-sturdy readable-text pull: prefer <article>, drop chrome, keep block
+// text. Also a proxy for "will the original render?" — a content-rich page yields
+// lots of text (so its HTML is server-rendered and renders fine in the iframe);
+// a sparse result means an SPA/JS-only page that would render BLANK.
+function readerExtractText(html) {
+  let body = (html.match(/<article[\s\S]*?<\/article>/i) || [html])[0];
+  return body
+    .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(nav|header|footer|aside|form|svg|noscript)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(h[1-3])[^>]*>/gi, '\n\n## ').replace(/<li[^>]*>/gi, '\n• ')
+    .replace(/<\/(p|div|section|blockquote|li|h[1-6]|tr)>/gi, '\n')
+    .replace(/<br[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (m_, n) => String.fromCharCode(n)).replace(/&quot;/g, '"').replace(/&#x27;|&apos;/g, "'")
+    .split('\n').map((l) => l.trim().replace(/\s+/g, ' ')).filter((l) => l.length > 1)
+    .join('\n').replace(/\n{3,}/g, '\n\n').slice(0, 60000);
+}
+// A self-contained, on-brand dark "reader text" page (the fallback when the
+// original would render blank). Includes the same postMessage scroll bridge.
+function readerTextPage(title, text, url) {
+  let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
+  // Treat near-empty results (SPAs, Cloudflare "Just a moment…" walls, paywalls)
+  // as "no content" → show the open-on-phone message rather than a useless stub.
+  const usable = String(text || '').replace(/just a moment\W*/i, '').trim();
+  const paras = usable.length >= 40 ? String(text).split(/\n+/).filter((s) => s.trim())
+    .map((s) => (s.startsWith('## ') ? `<h2>${htmlEsc(s.slice(3))}</h2>` : `<p>${htmlEsc(s)}</p>`)).join('') : '';
+  const bodyHtml = paras || `<p class="empty">No readable text here — this page is a JavaScript app, paywalled, or bot-protected, so it can’t be rendered on the wall. Open it on your phone:</p><p class="empty" style="color:#74f7b0;word-break:break-all">${htmlEsc(url)}</p>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    html{scrollbar-width:thin;scrollbar-color:#43e6c6 transparent}
+    ::-webkit-scrollbar{width:12px}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#74f7b0,#43e6c6);border-radius:999px;border:3px solid transparent;background-clip:padding-box;min-height:48px}
+    body{margin:0;background:#04110d;color:#cfeede;font:17px/1.62 Inter,system-ui,-apple-system,sans-serif;padding:26px 30px 70px}
+    h1{font:700 27px/1.25 "Space Grotesk",Inter,sans-serif;color:#eafff4;margin:0 0 18px}
+    h2{font:600 19px/1.3 "Space Grotesk",Inter,sans-serif;color:#eafff4;margin:26px 0 8px}
+    p{margin:0 0 14px;max-width:62ch}.empty{color:#6f9388}
+    .src{font:600 11px/1 ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;color:#6f9388;margin:0 0 16px}
+  </style></head><body>
+    <div class="src">reader${host ? ' · ' + htmlEsc(host) : ''}</div>
+    <h1>${htmlEsc(title)}</h1>${bodyHtml}
+    <script>addEventListener('message',function(e){var d=e&&e.data;if(d&&typeof d.__readerScroll==='number'){try{scrollBy({top:d.__readerScroll,behavior:'smooth'})}catch(_){scrollBy(0,d.__readerScroll)}}});<\/script>
+  </body></html>`;
+}
 async function serveEmuFrame(req, res, u) {
   const core = u.searchParams.get('core') || '';
   const romFile = u.searchParams.get('rom') || '';
@@ -473,6 +518,14 @@ const server = http.createServer(async (req, res) => {
         // postMessage scroll bridge so the controller can still scroll it (the
         // parent can't reach a cross-origin iframe's scrollBy directly).
         if (u.searchParams.get('raw') === '1') {
+          // AUTO mode: if the page is content-rich, render the ORIGINAL; if it's a
+          // sparse SPA/JS-only shell (would render blank), serve our clean text
+          // page instead so the reader is NEVER blank.
+          const extracted = readerExtractText(html);
+          if (extracted.length < 900) {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+            return res.end(readerTextPage(title, extracted, r.url || target));
+          }
           const origin = (r.url || t.toString());
           let doc = html; // scripts preserved on purpose (safe: null-origin sandbox)
           const baseTag = `<base href="${origin.replace(/"/g, '&quot;')}">`;
@@ -494,21 +547,7 @@ const server = http.createServer(async (req, res) => {
           });
           return res.end(doc);
         }
-        // crude-but-sturdy extraction: prefer <article>, strip chrome tags, keep block text
-        let body = (html.match(/<article[\s\S]*?<\/article>/i) || [html])[0];
-        body = body
-          .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<!--[\s\S]*?-->/g, '')
-          .replace(/<(nav|header|footer|aside|form|svg|noscript)[\s\S]*?<\/\1>/gi, '')
-          .replace(/<(h[1-3])[^>]*>/gi, '\n\n## ').replace(/<li[^>]*>/gi, '\n• ')
-          .replace(/<\/(p|div|section|blockquote|li|h[1-6]|tr)>/gi, '\n')
-          .replace(/<br[^>]*>/gi, '\n')
-          .replace(/<[^>]+>/g, '')
-          .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-          .replace(/&#(\d+);/g, (m_, n) => String.fromCharCode(n)).replace(/&quot;/g, '"').replace(/&#x27;|&apos;/g, "'")
-          .split('\n').map((l) => l.trim().replace(/\s+/g, ' ')).filter((l) => l.length > 1)
-          .join('\n').replace(/\n{3,}/g, '\n\n').slice(0, 60000);
-        return json(res, 200, { title, text: body, url: r.url || target });
+        return json(res, 200, { title, text: readerExtractText(html), url: r.url || target });
       } catch (e) {
         return json(res, 502, { error: 'could not fetch the page', detail: String(e.message || e).slice(0, 120) });
       }
