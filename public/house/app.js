@@ -216,48 +216,172 @@ function renderMarkdown(src) {
   return out.join('') || '<p class="muted">Nothing yet.</p>';
 }
 
+// Serialize the SIMPLE editor's HTML back to markdown so the note is stored and
+// displayed EXACTLY as before (the server only ever sees a plain markdown string
+// via POST /api/feedback). We walk the contenteditable's block children and emit
+// the small markdown subset the editor offers: headings, bold/italic/code,
+// links, bullet + numbered lists, and paragraphs. Anything unknown degrades to
+// its text content, so a paste can never inject markup we don't understand.
+function htmlToMarkdown(root) {
+  const inline = (node) => {
+    let out = '';
+    node.childNodes.forEach((n) => {
+      if (n.nodeType === Node.TEXT_NODE) { out += n.nodeValue; return; }
+      if (n.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = n.tagName.toLowerCase();
+      const inner = inline(n);
+      if (tag === 'br') { out += '\n'; }
+      else if (tag === 'b' || tag === 'strong') { out += inner.trim() ? `**${inner}**` : inner; }
+      else if (tag === 'i' || tag === 'em') { out += inner.trim() ? `*${inner}*` : inner; }
+      else if (tag === 'code') { out += inner.trim() ? '`' + inner + '`' : inner; }
+      else if (tag === 'a') { const href = n.getAttribute('href') || ''; out += href ? `[${inner}](${href})` : inner; }
+      else { out += inner; }
+    });
+    return out;
+  };
+  const blocks = [];
+  root.childNodes.forEach((n) => {
+    if (n.nodeType === Node.TEXT_NODE) { const s = n.nodeValue.trim(); if (s) blocks.push(s); return; }
+    if (n.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = n.tagName.toLowerCase();
+    if (/^h[1-4]$/.test(tag)) { blocks.push('#'.repeat(+tag[1]) + ' ' + inline(n).trim()); }
+    else if (tag === 'ul') { n.querySelectorAll(':scope > li').forEach((li) => blocks.push('- ' + inline(li).trim())); }
+    else if (tag === 'ol') { let i = 1; n.querySelectorAll(':scope > li').forEach((li) => blocks.push((i++) + '. ' + inline(li).trim())); }
+    else if (tag === 'blockquote') { blocks.push('> ' + inline(n).trim()); }
+    else if (tag === 'br') { /* stray break between blocks */ }
+    else { const s = inline(n).replace(/\n+$/, ''); if (s.trim()) blocks.push(s); }
+  });
+  return blocks.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 (function wireNote() {
   const t = $('#noteText'), btn = $('#noteSend'), msg = $('#noteMsg'), count = $('#noteCount');
-  const card = $('#composeCard'), preview = $('#notePreview'), hint = $('#cmdHint'), label = $('#cmdLabel');
+  const hint = $('#cmdHint');
   const max = parseInt(t.getAttribute('maxlength') || '500', 10);
   const updateCount = () => { if (count) count.textContent = (max - t.value.length) + ' left'; };
-  const updatePreview = () => {
-    if (!t.value.trim()) { if (preview) preview.innerHTML = '<p class="muted">Your note renders here as you type. Markdown is supported.</p>'; return; }
-    if (preview) preview.innerHTML = renderMarkdown(t.value);
-  };
-  t.addEventListener('input', () => { updateCount(); updatePreview(); }); updateCount(); updatePreview();
+  t.addEventListener('input', updateCount); updateCount();
 
-  // ---- Cmd+↑ / Cmd+↓ : toggle the full markdown editor for the command line.
-  function setMdMode(on) {
-    if (!card) return;
-    card.classList.toggle('md-mode', !!on);
-    document.body.classList.toggle('md-editing', !!on);
-    if (label) label.textContent = on ? 'markdown editor' : 'command line';
-    if (hint) hint.textContent = on ? '⌘↓ back to command line' : '⌘↑ markdown editor';
-    if (on) { updatePreview(); t.focus(); }
+  // ---- the simple bottom-sheet editor (Cmd+↑ opens, Cmd+↓ / Esc / Done closes) -
+  const sheet = $('#noteSheet'), scrim = $('#noteSheetScrim'), done = $('#noteSheetDone');
+  const editor = $('#noteEditor'), sheetCount = $('#sheetCount'), sheetSend = $('#sheetSend'), sheetMsg = $('#sheetMsg');
+  const tools = $('#noteTools');
+  let sheetOpen = false;
+
+  // Keep the textarea (source of truth) and the editor in sync. The editor is
+  // WYSIWYG: we seed it from markdown on open, and read markdown back out on edit.
+  const syncCount = () => { const left = max - editor.textContent.length; if (sheetCount) sheetCount.textContent = left + ' left'; };
+  const flushToTextarea = () => { t.value = htmlToMarkdown(editor).slice(0, max); updateCount(); };
+
+  function openSheet() {
+    if (sheetOpen) return;
+    sheetOpen = true;
+    editor.innerHTML = t.value.trim() ? renderMarkdown(t.value) : '';
+    sheet.hidden = false; sheet.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('sheet-open');
+    if (sheetMsg) { sheetMsg.className = 'msg'; sheetMsg.textContent = ''; }
+    syncCount();
+    // focus + caret at end
+    requestAnimationFrame(() => {
+      editor.focus();
+      const r = document.createRange(); r.selectNodeContents(editor); r.collapse(false);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    });
+    if (hint) hint.textContent = '⌘↓ close editor';
   }
-  // Works whether the keypress lands on the textarea or the document. Cmd (mac)
-  // OR Ctrl (win/linux) + Arrow toggles. Only acts while the Note screen is open.
+  function closeSheet() {
+    if (!sheetOpen) return;
+    flushToTextarea();
+    sheetOpen = false;
+    sheet.hidden = true; sheet.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('sheet-open');
+    if (hint) hint.textContent = '⌘↑ editor';
+    t.focus();
+  }
+
+  editor.addEventListener('input', () => { syncCount(); flushToTextarea(); });
+  // Cap length inside the editor (best-effort; the save also clamps).
+  editor.addEventListener('beforeinput', (e) => {
+    if (e.inputType && e.inputType.startsWith('insert') && editor.textContent.length >= max) e.preventDefault();
+  });
+
+  // Minimal formatting: toolbar buttons + Cmd/Ctrl+B / +I shortcuts. We lean on
+  // execCommand for the simple inline/list toggles (well-supported for a small
+  // contenteditable; no dependency). Headings toggle via formatBlock.
+  function applyCmd(cmd) {
+    editor.focus();
+    if (cmd === 'bold') document.execCommand('bold');
+    else if (cmd === 'italic') document.execCommand('italic');
+    else if (cmd === 'ul') document.execCommand('insertUnorderedList');
+    else if (cmd === 'h2') {
+      // toggle: if already a heading, drop back to a paragraph
+      const sel = window.getSelection();
+      const anchor = sel && sel.anchorNode;
+      const block = anchor && (anchor.nodeType === 1 ? anchor : anchor.parentElement) &&
+        (anchor.nodeType === 1 ? anchor : anchor.parentElement).closest('h1,h2,h3,h4');
+      document.execCommand('formatBlock', false, block ? 'p' : 'h2');
+    }
+    syncCount(); flushToTextarea();
+  }
+  if (tools) tools.addEventListener('mousedown', (e) => {
+    // mousedown (not click) so the editor keeps its selection while we format.
+    const b = e.target.closest('.ntool'); if (!b) return;
+    e.preventDefault(); applyCmd(b.dataset.cmd);
+  });
+  editor.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'b') { e.preventDefault(); applyCmd('bold'); return; }
+      if (k === 'i') { e.preventDefault(); applyCmd('italic'); return; }
+    }
+    if (e.key === 'Escape') { e.preventDefault(); closeSheet(); }
+  });
+  // Paste as plain text (keeps the note clean + the markdown serializer safe).
+  editor.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+
+  done.addEventListener('click', closeSheet);
+  scrim.addEventListener('click', closeSheet);
+
+  // ---- Cmd+↑ / Cmd+↓ : open / close the editor. Works on textarea OR document.
   function onKey(e) {
     if (!(e.metaKey || e.ctrlKey)) return;
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    if (!$('#screen-note').classList.contains('active')) return;
+    if (e.key === 'ArrowUp' && !$('#screen-note').classList.contains('active')) return;
+    if (e.key === 'ArrowDown' && !sheetOpen) return;
     e.preventDefault();
-    setMdMode(e.key === 'ArrowUp');
+    if (e.key === 'ArrowUp') openSheet(); else closeSheet();
   }
   t.addEventListener('keydown', onKey);
   document.addEventListener('keydown', onKey);
 
-  btn.addEventListener('click', async () => {
-    const text = t.value.trim();
-    if (!text) { t.focus(); return; }
-    btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Planting…';
+  // ---- planting (shared) — same payload as always: a plain markdown string.
+  async function plant(text, button, msgEl, after) {
+    const body = String(text || '').trim();
+    if (!body) return;
+    button.disabled = true; msgEl.className = 'msg'; msgEl.textContent = 'Planting…';
     try {
-      await api('/api/feedback', { method: 'POST', body: JSON.stringify({ text }) });
-      t.value = ''; updateCount(); updatePreview(); msg.className = 'msg ok'; msg.textContent = 'Planted — the Gardener will tend to it.';
+      await api('/api/feedback', { method: 'POST', body: JSON.stringify({ text: body }) });
+      msgEl.className = 'msg ok'; msgEl.textContent = 'Planted — the Gardener will tend to it.';
+      if (after) after();
     } catch {
-      msg.className = 'msg err'; msg.textContent = 'Could not reach the Gardener — try again.';
-    } finally { btn.disabled = false; }
+      msgEl.className = 'msg err'; msgEl.textContent = 'Could not reach the Gardener — try again.';
+    } finally { button.disabled = false; }
+  }
+
+  btn.addEventListener('click', () => {
+    if (!t.value.trim()) { t.focus(); return; }
+    plant(t.value, btn, msg, () => { t.value = ''; updateCount(); });
+  });
+  sheetSend.addEventListener('click', () => {
+    flushToTextarea();
+    if (!t.value.trim()) { editor.focus(); return; }
+    plant(t.value, sheetSend, sheetMsg, () => {
+      t.value = ''; updateCount(); editor.innerHTML = ''; syncCount();
+      setTimeout(closeSheet, 700);
+    });
   });
 })();
 

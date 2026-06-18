@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Roots" />
-  <link rel="stylesheet" href="/house/house.css?v=20260617-gcal" />
+  <link rel="stylesheet" href="/house/house.css?v=20260618-editor" />
 </head>
 <body>
   <!-- Login gate: shown full-screen BEFORE the app when Google sign-in is
@@ -25,15 +25,8 @@
   <div id="loginGate" hidden>
     <div class="gate-inner">
       <span class="gate-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 10.5h16" />
-          <path d="M12 10.5V5.4" />
-          <path d="M12 7.6c0-2.1 1.6-3.6 3.8-3.6 0 2.1-1.6 3.6-3.8 3.6Z" />
-          <path d="M12 7.6c0-2.1-1.6-3.6-3.8-3.6 0 2.1 1.6 3.6 3.8 3.6Z" />
-          <path d="M12 10.5V20" />
-          <path d="M12 13.4c-1.9.9-3 2.7-3.3 5.3" />
-          <path d="M12 13.4c1.9.9 3 2.7 3.3 5.3" />
-        </svg>
+        <!-- the official Roots app icon (same glyph as the manifest / home-screen icon) -->
+        <img src="/assets/hearth-icon-512.png" alt="" width="58" height="58" />
       </span>
       <h1 class="gate-name">Roots</h1>
       <p class="gate-tag">The household app</p>
@@ -46,48 +39,31 @@
   <div id="app">
     <header class="app-head">
       <span class="mark" aria-hidden="true">
-        <!-- the Roots glyph: a sprout above the ground line, roots reaching below -->
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 10.5h16" />
-          <path d="M12 10.5V5.4" />
-          <path d="M12 7.6c0-2.1 1.6-3.6 3.8-3.6 0 2.1-1.6 3.6-3.8 3.6Z" />
-          <path d="M12 7.6c0-2.1-1.6-3.6-3.8-3.6 0 2.1 1.6 3.6 3.8 3.6Z" />
-          <path d="M12 10.5V20" />
-          <path d="M12 13.4c-1.9.9-3 2.7-3.3 5.3" />
-          <path d="M12 13.4c1.9.9 3 2.7 3.3 5.3" />
-        </svg>
+        <!-- the official Roots app icon (identical to the manifest / home-screen icon) -->
+        <img src="/assets/hearth-icon-512.png" alt="" width="38" height="38" />
       </span>
       <h1>Roots</h1>
       <div class="who" id="who"></div>
     </header>
 
     <!-- Screen 1: Plant a Note — the "command line".
-         On a wide screen this becomes a full-height workspace: the area ABOVE the
-         command line shows a live markdown preview, with the command line pinned at
-         the bottom. On a phone it stays the simple stacked compose. Cmd+↑ expands
-         the command line into a full markdown editor; Cmd+↓ returns to the
-         command-line view. -->
+         The plain command line stays the simple stacked compose. Cmd+↑ opens a
+         simple rich-text editor as a bottom sheet (~1/3 of the screen, scrolls
+         internally); Cmd+↓ (or Esc / Done) closes it back to the command line.
+         The editor is WYSIWYG: bold/headings/lists render inline as you type, with
+         Cmd+B / Cmd+I shortcuts and a tiny toolbar. On save the content is
+         serialized back to markdown so note storage/display stays unchanged. -->
     <section class="screen" id="screen-note">
       <div class="hero" id="noteHero">
         <h2>Plant a note</h2>
         <p class="lead">Tell the Gardener what to grow on the wall display. Your note is tended into the garden at the next morning's tending.</p>
       </div>
 
-      <!-- The workspace above the command line. On a wide screen it fills the
-           remaining height; on a phone it simply stacks above the compose box. -->
-      <div class="note-split" id="noteSplit">
-        <div class="card note-pane" id="previewPane">
-          <h2>Preview</h2>
-          <div id="notePreview" class="md-preview"><p class="muted">Your note renders here as you type. Markdown is supported.</p></div>
-        </div>
-      </div>
-
-      <!-- The command line. .md-mode (toggled by Cmd+↑) turns it into a full
-           markdown editor; Cmd+↓ collapses it back. -->
+      <!-- The command line. -->
       <div class="card compose" id="composeCard">
         <div class="cmd-head">
           <span class="cmd-label" id="cmdLabel">command line</span>
-          <span class="cmd-hint" id="cmdHint">⌘↑ markdown editor</span>
+          <span class="cmd-hint" id="cmdHint">⌘↑ editor</span>
         </div>
         <textarea id="noteText" maxlength="500" placeholder="e.g. add a transit board for the 22 bus…"></textarea>
         <div class="compose-row">
@@ -97,6 +73,31 @@
         <div class="msg" id="noteMsg" role="status"></div>
       </div>
     </section>
+
+    <!-- Simple editor — a bottom sheet (~1/3 screen). Opened by Cmd+↑ on the Note
+         screen; mirrors the command-line content as rich text and writes it back
+         on close. WYSIWYG contenteditable surface + minimal toolbar. -->
+    <div id="noteSheet" class="note-sheet" hidden aria-hidden="true">
+      <div class="note-sheet-scrim" id="noteSheetScrim"></div>
+      <div class="note-sheet-panel" role="dialog" aria-label="Note editor">
+        <div class="note-sheet-head">
+          <span class="cmd-label">editor</span>
+          <div class="note-tools" id="noteTools">
+            <button type="button" class="ntool" data-cmd="bold" title="Bold (⌘B)" aria-label="Bold"><b>B</b></button>
+            <button type="button" class="ntool" data-cmd="italic" title="Italic (⌘I)" aria-label="Italic"><i>I</i></button>
+            <button type="button" class="ntool" data-cmd="h2" title="Heading" aria-label="Heading">H</button>
+            <button type="button" class="ntool" data-cmd="ul" title="Bulleted list" aria-label="Bulleted list">&bull;</button>
+          </div>
+          <button type="button" class="note-sheet-done" id="noteSheetDone">Done</button>
+        </div>
+        <div id="noteEditor" class="note-editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Write your note… bold with ⌘B, headings, lists."></div>
+        <div class="note-sheet-foot">
+          <span class="charcount" id="sheetCount">500 left</span>
+          <button class="primary slim" id="sheetSend">Plant it</button>
+        </div>
+        <div class="msg" id="sheetMsg" role="status"></div>
+      </div>
+    </div>
 
     <!-- Screen 2: Community Macros -->
     <section class="screen" id="screen-macros">
@@ -255,6 +256,6 @@
     </button>
   </nav>
 
-  <script src="/house/app.js?v=20260617-gcal"></script>
+  <script src="/house/app.js?v=20260618-editor"></script>
 </body>
 </html>
