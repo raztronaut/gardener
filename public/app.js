@@ -1301,6 +1301,66 @@ function wirePad() {
 }
 
 // ---- feedback bar -----------------------------------------------------------
+// ---- Cmd/Ctrl + ↑ : expand the command line into a full markdown editor -------
+// (Cmd/Ctrl + ↓ or Esc returns to the command line; Cmd/Ctrl + Enter plants.)
+// A tiny, dependency-free, SAFE markdown renderer (escape first, then format).
+let mdEl = null;
+function renderMd(src) {
+  let s = String(src).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  s = s.replace(/```([\s\S]*?)```/g, (m, c) => `<pre>${c.replace(/^\n/, '')}</pre>`);
+  s = s
+    .replace(/^### (.*)$/gm, '<h3>$1</h3>').replace(/^## (.*)$/gm, '<h2>$1</h2>').replace(/^# (.*)$/gm, '<h1>$1</h1>')
+    .replace(/^\s*[-*] (.*)$/gm, '<li>$1</li>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<u>$1</u>');
+  s = s.replace(/(<li>[\s\S]*?<\/li>)/g, (m) => '<ul>' + m + '</ul>').replace(/<\/ul>\s*<ul>/g, '');
+  return s.split(/\n{2,}/).map((b) => (/^\s*<(h\d|ul|pre|li)/.test(b) ? b : (b.trim() ? '<p>' + b.replace(/\n/g, '<br>') + '</p>' : ''))).join('')
+    || '<p class="md-ph">Start typing — markdown renders here.</p>';
+}
+function openMdEditor() {
+  if (mdEl) return;
+  const input = document.getElementById('feedbackInput');
+  const ta = h('textarea', { class: 'md-ta', spellcheck: 'false',
+    placeholder: 'Write a note in markdown…\n\n# Heading\n- a point\n**bold**, *italic*, `code`' });
+  ta.value = input ? input.value : '';
+  const prev = h('div', { class: 'md-prev' });
+  const upd = () => { prev.innerHTML = renderMd(ta.value); };
+  ta.addEventListener('input', upd);
+  ta.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); plantMd(ta.value); }
+    else if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') { e.preventDefault(); closeMdEditor(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeMdEditor(); }
+  });
+  mdEl = h('div', { class: 'mdeditor' },
+    h('div', { class: 'md-head' },
+      h('span', { class: 'md-ttl' }, 'MARKDOWN EDITOR'),
+      h('span', { class: 'md-hint' }, '⌘↵ plant · ⌘↓ back to command line')),
+    h('div', { class: 'md-split' }, ta, prev));
+  (document.getElementById('zoomroot') || document.body).appendChild(mdEl);
+  upd();
+  setTimeout(() => ta.focus(), 0);
+}
+function closeMdEditor() {
+  if (!mdEl) return;
+  const ta = mdEl.querySelector('.md-ta');
+  const input = document.getElementById('feedbackInput');
+  if (input && ta) input.value = ta.value; // carry text back to the command line
+  mdEl.remove(); mdEl = null;
+  focusInput();
+}
+async function plantMd(text) {
+  text = String(text || '').trim();
+  if (!text) { closeMdEditor(); return; }
+  try {
+    const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('Planted 🌱  — the gardener will tend to it');
+    const input = document.getElementById('feedbackInput'); if (input) input.value = '';
+    mdEl?.remove(); mdEl = null; focusInput();
+  } catch { toast('Could not reach the gardener — try again'); }
+}
+
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
   const input = document.getElementById('feedbackInput');
@@ -1310,8 +1370,11 @@ function wireFeedback() {
   // Type anywhere → the note field (no clicking needed); Esc closes a panel.
   // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
+    if (mdEl) return; // markdown editor open → its textarea owns the keyboard
     if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
     if (window.__GARDEN_GAME) return; // a running game handles its own keys
+    // Cmd/Ctrl + ↑ expands the command line into a full markdown editor.
+    if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp' && !panelOpen()) { e.preventDefault(); openMdEditor(); return; }
     // While a panel is open: arrows move the row SELECTION when it has clickable
     // rows (Enter activates — same as a tap), else they scroll. Page/Home/End scroll.
     if (panelOpen()) {
@@ -1351,8 +1414,8 @@ function wireFeedback() {
   }, true);
   // Refocus if the field ever loses focus (kiosk: always ready to type).
   input.addEventListener('blur', () => setTimeout(() => {
-    // Don't steal focus back while a panel is open or a hand-pruning edit is active.
-    if (!panelOpen() && !(document.activeElement && document.activeElement.isContentEditable)) focusInput();
+    // Don't steal focus back while a panel/editor is open or a hand-pruning edit is active.
+    if (!panelOpen() && !mdEl && !(document.activeElement && document.activeElement.isContentEditable)) focusInput();
   }, 0));
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
   document.getElementById('panelClose')?.addEventListener('click', closePanel);
