@@ -1368,32 +1368,52 @@ function wirePad() {
 // ---- feedback bar -----------------------------------------------------------
 // ---- Cmd/Ctrl + ↑ : expand the command line into a full markdown editor -------
 // (Cmd/Ctrl + ↓ or Esc returns to the command line; Cmd/Ctrl + Enter plants.)
-// A tiny, dependency-free, SAFE markdown renderer (escape first, then format).
+// ONE live surface (no split): the markdown SYNTAX stays visible but dimmed while
+// bold / headings / code / bullets format inline as you type — like writing in a
+// real editor. Source-preserving: the element's textContent is always the exact
+// markdown, so caret offsets stay stable across re-styles.
 let mdEl = null;
-function renderMd(src) {
-  let s = String(src).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  s = s.replace(/```([\s\S]*?)```/g, (m, c) => `<pre>${c.replace(/^\n/, '')}</pre>`);
-  s = s
-    .replace(/^### (.*)$/gm, '<h3>$1</h3>').replace(/^## (.*)$/gm, '<h2>$1</h2>').replace(/^# (.*)$/gm, '<h1>$1</h1>')
-    .replace(/^\s*[-*] (.*)$/gm, '<li>$1</li>')
-    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<u>$1</u>');
-  s = s.replace(/(<li>[\s\S]*?<\/li>)/g, (m) => '<ul>' + m + '</ul>').replace(/<\/ul>\s*<ul>/g, '');
-  return s.split(/\n{2,}/).map((b) => (/^\s*<(h\d|ul|pre|li)/.test(b) ? b : (b.trim() ? '<p>' + b.replace(/\n/g, '<br>') + '</p>' : ''))).join('')
-    || '<p class="md-ph">Start typing — markdown renders here.</p>';
+function mdInline(s) {
+  return s
+    .replace(/\*\*([^*\n]+)\*\*/g, '<i class="md-syn">**</i><b>$1</b><i class="md-syn">**</i>')
+    .replace(/`([^`\n]+)`/g, '<i class="md-syn">`</i><code>$1</code><i class="md-syn">`</i>')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i class="md-syn">*</i><em>$2</em><i class="md-syn">*</i>');
+}
+function styleMd(text) {
+  const esc = String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  return esc.split('\n').map((line) => {
+    const hd = line.match(/^(#{1,3})(\s.*)?$/);
+    if (hd) return `<i class="md-syn">${hd[1]}</i><span class="md-h md-h${hd[1].length}">${mdInline(hd[2] || '')}</span>`;
+    const bl = line.match(/^(\s*[-*]\s)(.*)$/);
+    if (bl) return `<i class="md-syn">${bl[1]}</i>${mdInline(bl[2])}`;
+    return mdInline(line);
+  }).join('\n');
 }
 function openMdEditor() {
   if (mdEl) return;
   const input = document.getElementById('feedbackInput');
-  const ta = h('textarea', { class: 'md-ta', spellcheck: 'false',
-    placeholder: 'Write a note in markdown…\n\n# Heading\n- a point\n**bold**, *italic*, `code`' });
-  ta.value = input ? input.value : '';
-  const prev = h('div', { class: 'md-prev' });
-  const upd = () => { prev.innerHTML = renderMd(ta.value); };
-  ta.addEventListener('input', upd);
-  ta.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); plantMd(ta.value); }
+  const ed = h('div', { class: 'md-live', contenteditable: 'plaintext-only', spellcheck: 'false' });
+  // caret tracking by character offset (stable because textContent === source)
+  const caretOffset = () => {
+    const sel = getSelection(); if (!sel.rangeCount || !ed.contains(sel.anchorNode)) return null;
+    const r = sel.getRangeAt(0); const pre = document.createRange();
+    pre.selectNodeContents(ed); pre.setEnd(r.endContainer, r.endOffset);
+    return pre.toString().length;
+  };
+  const setCaret = (off) => {
+    if (off == null) return;
+    const walk = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT); let n = 0, node; const r = document.createRange();
+    while ((node = walk.nextNode())) {
+      const len = node.textContent.length;
+      if (n + len >= off) { r.setStart(node, Math.max(0, off - n)); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return; }
+      n += len;
+    }
+    r.selectNodeContents(ed); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  };
+  const restyle = () => { const off = caretOffset(); ed.innerHTML = styleMd(ed.textContent); setCaret(off); };
+  ed.addEventListener('input', restyle);
+  ed.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); plantMd(ed.textContent); }
     else if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowDown') { e.preventDefault(); closeMdEditor(); }
     else if (e.key === 'Escape') { e.preventDefault(); closeMdEditor(); }
   });
@@ -1401,16 +1421,17 @@ function openMdEditor() {
     h('div', { class: 'md-head' },
       h('span', { class: 'md-ttl' }, 'MARKDOWN EDITOR'),
       h('span', { class: 'md-hint' }, '⌘↵ plant · ⌘↓ back to command line')),
-    h('div', { class: 'md-split' }, ta, prev));
+    ed);
+  mdEl._ed = ed;
   (document.getElementById('zoomroot') || document.body).appendChild(mdEl);
-  upd();
-  setTimeout(() => ta.focus(), 0);
+  const seed = input ? input.value : '';
+  ed.innerHTML = styleMd(seed);
+  setTimeout(() => { ed.focus(); const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }, 0);
 }
 function closeMdEditor() {
   if (!mdEl) return;
-  const ta = mdEl.querySelector('.md-ta');
   const input = document.getElementById('feedbackInput');
-  if (input && ta) input.value = ta.value; // carry text back to the command line
+  if (input && mdEl._ed) input.value = mdEl._ed.textContent; // carry text back to the command line
   mdEl.remove(); mdEl = null;
   focusInput();
 }

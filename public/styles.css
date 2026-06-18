@@ -357,25 +357,23 @@ body.night #cursor, body.screenshot #cursor { display: none; }
   padding: 16px 26px 12px; }
 .mdeditor .md-ttl { font-family: var(--font-mono); font-size: 12px; letter-spacing: .22em; color: var(--mint); }
 .mdeditor .md-hint { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; color: var(--ink-faint); }
-.mdeditor .md-split { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr;
-  gap: 1px; background: var(--stroke); }
-.mdeditor .md-ta { border: none; outline: none; resize: none; background: var(--bg-0); color: var(--ink);
-  font-family: var(--font-mono); font-size: 17px; line-height: 1.6; padding: 24px 30px; }
-.mdeditor .md-prev { overflow: auto; background: var(--bg-1); padding: 24px 30px 60px; color: var(--ink-soft);
-  font-family: var(--font); font-size: 17px; line-height: 1.62; overscroll-behavior: contain; }
-.mdeditor .md-prev h1 { font-family: var(--font-display); font-size: 28px; color: var(--ink); margin: 0 0 12px; }
-.mdeditor .md-prev h2 { font-family: var(--font-display); font-size: 22px; color: var(--ink); margin: 20px 0 8px; }
-.mdeditor .md-prev h3 { font-family: var(--font-display); font-size: 18px; color: var(--ink); margin: 16px 0 6px; }
-.mdeditor .md-prev p { margin: 0 0 12px; max-width: 60ch; }
-.mdeditor .md-prev ul { margin: 0 0 12px; padding-left: 22px; }
-.mdeditor .md-prev li { margin: 3px 0; }
-.mdeditor .md-prev b { color: var(--ink); }
-.mdeditor .md-prev code { font-family: var(--font-mono); font-size: .9em; color: var(--mint);
+/* ONE live surface — you type markdown and it formats inline; the raw syntax
+   marks stay visible but dimmed (.md-syn) so it reads like a real editor. */
+.mdeditor .md-live { flex: 1; min-height: 0; overflow: auto; outline: none;
+  background: var(--bg-0); color: var(--ink); padding: 22px 30px 48px;
+  font-family: var(--font); font-size: 18px; line-height: 1.62;
+  white-space: pre-wrap; word-break: break-word; overscroll-behavior: contain; caret-color: var(--mint); }
+.mdeditor .md-live:empty::before { content: 'Write a note in markdown…  # Heading · **bold** · `code` · - list';
+  color: var(--ink-faint); pointer-events: none; }
+.mdeditor .md-syn { font-style: normal; color: var(--ink-faint); opacity: .5; }
+.mdeditor .md-live .md-h { font-family: var(--font-display); font-weight: 700; color: var(--ink); }
+.mdeditor .md-live .md-h1 { font-size: 1.5em; }
+.mdeditor .md-live .md-h2 { font-size: 1.3em; }
+.mdeditor .md-live .md-h3 { font-size: 1.14em; }
+.mdeditor .md-live b { color: #fff; font-weight: 700; }
+.mdeditor .md-live em { font-style: italic; }
+.mdeditor .md-live code { font-family: var(--font-mono); font-size: .92em; color: var(--mint);
   background: rgba(116,247,176,.08); padding: 1px 5px; border-radius: 5px; }
-.mdeditor .md-prev pre { font-family: var(--font-mono); font-size: 14px; color: var(--ink); background: var(--bg-0);
-  border: 1px solid var(--stroke); border-radius: 10px; padding: 14px; overflow: auto; white-space: pre-wrap; }
-.mdeditor .md-prev u { color: var(--mint); text-decoration: none; }
-.mdeditor .md-prev .md-ph { color: var(--ink-faint); }
 
 /* ---------- night veil (opaque, energy saving) ---------- */
 #nightveil { position: fixed; inset: 0; z-index: 100; background: #000;
