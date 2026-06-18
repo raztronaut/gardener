@@ -1493,6 +1493,20 @@ function wireFeedback() {
 
   wireCommandPalette(input);
 
+  // The HN reader is a CROSS-ORIGIN iframe (null-origin sandbox keeps its JS safe),
+  // so a keypress while it holds focus can't reach the wall — that's why Esc/Back
+  // needed two presses after you clicked the article. Clicking a cross-origin
+  // iframe blurs the top window; when that happens and the reader frame is what
+  // took focus, bounce focus back to the panel so Esc/Back works on the FIRST
+  // press. (The reader is read-only: wheel + controller still scroll it.)
+  window.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (readerFrame && document.activeElement === readerFrame) {
+        document.getElementById('panelClose')?.focus();
+      }
+    }, 0);
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
