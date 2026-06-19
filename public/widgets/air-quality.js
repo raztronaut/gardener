@@ -11,6 +11,15 @@ const CATS = [
   { max: Infinity, label: 'Hazardous',                  short: 'Hazardous',   color: '#f74a74', tip: 'Stay indoors if you can' },
 ];
 const aqiCat = (v) => CATS.find((c) => v <= c.max) || CATS[CATS.length - 1];
+// WHO UV-index bands — colour-matched to the same palette as the AQI scale.
+const UV = [
+  { max: 2,        short: 'Low',       color: '#74f7b0' },
+  { max: 5,        short: 'Moderate',  color: '#f7d774' },
+  { max: 7,        short: 'High',      color: '#f7a374' },
+  { max: 10,       short: 'Very high', color: '#f77474' },
+  { max: Infinity, short: 'Extreme',   color: '#c074f7' },
+];
+const uvCat = (v) => UV.find((c) => v <= c.max) || UV[UV.length - 1];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default {
@@ -37,11 +46,17 @@ export default {
         padding-left:16px; border-left:1px solid var(--stroke); }
       .aq-pm .v { font-family:var(--font-mono); font-weight:700; color:var(--ink); font-size:21px; line-height:1; }
       .aq-pm .k { font-family:var(--font-mono); font-size:9.5px; color:var(--ink-faint); letter-spacing:.12em; }
-      /* health note — a calm full-width line keyed to the category colour */
-      .aq-tip { font-size:14px; line-height:1.3; color:var(--ink-soft); display:flex; align-items:center; gap:9px;
-        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      /* health note — a calm full-width line keyed to the category colour, with
+         a colour-coded UV-index pill tucked at the right (sun matters in SF). */
+      .aq-tip { font-size:14px; line-height:1.3; color:var(--ink-soft); display:flex; align-items:center; gap:9px; }
       .aq-tip .pip { flex:0 0 auto; width:8px; height:8px; border-radius:50%; background:var(--aq-color, var(--ink-faint));
         box-shadow:0 0 10px var(--aq-color, transparent); }
+      .aq-tip .txt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .aq-uv { flex:0 0 auto; display:flex; align-items:center; gap:7px; padding:3px 11px; border-radius:999px;
+        background:rgba(255,255,255,.045); border:1px solid var(--stroke); }
+      .aq-uv .d { width:8px; height:8px; border-radius:50%; background:var(--uv-color); box-shadow:0 0 8px var(--uv-color); }
+      .aq-uv .v { font-family:var(--font-mono); font-weight:700; font-size:13px; color:var(--ink); line-height:1; }
+      .aq-uv .l { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); }
       .aq-scalewrap { width:100%; }
       .aq-scale { position:relative; height:11px; border-radius:999px;
         background:linear-gradient(90deg,#74f7b0 0%,#f7d774 25%,#f7a374 42%,#f77474 58%,#c074f7 78%,#f74a74 100%);
@@ -56,12 +71,13 @@ export default {
 
     try {
       const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}`
-        + `&longitude=${lon}&current=us_aqi,pm2_5&timezone=${encodeURIComponent(tz)}`;
+        + `&longitude=${lon}&current=us_aqi,pm2_5,uv_index&timezone=${encodeURIComponent(tz)}`;
       const refresh = async () => {
         const d = await ctx.fetchJSON(url);
         const cur = d && d.current;
         const aqi = cur ? cur.us_aqi : null;
         const pm = cur ? cur.pm2_5 : null;
+        const uv = cur && cur.uv_index != null ? cur.uv_index : null;
         // A bad/empty reading should not blank a card that already has good data.
         if (aqi == null) {
           if (!body.dataset.loaded) body.replaceChildren(ctx.error('no air-quality reading'));
@@ -82,7 +98,15 @@ export default {
               ctx.h('span', { class: 'k' }, 'PM2.5 µg/m³'))),
           ctx.h('div', { class: 'aq-tip', title: cat.tip },
             ctx.h('span', { class: 'pip' }),
-            ctx.h('span', {}, cat.tip)),
+            ctx.h('span', { class: 'txt' }, cat.tip),
+            uv == null ? null : (() => {
+              const u = uvCat(uv);
+              return ctx.h('div', { class: 'aq-uv', style: { '--uv-color': u.color },
+                title: `UV index ${uv.toFixed(1)} — ${u.short}` },
+                ctx.h('span', { class: 'd' }),
+                ctx.h('span', { class: 'v' }, `UV ${Math.round(uv)}`),
+                ctx.h('span', { class: 'l' }, u.short));
+            })()),
           ctx.h('div', { class: 'aq-scalewrap' },
             ctx.h('div', { class: 'aq-scale' },
               ctx.h('div', { class: 'aq-mark', style: { left: pct + '%' } })),
