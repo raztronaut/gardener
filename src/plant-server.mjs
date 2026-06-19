@@ -154,12 +154,15 @@ const server = http.createServer(async (req, res) => {
     // allowlisted assets/data, proxied read-only from the localhost server.
     if (req.method === 'GET' && p === '/wall') return proxyWall(req, res, '/?screenshot=1');
     if (req.method === 'GET' && wallPathAllowed(p)) return proxyWall(req, res, p + (u.search || ''));
-    // Logo + local fonts only (image/font files under /assets, traversal-guarded;
-    // the single allowed subdirectory is /assets/fonts/ for the woff2 faces).
+    // Logo + local fonts + the weather Meteocon SVGs (image/font files under
+    // /assets, traversal-guarded). Allowed subdirectories: /assets/fonts/ for the
+    // woff2 faces and /assets/weather/ for the animated cloud/sun icons the wall
+    // mirror needs (without these the embedded /wall renders no weather icons).
     if (req.method === 'GET' && p.startsWith('/assets/')) {
       const name = p.slice('/assets/'.length);
       const ext = extname(name).toLowerCase();
-      const base = name.startsWith('fonts/') ? name.slice('fonts/'.length) : name;
+      const sub = name.startsWith('fonts/') ? 'fonts/' : name.startsWith('weather/') ? 'weather/' : '';
+      const base = sub ? name.slice(sub.length) : name;
       if (base.includes('/') || name.includes('..') || !ASSET_MIME[ext]) return send(res, 404, 'text/plain', 'not found');
       try {
         const data = await fs.readFile(join(paths.PUBLIC, 'assets', name));

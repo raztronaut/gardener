@@ -31,11 +31,11 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .aq { display:flex; flex-direction:column; gap:14px; height:100%; justify-content:center; }
+      .aq { display:flex; flex-direction:column; gap:5px; height:100%; justify-content:center; }
       /* top row: the AQI reading at left, PM2.5 as a tidy stat block at right */
       .aq-head { display:flex; align-items:center; gap:16px; }
       .aq-read { display:flex; align-items:baseline; gap:12px; min-width:0; flex:1; }
-      .aq-num { font-family:var(--font-display); font-size:58px; font-weight:700; line-height:.82;
+      .aq-num { font-family:var(--font-display); font-size:46px; font-weight:700; line-height:.82;
         color:var(--aq-color, var(--ink)); flex:0 0 auto; }
       .aq-meta { display:flex; flex-direction:column; gap:4px; min-width:0; }
       .aq-unit { font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); letter-spacing:.16em; }
@@ -58,14 +58,14 @@ export default {
       .aq-uv .v { font-family:var(--font-mono); font-weight:700; font-size:13px; color:var(--ink); line-height:1; }
       .aq-uv .l { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); }
       .aq-scalewrap { width:100%; }
-      .aq-scale { position:relative; height:11px; border-radius:999px;
+      .aq-scale { position:relative; height:9px; border-radius:999px;
         background:linear-gradient(90deg,#74f7b0 0%,#f7d774 25%,#f7a374 42%,#f77474 58%,#c074f7 78%,#f74a74 100%);
         opacity:.92; }
       .aq-mark { position:absolute; top:50%; width:17px; height:17px; border-radius:50%;
         transform:translate(-50%,-50%); background:var(--ink); border:3px solid var(--aq-color,#fff);
         box-shadow:0 2px 8px rgba(0,0,0,.5); }
       .aq-ticks { display:flex; justify-content:space-between; font-family:var(--font-mono);
-        font-size:9.5px; color:var(--ink-faint); letter-spacing:.02em; margin-top:3px; }
+        font-size:9px; color:var(--ink-faint); letter-spacing:.02em; margin-top:0; }
     `);
     body.appendChild(ctx.loading('sampling the air…'));
 
