@@ -1,0 +1,30 @@
+# Garden House Rules — standing orders from the humans (INVIOLABLE)
+
+This file is the garden's long-term memory. The humans cannot repeat themselves in
+a feedback note every single day, so durable preferences live here instead. Every
+daily tending loads this file and MUST obey it — these rules outrank your own
+self-directed taste and outrank the "add a new widget" suggestions in the prompt.
+
+Rules never expire on their own. A rule is only lifted when a NEW feedback note
+explicitly asks for it (e.g. "actually, bring tides back"). Until then, honour it
+every day, including quiet no-feedback days.
+
+## Banned widgets — NEVER add or re-add these (the humans removed them on purpose)
+- **tides** — do not add a tides / tide-chart / marine / NOAA-currents widget in any
+  form. The humans have removed it repeatedly and do not want it. (Removed 2026-06-20.)
+
+## General standing rules
+- Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent
+  unless a later note explicitly says to bring it back. When you remove a widget because
+  of feedback, ADD it to the "Banned widgets" list above in the same tending.
+- On quiet (no-feedback) days, prefer DEEPENING existing widgets over inventing new ones.
+  Only add a brand-new widget if it's clearly something the humans would welcome and it
+  does not duplicate or resurrect anything on the banned list.
+
+## How to maintain this file (you may append, never weaken)
+- When a feedback note expresses a STANDING preference — anything phrased as "never",
+  "always", "stop adding", "from now on", "for good", or a repeated removal — record it
+  here as a new bullet so it survives future tendings.
+- You may ADD rules. You may NOT delete, weaken, or contradict an existing rule unless a
+  feedback note explicitly revokes it (and then update the bullet to reflect that).
+- Keep entries short and concrete. Date removals so the history is legible.

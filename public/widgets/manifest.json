@@ -1,5 +1,5 @@
 {
-  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest.",
+  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest. NOTE: GARDEN_RULES.md lists widgets the humans have permanently banned — never re-add them.",
   "widgets": [
     {
       "id": "clock",
@@ -20,12 +20,6 @@
       "order": 3
     },
     {
-      "id": "hacker-news",
-      "file": "hacker-news.js",
-      "enabled": true,
-      "order": 6
-    },
-    {
       "id": "sf-events",
       "file": "sf-events.js",
       "enabled": true,
@@ -38,22 +32,22 @@
       "order": 5
     },
     {
-      "id": "tides",
-      "file": "tides.js",
+      "id": "hacker-news",
+      "file": "hacker-news.js",
       "enabled": true,
-      "order": 7
+      "order": 6
     },
     {
       "id": "air-quality",
       "file": "air-quality.js",
       "enabled": true,
-      "order": 8
+      "order": 7
     },
     {
       "id": "emulator",
       "file": "emulator.js",
       "enabled": true,
-      "order": 9
+      "order": 8
     }
   ]
 }

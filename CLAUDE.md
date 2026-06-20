@@ -21,6 +21,11 @@ visual review, and deployed only on green via git.
 - **No build step, no npm deps in widgets, no frameworks.** Widgets are browser ES modules.
 - **The 9:16 canvas is locked at 900×1600.** Design for legibility from across a room.
 - Secrets live only in `.env` (chmod 600, gitignored). Never commit or echo the API key.
+- **`GARDEN_RULES.md` is the garden's long-term memory** — durable standing orders from
+  the humans (e.g. banned widgets like tides) so they don't have to repeat themselves in
+  feedback notes. `buildSystemPrompt()` injects it into EVERY tending as inviolable,
+  highest-priority law; the agent may append rules but never weaken them. When the user
+  says "stop adding X for good" / "I keep removing X", record it there.
 
 ## Widget contract
 See the top of `public/app.js`. A widget default-exports `{ id, title, icon, size,

@@ -1,8 +1,33 @@
 // The Gardener™ — prompt construction for the daily iteration agent.
-import { config } from './config.mjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { config, paths } from './config.mjs';
 import * as git from './gitlib.mjs';
 
+// The garden's long-term memory: durable standing orders from the humans
+// (e.g. "never re-add the tides widget"). Read fresh each run so the latest
+// rules always apply; missing/empty file just yields no extra constraints.
+function loadHouseRules() {
+  try {
+    const txt = readFileSync(join(paths.ROOT, 'GARDEN_RULES.md'), 'utf8').trim();
+    return txt || null;
+  } catch { return null; }
+}
+
 export function buildSystemPrompt() {
+  const houseRules = loadHouseRules();
+  const rulesBlock = houseRules ? `
+
+# HOUSE RULES — STANDING ORDERS FROM THE HUMANS (INVIOLABLE, HIGHEST PRIORITY)
+The file \`GARDEN_RULES.md\` holds durable preferences the humans should not have to
+repeat every day. They OVERRIDE everything below — your own taste, and any
+"add a new widget" suggestion in the task prompt. Obey every rule EVERY run, even on
+quiet no-feedback days. A rule is lifted ONLY when a feedback note explicitly revokes
+it. You MAY append new rules (when a note states a standing preference) but MUST NEVER
+delete, weaken, or violate an existing one. Read it now and comply:
+
+${houseRules}
+` : '';
   return `You are **The Gardener** — an autonomous engineer–artist who tends a single,
 living ambient dashboard that runs 24/7 on a wall-mounted screen. Once per day you
 wake, read what the humans asked for, and lovingly improve the garden: you add,
@@ -10,7 +35,7 @@ refine, and fix **widgets** so the display is more beautiful, more useful, and m
 
 You are running headless via the Claude Agent SDK with full file + shell access in
 the project at: ${config.location ? config.location + ' — ' : ''}the working directory below.
-
+${rulesBlock}
 # THE ONE HARD INVARIANT
 HEAD of git is ALWAYS a known-good, smoke-tested state. You work in the working tree.
 **You MUST leave the working tree passing \`npm run smoke\` (exit 0).** The harness — not
@@ -170,7 +195,8 @@ export function buildUserPrompt({ feedbackItems, date, history }) {
       + `- Deepen or beautify an existing widget (richer data, better typography, micro-animations, better empty/error states).\n`
       + `- Improve overall composition for the 9:16 canvas (balance, hierarchy, whitespace, color harmony).\n`
       + `- Fix any latent bug or rough edge you notice while exploring.\n`
-      + `Avoid clutter; aim for quiet elegance. Make a real, visible improvement — not a no-op.\n\n`;
+      + `Avoid clutter; aim for quiet elegance. Make a real, visible improvement — not a no-op.\n`
+      + `IMPORTANT: obey \`GARDEN_RULES.md\` (the House Rules in your system prompt). Do NOT add any widget on the banned list, and prefer deepening existing widgets over inventing new ones.\n\n`;
   }
 
   if (log) prompt += `## Recent tendings (git log)\n${log}\n\n`;
@@ -181,7 +207,7 @@ export function buildUserPrompt({ feedbackItems, date, history }) {
     + `- The 9:16 layout has no overlap, clipping, blank areas, or illegible text.\n`
     + `- Every widget handles API failure gracefully.\n`
     + `- You did NOT commit, and you did NOT add npm dependencies or a build step.\n`
-    + `- Your final message MUST contain a line starting exactly with \`CHANGELOG:\` followed by ONE plain-English sentence describing WHAT CHANGED in the garden (e.g. "CHANGELOG: Added a tides widget and moved sunset info into Weather."). It becomes the commit message and the public changelog shown in the on-screen /iterations panel — humans read it to learn what's new. NEVER use it for test/process status ("all checks green", "smoke passes") — describe the visible change itself.\n`;
+    + `- Your final message MUST contain a line starting exactly with \`CHANGELOG:\` followed by ONE plain-English sentence describing WHAT CHANGED in the garden (e.g. "CHANGELOG: Added a moon-phase widget and moved sunset info into Weather."). It becomes the commit message and the public changelog shown in the on-screen /iterations panel — humans read it to learn what's new. NEVER use it for test/process status ("all checks green", "smoke passes") — describe the visible change itself.\n`;
 
   return prompt;
 }
