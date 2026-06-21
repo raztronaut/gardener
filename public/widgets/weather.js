@@ -64,13 +64,18 @@ export default {
       .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:3px; }
       .wx-axis .hr .e { font-size:15px; line-height:1; }
       .wx-axis .hr .t { font-size:12px; color:var(--ink-faint); font-family:var(--font-mono); }
+      /* rain-chance: a quiet blue line beneath each hour. Reserves its height even
+         when empty so the axis row never jumps; only speaks up when rain is likely. */
+      .wx-axis .hr .p { font-family:var(--font-mono); font-size:11px; line-height:1; min-height:11px;
+        color:#9cc0ff; letter-spacing:.01em; }
+      .wx-axis .hr .p.dry { visibility:hidden; }
     `);
     body.appendChild(ctx.loading('reading the sky…'));
 
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m`
-        + `&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
@@ -97,7 +102,9 @@ export default {
           if (j >= d.hourly.time.length) break;
           const t = Math.round(d.hourly.temperature_2m[j]);
           const hr = new Date(d.hourly.time[j]).getHours();
-          pts.push({ t, code: d.hourly.weather_code[j], hr, first: i === 0 });
+          const popRaw = d.hourly.precipitation_probability?.[j];
+          const pop = Number.isFinite(popRaw) ? popRaw : null;
+          pts.push({ t, code: d.hourly.weather_code[j], hr, pop, first: i === 0 });
         }
         const temps = pts.map((p) => p.t);
         const tMin = Math.min(...temps), tMax = Math.max(...temps);
@@ -129,9 +136,13 @@ export default {
         const axis = pts.map((p) => {
           const [, slug] = WMO(p.code);
           const label = p.first ? 'now' : `${((p.hr + 11) % 12) + 1}${p.hr < 12 ? 'a' : 'p'}`;
+          // Show rain chance only when it's worth a glance (>=25%); otherwise the
+          // line stays in the layout but invisible, so the row never shifts.
+          const wet = p.pop != null && p.pop >= 25;
           return ctx.h('div', { class: 'hr' },
             ctx.h('div', { class: 'e' }, wxIcon(slug, 22)),
-            ctx.h('div', { class: 't' }, label));
+            ctx.h('div', { class: 't' }, label),
+            ctx.h('div', { class: `p${wet ? '' : ' dry'}` }, wet ? `💧${p.pop}%` : '0'));
         });
 
         const plot = ctx.h('div', { class: 'wx-plot', html: svg });

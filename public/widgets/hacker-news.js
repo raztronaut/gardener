@@ -12,6 +12,16 @@ function domainOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
+// "3h", "12m", "2d" — compact age from a unix-seconds timestamp.
+function ageOf(unixSecs) {
+  if (!Number.isFinite(unixSecs)) return '';
+  const mins = Math.max(0, Math.round((Date.now() / 1000 - unixSecs) / 60));
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.round(hrs / 24)}d`;
+}
+
 export default {
   id: 'hacker-news',
   title: 'Hacker News',
@@ -21,21 +31,24 @@ export default {
   async mount(body, ctx) {
     ctx.style(`
       .hn { display:flex; flex-direction:column; gap:8px; height:100%; }
-      .hn-item { display:flex; gap:13px; align-items:flex-start; flex:1;
-        padding:9px 13px; background:rgba(255,255,255,.04);
+      .hn-item { display:flex; gap:13px; align-items:flex-start; flex:1; min-height:0;
+        padding:8px 13px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; }
       .hn-rank { font-family:var(--font-display); font-size:25px; font-weight:700;
         line-height:1; color:var(--mint); min-width:26px; text-align:center; margin-top:1px;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
       .hn-body { display:flex; flex-direction:column; gap:5px; min-width:0; flex:1; }
-      .hn-title { font-size:16px; line-height:1.25; color:var(--ink);
+      .hn-title { font-size:15px; line-height:1.22; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .hn-meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+      .hn-meta { display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+        min-width:0; overflow:hidden;
         font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); }
+      .hn-meta > * { flex:0 0 auto; }
       .hn-score { color:var(--gold); font-weight:600; }
       .hn-cmts { color:var(--mint-2); }
+      .hn-age { color:var(--ink-soft); }
       .hn-dot { color:var(--ink-faint); opacity:.5; }
-      .hn-domain { color:var(--ink-soft);
+      .hn-domain { color:var(--ink-soft); flex:1 1 auto; min-width:0;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
     `);
     body.appendChild(ctx.loading('reading the front page…'));
@@ -54,6 +67,7 @@ export default {
           const score = Number.isFinite(s.score) ? s.score : 0;
           const cmts = Number.isFinite(s.descendants) ? s.descendants : 0;
           const domain = domainOf(s.url);
+          const age = ageOf(s.time);
           return ctx.h('div', { class: 'hn-item' },
             ctx.h('div', { class: 'hn-rank' }, String(i + 1)),
             ctx.h('div', { class: 'hn-body' },
@@ -62,6 +76,8 @@ export default {
                 ctx.h('span', { class: 'hn-score' }, `▲ ${score}`),
                 ctx.h('span', { class: 'hn-dot' }, '·'),
                 ctx.h('span', { class: 'hn-cmts' }, `💬 ${cmts}`),
+                age ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
+                age ? ctx.h('span', { class: 'hn-age' }, age) : null,
                 ctx.h('span', { class: 'hn-dot' }, '·'),
                 ctx.h('span', { class: 'hn-domain' }, domain || 'news.ycombinator.com'))));
         })

@@ -12,6 +12,10 @@ every day, including quiet no-feedback days.
 ## Banned widgets — NEVER add or re-add these (the humans removed them on purpose)
 - **tides** — do not add a tides / tide-chart / marine / NOAA-currents widget in any
   form. The humans have removed it repeatedly and do not want it. (Removed 2026-06-20.)
+- **sun-moon** — do not add a "Sun & Moon" widget (sunrise/sunset + golden/blue hour +
+  moon phase) in any form. The humans removed it on request. (Removed 2026-06-14; logged
+  here 2026-06-21 after finding the removal was never recorded. Note: the Weather widget's
+  own sunrise/sunset line predates and is separate from this — it stays.)
 
 ## General standing rules
 - Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent
