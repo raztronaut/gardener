@@ -30,19 +30,19 @@ export default {
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .hn { display:flex; flex-direction:column; gap:8px; height:100%; }
-      .hn-item { display:flex; gap:13px; align-items:flex-start; flex:1; min-height:0;
-        padding:8px 13px; background:rgba(255,255,255,.04);
+      .hn { display:flex; flex-direction:column; gap:7px; height:100%; }
+      .hn-item { display:flex; gap:12px; align-items:flex-start; flex:1; min-height:0;
+        padding:7px 12px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; }
-      .hn-rank { font-family:var(--font-display); font-size:25px; font-weight:700;
-        line-height:1; color:var(--mint); min-width:26px; text-align:center; margin-top:1px;
+      .hn-rank { font-family:var(--font-display); font-size:23px; font-weight:700;
+        line-height:1; color:var(--mint); min-width:24px; text-align:center; margin-top:1px;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
-      .hn-body { display:flex; flex-direction:column; gap:5px; min-width:0; flex:1; }
-      .hn-title { font-size:15px; line-height:1.22; color:var(--ink);
+      .hn-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
+      .hn-title { font-size:14.5px; line-height:1.2; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .hn-meta { display:flex; align-items:center; gap:8px; flex-wrap:nowrap;
+      .hn-meta { display:flex; align-items:center; gap:7px; flex-wrap:nowrap;
         min-width:0; overflow:hidden;
-        font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); }
+        font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
       .hn-meta > * { flex:0 0 auto; }
       .hn-score { color:var(--gold); font-weight:600; }
       .hn-cmts { color:var(--mint-2); }

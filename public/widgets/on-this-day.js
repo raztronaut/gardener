@@ -18,17 +18,17 @@ export default {
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .otd { display:flex; flex-direction:column; gap:8px; height:100%; }
-      .otd-ev { display:flex; gap:13px; align-items:flex-start; flex:1;
-        padding:9px 13px; background:rgba(255,255,255,.04);
+      .otd { display:flex; flex-direction:column; gap:7px; height:100%; }
+      .otd-ev { display:flex; gap:12px; align-items:flex-start; flex:1;
+        padding:8px 12px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; min-height:0; }
       .otd-year { font-family:var(--font-display); font-weight:700; line-height:1;
-        color:var(--mint); flex:0 0 auto; text-align:right; min-width:50px;
+        color:var(--mint); flex:0 0 auto; text-align:right; min-width:48px;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
-      .otd-year .y { font-size:22px; }
+      .otd-year .y { font-size:21px; }
       .otd-year .ago { display:block; margin-top:4px; font-family:var(--font-mono);
         font-size:9px; letter-spacing:.04em; color:var(--ink-faint); white-space:nowrap; }
-      .otd-text { font-size:14.5px; line-height:1.3; color:var(--ink); min-width:0; flex:1;
+      .otd-text { font-size:14px; line-height:1.28; color:var(--ink); min-width:0; flex:1;
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     `);
     body.appendChild(ctx.loading('leafing through history…'));

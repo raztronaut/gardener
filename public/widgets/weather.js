@@ -19,21 +19,6 @@ function fmtClock(iso) {
   return `${h}:${min}${ap}`;
 }
 
-// Parse Open-Meteo local-time iso ("2026-06-22T05:48") as a wall-clock Date in
-// the runtime's own tz (the wall display lives in SF, same tz as the data).
-function localDate(iso) {
-  const m = /(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
-  if (!m) return null;
-  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-}
-
-// 30600000 ms -> "8h 30m" ; under an hour -> "47m"
-function fmtIn(ms) {
-  const mins = Math.max(0, Math.round(ms / 60000));
-  const h = Math.floor(mins / 60), m = mins % 60;
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
-
 export default {
   id: 'weather',
   title: 'Weather',
@@ -58,7 +43,7 @@ export default {
       .wx-meta .cond { font-size:22px; font-weight:600; color:var(--ink); }
       .wx-meta .range { font-family:var(--font-mono); font-size:14px; color:var(--ink-faint); letter-spacing:.02em; }
       .wx-meta .sun { font-family:var(--font-mono); font-size:14px; color:var(--ink-soft); letter-spacing:.02em; }
-      .wx-meta .nextsun { font-family:var(--font-mono); font-size:14px; color:var(--mint); letter-spacing:.02em; }
+      .wx-meta .tmrw { font-family:var(--font-mono); font-size:14px; color:var(--mint); letter-spacing:.02em; }
       .wx-stats { display:flex; gap:12px; }
       .wx-stat { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:14px;
         padding:10px 15px; display:flex; flex-direction:column; gap:3px; }
@@ -91,7 +76,7 @@ export default {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
@@ -109,17 +94,12 @@ export default {
         const sunrise = fmtClock(d.daily.sunrise?.[0]);
         const sunset = fmtClock(d.daily.sunset?.[0]);
 
-        // "Next sun appears on" — the upcoming sunrise (today's if it's still
-        // ahead, else tomorrow's), with a friendly countdown. forecast_days=2
-        // guarantees we have tomorrow's sunrise once today's has passed.
-        const now = new Date();
-        const nextSunISO = (d.daily.sunrise || []).find((s) => {
-          const dt = localDate(s); return dt && dt > now;
-        }) || null;
-        const nextSunDt = localDate(nextSunISO);
-        const sameDay = nextSunDt && nextSunDt.getDate() === now.getDate();
-        const nextSunLabel = nextSunDt
-          ? `${fmtClock(nextSunISO)}${sameDay ? '' : ' tmrw'} · in ${fmtIn(nextSunDt - now)}`
+        // Tomorrow's outlook — condition + high/low from the second daily entry
+        // (forecast_days=2 guarantees it's present). What the humans actually
+        // wanted here: "what's it going to be like tomorrow", not a countdown.
+        const tmrwCode = d.daily.weather_code?.[1];
+        const tmrwLabel = (tmrwCode != null && d.daily.temperature_2m_max?.[1] != null)
+          ? `${WMO(tmrwCode)[0]} · H ${Math.round(d.daily.temperature_2m_max[1])}° L ${Math.round(d.daily.temperature_2m_min[1])}°`
           : '—';
 
         // Sample the next ~14h every 2 hours for a linear timeline.
@@ -187,7 +167,7 @@ export default {
               ctx.h('div', { class: 'cond' }, cond),
               ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`),
               ctx.h('div', { class: 'sun' }, `Sunrise: ${sunrise}   Sunset: ${sunset}`),
-              ctx.h('div', { class: 'nextsun' }, `☀ Next sunrise ${nextSunLabel}`))),
+              ctx.h('div', { class: 'tmrw' }, `Tomorrow: ${tmrwLabel}`))),
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Feels like'),
