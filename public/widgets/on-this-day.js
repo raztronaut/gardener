@@ -4,11 +4,19 @@
 //     -> { events: [ { year, text, pages:[...] }, ... ] }
 // A calm ambient almanac that fills the lower-right md slot beside the emulator.
 
-const COUNT = 2;            // events shown — tuned to fit the md card without clipping
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // pad to 2 digits
 const p2 = (n) => String(n).padStart(2, '0');
+
+// Wikipedia returns negative years for BC. Render them legibly and never as "-480".
+const fmtYear = (y) => (y < 0 ? `${-y} BC` : String(y));
+// "how long ago" — BC years count back past year 0; format big spans with commas.
+const fmtAgo = (y, thisYear) => {
+  const span = thisYear - y; // y may be negative → larger span
+  if (span <= 0) return 'this year';
+  return `${span.toLocaleString('en-US')} yr${span === 1 ? '' : 's'} ago`;
+};
 
 export default {
   id: 'on-this-day',
@@ -25,7 +33,7 @@ export default {
       .otd-year { font-family:var(--font-display); font-weight:700; line-height:1;
         color:var(--mint); flex:0 0 auto; text-align:right; min-width:48px;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
-      .otd-year .y { font-size:21px; }
+      .otd-year .y { font-size:21px; white-space:nowrap; }
       .otd-year .ago { display:block; margin-top:4px; font-family:var(--font-mono);
         font-size:9px; letter-spacing:.04em; color:var(--ink-faint); white-space:nowrap; }
       .otd-text { font-size:14px; line-height:1.28; color:var(--ink); min-width:0; flex:1;
@@ -44,23 +52,25 @@ export default {
         if (!body.dataset.loaded) body.replaceChildren(ctx.error('no events for today'));
         return;
       }
-      // Most recent first → the freshest, most relatable history reads at top.
-      const picked = events
+      // Juxtapose the freshest event with the oldest one on record for today — a
+      // small descent into deep time that varies far more day-to-day (and is more
+      // of an almanac) than always showing the two most recent decades.
+      const valid = events
         .filter((e) => e && e.text && Number.isFinite(e.year))
-        .sort((a, b) => b.year - a.year)
-        .slice(0, COUNT);
+        .sort((a, b) => b.year - a.year); // newest → oldest
+      let picked;
+      if (valid.length >= 2) picked = [valid[0], valid[valid.length - 1]];
+      else picked = valid.slice(0, 1);
       if (picked.length === 0) {
         if (!body.dataset.loaded) body.replaceChildren(ctx.error('no events for today'));
         return;
       }
-      const rows = picked.map((e) => {
-        const ago = Math.max(0, thisYear - e.year);
-        return ctx.h('div', { class: 'otd-ev' },
+      const rows = picked.map((e) =>
+        ctx.h('div', { class: 'otd-ev' },
           ctx.h('div', { class: 'otd-year' },
-            ctx.h('span', { class: 'y' }, String(e.year)),
-            ctx.h('span', { class: 'ago' }, ago === 0 ? 'this year' : `${ago} yr${ago === 1 ? '' : 's'} ago`)),
-          ctx.h('div', { class: 'otd-text', title: e.text }, e.text));
-      });
+            ctx.h('span', { class: 'y' }, fmtYear(e.year)),
+            ctx.h('span', { class: 'ago' }, fmtAgo(e.year, thisYear))),
+          ctx.h('div', { class: 'otd-text', title: e.text }, e.text)));
       body.replaceChildren(ctx.h('div', { class: 'otd' }, ...rows));
       body.dataset.loaded = '1';
     };

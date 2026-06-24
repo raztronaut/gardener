@@ -30,9 +30,10 @@ export default {
       .wx { display:flex; flex-direction:column; height:100%; gap:18px; }
       .wx-top { display:flex; align-items:center; gap:16px; }
       .wx-emoji { width:72px; height:72px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
-        animation:wxfloat 5s ease-in-out infinite; }
-      /* the cloud/sun itself gently floats — subtle, compositor-only (transform) */
-      @keyframes wxfloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+        animation:wxfloat .9s ease-out both; }
+      /* one-shot entrance only — the icon settles into place and the page stops
+         scheduling frames (no perpetual animation on this low-power kiosk). */
+      @keyframes wxfloat { from{transform:translateY(-8px);opacity:0} to{transform:translateY(0);opacity:1} }
       @media (prefers-reduced-motion: reduce) { .wx-emoji { animation:none; } }
       .wx-icon { display:block; }
       .wx-temp { display:flex; align-items:baseline; gap:12px; }

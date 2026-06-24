@@ -23,7 +23,7 @@
   --bg-1: #07201a;
   --ink: #eafff4;
   --ink-soft: #a8c8bd;
-  --ink-faint: #6f9388;
+  --ink-faint: #8aafa3; /* micro-labels: lifted from #6f9388 for legible contrast across the room (was green-on-green) */
   --mint: #74f7b0;
   --mint-2: #43e6c6;
   --gold: #ffd98a;
@@ -188,6 +188,14 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .card { animation-duration: .01ms; animation-delay: 0ms; }
 }
+/* SCREENSHOT/QA captures must be deterministic: the staggered `rise` animation
+   holds later cards at opacity:0 (both-fill) until their delay elapses, and a
+   rasterized capture under CPU load can fire mid-stagger — leaving the lower
+   widgets unpainted and the bottom of the canvas reading as an empty black
+   void. In screenshot mode, skip the entrance entirely so every card is fully
+   painted and the grid fills top-to-bottom. (Headless Chromium ignores
+   prefers-reduced-motion, so the rule above doesn't cover this.) */
+body.screenshot .card { animation: none !important; opacity: 1 !important; transform: none !important; }
 .card::before { display: none; } /* no sheen — the card interior IS the background */
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
 .card.span-2 { grid-column: span 2; }
