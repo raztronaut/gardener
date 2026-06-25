@@ -118,6 +118,32 @@ async function serveRom(req, res, urlPath) {
     send(res, 404, 'text/plain', 'not found');
   }
 }
+// Blink camera — the blinkpy daemon (src/blink/) drops its status + snapshot into
+// data/blink/. These two endpoints surface them to the widget (localhost-only).
+async function serveBlinkLatest(req, res) {
+  const file = join(paths.BLINK, 'latest.json');
+  try {
+    const meta = JSON.parse(await fs.readFile(file, 'utf8'));
+    // Tell the widget whether a snapshot exists and a cache-busting version stamp.
+    let hasImage = false, imgV = 0;
+    try { const st = await fs.stat(join(paths.BLINK, 'latest.jpg')); hasImage = st.size > 0; imgV = Math.round(st.mtimeMs); }
+    catch { /* no image yet */ }
+    return json(res, 200, { ...meta, hasImage, imageVersion: imgV });
+  } catch {
+    // No file yet → the daemon hasn't run / nobody has logged in.
+    return json(res, 200, { state: 'needs-login', message: 'Blink not connected yet', hasImage: false });
+  }
+}
+async function serveBlinkImage(req, res) {
+  try {
+    const data = await fs.readFile(join(paths.BLINK, 'latest.jpg'));
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'no-store' });
+    res.end(data);
+  } catch {
+    send(res, 404, 'text/plain', 'no snapshot');
+  }
+}
+
 // Arcade — emit the EmulatorJS bootstrap as a REAL same-origin page. The widget
 // points an iframe at /emu-frame.html?core=<id>&rom=<file>&name=<label>. We emit
 // the EJS_* globals + the loader so EmulatorJS runs in a proper document (not a
@@ -614,6 +640,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
     // Stream one ROM's bytes (read-only, basename-guarded path traversal).
     if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/roms/')) return serveRom(req, res, p);
+
+    // Blink camera — the Python blinkpy daemon writes latest.json + latest.jpg into
+    // data/blink/. The widget reads the metadata and shows the snapshot. (localhost.)
+    if (req.method === 'GET' && p === '/api/blink/latest') return serveBlinkLatest(req, res);
+    if (req.method === 'GET' && p === '/api/blink/image') return serveBlinkImage(req, res);
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
     // Localhost wall surface: reads, PLUS the chore-logging write so the Roots

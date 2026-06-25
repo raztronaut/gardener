@@ -12,3 +12,7 @@ data/
 # OS / editor
 .DS_Store
 *.log
+
+# Python bytecode (blink sidecar)
+__pycache__/
+*.pyc

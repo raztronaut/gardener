@@ -84,13 +84,17 @@ export const paths = {
   // Emulator widget: console ROMs the user drops in (gitignored — we never ship
   // ROMs). The Arcade widget lists these and EmulatorJS plays the selected one.
   ROMS: join(DATA, 'roms'),
+  // Blink camera widget: a Python (blinkpy) daemon authenticates once, then polls
+  // for motion and drops the latest snapshot (latest.jpg) + metadata (latest.json)
+  // here. Holds the saved Blink session token too — gitignored, NEVER committed.
+  BLINK: join(DATA, 'blink'),
   CHROME_PROFILE: join(DATA, '.chrome-profile'),
   SERVER_LOG: join(DATA, 'server.log'),
   ITERATE_LOG: join(DATA, 'iterate.log'),
 };
 
 export function ensureDirs() {
-  for (const d of [paths.DATA, paths.SCREENSHOTS, paths.ITERATIONS, paths.CHROME_PROFILE, paths.AVATARS, paths.ROMS]) {
+  for (const d of [paths.DATA, paths.SCREENSHOTS, paths.ITERATIONS, paths.CHROME_PROFILE, paths.AVATARS, paths.ROMS, paths.BLINK]) {
     mkdirSync(d, { recursive: true });
   }
 }

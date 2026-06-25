@@ -20,32 +20,32 @@
       "order": 3
     },
     {
+      "id": "blink-camera",
+      "file": "blink-camera.js",
+      "enabled": true,
+      "order": 4
+    },
+    {
       "id": "sf-events",
       "file": "sf-events.js",
       "enabled": true,
-      "order": 4
+      "order": 5
     },
     {
       "id": "calendar",
       "file": "calendar.js",
       "enabled": true,
-      "order": 5
+      "order": 6
     },
     {
       "id": "hacker-news",
       "file": "hacker-news.js",
       "enabled": true,
-      "order": 6
-    },
-    {
-      "id": "air-quality",
-      "file": "air-quality.js",
-      "enabled": true,
       "order": 7
     },
     {
-      "id": "emulator",
-      "file": "emulator.js",
+      "id": "mini-duo",
+      "file": "mini-duo.js",
       "enabled": true,
       "order": 8
     },
