@@ -16,10 +16,15 @@ whole pipeline, so there's no cross-process restart thrash / overlapping session
 """
 import asyncio
 import logging
+import os
 import shutil
 import signal
 import ssl
 import sys
+import time
+
+WARMUP_LIMIT = 28   # seconds to allow for the first frame before declaring failure
+STALE_LIMIT = 12    # seconds without a new frame = stalled → restart the session
 
 from aiohttp import ClientSession
 from blinkpy.blinkpy import Blink
@@ -87,7 +92,13 @@ FFMPEG_OUT = ["-an", "-r", "8", "-q:v", "6", "-update", "1", "-f", "image2", bc.
 
 
 def log(msg):
-    print(f"[blink-live] {msg}", flush=True)
+    line = f"[{time.strftime('%Y-%m-%dT%H:%M:%S')}] [blink-live] {msg}"
+    print(line, flush=True)
+    try:
+        with open(os.path.join(bc.BLINK_DIR, "live.log"), "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
 
 
 async def run_session(blink, cam):
@@ -104,9 +115,33 @@ async def run_session(blink, cam):
     log(f"session up (port {port}, ffmpeg pid {ff.pid})")
     ff_wait = asyncio.create_task(ff.wait())
     stop_wait = asyncio.create_task(_STOP.wait())
+    # WATCHDOG: the Blink stream can stall WITHOUT closing (no data, no EOF), so
+    # readexactly() blocks forever and ffmpeg keeps running but writes no frames —
+    # the "stuck, never recovers" failure. Watch the output frame's freshness and
+    # end the session if it doesn't appear (warmup) or stops advancing (stall), so
+    # the main loop re-opens a fresh session.
+    async def watchdog():
+        start = time.time()
+        seen_frame = False
+        while True:
+            await asyncio.sleep(4)
+            try:
+                age = time.time() - os.path.getmtime(bc.LIVE_FRAME)
+                if age < STALE_LIMIT:
+                    seen_frame = True
+                    continue             # fresh frame → healthy
+            except OSError:
+                age = None               # no frame file yet
+            elapsed = time.time() - start
+            if not seen_frame and elapsed < WARMUP_LIMIT:
+                continue                 # still warming up (first frame not in yet)
+            log(f"watchdog: no fresh frame (age={age}, elapsed={elapsed:.0f}s) — restarting")
+            return
+    wd = asyncio.create_task(watchdog())
     try:
-        await asyncio.wait({feed, ff_wait, stop_wait}, return_when=asyncio.FIRST_COMPLETED)
+        await asyncio.wait({feed, ff_wait, stop_wait, wd}, return_when=asyncio.FIRST_COMPLETED)
     finally:
+        wd.cancel()
         try:
             ff.kill()
         except ProcessLookupError:

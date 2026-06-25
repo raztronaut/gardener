@@ -103,43 +103,28 @@ export default {
       h('div', { class: 't' }, title),
       detail ? h('div', { class: 'd', html: detail }) : null);
 
-    // The tile shows the ALWAYS-ON live feed: rapid-poll the single live frame the
-    // server keeps fresh, swapping the <img> as fast as it loads. The status poll
-    // (every 5s) only drives the badge text + login/empty states.
-    let imgEl = null, phEl = null, subEl = null, badgeEl = null, mode = null;
-    let liveStopped = false, liveTimer = null, liveOk = false, liveFails = 0, gotFrame = false;
-    // Preload each frame into a DETACHED image; only swap the visible <img> on a
-    // successful decode. A failed/stale fetch therefore leaves the last good frame
-    // (or the calm placeholder) on screen — never a black box with broken-image alt.
-    const nextFrame = () => {
-      if (liveStopped || !imgEl) return;
-      const pre = new Image();
-      pre.onload = () => {
-        if (liveStopped) return;
-        imgEl.src = pre.src; imgEl.style.opacity = '1';
-        if (phEl) phEl.style.opacity = '0';
-        liveOk = true; liveFails = 0; gotFrame = true;
-        liveTimer = setTimeout(nextFrame, 120);
-      };
-      pre.onerror = () => {
-        if (liveStopped) return;
-        liveOk = false; liveFails++;
-        if (!gotFrame && phEl) phEl.style.opacity = '1'; // never had a frame → keep placeholder
-        liveTimer = setTimeout(nextFrame, 700);
-      };
-      pre.src = `/api/blink/live.jpg?t=${Date.now()}`;
-    };
-    const buildLive = () => {
+    // The TILE shows the camera as fast-refreshing SNAPSHOTS (every ~10s), which
+    // is reliable 24/7 — Blink throttles sustained live video, so live is reserved
+    // for the on-demand fullscreen view (openFull). We preload each new snapshot
+    // into a DETACHED image and only swap the visible <img> on a clean decode, so a
+    // hiccup leaves the last good frame (or the calm placeholder) — never a broken
+    // image. Tap the tile for true real-time video.
+    let imgEl = null, phEl = null, subEl = null, badgeEl = null, mode = null, lastV = null, gotFrame = false;
+    const buildView = () => {
       imgEl = h('img', { class: 'bk-img', alt: '' });
       phEl = h('div', { class: 'bk-ph' }, h('div', { class: 'ic' }, '📷'), h('div', { class: 't' }, 'connecting…'));
       subEl = h('div', { class: 'bk-sub' });
       badgeEl = h('div', { class: 'bk-badge' }, h('span', { class: 'dot' }), h('span', {}));
-      gotFrame = false;
+      gotFrame = false; lastV = null;
       body.replaceChildren(h('div', { class: 'bk-imgwrap' },
         imgEl, phEl, h('div', { class: 'bk-scrim' }),
         h('div', { class: 'bk-cap' }, subEl, badgeEl)));
-      mode = 'live';
-      nextFrame(); // start the live loop
+      mode = 'view';
+    };
+    const showFrame = (v) => {
+      const pre = new Image();
+      pre.onload = () => { if (!imgEl) return; imgEl.src = pre.src; imgEl.style.opacity = '1'; if (phEl) phEl.style.opacity = '0'; gotFrame = true; };
+      pre.src = `/api/blink/image?v=${v}`;
     };
 
     const render = async () => {
@@ -155,28 +140,26 @@ export default {
       body.dataset.loaded = '1';
 
       if (s.state === 'needs-login') {
-        if (mode !== 'login') { liveStopped = true; body.replaceChildren(msg('📷', 'Connect Blink',
+        if (mode !== 'login') { body.replaceChildren(msg('📷', 'Connect Blink',
           'Run <code>src/blink/blink_login.py</code> on the wall to sign in.')); mode = 'login'; }
         return;
       }
-      // Connected → show the live feed (build once; the loop self-heals).
-      if (mode !== 'live') { liveStopped = false; buildLive(); }
+      if (mode !== 'view') buildView();
+      if (s.hasImage && s.imageVersion !== lastV) { lastV = s.imageVersion; showFrame(s.imageVersion); }
 
       const when = ago(s.motionAt);
       const motionFresh = s.motionAt && (Date.now() - Date.parse(s.motionAt)) < 5 * 60 * 1000;
+      const fresh = s.updatedAt && (Date.now() - Date.parse(s.updatedAt)) < 90 * 1000; // snapshots advancing
       const extra = [];
       if (s.savedMotion) extra.push(`▶ ${s.savedMotion} saved`);
       if (s.temperature != null) extra.push(`${Math.round(s.temperature)}°`);
       subEl.textContent = extra.join(' · ');
-      // Badge: motion takes priority, then LIVE (green) / a muted status pill.
-      const down = !liveOk && liveFails > 4;
-      badgeEl.className = `bk-badge ${motionFresh || (liveOk && !down) ? '' : 'stale'}`;
-      const status = !gotFrame ? 'connecting…' : down ? 'reconnecting…' : 'LIVE';
-      badgeEl.lastChild.textContent = when && motionFresh ? `motion ${when}` : status;
+      badgeEl.className = `bk-badge ${motionFresh || fresh ? '' : 'stale'}`;
+      badgeEl.lastChild.textContent = when && motionFresh ? `motion ${when}`
+        : !gotFrame ? 'connecting…' : fresh ? 'live' : 'reconnecting…';
     };
 
     body.appendChild(ctx.loading('reaching the cameras…'));
-    ctx.interval(render, 5000);
-    return () => { liveStopped = true; if (liveTimer) clearTimeout(liveTimer); }; // teardown
+    ctx.interval(render, 4000);
   },
 };
