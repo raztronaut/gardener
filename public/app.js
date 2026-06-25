@@ -101,7 +101,9 @@ function makeCtx(widgetId) {
 }
 
 // ---- widget loader ----------------------------------------------------------
-const SIZE_CLASS = { sm: '', md: '', lg: 'span-2', full: 'span-2', tall: 'tall', wide: 'span-2', hero: 'span-2 tall' };
+// 4-col grid: '' = half width (span 2), 'q' = quarter-width square (span 1),
+// 'w4' = full width (span 4), 'tall'/'r2' add a second row.
+const SIZE_CLASS = { sq: 'q', sm: '', md: '', lg: 'w4', full: 'w4', wide: 'w4', tall: 'tall', hero: 'w4 tall' };
 const WIDGET_MODS = {}; // id → widget module object (filled by loadWidgets)
 
 // Load ALL widgets CONCURRENTLY while preserving visual order: modules are

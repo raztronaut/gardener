@@ -8,7 +8,7 @@ export default {
   id: 'blink-camera',
   title: 'Camera',
   icon: '📷',
-  size: 'md', // single cell — fills the layout's spare slot without adding a row
+  size: 'tall', // half-width × 2 rows — a roomy landscape view of the camera
   chrome: true,
   async mount(body, ctx) {
     const { h } = ctx;
@@ -90,9 +90,7 @@ export default {
         h('img', { class: 'bk-img', src: `/api/blink/image?v=${s.imageVersion || 0}`, alt: 'latest camera snapshot' }),
         h('div', { class: 'bk-scrim' }),
         h('div', { class: 'bk-cap' },
-          h('div', {},
-            h('div', { class: 'bk-cam' }, s.camera || 'Camera'),
-            extra.length ? h('div', { class: 'bk-sub' }, extra.join(' · ')) : null),
+          extra.length ? h('div', { class: 'bk-sub' }, extra.join(' · ')) : h('span', {}),
           h('div', { class: `bk-badge ${fresh ? '' : 'stale'}` },
             h('span', { class: 'dot' }),
             h('span', {}, when ? `motion ${when}` : 'no recent motion')))));

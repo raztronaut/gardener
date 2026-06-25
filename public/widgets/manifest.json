@@ -26,14 +26,14 @@
       "order": 4
     },
     {
-      "id": "sf-events",
-      "file": "sf-events.js",
+      "id": "emulator",
+      "file": "emulator.js",
       "enabled": true,
       "order": 5
     },
     {
-      "id": "calendar",
-      "file": "calendar.js",
+      "id": "air-quality",
+      "file": "air-quality.js",
       "enabled": true,
       "order": 6
     },
@@ -44,14 +44,14 @@
       "order": 7
     },
     {
-      "id": "mini-duo",
-      "file": "mini-duo.js",
+      "id": "sf-events",
+      "file": "sf-events.js",
       "enabled": true,
       "order": 8
     },
     {
-      "id": "on-this-day",
-      "file": "on-this-day.js",
+      "id": "calendar",
+      "file": "calendar.js",
       "enabled": true,
       "order": 9
     }

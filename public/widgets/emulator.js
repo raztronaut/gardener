@@ -102,7 +102,7 @@ export default {
   id: 'emulator',
   title: 'Arcade',
   icon: '🕹',
-  size: 'md',
+  size: 'sq',
   chrome: true,
 
   // ---- dashboard card: a calm static tile (no animation, no EmulatorJS) -----
@@ -110,10 +110,10 @@ export default {
     const { h } = ctx;
     ctx.style(`
       .em { flex:1; min-height:0; display:flex; flex-direction:column; align-items:center;
-        justify-content:center; gap:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none; }
-      .em-glyph { width:84px; height:64px; }
+        justify-content:center; gap:9px; cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none; }
+      .em-glyph { width:60px; height:46px; }
       .em-glyph svg { width:100%; height:100%; display:block; image-rendering:pixelated; }
-      .em-hint { font-family:var(--font-mono); font-size:10px; letter-spacing:.12em;
+      .em-hint { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em;
         text-transform:uppercase; color:var(--ink-faint); text-align:center; line-height:1.7; }
       .em-hint b { color:var(--mint); font-weight:600; }
     `);
