@@ -21,6 +21,11 @@ from blinkpy.auth import Auth, BlinkTwoFARequiredError
 import blink_common as bc
 
 POLL = int(os.environ.get("GARDENER_BLINK_POLL", "60"))  # seconds between refreshes
+# Actively request a fresh still each poll (Blink won't refresh its thumbnail on
+# its own without motion). Costs a little battery; set GARDENER_BLINK_SNAP=0 to
+# only update on motion. SNAP_WAIT = seconds to let the camera upload the new shot.
+SNAP = os.environ.get("GARDENER_BLINK_SNAP", "1") != "0"
+SNAP_WAIT = int(os.environ.get("GARDENER_BLINK_SNAP_WAIT", "4"))
 _HAS_FFMPEG = shutil.which("ffmpeg") is not None
 
 
@@ -114,19 +119,26 @@ async def poll_once(blink, state):
     motion_at = (newest or {}).get("created_at")
     clip_id = (newest or {}).get("id")
 
-    # Only re-download/extract when there's a NEW clip; otherwise refresh the
-    # thumbnail cheaply so the picture never goes stale-blank.
+    # 1) A NEW motion clip → show that motion frame (the actual event).
     got = False
     if clip_id is not None and clip_id != state.get("last_clip_id"):
         got = await _snapshot_from_clip(camera, bc.BLINK_DIR)
         if got:
             state["last_clip_id"] = clip_id
-    if not got and not os.path.exists(bc.LATEST_JPG):
-        got = await _snapshot_from_thumbnail(camera)
-    elif not got:
-        # keep last image, just refresh thumbnail occasionally
+
+    # 2) No new clip → actively request a FRESH still. Blink only refreshes its
+    #    thumbnail on motion or an explicit snapshot, so without this the same old
+    #    frame is re-saved forever. snap_picture() tells the camera to take a new
+    #    photo; give it a moment to upload, refresh, then download the thumbnail.
+    if not got:
+        if SNAP:
+            try:
+                await camera.snap_picture()
+                await asyncio.sleep(SNAP_WAIT)
+                await blink.refresh(force=True)
+            except Exception as e:  # noqa: BLE001
+                log(f"snap_picture failed: {e}")
         await _snapshot_from_thumbnail(camera)
-        got = True
 
     bc.write_status_field(
         state="ok",
