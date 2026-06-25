@@ -21,12 +21,12 @@ from blinkpy.auth import Auth, BlinkTwoFARequiredError
 
 import blink_common as bc
 
-POLL = int(os.environ.get("GARDENER_BLINK_POLL", "30"))  # seconds between refreshes (live-ish still)
+POLL = int(os.environ.get("GARDENER_BLINK_POLL", "10"))  # seconds between refreshes (live-ish still)
 # Actively request a fresh still each poll (Blink won't refresh its thumbnail on
 # its own without motion). Costs a little battery; set GARDENER_BLINK_SNAP=0 to
 # only update on motion. SNAP_WAIT = seconds to let the camera upload the new shot.
 SNAP = os.environ.get("GARDENER_BLINK_SNAP", "1") != "0"
-SNAP_WAIT = int(os.environ.get("GARDENER_BLINK_SNAP_WAIT", "4"))
+SNAP_WAIT = int(os.environ.get("GARDENER_BLINK_SNAP_WAIT", "3"))
 _HAS_FFMPEG = shutil.which("ffmpeg") is not None
 
 

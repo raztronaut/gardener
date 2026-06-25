@@ -56,6 +56,19 @@ export default {
       h('div', { class: 't' }, title),
       detail ? h('div', { class: 'd', html: detail }) : null);
 
+    // Live view is built ONCE, then updated in place each poll — only swapping the
+    // <img> src when a new frame is available (no full rebuild → no flicker/churn).
+    let imgEl = null, subEl = null, badgeEl = null, mode = null, lastV = null;
+    const buildLive = () => {
+      imgEl = h('img', { class: 'bk-img', alt: 'live camera' });
+      subEl = h('div', { class: 'bk-sub' });
+      badgeEl = h('div', { class: 'bk-badge' }, h('span', { class: 'dot' }), h('span', {}));
+      body.replaceChildren(h('div', { class: 'bk-imgwrap' },
+        imgEl, h('div', { class: 'bk-scrim' }),
+        h('div', { class: 'bk-cap' }, subEl, badgeEl)));
+      mode = 'live';
+    };
+
     const render = async () => {
       let s;
       try {
@@ -69,35 +82,34 @@ export default {
       body.dataset.loaded = '1';
 
       if (s.state === 'needs-login') {
-        body.replaceChildren(msg('📷', 'Connect Blink',
-          'Run <code>src/blink/blink_login.py</code> on the wall to sign in, then motion snapshots appear here.'));
+        if (mode !== 'login') { body.replaceChildren(msg('📷', 'Connect Blink',
+          'Run <code>src/blink/blink_login.py</code> on the wall to sign in.')); mode = 'login'; }
         return;
       }
       if (!s.hasImage) {
-        body.replaceChildren(msg('👁', 'Watching for motion',
-          s.camera ? `Connected to ${s.camera} — the latest motion clip will show here.` : 'Connected — waiting for the first motion event.'));
+        if (mode !== 'wait') { body.replaceChildren(msg('👁', 'Watching for motion',
+          s.camera ? `Connected to ${s.camera} — waiting for the first frame.` : 'Connected — waiting for the first frame.')); mode = 'wait'; }
         return;
       }
 
+      if (mode !== 'live') buildLive();
+      // Swap the frame only when the version changed (keeps it smooth + live).
+      if (s.imageVersion !== lastV) {
+        imgEl.src = `/api/blink/image?v=${s.imageVersion || 0}`;
+        lastV = s.imageVersion;
+      }
       const when = ago(s.motionAt);
-      // "fresh" = a motion event within the last 5 min → bright pill; else muted.
       const fresh = s.motionAt && (Date.now() - Date.parse(s.motionAt)) < 5 * 60 * 1000;
       const extra = [];
-      if (s.savedMotion) extra.push(`▶ ${s.savedMotion} saved`); // motion clips archived
+      if (s.savedMotion) extra.push(`▶ ${s.savedMotion} saved`);
       if (s.temperature != null) extra.push(`${Math.round(s.temperature)}°`);
       if (s.battery) extra.push(String(s.battery));
-
-      body.replaceChildren(h('div', { class: 'bk-imgwrap' },
-        h('img', { class: 'bk-img', src: `/api/blink/image?v=${s.imageVersion || 0}`, alt: 'latest camera snapshot' }),
-        h('div', { class: 'bk-scrim' }),
-        h('div', { class: 'bk-cap' },
-          extra.length ? h('div', { class: 'bk-sub' }, extra.join(' · ')) : h('span', {}),
-          h('div', { class: `bk-badge ${fresh ? '' : 'stale'}` },
-            h('span', { class: 'dot' }),
-            h('span', {}, when ? `motion ${when}` : 'no recent motion')))));
+      subEl.textContent = extra.join(' · ');
+      badgeEl.className = `bk-badge ${fresh ? '' : 'stale'}`;
+      badgeEl.lastChild.textContent = when ? `motion ${when}` : 'live';
     };
 
     body.appendChild(ctx.loading('reaching the cameras…'));
-    ctx.interval(render, 20000); // poll the local file endpoint (daemon refreshes ~60s)
+    ctx.interval(render, 5000); // poll often; img only swaps when a new frame lands
   },
 };
