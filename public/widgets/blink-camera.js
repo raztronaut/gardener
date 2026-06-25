@@ -83,6 +83,7 @@ export default {
       // "fresh" = a motion event within the last 5 min → bright pill; else muted.
       const fresh = s.motionAt && (Date.now() - Date.parse(s.motionAt)) < 5 * 60 * 1000;
       const extra = [];
+      if (s.savedMotion) extra.push(`▶ ${s.savedMotion} saved`); // motion clips archived
       if (s.temperature != null) extra.push(`${Math.round(s.temperature)}°`);
       if (s.battery) extra.push(String(s.battery));
 

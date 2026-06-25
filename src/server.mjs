@@ -128,7 +128,13 @@ async function serveBlinkLatest(req, res) {
     let hasImage = false, imgV = 0;
     try { const st = await fs.stat(join(paths.BLINK, 'latest.jpg')); hasImage = st.size > 0; imgV = Math.round(st.mtimeMs); }
     catch { /* no image yet */ }
-    return json(res, 200, { ...meta, hasImage, imageVersion: imgV });
+    // Saved-motion summary so the widget can show that clips are being archived.
+    let savedMotion = 0, lastSavedAt = null;
+    try {
+      const idx = JSON.parse(await fs.readFile(join(paths.BLINK, 'motion', 'index.json'), 'utf8'));
+      if (Array.isArray(idx)) { savedMotion = idx.length; lastSavedAt = idx[0]?.ts || null; }
+    } catch { /* no motion yet */ }
+    return json(res, 200, { ...meta, hasImage, imageVersion: imgV, savedMotion, lastSavedAt });
   } catch {
     // No file yet → the daemon hasn't run / nobody has logged in.
     return json(res, 200, { state: 'needs-login', message: 'Blink not connected yet', hasImage: false });
@@ -142,6 +148,28 @@ async function serveBlinkImage(req, res) {
   } catch {
     send(res, 404, 'text/plain', 'no snapshot');
   }
+}
+// List saved motion events (newest first) from the archive index.
+async function serveBlinkMotion(req, res) {
+  try {
+    const idx = JSON.parse(await fs.readFile(join(paths.BLINK, 'motion', 'index.json'), 'utf8'));
+    return json(res, 200, { events: Array.isArray(idx) ? idx : [] });
+  } catch {
+    return json(res, 200, { events: [] });
+  }
+}
+// Stream one saved motion file (jpg thumb or mp4 clip), basename-guarded.
+async function serveBlinkMotionFile(req, res, urlPath) {
+  const base = (decodeURIComponent(urlPath.split('?')[0]).split('/').pop() || '');
+  const ext = extname(base).toLowerCase();
+  if (!base || base.startsWith('.') || !['.jpg', '.mp4'].includes(ext)) return send(res, 404, 'text/plain', 'not found');
+  const full = normalize(join(paths.BLINK, 'motion', base));
+  if (!full.startsWith(resolve(join(paths.BLINK, 'motion')))) return send(res, 403, 'text/plain', 'forbidden');
+  try {
+    const data = await fs.readFile(full);
+    res.writeHead(200, { 'Content-Type': ext === '.mp4' ? 'video/mp4' : 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'public, max-age=86400' });
+    res.end(data);
+  } catch { send(res, 404, 'text/plain', 'not found'); }
 }
 
 // Arcade — emit the EmulatorJS bootstrap as a REAL same-origin page. The widget
@@ -645,6 +673,8 @@ const server = http.createServer(async (req, res) => {
     // data/blink/. The widget reads the metadata and shows the snapshot. (localhost.)
     if (req.method === 'GET' && p === '/api/blink/latest') return serveBlinkLatest(req, res);
     if (req.method === 'GET' && p === '/api/blink/image') return serveBlinkImage(req, res);
+    if (req.method === 'GET' && p === '/api/blink/motion') return serveBlinkMotion(req, res);
+    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/api/blink/motion/')) return serveBlinkMotionFile(req, res, p);
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
     // Localhost wall surface: reads, PLUS the chore-logging write so the Roots

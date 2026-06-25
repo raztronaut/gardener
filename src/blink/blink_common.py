@@ -23,10 +23,14 @@ BLINK_DIR = os.path.join(DATA, "blink")
 CREDS = os.path.join(BLINK_DIR, "creds.json")
 LATEST_JPG = os.path.join(BLINK_DIR, "latest.jpg")
 LATEST_JSON = os.path.join(BLINK_DIR, "latest.json")
+# Saved motion clips (one mp4 + jpg per event) and their index.
+MOTION_DIR = os.path.join(BLINK_DIR, "motion")
+MOTION_INDEX = os.path.join(MOTION_DIR, "index.json")
 
 
 def ensure_dir():
     os.makedirs(BLINK_DIR, exist_ok=True)
+    os.makedirs(MOTION_DIR, exist_ok=True)
 
 
 def save_creds(data: dict):
