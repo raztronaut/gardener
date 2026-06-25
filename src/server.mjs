@@ -159,32 +159,16 @@ async function serveBlinkImage(req, res) {
 // fresh keyframe, so the feed self-heals. NOTE: the snapshot daemon must NOT call
 // snap_picture while this runs (that command kills the live session) — it detects
 // liveness via the frame file's freshness and backs off (see blink_daemon.py).
-// Live View is ON-DEMAND — Blink throttles/cuts sustained 24/7 live sessions, so
-// we only run one while someone is actually watching (the fullscreen view polls
-// this endpoint). blink_live.py maintains the session + writes the frame; the
-// server spawns it on the first poll and kills it a few seconds after polling
-// stops. The always-on TILE uses snapshots instead (reliable, no throttle).
-const BLINK_PY = join(paths.BLINK, 'venv', 'bin', 'python');
-const BLINK_LIVE_PY = join(paths.ROOT, 'src', 'blink', 'blink_live.py');
+// Live View is owned by the always-on, self-healing gardener-blink-live service
+// (src/blink/blink_live.py): one Blink Live View session, watchdog-restarted, with
+// polite backoff if Blink ever throttles. The server just serves the latest frame;
+// when it's stale (session reconnecting/throttled) we 503 so the widget falls back
+// to the snapshot instead of showing a frozen frame.
 const LIVE_FRAME = existsSync('/dev/shm') ? '/dev/shm/gardener-blink-live.jpg' : join(paths.BLINK, 'live.jpg');
-let liveProc = null;
-let liveLastSeen = 0;
-function ensureLiveOnDemand() {
-  liveLastSeen = Date.now();
-  if (liveProc || !existsSync(join(paths.BLINK, 'creds.json'))) return;
-  liveProc = spawn(BLINK_PY, [BLINK_LIVE_PY], { cwd: paths.ROOT, stdio: ['ignore', 'ignore', 'ignore'] });
-  liveProc.on('exit', () => { liveProc = null; });
-  log('blink live: on-demand session starting');
-}
-// Stop the live session shortly after the viewer stops polling.
-setInterval(() => {
-  if (liveProc && Date.now() - liveLastSeen > 10000) { try { liveProc.kill('SIGTERM'); } catch { /* */ } liveProc = null; log('blink live: idle — stopped'); }
-}, 3000).unref?.();
 async function serveBlinkLiveJpg(req, res) {
-  ensureLiveOnDemand();
   try {
     const st = await fs.stat(LIVE_FRAME);
-    if (Date.now() - st.mtimeMs > 20000) return send(res, 503, 'text/plain', 'stale'); // session warming/throttled
+    if (Date.now() - st.mtimeMs > 15000) return send(res, 503, 'text/plain', 'stale');
     const data = await fs.readFile(LIVE_FRAME);
     res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'no-store' });
     res.end(data);

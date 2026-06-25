@@ -120,26 +120,27 @@ async def run_session(blink, cam):
     # the "stuck, never recovers" failure. Watch the output frame's freshness and
     # end the session if it doesn't appear (warmup) or stops advancing (stall), so
     # the main loop re-opens a fresh session.
+    produced = {"frame": False}
     async def watchdog():
         start = time.time()
-        seen_frame = False
         while True:
             await asyncio.sleep(4)
             try:
                 age = time.time() - os.path.getmtime(bc.LIVE_FRAME)
                 if age < STALE_LIMIT:
-                    seen_frame = True
+                    produced["frame"] = True
                     continue             # fresh frame → healthy
             except OSError:
                 age = None               # no frame file yet
             elapsed = time.time() - start
-            if not seen_frame and elapsed < WARMUP_LIMIT:
+            if not produced["frame"] and elapsed < WARMUP_LIMIT:
                 continue                 # still warming up (first frame not in yet)
             log(f"watchdog: no fresh frame (age={age}, elapsed={elapsed:.0f}s) — restarting")
             return
     wd = asyncio.create_task(watchdog())
     try:
         await asyncio.wait({feed, ff_wait, stop_wait, wd}, return_when=asyncio.FIRST_COMPLETED)
+        return produced["frame"]
     finally:
         wd.cancel()
         try:
@@ -190,14 +191,20 @@ async def main() -> int:
 
         while not _STOP.is_set():
             try:
-                await run_session(blink, cam)
-                backoff = 2  # a real session ran → reset backoff
+                produced = await run_session(blink, cam)
+                if produced:
+                    backoff = 2          # healthy session → reopen quickly
+                else:
+                    # No frame at all = Blink likely throttling live. Back off so we
+                    # don't hammer it (which prolongs the throttle); the wall falls
+                    # back to snapshots meanwhile.
+                    backoff = min(max(backoff * 2, 15), 90)
+                    log(f"no frames (throttled?) — backing off {backoff}s")
             except Exception as e:  # noqa: BLE001
-                backoff = min(backoff * 2, 30)
+                backoff = min(max(backoff * 2, 15), 90)
                 log(f"session error: {e}; retry in {backoff}s")
             if _STOP.is_set():
                 break
-            # Brief gap, then re-open. The wall keeps showing the last frame.
             await asyncio.sleep(2 if backoff == 2 else backoff)
         return 0
     finally:
