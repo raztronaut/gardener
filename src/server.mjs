@@ -149,6 +149,83 @@ async function serveBlinkImage(req, res) {
     send(res, 404, 'text/plain', 'no snapshot');
   }
 }
+// ---- Blink LIVE VIEW (on-demand real-time video) --------------------------
+// One live session at a time. blink_live.py opens Blink's immis Live View and
+// re-serves it as MPEG-TS on a localhost port; ffmpeg transcodes that to MJPEG
+// (multipart/x-mixed-replace) which an <img> renders natively. Session starts on
+// connect and is torn down the moment the viewer disconnects (Blink Live View is
+// on-demand, not 24/7 — leaving it running invites throttling).
+const BLINK_PY = join(paths.BLINK, 'venv', 'bin', 'python');
+const BLINK_LIVE_PY = join(paths.ROOT, 'src', 'blink', 'blink_live.py');
+const BLINK_LIVE_PORT = 8791;
+// ffmpeg writes the latest decoded frame here (tmpfs → no SD wear); the widget
+// rapid-polls /api/blink/live.jpg. This avoids multipart/x-mixed-replace, which
+// Chromium renders unreliably under the wall page's COOP/COEP.
+const LIVE_FRAME = existsSync('/dev/shm') ? '/dev/shm/gardener-blink-live.jpg' : join(paths.BLINK, 'live.jpg');
+let liveSession = null;   // { blinkProc, ffmpeg, lastSeen }
+let liveStarting = false;
+function stopLive() {
+  const s = liveSession; liveSession = null; liveStarting = false;
+  if (s) {
+    try { s.ffmpeg && s.ffmpeg.kill('SIGKILL'); } catch { /* gone */ }
+    try { s.blinkProc && s.blinkProc.kill('SIGTERM'); } catch { /* gone */ }
+  }
+  fs.unlink(LIVE_FRAME).catch(() => { /* already gone */ });
+}
+function startBlinkLive() {
+  // Spawn the Python Live View session; resolve when it prints "READY".
+  return new Promise((resolve, reject) => {
+    const proc = spawn(BLINK_PY, [BLINK_LIVE_PY, String(BLINK_LIVE_PORT)], { cwd: paths.ROOT });
+    let buf = '', settled = false;
+    const to = setTimeout(() => { if (!settled) { settled = true; try { proc.kill('SIGKILL'); } catch { /* */ } reject(new Error('timeout')); } }, 15000);
+    proc.stdout.on('data', (d) => {
+      buf += d.toString();
+      if (!settled && /READY \d+/.test(buf)) { settled = true; clearTimeout(to); resolve(proc); }
+      else if (!settled && /(NO-CREDS|NO-CAMERA)/.test(buf)) { settled = true; clearTimeout(to); try { proc.kill('SIGKILL'); } catch { /* */ } reject(new Error(buf.trim())); }
+    });
+    proc.stderr.on('data', () => { /* swallow blinkpy logs */ });
+    proc.on('exit', () => { if (!settled) { settled = true; clearTimeout(to); reject(new Error('exited early')); } });
+    proc.on('error', (e) => { if (!settled) { settled = true; clearTimeout(to); reject(e); } });
+  });
+}
+async function ensureLive() {
+  if (liveSession || liveStarting) return;
+  liveStarting = true;
+  try {
+    const blinkProc = await startBlinkLive();
+    // Decode the localhost MPEG-TS and continuously overwrite ONE jpg with the
+    // latest frame (-update 1). The widget polls that file.
+    const ffmpeg = spawn('ffmpeg', [
+      '-loglevel', 'error', '-fflags', 'nobuffer', '-analyzeduration', '2000000', '-probesize', '1500000',
+      '-f', 'mpegts', '-i', `tcp://127.0.0.1:${BLINK_LIVE_PORT}`,
+      '-an', '-r', '8', '-q:v', '6', '-update', '1', '-f', 'image2', LIVE_FRAME,
+    ], { stdio: ['ignore', 'ignore', 'ignore'] });
+    liveSession = { blinkProc, ffmpeg, lastSeen: Date.now() };
+    liveStarting = false;
+    ffmpeg.on('exit', () => { if (liveSession && liveSession.ffmpeg === ffmpeg) stopLive(); });
+    blinkProc.on('exit', () => { if (liveSession && liveSession.blinkProc === blinkProc) stopLive(); });
+  } catch (e) {
+    liveStarting = false;
+    log(`blink live start failed: ${e.message}`);
+  }
+}
+// Idle watchdog: stop the Live View session a few seconds after the viewer stops
+// polling (Blink Live View is on-demand — never leave it running).
+setInterval(() => { if (liveSession && Date.now() - liveSession.lastSeen > 8000) { log('blink live idle — stopping'); stopLive(); } }, 3000).unref?.();
+
+async function serveBlinkLiveJpg(req, res) {
+  if (liveSession) liveSession.lastSeen = Date.now();
+  ensureLive(); // kick off the session on first poll (no-op if already up)
+  try {
+    const data = await fs.readFile(LIVE_FRAME);
+    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'no-store' });
+    res.end(data);
+  } catch {
+    // No frame yet (session still warming up) — tell the widget to keep trying.
+    send(res, 503, 'text/plain', 'warming');
+  }
+}
+
 // List saved motion events (newest first) from the archive index.
 async function serveBlinkMotion(req, res) {
   try {
@@ -673,6 +750,7 @@ const server = http.createServer(async (req, res) => {
     // data/blink/. The widget reads the metadata and shows the snapshot. (localhost.)
     if (req.method === 'GET' && p === '/api/blink/latest') return serveBlinkLatest(req, res);
     if (req.method === 'GET' && p === '/api/blink/image') return serveBlinkImage(req, res);
+    if (req.method === 'GET' && p === '/api/blink/live.jpg') return serveBlinkLiveJpg(req, res);
     if (req.method === 'GET' && p === '/api/blink/motion') return serveBlinkMotion(req, res);
     if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/api/blink/motion/')) return serveBlinkMotionFile(req, res, p);
 

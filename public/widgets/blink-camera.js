@@ -10,6 +10,46 @@ export default {
   icon: '📷',
   size: 'tall', // half-width × 2 rows — a roomy landscape view of the camera
   chrome: true,
+
+  // Fullscreen = REAL-TIME live video (Blink Live View → MJPEG via the server).
+  // The session starts when this <img> connects and is torn down on close.
+  openFull(body, ctx) {
+    const { h } = ctx;
+    ctx.style(`
+      .bk-live { position:relative; width:100%; height:100%; background:#000;
+        display:flex; align-items:center; justify-content:center; }
+      .bk-live img { width:100%; height:100%; object-fit:contain; display:block; }
+      .bk-live .lv-badge { position:absolute; top:18px; left:18px; display:flex; align-items:center; gap:8px;
+        padding:6px 13px; border-radius:999px; background:rgba(8,20,15,.6); border:1px solid var(--stroke-strong);
+        font-family:var(--font-mono); font-size:13px; letter-spacing:.1em; color:#ff6b6b; }
+      .bk-live .lv-badge .dot { width:9px; height:9px; border-radius:50%; background:#ff5b5b; box-shadow:0 0 10px #ff5b5b; }
+      .bk-live .lv-hint { position:absolute; bottom:16px; left:0; right:0; text-align:center;
+        font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); letter-spacing:.06em; }
+      .bk-live .lv-msg { color:var(--ink-soft); font-size:16px; text-align:center; padding:0 30px; line-height:1.5; }
+    `);
+    const img = h('img', { alt: 'live camera' });
+    const msg = h('div', { class: 'lv-msg' }, 'Connecting to live view…');
+    body.classList.add('bk-live');
+    body.replaceChildren(img, msg,
+      h('div', { class: 'lv-badge' }, h('span', { class: 'dot' }), 'LIVE'),
+      h('div', { class: 'lv-hint' }, 'real-time · ~1–2s delay'));
+    // Rapid single-frame polling (server writes the latest decoded frame to a file).
+    // Chained: load the next frame only after the previous one settles, so it
+    // self-paces to the link speed. The server starts/stops the Blink session
+    // based on these polls (auto-stops a few seconds after we stop asking).
+    let stopped = false, warmTries = 0;
+    const next = () => { if (!stopped) img.src = `/api/blink/live.jpg?t=${Date.now()}`; };
+    img.addEventListener('load', () => { msg.remove(); warmTries = 0; if (!stopped) setTimeout(next, 110); });
+    img.addEventListener('error', () => {
+      warmTries++;
+      if (warmTries > 25) msg.textContent = 'Live view unavailable — close and try again.';
+      if (!stopped) setTimeout(next, 600); // still warming up / transient
+    });
+    next();
+    // Closing the panel → stop polling; the server's idle watchdog ends the session.
+    window.__GARDEN_GAME = { input() {}, stop() { stopped = true; try { img.src = ''; } catch { /* */ } } };
+  },
+
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
