@@ -156,6 +156,36 @@ async def _archive_motion_snapshot(blink, camera, cam_name):
         return False
 
 
+def _copy_live_to_latest():
+    """Copy the always-on Live View frame to latest.jpg (the snapshot fallback)."""
+    try:
+        tmp = bc.LATEST_JPG + ".tmp"
+        shutil.copyfile(bc.LIVE_FRAME, tmp)
+        os.replace(tmp, bc.LATEST_JPG)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _save_motion_from_live():
+    """Save a motion event using the current Live View frame (no camera command)."""
+    ts = now_iso()
+    thumb = os.path.join(bc.MOTION_DIR, f"{_safe_stamp(ts)}-motion.jpg")
+    try:
+        shutil.copyfile(bc.LIVE_FRAME, thumb)
+        _copy_live_to_latest()  # show the motion frame on the wall too
+        idx = _load_motion_index()
+        idx.append({"id": f"motion-{ts}", "ts": ts, "camera": None,
+                    "file": None, "thumb": os.path.basename(thumb), "kind": "snapshot",
+                    "savedAt": ts})
+        _save_motion_index(_prune_motion(idx))
+        log(f"saved motion snapshot (from live) {os.path.basename(thumb)}")
+        return True
+    except Exception as e:  # noqa: BLE001
+        log(f"motion-from-live save failed: {e}")
+        return False
+
+
 async def _snapshot_from_thumbnail(camera):
     """Fallback: save the camera's current thumbnail (Blink updates it on motion)."""
     tmp = bc.LATEST_JPG + ".tmp"
@@ -203,6 +233,10 @@ async def poll_once(blink, state):
     motion_at = (newest or {}).get("created_at")
     clip_id = (newest or {}).get("id")
     motion_now = bool(camera.attributes.get("motion_detected"))
+    # CRITICAL: when the always-on Live View is producing frames, NEVER call
+    # snap_picture — that command kills the live session (the "works then breaks"
+    # bug). Detect liveness via the shared frame's freshness and ride it instead.
+    live = bc.live_frame_fresh()
 
     # 1) A NEW motion CLIP (needs a Blink plan / local storage) → archive it + frame.
     got = False
@@ -211,27 +245,33 @@ async def poll_once(blink, state):
         state["last_clip_id"] = clip_id  # mark seen even if frame extract failed
         motion_at = motion_at or now_iso()
 
-    # 2) MOTION DETECTED with no retrievable clip (e.g. a Mini without a subscription):
-    #    on the rising edge, snap a fresh frame and SAVE it as a motion snapshot so
-    #    motion is still captured. Rising-edge so a sustained event saves once.
+    # 2) MOTION DETECTED, no clip → save a motion snapshot. Prefer the live frame
+    #    (no camera command); only snap_picture if live is down.
     motion_prev = state.get("motion_prev", {})
     if motion_now and not motion_prev.get(cam_name) and not got:
-        if await _archive_motion_snapshot(blink, camera, cam_name):
+        if live and _save_motion_from_live():
+            got = True
+            motion_at = now_iso()
+        elif not live and await _archive_motion_snapshot(blink, camera, cam_name):
             got = True
             motion_at = now_iso()
     motion_prev[cam_name] = motion_now
     state["motion_prev"] = motion_prev
 
-    # 3) Otherwise keep the still LIVE: request a fresh snapshot each poll.
+    # 3) Keep latest.jpg (the snapshot fallback) current:
+    #    - live up  → copy the live frame (free, no Blink command).
+    #    - live down → snap_picture as a fallback so something still shows.
     if not got:
-        if SNAP:
+        if live:
+            _copy_live_to_latest()
+        elif SNAP:
             try:
                 await camera.snap_picture()
                 await asyncio.sleep(SNAP_WAIT)
                 await blink.refresh(force=True)
+                await _snapshot_from_thumbnail(camera)
             except Exception as e:  # noqa: BLE001
                 log(f"snap_picture failed: {e}")
-        await _snapshot_from_thumbnail(camera)
 
     bc.write_status_field(
         state="ok",

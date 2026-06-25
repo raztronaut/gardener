@@ -26,6 +26,19 @@ LATEST_JSON = os.path.join(BLINK_DIR, "latest.json")
 # Saved motion clips (one mp4 + jpg per event) and their index.
 MOTION_DIR = os.path.join(BLINK_DIR, "motion")
 MOTION_INDEX = os.path.join(MOTION_DIR, "index.json")
+# The always-on Live View frame the server's ffmpeg keeps fresh (tmpfs). The
+# daemon uses its freshness to know live is active, so it can AVOID snap_picture
+# (which would kill the live session) and copy this frame instead.
+LIVE_FRAME = "/dev/shm/gardener-blink-live.jpg" if os.path.isdir("/dev/shm") else os.path.join(BLINK_DIR, "live.jpg")
+
+
+def live_frame_fresh(max_age=15):
+    """True if the Live View frame exists and was updated within max_age seconds."""
+    try:
+        import time
+        return (time.time() - os.path.getmtime(LIVE_FRAME)) < max_age
+    except OSError:
+        return False
 
 
 def ensure_dir():

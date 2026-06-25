@@ -1,75 +1,171 @@
 #!/usr/bin/env python3
-"""Blink Live View session — on-demand real-time video bridge.
+"""Blink Live View daemon — ALWAYS-ON, self-healing real-time video.
 
-Started by the wall server while someone is watching the camera fullscreen. It
-opens a Blink Live View (the proprietary "immis" protocol, implemented by
-blinkpy's BlinkLiveStream), which exposes a local TCP server streaming raw
-MPEG-TS. The server's ffmpeg then connects to that port and transcodes to MJPEG
-for the browser.
+Runs as its own service. It logs in once, then loops forever:
+  1. open a Blink Live View (immis protocol via blinkpy's BlinkLiveStream),
+     which serves the demuxed MPEG-TS on a localhost TCP port;
+  2. run ffmpeg to decode that and continuously overwrite ONE jpg (tmpfs) with
+     the latest frame;
+  3. when the session ends (Blink caps each at a few minutes, or the link
+     hiccups), tear it down and immediately open a fresh one — a new session
+     re-negotiates a keyframe, so the feed adapts to scene/lighting/codec
+     changes instead of freezing.
 
-  python src/blink/blink_live.py <port>
-
-Prints "READY <port>" once the local TS server is up, then runs until the stream
-ends (ffmpeg/last client disconnects) or it receives SIGTERM — at which point it
-tears the Blink session down cleanly (so we don't leave a live session dangling).
+The wall server just serves that jpg at /api/blink/live.jpg. ONE process owns the
+whole pipeline, so there's no cross-process restart thrash / overlapping sessions.
 """
 import asyncio
+import logging
+import shutil
 import signal
+import ssl
 import sys
 
 from aiohttp import ClientSession
 from blinkpy.blinkpy import Blink
-from blinkpy.auth import Auth
+from blinkpy.auth import Auth, BlinkTwoFARequiredError
+from blinkpy.livestream import BlinkLiveStream
 
 import blink_common as bc
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8791
+_LOG = logging.getLogger("blink_live")
+_STOP = asyncio.Event()
+
+
+# ---- FIX a blinkpy bug that makes Live View "work then break" -----------------
+# BlinkLiveStream.recv() reads payloads with reader.read(n), but asyncio's read(n)
+# returns UP TO n bytes — a payload spanning multiple TCP segments gets a short
+# read, is judged "Insufficient data", and breaks the loop, aborting the stream
+# after ~15s. readexactly(n) waits for the whole payload. We monkeypatch so
+# blinkpy stays stock (the venv can be reinstalled freely).
+async def _recv_fixed(self):
+    try:
+        while not self.target_reader.at_eof():
+            try:
+                header = await self.target_reader.readexactly(9)
+            except (asyncio.IncompleteReadError, ConnectionError):
+                break
+            msgtype = header[0]
+            payload_length = int.from_bytes(header[5:9], byteorder="big")
+            if payload_length <= 0:
+                continue
+            try:
+                data = await self.target_reader.readexactly(payload_length)
+            except (asyncio.IncompleteReadError, ConnectionError):
+                break
+            if msgtype != 0x00 or not data or data[0] != 0x47:
+                continue  # only MPEG-TS video packets
+            for writer in list(self.clients):
+                if not writer.is_closing():
+                    try:
+                        writer.write(data)
+                        await writer.drain()
+                    except Exception:  # noqa: BLE001 — drop a dead client
+                        pass
+            await asyncio.sleep(0)
+    except ssl.SSLError as e:
+        if e.reason != "APPLICATION_DATA_AFTER_CLOSE_NOTIFY":
+            _LOG.debug("ssl: %s", e)
+    except Exception as e:  # noqa: BLE001
+        _LOG.debug("recv: %s", e)
+    finally:
+        try:
+            self.target_writer.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+BlinkLiveStream.recv = _recv_fixed
+
+_FFMPEG = shutil.which("ffmpeg") or "/usr/bin/ffmpeg"  # absolute → robust under systemd
+FFMPEG_ARGS = [
+    _FFMPEG, "-loglevel", "error", "-fflags", "nobuffer",
+    "-analyzeduration", "2000000", "-probesize", "1500000",
+    "-f", "mpegts",
+]
+FFMPEG_OUT = ["-an", "-r", "8", "-q:v", "6", "-update", "1", "-f", "image2", bc.LIVE_FRAME]
+
+
+def log(msg):
+    print(f"[blink-live] {msg}", flush=True)
+
+
+async def run_session(blink, cam):
+    """Open one Live View session + ffmpeg; return when it ends."""
+    stream = await cam.init_livestream()
+    server = await stream.start(host="127.0.0.1", port=0)  # OS-assigned port
+    port = stream.socket.getsockname()[1]
+    feed = asyncio.create_task(stream.feed())
+    await asyncio.sleep(1.0)  # let auth + first packets begin
+    ff = await asyncio.create_subprocess_exec(
+        *FFMPEG_ARGS, "-i", f"tcp://127.0.0.1:{port}", *FFMPEG_OUT,
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+    )
+    log(f"session up (port {port}, ffmpeg pid {ff.pid})")
+    ff_wait = asyncio.create_task(ff.wait())
+    stop_wait = asyncio.create_task(_STOP.wait())
+    try:
+        await asyncio.wait({feed, ff_wait, stop_wait}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        try:
+            ff.kill()
+        except ProcessLookupError:
+            pass
+        stream.stop()
+        try:
+            await asyncio.wait_for(feed, timeout=6)
+        except Exception:  # noqa: BLE001
+            feed.cancel()
+        try:
+            server.close()
+            await server.wait_closed()
+        except Exception:  # noqa: BLE001
+            pass
+        for t in (ff_wait, stop_wait):
+            t.cancel()
 
 
 async def main() -> int:
     creds = bc.load_creds()
     if not creds:
-        print("NO-CREDS", flush=True)
+        log("no creds — run blink_login.py first")
         return 1
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _STOP.set)
+        except NotImplementedError:
+            pass
+
     session = ClientSession()
-    stream = None
-    feed_task = None
+    backoff = 2
     try:
         blink = Blink(session=session)
         blink.auth = Auth(creds, no_prompt=True, session=session)
-        await blink.start()
+        try:
+            await blink.start()
+        except BlinkTwoFARequiredError:
+            log("session expired — re-run blink_login.py")
+            return 2
         cam = next(iter(blink.cameras.values()), None)
         if cam is None:
-            print("NO-CAMERA", flush=True)
+            log("no cameras")
             return 1
+        log(f"connected to {cam.name}; maintaining live view")
 
-        stream = await cam.init_livestream()
-        await stream.start(host="127.0.0.1", port=PORT)
-        print(f"READY {PORT}", flush=True)
-
-        feed_task = asyncio.create_task(stream.feed())  # auth + pump TS + keepalive
-        loop = asyncio.get_running_loop()
-        stop_ev = asyncio.Event()
-        for sig in (signal.SIGTERM, signal.SIGINT):
+        while not _STOP.is_set():
             try:
-                loop.add_signal_handler(sig, stop_ev.set)
-            except NotImplementedError:
-                pass
-
-        stop_task = asyncio.create_task(stop_ev.wait())
-        await asyncio.wait({feed_task, stop_task}, return_when=asyncio.FIRST_COMPLETED)
+                await run_session(blink, cam)
+                backoff = 2  # a real session ran → reset backoff
+            except Exception as e:  # noqa: BLE001
+                backoff = min(backoff * 2, 30)
+                log(f"session error: {e}; retry in {backoff}s")
+            if _STOP.is_set():
+                break
+            # Brief gap, then re-open. The wall keeps showing the last frame.
+            await asyncio.sleep(2 if backoff == 2 else backoff)
         return 0
     finally:
-        # Tear down the Blink session cleanly; let feed()'s poll() send command_done
-        # BEFORE we close the aiohttp session (closing early aborts that request).
-        try:
-            if stream is not None:
-                stream.stop()
-            if feed_task is not None:
-                await asyncio.wait_for(feed_task, timeout=6)
-        except Exception:
-            if feed_task is not None:
-                feed_task.cancel()
         await session.close()
 
 
