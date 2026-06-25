@@ -57,7 +57,14 @@ export default {
       /* the snapshot fills the card; rounded to sit inside the glass frame */
       .bk-imgwrap { position:relative; flex:1; min-height:0; border-radius:16px; overflow:hidden;
         background:#06140f; border:1px solid var(--stroke); }
-      .bk-img { width:100%; height:100%; object-fit:cover; display:block; }
+      .bk-img { width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity .5s ease; }
+      /* calm placeholder shown until a live frame arrives (or while it's down) —
+         a quiet camera glyph on the garden's dark-green, never a broken image */
+      .bk-ph { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+        justify-content:center; gap:9px; text-align:center; color:var(--ink-soft);
+        background:radial-gradient(120% 90% at 50% 38%, #0c2419, #06140f); transition:opacity .5s ease; }
+      .bk-ph .ic { font-size:34px; opacity:.55; }
+      .bk-ph .t { font-family:var(--font-mono); font-size:12px; letter-spacing:.08em; color:var(--ink-faint); }
       /* gradient scrim so the caption is legible over any frame */
       .bk-scrim { position:absolute; left:0; right:0; bottom:0; height:46%;
         background:linear-gradient(to top, rgba(0,0,0,.72), transparent); pointer-events:none; }
@@ -99,17 +106,37 @@ export default {
     // The tile shows the ALWAYS-ON live feed: rapid-poll the single live frame the
     // server keeps fresh, swapping the <img> as fast as it loads. The status poll
     // (every 5s) only drives the badge text + login/empty states.
-    let imgEl = null, subEl = null, badgeEl = null, mode = null;
-    let liveStopped = false, liveTimer = null, liveOk = false, liveFails = 0;
-    const nextFrame = () => { if (!liveStopped && imgEl) imgEl.src = `/api/blink/live.jpg?t=${Date.now()}`; };
+    let imgEl = null, phEl = null, subEl = null, badgeEl = null, mode = null;
+    let liveStopped = false, liveTimer = null, liveOk = false, liveFails = 0, gotFrame = false;
+    // Preload each frame into a DETACHED image; only swap the visible <img> on a
+    // successful decode. A failed/stale fetch therefore leaves the last good frame
+    // (or the calm placeholder) on screen — never a black box with broken-image alt.
+    const nextFrame = () => {
+      if (liveStopped || !imgEl) return;
+      const pre = new Image();
+      pre.onload = () => {
+        if (liveStopped) return;
+        imgEl.src = pre.src; imgEl.style.opacity = '1';
+        if (phEl) phEl.style.opacity = '0';
+        liveOk = true; liveFails = 0; gotFrame = true;
+        liveTimer = setTimeout(nextFrame, 120);
+      };
+      pre.onerror = () => {
+        if (liveStopped) return;
+        liveOk = false; liveFails++;
+        if (!gotFrame && phEl) phEl.style.opacity = '1'; // never had a frame → keep placeholder
+        liveTimer = setTimeout(nextFrame, 700);
+      };
+      pre.src = `/api/blink/live.jpg?t=${Date.now()}`;
+    };
     const buildLive = () => {
-      imgEl = h('img', { class: 'bk-img', alt: 'live camera' });
+      imgEl = h('img', { class: 'bk-img', alt: '' });
+      phEl = h('div', { class: 'bk-ph' }, h('div', { class: 'ic' }, '📷'), h('div', { class: 't' }, 'connecting…'));
       subEl = h('div', { class: 'bk-sub' });
       badgeEl = h('div', { class: 'bk-badge' }, h('span', { class: 'dot' }), h('span', {}));
-      imgEl.addEventListener('load', () => { liveOk = true; liveFails = 0; if (!liveStopped) liveTimer = setTimeout(nextFrame, 120); });
-      imgEl.addEventListener('error', () => { liveOk = false; liveFails++; if (!liveStopped) liveTimer = setTimeout(nextFrame, 700); });
+      gotFrame = false;
       body.replaceChildren(h('div', { class: 'bk-imgwrap' },
-        imgEl, h('div', { class: 'bk-scrim' }),
+        imgEl, phEl, h('div', { class: 'bk-scrim' }),
         h('div', { class: 'bk-cap' }, subEl, badgeEl)));
       mode = 'live';
       nextFrame(); // start the live loop
@@ -141,10 +168,11 @@ export default {
       if (s.savedMotion) extra.push(`▶ ${s.savedMotion} saved`);
       if (s.temperature != null) extra.push(`${Math.round(s.temperature)}°`);
       subEl.textContent = extra.join(' · ');
-      // Badge: motion takes priority, then LIVE (green) / reconnecting (muted).
-      const reconnecting = !liveOk && liveFails > 4;
-      badgeEl.className = `bk-badge ${motionFresh || (liveOk && !reconnecting) ? '' : 'stale'}`;
-      badgeEl.lastChild.textContent = when && motionFresh ? `motion ${when}` : reconnecting ? 'reconnecting…' : 'LIVE';
+      // Badge: motion takes priority, then LIVE (green) / a muted status pill.
+      const down = !liveOk && liveFails > 4;
+      badgeEl.className = `bk-badge ${motionFresh || (liveOk && !down) ? '' : 'stale'}`;
+      const status = !gotFrame ? 'connecting…' : down ? 'reconnecting…' : 'LIVE';
+      badgeEl.lastChild.textContent = when && motionFresh ? `motion ${when}` : status;
     };
 
     body.appendChild(ctx.loading('reaching the cameras…'));

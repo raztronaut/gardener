@@ -5,7 +5,7 @@
 
 const TOP = 'https://hacker-news.firebaseio.com/v0/topstories.json';
 const ITEM = (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
-const COUNT = 2;
+const COUNT = 4;
 
 function domainOf(url) {
   if (!url) return 'news.ycombinator.com';
@@ -26,7 +26,7 @@ export default {
   id: 'hacker-news',
   title: 'Hacker News',
   icon: '📰',
-  size: 'md',
+  size: 'tall', // half width × 2 rows — a roomy front-page feed beside the camera
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`

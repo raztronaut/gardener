@@ -6,7 +6,7 @@ export default {
   id: 'clock',
   title: 'Time',
   icon: '🕰',
-  size: 'full',
+  size: 'md', // half width — shares the top row with the Arcade + Air squares
   chrome: false,
   async mount(root, ctx) {
     const tz = ctx.config?.tz || 'America/Los_Angeles';
@@ -16,9 +16,9 @@ export default {
       .clk .greet { color: var(--ink-soft); font-size:17px; letter-spacing:.04em; }
       .clk .timerow { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
       .clk .time { font-family: var(--font-display); font-weight:600; letter-spacing:-.01em;
-        font-size: 96px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
-        -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:14px; }
-      .clk .time .ap { font-size:34px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
+        font-size: 82px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
+        -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:12px; }
+      .clk .time .ap { font-size:30px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
       .clk .date { color: var(--ink); font-size:22px; opacity:.92; }
     `);
     const topline = root.appendChild(ctx.h('div', { class: 'topline' }));

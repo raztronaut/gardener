@@ -8,32 +8,32 @@
       "order": 1
     },
     {
+      "id": "emulator",
+      "file": "emulator.js",
+      "enabled": true,
+      "order": 2
+    },
+    {
+      "id": "air-quality",
+      "file": "air-quality.js",
+      "enabled": true,
+      "order": 3
+    },
+    {
       "id": "weather",
       "file": "weather.js",
       "enabled": true,
-      "order": 2
+      "order": 4
     },
     {
       "id": "house-cleaning",
       "file": "house-cleaning.js",
       "enabled": true,
-      "order": 3
+      "order": 5
     },
     {
       "id": "blink-camera",
       "file": "blink-camera.js",
-      "enabled": true,
-      "order": 4
-    },
-    {
-      "id": "emulator",
-      "file": "emulator.js",
-      "enabled": true,
-      "order": 5
-    },
-    {
-      "id": "air-quality",
-      "file": "air-quality.js",
       "enabled": true,
       "order": 6
     },
