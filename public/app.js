@@ -373,6 +373,7 @@ function showHelp() {
     h('div', { class: 'help-cmds' },
       cmd('/help', 'show this panel'),
       cmd('/events  ·  /e', 'full-screen list of upcoming SF events (↑ ↓ to scroll)'),
+      cmd('/worldcup  ·  /wc', 'FIFA World Cup 2026 schedule — matches, venues, scores'),
       cmd('/architecture', 'how the gardener works & iterates'),
       cmd('/tendings', 'changelog of every tending so far'),
       cmd('/notes', 'notes you’ve planted — and delete any before tending'),
@@ -511,6 +512,53 @@ async function showEvents() {
         e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null));
   });
   openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl' }, ...rows));
+}
+
+// Full-screen FIFA World Cup 2026 schedule (the /worldcup · /wc command, and the
+// click target when the What's On card is in World Cup mode). Lists every match
+// we can see — grouped by day — with teams, venue + city, and scores/kickoff.
+async function showWorldCup() {
+  openPanel('FIFA World Cup 2026', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'loading the schedule…')));
+  const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' });
+  const dayKeyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+  const fetchJSON = (url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  let matches = [], lib;
+  try {
+    lib = await import(`/lib/worldcup.js?v=${window.__GARDEN_VERSION}`);
+    matches = await lib.fetchAll(fetchJSON);
+  } catch {
+    return openPanel('FIFA World Cup 2026', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'The schedule is unavailable right now — try again shortly.')));
+  }
+  if (!matches.length) {
+    return openPanel('FIFA World Cup 2026', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No fixtures published yet — knockout pairings appear as teams advance.')));
+  }
+  // Group by day so the long list reads as a calendar.
+  const groups = [];
+  let cur = null;
+  for (const m of matches) {
+    const key = m.when ? dayKeyFmt.format(m.when) : (m.dateEvent || 'tbd');
+    if (!cur || cur.key !== key) { cur = { key, label: m.when ? dayFmt.format(m.when) : key, items: [] }; groups.push(cur); }
+    cur.items.push(m);
+  }
+  const rows = [];
+  for (const g of groups) {
+    rows.push(h('div', { class: 'wc-day' }, g.label));
+    for (const m of g.items) {
+      const place = [m.venue, m.city].filter(Boolean).join(' · ');
+      let tag;
+      if (lib.isLive(m)) tag = `LIVE ${m.homeScore ?? 0}–${m.awayScore ?? 0}`;
+      else if (lib.isFinished(m)) tag = `FT ${m.homeScore ?? 0}–${m.awayScore ?? 0}`;
+      else tag = m.when ? timeFmt.format(m.when).replace(' ', '') : '';
+      rows.push(h('div', { class: 'cl-row' },
+        h('div', { class: 'wc-when' }, tag),
+        h('div', { class: 'cl-main' },
+          h('div', { class: 'cl-phrase' }, `${m.home} v ${m.away}`),
+          place ? h('div', { class: 'cl-meta' }, `📍 ${place}`) : null)));
+    }
+  }
+  openPanel(`FIFA World Cup 2026 — ${matches.length} matches`, h('div', { class: 'cl wc-sched' }, ...rows));
 }
 
 // Full Hacker News front page in a panel (the /hn command; controller: Y).
@@ -758,6 +806,7 @@ const COMMANDS = [
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
+  { cmd: 'worldcup', aliases: ['wc', 'fifa'], icon: '⚽', desc: 'FIFA World Cup 2026 schedule', run: () => showWorldCup() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
   { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },
@@ -1051,7 +1100,7 @@ function openFocusedWidget() {
 }
 function openWidgetPanel(id) {
   if (id === 'hacker-news') return showHackerNews();
-  if (id === 'sf-events') return showEvents();
+  if (id === 'sf-events') return window.__WHATS_ON_MODE === 'wc' ? showWorldCup() : showEvents();
   if (id === 'house-cleaning') return showRootsChores();
   const w = WIDGET_MODS[id];
   if (!w) return;

@@ -562,6 +562,14 @@ body.screenshot #streetalarm { display: none !important; }
 .ev-row .ev-when { flex: 0 0 auto; min-width: 168px; font-family: var(--font-mono);
   font-size: 13px; letter-spacing: .02em; color: var(--mint); padding-top: 2px; }
 
+/* /worldcup full-screen schedule */
+.wc-sched .wc-day { font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+  padding: 18px 0 7px; border-bottom: 1px solid var(--stroke-strong); }
+.wc-sched .wc-day:first-child { padding-top: 2px; }
+.wc-sched .wc-when { flex: 0 0 auto; min-width: 86px; font-family: var(--font-mono);
+  font-size: 13px; letter-spacing: .02em; color: var(--mint); padding-top: 2px; }
+
 /* /architecture — inline SVG technical diagram */
 .arch { display: flex; flex-direction: column; gap: 16px; }
 .arch-diagram { width: 100%; }
