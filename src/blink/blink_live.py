@@ -189,23 +189,29 @@ async def main() -> int:
             return 1
         log(f"connected to {cam.name}; maintaining live view")
 
+        # ESCALATING backoff on failure: Blink throttles sustained live, and once
+        # throttled it stays hot if we keep retrying every ~100s. Backing off
+        # progressively longer (up to 5 min) lets Blink fully cool down so live
+        # RECOVERS — giving cycles of "live for a while → short rest → live again"
+        # instead of permanent disconnect. A productive session resets it.
+        BACKOFFS = [20, 45, 90, 180, 300]
+        fails = 0
         while not _STOP.is_set():
             try:
                 produced = await run_session(blink, cam)
-                if produced:
-                    backoff = 2          # healthy session → reopen quickly
-                else:
-                    # No frame at all = Blink likely throttling live. Back off so we
-                    # don't hammer it (which prolongs the throttle); the wall falls
-                    # back to snapshots meanwhile.
-                    backoff = min(max(backoff * 2, 15), 90)
-                    log(f"no frames (throttled?) — backing off {backoff}s")
             except Exception as e:  # noqa: BLE001
-                backoff = min(max(backoff * 2, 15), 90)
-                log(f"session error: {e}; retry in {backoff}s")
+                produced = False
+                log(f"session error: {e}")
+            if produced:
+                fails = 0
+                delay = 2            # healthy → reopen immediately
+            else:
+                delay = BACKOFFS[min(fails, len(BACKOFFS) - 1)]
+                fails += 1
+                log(f"no frames (Blink throttling live?) — cooling down {delay}s (attempt {fails})")
             if _STOP.is_set():
                 break
-            await asyncio.sleep(2 if backoff == 2 else backoff)
+            await asyncio.sleep(delay)
         return 0
     finally:
         await session.close()
