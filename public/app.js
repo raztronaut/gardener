@@ -547,15 +547,17 @@ async function showWorldCup() {
     rows.push(h('div', { class: 'wc-day' }, g.label));
     for (const m of g.items) {
       const place = [m.venue, m.city].filter(Boolean).join(' · ');
+      const tv = lib.broadcastFull ? lib.broadcastFull(m) : '';
       let tag;
       if (lib.isLive(m)) tag = `LIVE ${m.homeScore ?? 0}–${m.awayScore ?? 0}`;
       else if (lib.isFinished(m)) tag = `FT ${m.homeScore ?? 0}–${m.awayScore ?? 0}`;
       else tag = m.when ? timeFmt.format(m.when).replace(' ', '') : '';
+      const meta = [place ? `📍 ${place}` : null, tv ? `📺 ${tv}` : null].filter(Boolean).join('   ');
       rows.push(h('div', { class: 'cl-row' },
         h('div', { class: 'wc-when' }, tag),
         h('div', { class: 'cl-main' },
           h('div', { class: 'cl-phrase' }, `${m.home} v ${m.away}`),
-          place ? h('div', { class: 'cl-meta' }, `📍 ${place}`) : null)));
+          meta ? h('div', { class: 'cl-meta' }, meta) : null)));
     }
   }
   openPanel(`FIFA World Cup 2026 — ${matches.length} matches`, h('div', { class: 'cl wc-sched' }, ...rows));

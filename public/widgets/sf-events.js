@@ -7,7 +7,7 @@
 // outside the tournament it defaults to SF events. An explicit toggle is
 // remembered (localStorage), and the full lists live behind /worldcup and /events.
 import { fetchEvents, TZ, MON } from '/lib/events.js';
-import { fetchUpcoming, isFinished, isLive, WC_END } from '/lib/worldcup.js';
+import { fetchUpcoming, isFinished, isLive, WC_END, broadcastLabel } from '/lib/worldcup.js';
 
 const MODE_KEY = 'garden.whatsonMode';
 
@@ -63,6 +63,16 @@ export default {
       .won-pill.live { color:#06281c; background:linear-gradient(120deg,var(--mint),var(--mint-2)); border-color:transparent; }
       .won-empty { flex:1; display:flex; align-items:center; justify-content:center; text-align:center;
         color:var(--ink-faint); font-size:13px; padding:0 10px; }
+      /* Compact World Cup rows: more fixtures fit, each tagged with its US channel. */
+      .won-list.wc { gap:7px; }
+      .won-ev.wc { padding-bottom:7px; }
+      .won-ev.wc .won-name { font-size:14.5px; -webkit-line-clamp:1; }
+      .won-ev.wc .won-meta { margin-top:3px; gap:6px; }
+      .won-tv { font-family:var(--font-mono); font-size:10px; letter-spacing:.03em; font-weight:600;
+        color:#9fe0ff; background:rgba(120,190,255,.13); border:1px solid rgba(120,190,255,.30);
+        border-radius:999px; padding:2px 8px; white-space:nowrap; }
+      .won-foot { flex:0 0 auto; text-align:center; font-family:var(--font-mono); font-size:10px;
+        letter-spacing:.08em; color:var(--ink-faint); padding-top:2px; }
     `);
 
     let mode = readMode();
@@ -90,6 +100,7 @@ export default {
     };
 
     const list = ctx.h('div', { class: 'won-list' });
+    const foot = ctx.h('div', { class: 'won-foot', style: 'display:none' });
 
     const tab = (key, label) => ctx.h('div', {
       class: 'won-tab' + (mode === key ? ' on' : ''),
@@ -98,10 +109,12 @@ export default {
     const tabs = ctx.h('div', { class: 'won-tabs' });
     const renderTabs = () => tabs.replaceChildren(tab('wc', '⚽ World Cup'), tab('sf', '🎉 Out in SF'));
     renderTabs();
-    body.replaceChildren(ctx.h('div', { class: 'won' }, tabs, list));
+    body.replaceChildren(ctx.h('div', { class: 'won' }, tabs, list, foot));
 
     // ---- renderers -----------------------------------------------------------
     const renderSF = (evs) => {
+      list.className = 'won-list';
+      foot.style.display = 'none';
       const picks = (evs || []).slice(0, 4);
       if (!picks.length) { list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now')); return; }
       list.replaceChildren(...picks.map((e) => {
@@ -118,10 +131,13 @@ export default {
     };
 
     const renderWC = (matches) => {
-      const picks = (matches || []).slice(0, 4);
-      if (!picks.length) { list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'Next fixtures will appear as the bracket fills in')); return; }
+      list.className = 'won-list wc';
+      const all = matches || [];
+      const picks = all.slice(0, 6);
+      if (!picks.length) { foot.style.display = 'none'; list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'Next fixtures will appear as the bracket fills in')); return; }
       list.replaceChildren(...picks.map((m) => {
         const place = [m.venue, m.city].filter(Boolean).join(' · ');
+        const tv = broadcastLabel(m);
         let pill = null;
         if (isLive(m)) pill = ctx.h('span', { class: 'won-pill live' }, `LIVE ${m.homeScore ?? 0}–${m.awayScore ?? 0}`);
         else if (isFinished(m)) pill = ctx.h('span', { class: 'won-pill score' }, `${m.homeScore ?? 0}–${m.awayScore ?? 0}`);
@@ -129,18 +145,25 @@ export default {
           const isToday = Math.round((new Date(dayKeyFmt.format(m.when) + 'T00:00:00') - startOfToday) / dayMs) <= 0;
           if (!isToday) pill = ctx.h('span', { class: 'won-pill' }, timeFmt.format(m.when).replace(' ', ''));
         }
-        return ctx.h('div', { class: 'won-ev' },
+        const meta = ctx.h('div', { class: 'won-meta' });
+        if (place) meta.appendChild(ctx.h('span', { class: 'won-place' }, `📍 ${place}`));
+        if (tv) meta.appendChild(ctx.h('span', { class: 'won-tv' }, `📺 ${tv}`));
+        if (pill) meta.appendChild(pill);
+        return ctx.h('div', { class: 'won-ev wc' },
           dateCol(m.when, false),
           ctx.h('div', { class: 'won-main' },
             ctx.h('div', { class: 'won-name' }, `${m.home} v ${m.away}`),
-            place ? ctx.h('div', { class: 'won-meta' },
-              ctx.h('span', { class: 'won-place' }, `📍 ${place}`), pill) : (pill ? ctx.h('div', { class: 'won-meta' }, pill) : null)));
+            meta.childNodes.length ? meta : null));
       }));
+      foot.textContent = all.length > picks.length
+        ? `+ more — tap for all ${all.length}+ fixtures`
+        : 'tap for the full schedule';
+      foot.style.display = '';
     };
 
     // ---- data: fetch BEFORE touching the list so a failed refresh keeps it ----
     const refreshSF = async () => { const evs = await fetchEvents(ctx.fetchJSON); renderSF(evs); };
-    const refreshWC = async () => { const ms = await fetchUpcoming(ctx.fetchJSON, { count: 4 }); renderWC(ms); };
+    const refreshWC = async () => { const ms = await fetchUpcoming(ctx.fetchJSON, { count: 6 }); renderWC(ms); };
 
     let loadedOnce = { wc: false, sf: false };
     const loadFor = async (which) => {
