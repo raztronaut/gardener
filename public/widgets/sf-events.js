@@ -7,7 +7,7 @@
 // outside the tournament it defaults to SF events. An explicit toggle is
 // remembered (localStorage), and the full lists live behind /worldcup and /events.
 import { fetchEvents, TZ, MON } from '/lib/events.js';
-import { fetchUpcoming, isFinished, isLive, WC_END, broadcastLabel } from '/lib/worldcup.js';
+import { fetchUpcoming, isFinished, isLive, WC_END, broadcastShort } from '/lib/worldcup.js';
 
 const MODE_KEY = 'garden.whatsonMode';
 
@@ -137,7 +137,7 @@ export default {
       if (!picks.length) { foot.style.display = 'none'; list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'Next fixtures will appear as the bracket fills in')); return; }
       list.replaceChildren(...picks.map((m) => {
         const place = [m.venue, m.city].filter(Boolean).join(' · ');
-        const tv = broadcastLabel(m);
+        const tv = broadcastShort(m);
         let pill = null;
         if (isLive(m)) pill = ctx.h('span', { class: 'won-pill live' }, `LIVE ${m.homeScore ?? 0}–${m.awayScore ?? 0}`);
         else if (isFinished(m)) pill = ctx.h('span', { class: 'won-pill score' }, `${m.homeScore ?? 0}–${m.awayScore ?? 0}`);
@@ -147,7 +147,7 @@ export default {
         }
         const meta = ctx.h('div', { class: 'won-meta' });
         if (place) meta.appendChild(ctx.h('span', { class: 'won-place' }, `📍 ${place}`));
-        if (tv) meta.appendChild(ctx.h('span', { class: 'won-tv' }, `📺 ${tv}`));
+        if (tv) meta.appendChild(ctx.h('span', { class: 'won-tv' }, tv));
         if (pill) meta.appendChild(pill);
         return ctx.h('div', { class: 'won-ev wc' },
           dateCol(m.when, false),

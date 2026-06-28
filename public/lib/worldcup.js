@@ -86,15 +86,14 @@ function parseEvent(e) {
 export function isFinished(m) { return m.state === 'post'; }
 export function isLive(m) { return m.state === 'in'; }
 
-// Short channel label for a match, e.g. "FOX · FOX One" or "FS1 · Telemundo".
-// English linear first (the humans' main ask), then a stream, then Spanish.
-export function broadcastLabel(m) {
+// Compact channel label for the small dashboard card — JUST the English linear
+// channel the humans watch on ("FOX" or "FS1"), no streams/Spanish/icon. Falls
+// back to a single stream name only when there's no linear channel at all.
+export function broadcastShort(m) {
   const b = m.broadcast || {};
-  const parts = [];
-  if (b.tv) parts.push(b.tv);
-  if (b.streams && b.streams.length) parts.push(b.streams[0]);
-  else if (b.es) parts.push(b.es);
-  return parts.join(' · ');
+  if (b.tv) return b.tv;
+  if (b.streams && b.streams.length) return b.streams[0];
+  return '';
 }
 
 // Full broadcaster string for the detail modal (everything we know).
