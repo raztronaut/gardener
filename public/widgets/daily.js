@@ -145,38 +145,40 @@ export default {
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
+      /* Three sections distributed evenly down the tall card. Sections size to their
+         OWN content (no rigid equal thirds) and the slack is shared as even gaps, so
+         the word never floats in a half-empty box and nothing is squeezed. */
       .dly { display:flex; flex-direction:column; height:100%; min-height:0;
-        animation:dlyfade .6s ease-out both; }
+        justify-content:space-between; gap:10px; animation:dlyfade .6s ease-out both; }
       @keyframes dlyfade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
       @media (prefers-reduced-motion: reduce) { .dly { animation:none; } }
-      .dly-sec { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center;
-        padding:14px 0; }
+      .dly-sec { display:flex; flex-direction:column; min-height:0; padding:11px 0; }
       .dly-sec + .dly-sec { border-top:1px solid var(--stroke); }
-      .dly-sec:first-child { padding-top:2px; }
-      .dly-sec:last-child { padding-bottom:2px; }
-      .dly-lbl { font-family:var(--font-mono); font-size:10.5px; font-weight:600; letter-spacing:.2em;
-        text-transform:uppercase; color:var(--ink-faint); margin-bottom:9px; }
+      .dly-sec:first-child { padding-top:0; }
+      .dly-sec:last-child { padding-bottom:0; }
+      .dly-lbl { font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.2em;
+        text-transform:uppercase; color:var(--ink-faint); margin-bottom:7px; }
 
-      /* WORD — the hero of its section */
-      .dly-word { font-family:var(--font-display); font-weight:600; font-size:27px; line-height:1.5;
-        padding:4px 0 2px; color:var(--mint);
+      /* WORD — the hero. Wraps to a 2nd line for long entries (no more ellipsis cut-off). */
+      .dly-word { font-family:var(--font-display); font-weight:600; font-size:28px; line-height:1.12;
+        padding:2px 0; color:var(--mint);
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text;
         background-clip:text; -webkit-text-fill-color:transparent;
-        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .dly-wmeta { margin-top:8px; display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
-      .dly-pron { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); }
-      .dly-pos { font-style:italic; font-size:13px; color:var(--ink-soft); }
-      .dly-def { margin-top:8px; font-size:14px; line-height:1.4; color:var(--ink);
-        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+        overflow-wrap:break-word; word-break:break-word; }
+      .dly-wmeta { margin-top:7px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+      .dly-pron { font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
+      .dly-pos { font-style:italic; font-size:13.5px; color:var(--ink-soft); }
+      .dly-def { margin-top:7px; font-size:15px; line-height:1.38; color:var(--ink);
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 
       /* FACT */
-      .dly-fact { font-size:14.5px; line-height:1.4; color:var(--ink);
+      .dly-fact { font-size:15px; line-height:1.38; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
 
       /* QUOTE */
-      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:16px; line-height:1.38;
+      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:17px; line-height:1.36;
         color:var(--ink); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-      .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12px;
+      .dly-auth { margin-top:7px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
         color:var(--mint); letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     `);
 

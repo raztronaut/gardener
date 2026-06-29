@@ -37,24 +37,31 @@ export default {
     body.classList.add('bk-live');
     body.replaceChildren(img, msg, badge, hint);
 
+    // The status message stays in the DOM and is toggled (not removed), so a failed
+    // snapshot can never leave a bare black screen — there's always either a frame
+    // OR a calm explanatory line on top.
+    const setMsg = (text) => { msg.style.display = text ? '' : 'none'; if (text) msg.textContent = text; };
+
     // Continuously PROBE the live frame. When one decodes → real-time mode (rapid
     // re-poll). When live stays unavailable (Blink throttling / session down) we
     // DON'T sit on a black "connecting…" screen — we fall back to the latest
     // SNAPSHOT (refreshed periodically) while still probing live in the background,
     // so the feed resumes the instant it returns. Never a permanent black screen.
-    let stopped = false, mode = 'connecting', liveFails = 0, timer = null;
+    let stopped = false, mode = 'connecting', liveFails = 0, timer = null, gotFrame = false;
     const showLive = (src) => {
-      msg.remove(); img.src = src; mode = 'live'; liveFails = 0;
+      setMsg(''); img.src = src; mode = 'live'; liveFails = 0; gotFrame = true;
       badge.classList.remove('snap'); badgeTxt.textContent = 'LIVE';
       hint.textContent = 'real-time · ~1–2s delay';
     };
     const showSnap = () => {
-      msg.remove();
       const sp = new Image();
-      sp.onload = () => { if (!stopped && mode === 'snap') img.src = sp.src; };
+      sp.onload = () => { if (stopped || mode !== 'snap') return; img.src = sp.src; gotFrame = true; setMsg(''); };
+      sp.onerror = () => { if (stopped || mode !== 'snap') return;
+        if (!gotFrame) setMsg('Camera offline — live view and snapshot are both unavailable.'); };
       sp.src = `/api/blink/image?t=${Date.now()}`;
-      badge.classList.add('snap'); badgeTxt.textContent = 'SNAPSHOT';
-      hint.textContent = 'Live view unavailable — showing the latest snapshot';
+      badge.classList.add('snap'); badgeTxt.textContent = gotFrame ? 'SNAPSHOT' : 'OFFLINE';
+      hint.textContent = gotFrame ? 'Live view unavailable — showing the latest snapshot'
+        : 'Live view unavailable — waiting for the camera…';
     };
     const probe = () => {
       if (stopped) return;
@@ -135,8 +142,8 @@ export default {
     // throttle), it falls back to the latest SNAPSHOT so it's never blank or
     // "unavailable" — then resumes live automatically. Frames preload into a
     // detached <img> and only swap on a clean decode (no broken-image flashes).
-    let imgEl = null, phEl = null, subEl = null, badgeEl = null, mode = null;
-    let liveStopped = false, liveTimer = null, liveFails = 0, gotAny = false, snapV = null, liveUp = false;
+    let imgEl = null, phEl = null, phTxt = null, subEl = null, badgeEl = null, mode = null;
+    let liveStopped = false, liveTimer = null, liveFails = 0, gotAny = false, snapV = null, liveUp = false, viewStartedAt = 0;
     const swap = (src) => { if (!imgEl) return; imgEl.src = src; imgEl.style.opacity = '1'; if (phEl) phEl.style.opacity = '0'; gotAny = true; };
     const fallbackSnap = () => {
       if (snapV == null) return;
@@ -162,10 +169,11 @@ export default {
     const liveOk = () => liveUp && liveFails === 0; // truly streaming right now
     const buildView = () => {
       imgEl = h('img', { class: 'bk-img', alt: '' });
-      phEl = h('div', { class: 'bk-ph' }, h('div', { class: 'ic' }, '📷'), h('div', { class: 't' }, 'connecting…'));
+      phTxt = h('div', { class: 't' }, 'connecting…');
+      phEl = h('div', { class: 'bk-ph' }, h('div', { class: 'ic' }, '📷'), phTxt);
       subEl = h('div', { class: 'bk-sub' });
       badgeEl = h('div', { class: 'bk-badge' }, h('span', { class: 'dot' }), h('span', {}));
-      gotAny = false; liveStopped = false;
+      gotAny = false; liveStopped = false; viewStartedAt = Date.now();
       body.replaceChildren(h('div', { class: 'bk-imgwrap' },
         imgEl, phEl, h('div', { class: 'bk-scrim' }),
         h('div', { class: 'bk-cap' }, subEl, badgeEl)));
@@ -207,8 +215,12 @@ export default {
       badgeEl.className = `bk-badge ${motionFresh || ok ? '' : 'stale'}`;
       // Honest, calm states: LIVE when truly streaming, SNAPSHOT when showing the
       // latest still — never a permanent "reconnecting…" over a perfectly good frame.
+      // And if NOTHING ever arrives (live + snapshot both down for a while), say so
+      // plainly instead of spinning on "connecting…" forever.
+      const offline = !gotAny && (Date.now() - viewStartedAt > 12000);
+      if (phTxt) phTxt.textContent = gotAny ? '' : offline ? 'camera offline' : 'connecting…';
       badgeEl.lastChild.textContent = when && motionFresh ? `motion ${when}`
-        : ok ? 'LIVE' : !gotAny ? 'connecting…' : 'SNAPSHOT';
+        : ok ? 'LIVE' : gotAny ? 'SNAPSHOT' : offline ? 'OFFLINE' : 'connecting…';
     };
 
     body.appendChild(ctx.loading('reaching the cameras…'));
