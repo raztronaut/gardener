@@ -26,6 +26,18 @@ export default {
         color:var(--aqs-c, var(--ink)); }
       .aqs .cat { font-size:14px; font-weight:700; color:var(--aqs-c, var(--ink)); line-height:1;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      /* static gradient AQI scale (0→300+) with a marker showing today's position —
+         a glanceable sense of how close we are to unhealthy. No animation. */
+      .aqs .scale { position:relative; height:6px; border-radius:3px; margin:3px 0 2px;
+        background:linear-gradient(90deg,
+          #74f7b0 0%, #74f7b0 13%,
+          #f7d774 21%, #f7d774 30%,
+          #f7a374 41%, #f7a374 47%,
+          #f77474 57%, #f77474 64%,
+          #c074f7 80%, #c074f7 88%,
+          #f74a74 100%); }
+      .aqs .scale .mark { position:absolute; top:-3px; width:3px; height:12px; border-radius:2px;
+        background:#fff; box-shadow:0 0 4px rgba(0,0,0,.65); transform:translateX(-50%); }
       .aqs .pm { font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); letter-spacing:.06em; }
     `);
     body.classList.add('aqs');
@@ -44,9 +56,13 @@ export default {
         }
         const cat = aqiCat(aqi);
         body.style.setProperty('--aqs-c', cat.color);
+        // Marker position on a 0–300 scale, clamped just inside the bar's edges.
+        const pos = Math.max(2, Math.min(98, (Math.min(aqi, 300) / 300) * 100));
         body.replaceChildren(
           h('div', { class: 'num' }, String(Math.round(aqi))),
           h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short),
+          h('div', { class: 'scale', title: 'AQI 0–300+ scale' },
+            h('div', { class: 'mark', style: { left: `${pos}%` } })),
           h('div', { class: 'pm' }, pm == null ? 'PM2.5 —' : `PM2.5 ${pm.toFixed(1)}`));
         body.dataset.loaded = '1';
       } catch {
