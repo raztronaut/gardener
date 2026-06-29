@@ -23,31 +23,58 @@ export default {
         padding:6px 13px; border-radius:999px; background:rgba(8,20,15,.6); border:1px solid var(--stroke-strong);
         font-family:var(--font-mono); font-size:13px; letter-spacing:.1em; color:#ff6b6b; }
       .bk-live .lv-badge .dot { width:9px; height:9px; border-radius:50%; background:#ff5b5b; box-shadow:0 0 10px #ff5b5b; }
+      .bk-live .lv-badge.snap { color:var(--ink-soft); }
+      .bk-live .lv-badge.snap .dot { background:var(--ink-faint); box-shadow:none; }
       .bk-live .lv-hint { position:absolute; bottom:16px; left:0; right:0; text-align:center;
         font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); letter-spacing:.06em; }
       .bk-live .lv-msg { color:var(--ink-soft); font-size:16px; text-align:center; padding:0 30px; line-height:1.5; }
     `);
-    const img = h('img', { alt: 'live camera' });
+    const img = h('img', { alt: 'camera' });
     const msg = h('div', { class: 'lv-msg' }, 'Connecting to live view…');
+    const badgeTxt = h('span', {}, 'LIVE');
+    const badge = h('div', { class: 'lv-badge' }, h('span', { class: 'dot' }), badgeTxt);
+    const hint = h('div', { class: 'lv-hint' }, 'real-time · ~1–2s delay');
     body.classList.add('bk-live');
-    body.replaceChildren(img, msg,
-      h('div', { class: 'lv-badge' }, h('span', { class: 'dot' }), 'LIVE'),
-      h('div', { class: 'lv-hint' }, 'real-time · ~1–2s delay'));
-    // Rapid single-frame polling (server writes the latest decoded frame to a file).
-    // Chained: load the next frame only after the previous one settles, so it
-    // self-paces to the link speed. The server starts/stops the Blink session
-    // based on these polls (auto-stops a few seconds after we stop asking).
-    let stopped = false, warmTries = 0;
-    const next = () => { if (!stopped) img.src = `/api/blink/live.jpg?t=${Date.now()}`; };
-    img.addEventListener('load', () => { msg.remove(); warmTries = 0; if (!stopped) setTimeout(next, 110); });
-    img.addEventListener('error', () => {
-      warmTries++;
-      if (warmTries > 25) msg.textContent = 'Live view unavailable — close and try again.';
-      if (!stopped) setTimeout(next, 600); // still warming up / transient
-    });
-    next();
+    body.replaceChildren(img, msg, badge, hint);
+
+    // Continuously PROBE the live frame. When one decodes → real-time mode (rapid
+    // re-poll). When live stays unavailable (Blink throttling / session down) we
+    // DON'T sit on a black "connecting…" screen — we fall back to the latest
+    // SNAPSHOT (refreshed periodically) while still probing live in the background,
+    // so the feed resumes the instant it returns. Never a permanent black screen.
+    let stopped = false, mode = 'connecting', liveFails = 0, timer = null;
+    const showLive = (src) => {
+      msg.remove(); img.src = src; mode = 'live'; liveFails = 0;
+      badge.classList.remove('snap'); badgeTxt.textContent = 'LIVE';
+      hint.textContent = 'real-time · ~1–2s delay';
+    };
+    const showSnap = () => {
+      msg.remove();
+      const sp = new Image();
+      sp.onload = () => { if (!stopped && mode === 'snap') img.src = sp.src; };
+      sp.src = `/api/blink/image?t=${Date.now()}`;
+      badge.classList.add('snap'); badgeTxt.textContent = 'SNAPSHOT';
+      hint.textContent = 'Live view unavailable — showing the latest snapshot';
+    };
+    const probe = () => {
+      if (stopped) return;
+      const pre = new Image();
+      pre.onload = () => { if (stopped) return; showLive(pre.src); timer = setTimeout(probe, 110); };
+      pre.onerror = () => {
+        if (stopped) return;
+        liveFails++;
+        if (liveFails >= 6) {                 // ~3.5s of no live → fall back to snapshot
+          const firstDrop = mode !== 'snap';
+          mode = 'snap';
+          if (firstDrop || liveFails % 20 === 0) showSnap();   // refresh snapshot ~every 60s
+        }
+        timer = setTimeout(probe, liveFails < 6 ? 600 : 3000);
+      };
+      pre.src = `/api/blink/live.jpg?t=${Date.now()}`;
+    };
+    probe();
     // Closing the panel → stop polling; the server's idle watchdog ends the session.
-    window.__GARDEN_GAME = { input() {}, stop() { stopped = true; try { img.src = ''; } catch { /* */ } } };
+    window.__GARDEN_GAME = { input() {}, stop() { stopped = true; if (timer) clearTimeout(timer); try { img.src = ''; } catch { /* */ } } };
   },
 
   async mount(body, ctx) {
@@ -109,7 +136,7 @@ export default {
     // "unavailable" — then resumes live automatically. Frames preload into a
     // detached <img> and only swap on a clean decode (no broken-image flashes).
     let imgEl = null, phEl = null, subEl = null, badgeEl = null, mode = null;
-    let liveStopped = false, liveTimer = null, liveFails = 0, gotAny = false, snapV = null;
+    let liveStopped = false, liveTimer = null, liveFails = 0, gotAny = false, snapV = null, liveUp = false;
     const swap = (src) => { if (!imgEl) return; imgEl.src = src; imgEl.style.opacity = '1'; if (phEl) phEl.style.opacity = '0'; gotAny = true; };
     const fallbackSnap = () => {
       if (snapV == null) return;
@@ -120,16 +147,19 @@ export default {
     const nextLive = () => {
       if (liveStopped || !imgEl) return;
       const pre = new Image();
-      pre.onload = () => { if (liveStopped) return; liveFails = 0; swap(pre.src); liveTimer = setTimeout(nextLive, 120); };
+      pre.onload = () => { if (liveStopped) return; liveFails = 0; liveUp = true; swap(pre.src); liveTimer = setTimeout(nextLive, 120); };
       pre.onerror = () => {
         if (liveStopped) return;
         liveFails++;
-        if (liveFails > 3) fallbackSnap();           // sustained drop → show snapshot
-        liveTimer = setTimeout(nextLive, liveFails > 3 ? 1000 : 200); // single blips: retry fast, stay live
+        if (liveFails >= 3) { liveUp = false; fallbackSnap(); } // sustained drop → show snapshot
+        // Brief blips: retry fast and stay live. When live is genuinely down
+        // (Blink throttling / session offline) probe slowly so we don't hammer a
+        // 503 endpoint forever on the low-power kiosk; a single success resumes live.
+        liveTimer = setTimeout(nextLive, liveFails < 3 ? 200 : 5000);
       };
       pre.src = `/api/blink/live.jpg?t=${Date.now()}`;
     };
-    const liveOk = () => liveFails <= 3; // tolerate brief half-written-frame blips
+    const liveOk = () => liveUp && liveFails === 0; // truly streaming right now
     const buildView = () => {
       imgEl = h('img', { class: 'bk-img', alt: '' });
       phEl = h('div', { class: 'bk-ph' }, h('div', { class: 'ic' }, '📷'), h('div', { class: 't' }, 'connecting…'));
@@ -166,14 +196,19 @@ export default {
 
       const when = ago(s.motionAt);
       const motionFresh = s.motionAt && (Date.now() - Date.parse(s.motionAt)) < 5 * 60 * 1000;
+      const ok = liveOk();
       const extra = [];
       if (s.savedMotion) extra.push(`▶ ${s.savedMotion} saved`);
       if (s.temperature != null) extra.push(`${Math.round(s.temperature)}°`);
+      // When we're showing a snapshot (live down), say how fresh it is rather than
+      // implying a broken live feed — the picture is real and recent.
+      if (!ok && gotAny) { const u = ago(s.updatedAt); if (u) extra.push(`updated ${u}`); }
       subEl.textContent = extra.join(' · ');
-      const ok = liveOk();
       badgeEl.className = `bk-badge ${motionFresh || ok ? '' : 'stale'}`;
+      // Honest, calm states: LIVE when truly streaming, SNAPSHOT when showing the
+      // latest still — never a permanent "reconnecting…" over a perfectly good frame.
       badgeEl.lastChild.textContent = when && motionFresh ? `motion ${when}`
-        : ok ? 'LIVE' : !gotAny ? 'connecting…' : 'reconnecting…';
+        : ok ? 'LIVE' : !gotAny ? 'connecting…' : 'SNAPSHOT';
     };
 
     body.appendChild(ctx.loading('reaching the cameras…'));

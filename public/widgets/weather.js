@@ -23,52 +23,56 @@ export default {
   id: 'weather',
   title: 'Weather',
   icon: '🌤',
-  size: 'hero',
+  size: 'tall', // half width × 2 rows — sits beside the Daily Almanac
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; height:100%; gap:18px; }
-      .wx-top { display:flex; align-items:center; gap:16px; }
-      .wx-emoji { width:72px; height:72px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
+      /* half-width × 2 rows: wasted horizontal space collapsed, every reading kept */
+      .wx { display:flex; flex-direction:column; height:100%; gap:12px; }
+      .wx-top { display:flex; align-items:center; gap:12px; }
+      .wx-emoji { width:58px; height:58px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
         animation:wxfloat .9s ease-out both; }
       /* one-shot entrance only — the icon settles into place and the page stops
          scheduling frames (no perpetual animation on this low-power kiosk). */
       @keyframes wxfloat { from{transform:translateY(-8px);opacity:0} to{transform:translateY(0);opacity:1} }
       @media (prefers-reduced-motion: reduce) { .wx-emoji { animation:none; } }
       .wx-icon { display:block; }
-      .wx-temp { display:flex; align-items:baseline; gap:12px; }
-      .wx-temp .f { font-family:var(--font-display); font-size:52px; font-weight:600; line-height:.85;
+      .wx-temp { display:flex; align-items:baseline; gap:8px; flex:none; }
+      .wx-temp .f { font-family:var(--font-display); font-size:42px; font-weight:600; line-height:.85;
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-      .wx-temp .c { font-family:var(--font-display); font-size:30px; font-weight:600; color:var(--ink-soft); line-height:1; }
-      .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:5px; }
-      .wx-meta .cond { font-size:22px; font-weight:600; color:var(--ink); }
-      .wx-meta .range { font-family:var(--font-mono); font-size:14px; color:var(--ink-faint); letter-spacing:.02em; }
-      .wx-meta .sun { font-family:var(--font-mono); font-size:14px; color:var(--ink-soft); letter-spacing:.02em; }
-      .wx-meta .tmrw { font-family:var(--font-mono); font-size:14px; color:var(--mint); letter-spacing:.02em; }
-      .wx-stats { display:flex; gap:12px; }
-      .wx-stat { flex:1; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:14px;
-        padding:10px 15px; display:flex; flex-direction:column; gap:3px; }
-      .wx-stat .k { font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); }
-      .wx-stat .v { font-family:var(--font-display); font-size:20px; font-weight:600; color:var(--ink); line-height:1.05; }
+      .wx-temp .c { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--ink-soft); line-height:1; }
+      .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px; min-width:0; }
+      .wx-meta .cond { font-size:18px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .wx-meta .range { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); letter-spacing:.02em; }
+      /* sunrise/sunset + tomorrow on their own compact line below — full width,
+         so nothing is dropped when the header row narrows. */
+      .wx-sky { display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.02em; }
+      .wx-sky .sun { color:var(--ink-soft); }
+      .wx-sky .tmrw { color:var(--mint); }
+      .wx-stats { display:flex; gap:8px; }
+      .wx-stat { flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
+        padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
+      .wx-stat .k { font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap; }
+      .wx-stat .v { font-family:var(--font-display); font-size:15.5px; font-weight:600; color:var(--ink); line-height:1.05; white-space:nowrap; }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
       .wx-tl { margin-top:auto; display:flex; flex-direction:column; gap:0;
-        padding-top:22px; border-top:1px solid var(--stroke); }
-      .wx-plot { position:relative; height:46px; }
+        padding-top:14px; border-top:1px solid var(--stroke); }
+      .wx-plot { position:relative; height:40px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-pt { position:absolute; transform:translate(-50%,-50%); width:0; height:0; }
-      .wx-pt .dot { position:absolute; left:-5px; top:-5px; width:10px; height:10px; border-radius:50%;
+      .wx-pt .dot { position:absolute; left:-4px; top:-4px; width:9px; height:9px; border-radius:50%;
         background:var(--mint); box-shadow:0 0 8px rgba(116,247,176,.7); }
-      .wx-pt .tv { position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
-        font-family:var(--font-mono); font-size:15px; font-weight:600; color:var(--ink); white-space:nowrap; }
-      .wx-axis { display:flex; margin-top:6px; }
-      .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:3px; }
-      .wx-axis .hr .e { font-size:15px; line-height:1; }
-      .wx-axis .hr .t { font-size:12px; color:var(--ink-faint); font-family:var(--font-mono); }
+      .wx-pt .tv { position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
+        font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; }
+      .wx-axis { display:flex; margin-top:5px; }
+      .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:2px; }
+      .wx-axis .hr .e { font-size:13px; line-height:1; }
+      .wx-axis .hr .t { font-size:11px; color:var(--ink-faint); font-family:var(--font-mono); }
       /* rain-chance: a quiet blue line beneath each hour. Reserves its height even
          when empty so the axis row never jumps; only speaks up when rain is likely. */
-      .wx-axis .hr .p { font-family:var(--font-mono); font-size:11px; line-height:1; min-height:11px;
+      .wx-axis .hr .p { font-family:var(--font-mono); font-size:10px; line-height:1; min-height:10px;
         color:#9cc0ff; letter-spacing:.01em; }
       .wx-axis .hr .p.dry { visibility:hidden; }
     `);
@@ -105,7 +109,7 @@ export default {
 
         // Sample the next ~14h every 2 hours for a linear timeline.
         const idx = new Date().getHours();
-        const STEP = 2, N = 8;
+        const STEP = 2, N = 6;
         const pts = [];
         for (let i = 0; i < N; i++) {
           const j = idx + i * STEP;
@@ -166,9 +170,10 @@ export default {
               ctx.h('div', { class: 'c' }, `${fToC(tF)}°C`)),
             ctx.h('div', { class: 'wx-meta' },
               ctx.h('div', { class: 'cond' }, cond),
-              ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`),
-              ctx.h('div', { class: 'sun' }, `Sunrise: ${sunrise}   Sunset: ${sunset}`),
-              ctx.h('div', { class: 'tmrw' }, `Tomorrow: ${tmrwLabel}`))),
+              ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`))),
+          ctx.h('div', { class: 'wx-sky' },
+            ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset}`),
+            ctx.h('span', { class: 'tmrw' }, `Tomorrow: ${tmrwLabel}`)),
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Feels like'),
