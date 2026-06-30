@@ -53,12 +53,12 @@ export default {
     `);
     body.appendChild(ctx.loading('reading the front page…'));
 
+    // Fetch + render. Builds the rows BEFORE touching the DOM and only replaces on
+    // success — so a flaky fetch or an empty response keeps the last good front page
+    // intact rather than blanking it. Throws on failure so callers can retry.
     const refresh = async () => {
       const ids = await ctx.fetchJSON(TOP);
-      if (!Array.isArray(ids) || ids.length === 0) {
-        body.replaceChildren(ctx.error('no stories right now'));
-        return;
-      }
+      if (!Array.isArray(ids) || ids.length === 0) throw new Error('no stories');
       const top = ids.slice(0, COUNT);
       const stories = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id)).catch(() => null)));
       const rows = stories
@@ -83,18 +83,19 @@ export default {
         })
         .filter(Boolean);
 
-      if (rows.length === 0) {
-        body.replaceChildren(ctx.error('no stories right now'));
-        return;
-      }
+      if (rows.length === 0) throw new Error('no renderable stories');
       body.replaceChildren(ctx.h('div', { class: 'hn' }, ...rows));
     };
 
-    try {
-      await refresh();
-      ctx.interval(() => refresh().catch(() => {}), 10 * 60 * 1000);
-    } catch {
-      body.replaceChildren(ctx.error('hacker news unavailable'));
+    // Initial load: a few attempts with short backoff so one slow/aborted response
+    // doesn't drop the widget to an error for a whole refresh cycle.
+    let loaded = false;
+    for (let attempt = 1; attempt <= 3 && !loaded; attempt++) {
+      try { await refresh(); loaded = true; }
+      catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 1200 * attempt)); }
     }
+    if (!loaded) body.replaceChildren(ctx.error('hacker news unavailable — retrying…'));
+    // Steady refresh; on failure KEEP the last good front page (don't blank).
+    ctx.interval(() => refresh().catch(() => {}), 10 * 60 * 1000);
   },
 };

@@ -1,7 +1,9 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
-//   📖 Word of the day  — fully OFFLINE, deterministic by day-of-year (never fails).
-//   ✦  Fact of the day  — uselessfacts.jsph.pl/today, embedded fallback.
-//   ❝  Quote of the day  — zenquotes.io/today, embedded fallback.
+//   📖 Word of the day   — fully OFFLINE, deterministic by day-of-year (never fails).
+//   📜 On this day        — a dated historical moment from Wikipedia's keyless
+//        onthisday feed; gracefully falls back to an embedded "Fact of the day"
+//        (uselessfacts-style) when the network is unavailable, so it never blanks.
+//   ❝  Quote of the day   — zenquotes.io/today, embedded fallback.
 // Sits beside the Weather card (both 'tall'). Network is best-effort: initial load
 // retries with short backoff, periodic refresh fetches BEFORE replacing the DOM so a
 // failure keeps the last good render. Embedded data guarantees content fully offline.
@@ -136,6 +138,10 @@ function dayOfYear(d = new Date()) {
 }
 const pickByDay = (arr) => arr[dayOfYear() % arr.length];
 
+// Wikipedia returns negative years for BC — render legibly, never as "-480".
+const fmtYear = (y) => (y < 0 ? `${-y} BC` : String(y));
+const p2 = (n) => String(n).padStart(2, '0');
+
 export default {
   id: 'daily',
   title: 'Today',
@@ -171,9 +177,11 @@ export default {
       .dly-def { margin-top:7px; font-size:15px; line-height:1.38; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 
-      /* FACT */
+      /* ON THIS DAY (falls back to a plain fact when offline) */
       .dly-fact { font-size:15px; line-height:1.38; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-fact .yr { font-family:var(--font-display); font-weight:700; color:var(--mint);
+        margin-right:8px; letter-spacing:.01em; }
 
       /* QUOTE */
       .dly-quote { font-family:var(--font-display); font-style:italic; font-size:17px; line-height:1.36;
@@ -198,10 +206,13 @@ export default {
     };
     applyWord(pickByDay(WORDS));
 
-    // ---- FACT + QUOTE: start from embedded fallback, upgrade from network -----
+    // ---- ON THIS DAY + QUOTE: start from embedded fallback, upgrade from network
+    // The middle section shows a dated historical moment when Wikipedia answers,
+    // and degrades to an embedded "Fact of the Day" when offline — so it always
+    // holds something rather than blanking.
+    const otdLbl = h('div', { class: 'dly-lbl' }, 'Fact of the Day');
     const factEl = h('div', { class: 'dly-fact' }, pickByDay(FACTS));
-    const factSec = h('div', { class: 'dly-sec' },
-      h('div', { class: 'dly-lbl' }, 'Fact of the Day'), factEl);
+    const factSec = h('div', { class: 'dly-sec' }, otdLbl, factEl);
 
     const quoteEl = h('div', { class: 'dly-quote' });
     const authEl = h('div', { class: 'dly-auth' });
@@ -214,11 +225,19 @@ export default {
 
     // Network fetchers — each returns parsed content or throws. Never touch the DOM
     // until we have a good value, so a failure simply keeps the last good render.
-    const fetchFact = async () => {
-      const d = await ctx.fetchJSON('https://uselessfacts.jsph.pl/api/v2/facts/today');
-      const text = (d && (d.text || d.fact || '')).toString().trim();
-      if (!text) throw new Error('empty fact');
-      return text;
+    const fetchOnThisDay = async () => {
+      const now = new Date();
+      const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${p2(now.getMonth() + 1)}/${p2(now.getDate())}`;
+      const d = await ctx.fetchJSON(url);
+      const events = Array.isArray(d && d.events) ? d.events : [];
+      const valid = events
+        .filter((e) => e && e.text && Number.isFinite(e.year))
+        .sort((a, b) => b.year - a.year); // newest → oldest
+      if (valid.length === 0) throw new Error('no events');
+      // Deterministic pick by day-of-year — stable across refreshes within a day,
+      // and ranges across the whole list (not just the most recent decades).
+      const e = valid[dayOfYear() % valid.length];
+      return { year: e.year, text: e.text.toString().trim() };
     };
     const fetchQuote = async () => {
       const d = await ctx.fetchJSON('https://zenquotes.io/api/today');
@@ -229,7 +248,17 @@ export default {
       return { q, a: a || 'Unknown' };
     };
 
-    const applyFact = (text) => { factEl.textContent = text; };
+    // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.
+    const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.textContent = text; };
+    // Live historical moment: a mint year accent followed by the event text, under
+    // the "On This Day" label. Tracks that we have a good live render.
+    let otdLive = false;
+    const applyOnThisDay = ({ year, text }) => {
+      otdLbl.textContent = 'On This Day';
+      factEl.replaceChildren(h('span', { class: 'yr' }, fmtYear(year)), text);
+      factEl.title = `${fmtYear(year)} — ${text}`;
+      otdLive = true;
+    };
     const applyQuote = applyQuoteObj;
 
     // Initial load: a few attempts with short backoff before settling on embedded.
@@ -241,7 +270,7 @@ export default {
       // give up — embedded fallback already on screen
     };
     // Don't let one slow section block the other.
-    tryLoad(fetchFact, applyFact);
+    tryLoad(fetchOnThisDay, applyOnThisDay);
     tryLoad(fetchQuote, applyQuote);
 
     // Periodic refresh (every 30 min, so content rolls over at midnight):
@@ -255,9 +284,12 @@ export default {
       // tryLoad above (with retry backoff), so skip the network on this first tick.
       if (firstTick) { firstTick = false; return; }
       applyWord(pickByDay(WORDS));
-      applyFact(pickByDay(FACTS));
+      // Only reset the middle section to an embedded fact if we don't yet have a
+      // live "On This Day" — otherwise keep the last good historical moment and let
+      // the network call below refresh it (covers the midnight day-change in place).
+      if (!otdLive) applyFact(pickByDay(FACTS));
       applyQuote(pickByDay(QUOTES));
-      fetchFact().then(applyFact).catch(() => {});
+      fetchOnThisDay().then(applyOnThisDay).catch(() => {});
       fetchQuote().then(applyQuote).catch(() => {});
     }, 30 * 60 * 1000);
   },
