@@ -12,6 +12,17 @@ function domainOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
+// Classify a front-page item into an at-a-glance badge. Ask/Show HN are
+// title-prefixed self-posts; jobs carry an explicit type. Returns null for a
+// plain link story (no badge — the domain already tells that story).
+function badgeOf(item) {
+  if (item.type === 'job') return { label: 'JOB', kind: 'job' };
+  const t = item.title || '';
+  if (/^ask hn[:\s]/i.test(t)) return { label: 'ASK', kind: 'ask' };
+  if (/^show hn[:\s]/i.test(t)) return { label: 'SHOW', kind: 'show' };
+  return null;
+}
+
 // "3h", "12m", "2d" — compact age from a unix-seconds timestamp.
 function ageOf(unixSecs) {
   if (!Number.isFinite(unixSecs)) return '';
@@ -50,6 +61,21 @@ export default {
       .hn-dot { color:var(--ink-faint); opacity:.5; }
       .hn-domain { color:var(--ink-soft); flex:1 1 auto; min-width:0;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+      /* type badge — a compact static pill; colour keys the kind at a glance */
+      .hn-badge { font-size:9.5px; font-weight:700; letter-spacing:.08em; line-height:1;
+        padding:2.5px 5px; border-radius:6px; border:1px solid currentColor; }
+      .hn-badge.ask { color:var(--gold); }
+      .hn-badge.show { color:var(--mint); }
+      .hn-badge.job { color:var(--mint-2); }
+      /* graceful fallback — fills the tall card so a network miss never leaves
+         a large empty black region; static, no animation. */
+      .hn-fallback { display:flex; flex-direction:column; align-items:center;
+        justify-content:center; gap:10px; height:100%; text-align:center;
+        color:var(--ink-soft); }
+      .hn-fallback .hn-fb-icon { font-size:40px; opacity:.55; line-height:1; }
+      .hn-fallback .hn-fb-msg { font-size:15px; color:var(--ink); }
+      .hn-fallback .hn-fb-sub { font-family:var(--font-mono); font-size:11.5px;
+        color:var(--ink-faint); }
     `);
     body.appendChild(ctx.loading('reading the front page…'));
 
@@ -66,8 +92,12 @@ export default {
           if (!s || !s.title) return null;
           const score = Number.isFinite(s.score) ? s.score : 0;
           const cmts = Number.isFinite(s.descendants) ? s.descendants : 0;
-          const domain = domainOf(s.url);
+          const badge = badgeOf(s);
           const age = ageOf(s.time);
+          const domain = domainOf(s.url);
+          // Self-posts (Ask/Show HN, and link-less jobs) always resolve to the
+          // HN domain — redundant once the badge is shown, so drop it there.
+          const showDomain = !(badge && !s.url);
           return ctx.h('div', { class: 'hn-item' },
             ctx.h('div', { class: 'hn-rank' }, String(i + 1)),
             ctx.h('div', { class: 'hn-body' },
@@ -78,8 +108,9 @@ export default {
                 ctx.h('span', { class: 'hn-cmts' }, `💬 ${cmts}`),
                 age ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 age ? ctx.h('span', { class: 'hn-age' }, age) : null,
-                ctx.h('span', { class: 'hn-dot' }, '·'),
-                ctx.h('span', { class: 'hn-domain' }, domain || 'news.ycombinator.com'))));
+                badge ? ctx.h('span', { class: `hn-badge ${badge.kind}` }, badge.label) : null,
+                showDomain ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
+                showDomain ? ctx.h('span', { class: 'hn-domain' }, domain || 'news.ycombinator.com') : null)));
         })
         .filter(Boolean);
 
@@ -94,7 +125,16 @@ export default {
       try { await refresh(); loaded = true; }
       catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 1200 * attempt)); }
     }
-    if (!loaded) body.replaceChildren(ctx.error('hacker news unavailable — retrying…'));
+    // If the initial load never succeeded, show a self-contained fallback that
+    // FILLS the tall card (icon + message) rather than a bare error line that
+    // leaves a large empty black region. The steady refresh below keeps trying.
+    if (!loaded) {
+      body.replaceChildren(
+        ctx.h('div', { class: 'hn-fallback' },
+          ctx.h('div', { class: 'hn-fb-icon' }, '📰'),
+          ctx.h('div', { class: 'hn-fb-msg' }, 'Front page is quiet'),
+          ctx.h('div', { class: 'hn-fb-sub' }, 'reconnecting to Hacker News…')));
+    }
     // Steady refresh; on failure KEEP the last good front page (don't blank).
     ctx.interval(() => refresh().catch(() => {}), 10 * 60 * 1000);
   },
