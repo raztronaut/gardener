@@ -33,7 +33,7 @@ export default {
     const { tz = 'America/Los_Angeles' } = ctx.config || {};
 
     ctx.style(`
-      .cal { display:flex; flex-direction:column; height:100%; gap:10px; min-height:0; justify-content:center; }
+      .cal { display:flex; flex-direction:column; height:100%; gap:9px; min-height:0; }
 
       /* household roster strip */
       .cal-roster { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
@@ -59,7 +59,7 @@ export default {
       /* hero — the next free window */
       .cal-hero { display:flex; flex-direction:column; gap:7px; flex:0 0 auto; }
       .cal-hero .top { display:flex; align-items:baseline; gap:10px; min-width:0; }
-      .cal-hero .day { font-family:var(--font-display); font-weight:800; font-size:30px; line-height:1;
+      .cal-hero .day { font-family:var(--font-display); font-weight:800; font-size:27px; line-height:1;
         background:linear-gradient(120deg,var(--mint),var(--mint-2));
         -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; flex:0 0 auto; }
       .cal-hero .time { font-family:var(--font-mono); font-size:15px; color:var(--ink-soft); letter-spacing:.01em;
@@ -68,19 +68,27 @@ export default {
       .cal-hero .who .tag { font-size:14px; font-weight:700; color:var(--mint); white-space:nowrap; }
       .cal-hero .who .tag.some { color:var(--ink-soft); font-weight:600; }
 
-      /* upcoming list */
-      .cal-list { display:flex; flex-direction:column; gap:8px; min-height:0; }
+      /* upcoming list — flexes to fill the tall card; rows share the height evenly */
+      .cal-list { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
       .cal-up { font-family:var(--font-mono); font-size:9px; letter-spacing:.16em; text-transform:uppercase;
-        color:var(--ink-faint); flex:0 0 auto; }
-      .cal-ev { display:flex; align-items:center; gap:10px; min-width:0; }
-      .cal-ev .day { flex:0 0 46px; font-family:var(--font-display); font-weight:700; font-size:15px;
+        color:var(--ink-faint); flex:0 0 auto; margin-bottom:2px; }
+      .cal-ev { display:flex; align-items:center; gap:9px; min-width:0; flex:1 1 0; min-height:0;
+        border-top:1px solid var(--stroke); }
+      .cal-ev .day { flex:0 0 40px; font-family:var(--font-display); font-weight:700; font-size:14px;
         color:var(--ink); line-height:1; }
-      .cal-ev .time { flex:1; min-width:0; font-family:var(--font-mono); font-size:12.5px; color:var(--ink-soft);
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .cal-ev .time { flex:0 0 auto; font-family:var(--font-mono); font-size:11px; color:var(--ink-soft);
+        white-space:nowrap; }
+      /* availability bar — how much of the household is free in this window */
+      .cal-bar { flex:1 1 auto; height:6px; min-width:24px; border-radius:3px; background:var(--stroke);
+        overflow:hidden; }
+      .cal-bar > i { display:block; height:100%; border-radius:3px;
+        background:linear-gradient(90deg,var(--mint-2),var(--mint)); }
+      .cal-bar.all > i { background:linear-gradient(90deg,var(--mint),var(--mint)); }
       .cal-ev .faces { display:flex; flex:0 0 auto; }
       .cal-ev .faces .av { margin-left:-7px; }
       .cal-ev .faces .av:first-child { margin-left:0; }
-      .cal-ev .free { flex:0 0 auto; font-size:11px; color:var(--ink-faint); min-width:30px; text-align:right; }
+      .cal-ev .free { flex:0 0 auto; font-size:11px; color:var(--ink-faint); min-width:34px; text-align:right;
+        white-space:nowrap; }
       .cal-ev .free.all { color:var(--mint); font-weight:700; }
 
       .cal-msg { font-size:15px; line-height:1.5; color:var(--ink-soft); }
@@ -188,7 +196,7 @@ export default {
       }
 
       const heroW = windows[0];
-      const rest = windows.slice(1, 5);
+      const rest = windows.slice(1, 6);
 
       const heroFree = freeMembers(heroW);
       const heroAll = heroW.totalCount > 0 && (heroW.freeCount || heroFree.length) >= heroW.totalCount;
@@ -198,7 +206,7 @@ export default {
           h('div', { class: 'day' }, dayLabel(hs)),
           h('div', { class: 'time' }, `${tidy(hs)} – ${tidy(he)}`)),
         h('div', { class: 'who' },
-          facesOf(heroFree, 34, 6),
+          facesOf(heroFree, 30, 6),
           h('div', { class: 'tag' + (heroAll ? '' : ' some') },
             heroAll ? 'everyone free' : `${heroW.freeCount || heroFree.length} free`)));
 
@@ -208,11 +216,13 @@ export default {
         const total = w.totalCount || connected;
         const free = w.freeCount != null ? w.freeCount : fm.length;
         const all = total > 0 && free >= total;
+        const pct = total > 0 ? Math.max(6, Math.round((free / total) * 100)) : 0;
         return h('div', { class: 'cal-ev' },
           h('div', { class: 'day' }, dayLabel(s)),
-          h('div', { class: 'time' }, `${tidy(s)} – ${tidy(e)}`),
-          facesOf(fm, 22, 4),
-          h('div', { class: 'free' + (all ? ' all' : '') }, all ? 'all' : String(free)));
+          h('div', { class: 'time' }, `${tidy(s)}–${tidy(e)}`),
+          h('div', { class: 'cal-bar' + (all ? ' all' : '') }, h('i', { style: { width: pct + '%' } })),
+          facesOf(fm, 20, 3),
+          h('div', { class: 'free' + (all ? ' all' : '') }, all ? 'all' : `${free}/${total}`));
       });
 
       const children = [rosterEl, h('div', { class: 'cal-div' }), heroEl];

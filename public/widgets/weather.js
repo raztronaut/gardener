@@ -10,6 +10,12 @@ const WMO = (c) => c === 0 ? ['Clear', 'clear-day'] : (c <= 2) ? ['Partly cloudy
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
+// UV index → [label, color]. Standard WHO bands; color-coded so the risk reads
+// at a glance from across the room. Night-time UV is 0 → "Low", which is correct.
+const uvBand = (u) => u == null ? ['—', 'var(--ink-faint)']
+  : u < 3 ? ['Low', '#74f7b0'] : u < 6 ? ['Moderate', '#f7d774']
+  : u < 8 ? ['High', '#f7a374'] : u < 11 ? ['Very high', '#f77474'] : ['Extreme', '#c074f7'];
+
 // "2026-05-31T05:51" (already local to requested tz) -> "5:51a"
 function fmtClock(iso) {
   const m = /T(\d{2}):(\d{2})/.exec(iso || '');
@@ -49,6 +55,9 @@ export default {
       .wx-sky { display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.02em; }
       .wx-sky .sun { color:var(--ink-soft); }
       .wx-sky .tmrw { color:var(--mint); }
+      .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
+      .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
+      .wx-sky .uv b { color:var(--ink); font-weight:600; }
       .wx-stats { display:flex; gap:8px; }
       .wx-stat { flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
         padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
@@ -81,7 +90,7 @@ export default {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
@@ -98,6 +107,14 @@ export default {
         const wind = Math.round(cur.wind_speed_10m);
         const sunrise = fmtClock(d.daily.sunrise?.[0]);
         const sunset = fmtClock(d.daily.sunset?.[0]);
+
+        // UV index — current hour's reading, with the day's peak for context.
+        const hNow = new Date().getHours();
+        const uvNowRaw = d.hourly.uv_index?.[hNow];
+        const uvNow = Number.isFinite(uvNowRaw) ? Math.round(uvNowRaw) : null;
+        const uvPeakRaw = d.daily.uv_index_max?.[0];
+        const uvPeak = Number.isFinite(uvPeakRaw) ? Math.round(uvPeakRaw) : null;
+        const [uvLabel, uvColor] = uvBand(uvNow);
 
         // Tomorrow's outlook — condition + high/low from the second daily entry
         // (forecast_days=2 guarantees it's present). What the humans actually
@@ -173,6 +190,11 @@ export default {
               ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`))),
           ctx.h('div', { class: 'wx-sky' },
             ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset}`),
+            ctx.h('span', {
+              class: 'uv',
+              title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
+            }, ctx.h('span', { class: 'dot', style: { background: uvColor, boxShadow: `0 0 6px ${uvColor}` } }),
+              'UV ', ctx.h('b', {}, `${uvNow ?? '—'}`), ` ${uvLabel}`),
             ctx.h('span', { class: 'tmrw' }, `Tomorrow: ${tmrwLabel}`)),
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
