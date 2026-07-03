@@ -68,26 +68,27 @@ export default {
       .cal-hero .who .tag { font-size:14px; font-weight:700; color:var(--mint); white-space:nowrap; }
       .cal-hero .who .tag.some { color:var(--ink-soft); font-weight:600; }
 
-      /* upcoming list — flexes to fill the tall card; rows share the height evenly */
-      .cal-list { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; }
+      /* upcoming list — fills the tall card; rows keep a legible floor height so
+         content can never shrink small enough to overlap its neighbours. */
+      .cal-list { display:flex; flex-direction:column; min-height:0; flex:1 1 auto; overflow:hidden; }
       .cal-up { font-family:var(--font-mono); font-size:9px; letter-spacing:.16em; text-transform:uppercase;
-        color:var(--ink-faint); flex:0 0 auto; margin-bottom:2px; }
-      .cal-ev { display:flex; align-items:center; gap:9px; min-width:0; flex:1 1 0; min-height:0;
-        border-top:1px solid var(--stroke); }
-      .cal-ev .day { flex:0 0 40px; font-family:var(--font-display); font-weight:700; font-size:14px;
-        color:var(--ink); line-height:1; }
+        color:var(--ink-faint); flex:0 0 auto; margin-bottom:3px; }
+      .cal-ev { display:flex; align-items:center; gap:9px; min-width:0; flex:1 1 34px; min-height:34px;
+        overflow:hidden; border-top:1px solid var(--stroke); }
+      .cal-ev .day { flex:0 0 38px; font-family:var(--font-display); font-weight:700; font-size:14px;
+        color:var(--ink); line-height:1; white-space:nowrap; }
       .cal-ev .time { flex:0 0 auto; font-family:var(--font-mono); font-size:11px; color:var(--ink-soft);
         white-space:nowrap; }
       /* availability bar — how much of the household is free in this window */
-      .cal-bar { flex:1 1 auto; height:6px; min-width:24px; border-radius:3px; background:var(--stroke);
+      .cal-bar { flex:1 1 auto; height:6px; min-width:20px; border-radius:3px; background:var(--stroke);
         overflow:hidden; }
       .cal-bar > i { display:block; height:100%; border-radius:3px;
         background:linear-gradient(90deg,var(--mint-2),var(--mint)); }
       .cal-bar.all > i { background:linear-gradient(90deg,var(--mint),var(--mint)); }
-      .cal-ev .faces { display:flex; flex:0 0 auto; }
+      .cal-ev .faces { display:flex; flex:0 0 auto; align-items:center; }
       .cal-ev .faces .av { margin-left:-7px; }
       .cal-ev .faces .av:first-child { margin-left:0; }
-      .cal-ev .free { flex:0 0 auto; font-size:11px; color:var(--ink-faint); min-width:34px; text-align:right;
+      .cal-ev .free { flex:0 0 auto; font-size:11px; color:var(--ink-faint); min-width:30px; text-align:right;
         white-space:nowrap; }
       .cal-ev .free.all { color:var(--mint); font-weight:700; }
 
@@ -196,7 +197,7 @@ export default {
       }
 
       const heroW = windows[0];
-      const rest = windows.slice(1, 6);
+      const rest = windows.slice(1, 5);
 
       const heroFree = freeMembers(heroW);
       const heroAll = heroW.totalCount > 0 && (heroW.freeCount || heroFree.length) >= heroW.totalCount;

@@ -10,54 +10,54 @@
 
 // ---- WORD OF THE DAY — curated, deterministic, no network ------------------
 const WORDS = [
-  { word: 'serendipity', pron: '/ˌsɛrənˈdɪpɪti/', pos: 'noun', def: 'The occurrence of happy or beneficial events by chance, in a fortunate accident.' },
-  { word: 'petrichor', pron: '/ˈpɛtrɪkɔːr/', pos: 'noun', def: 'The earthy scent produced when rain falls on dry soil after a warm, dry spell.' },
-  { word: 'ephemeral', pron: '/ɪˈfɛmərəl/', pos: 'adjective', def: 'Lasting for a very short time; fleeting and quick to fade away.' },
-  { word: 'sonder', pron: '/ˈsɒndər/', pos: 'noun', def: 'The realization that each passer-by is living a life as vivid and complex as your own.' },
-  { word: 'limerence', pron: '/ˈlɪmərəns/', pos: 'noun', def: 'The state of being infatuated, marked by an involuntary longing for reciprocation.' },
-  { word: 'mellifluous', pron: '/mɛˈlɪfluəs/', pos: 'adjective', def: 'Sweet or musical; pleasant to hear, as a smooth and flowing voice or sound.' },
-  { word: 'halcyon', pron: '/ˈhælsiən/', pos: 'adjective', def: 'Denoting a period that is idyllically happy and peaceful, often in fond memory.' },
-  { word: 'susurrus', pron: '/suːˈsʌrəs/', pos: 'noun', def: 'A soft, whispering or rustling sound, like leaves or hushed voices.' },
-  { word: 'apricity', pron: '/əˈprɪsɪti/', pos: 'noun', def: 'The warmth of the sun felt on a cold winter day.' },
-  { word: 'nepenthe', pron: '/nɪˈpɛnθi/', pos: 'noun', def: 'A drug or thing that brings forgetfulness of grief or suffering.' },
-  { word: 'eloquence', pron: '/ˈɛləkwəns/', pos: 'noun', def: 'Fluent, persuasive, and graceful speaking or writing.' },
-  { word: 'quixotic', pron: '/kwɪkˈsɒtɪk/', pos: 'adjective', def: 'Exceedingly idealistic; unrealistic and impractical in a romantic, lofty way.' },
-  { word: 'sublime', pron: '/səˈblaɪm/', pos: 'adjective', def: 'Of such excellence or beauty as to inspire great admiration or awe.' },
-  { word: 'ineffable', pron: '/ɪnˈɛfəbl/', pos: 'adjective', def: 'Too great or extreme to be expressed or described in words.' },
-  { word: 'luminescence', pron: '/ˌluːmɪˈnɛsns/', pos: 'noun', def: 'The emission of light by a substance that has not been heated, as a soft glow.' },
-  { word: 'wanderlust', pron: '/ˈwɒndəlʌst/', pos: 'noun', def: 'A strong, innate desire to travel and explore the world.' },
-  { word: 'effervescent', pron: '/ˌɛfəˈvɛsnt/', pos: 'adjective', def: 'Vivacious and enthusiastic; bubbling with high spirits.' },
-  { word: 'solitude', pron: '/ˈsɒlɪtjuːd/', pos: 'noun', def: 'The state of being alone, often by choice and felt as restful.' },
-  { word: 'aurora', pron: '/ɔːˈrɔːrə/', pos: 'noun', def: 'A natural light display in the sky, mainly seen in high-latitude regions.' },
-  { word: 'reverie', pron: '/ˈrɛvəri/', pos: 'noun', def: 'A state of being pleasantly lost in one’s thoughts; a daydream.' },
-  { word: 'gossamer', pron: '/ˈɡɒsəmər/', pos: 'noun', def: 'A fine, filmy substance of cobwebs; anything delicate, light, and insubstantial.' },
-  { word: 'incandescent', pron: '/ˌɪnkænˈdɛsnt/', pos: 'adjective', def: 'Emitting light from being heated; full of strong, intense emotion.' },
-  { word: 'vellichor', pron: '/ˈvɛlɪkɔːr/', pos: 'noun', def: 'The strange wistfulness of used bookstores, steeped in time and old paper.' },
-  { word: 'numinous', pron: '/ˈnjuːmɪnəs/', pos: 'adjective', def: 'Having a strong religious or spiritual quality; suggesting the presence of divinity.' },
-  { word: 'evanescent', pron: '/ˌɛvəˈnɛsnt/', pos: 'adjective', def: 'Soon passing out of sight, memory, or existence; quickly fading.' },
-  { word: 'plethora', pron: '/ˈplɛθərə/', pos: 'noun', def: 'A very large or excessive amount of something; an abundance.' },
-  { word: 'panacea', pron: '/ˌpænəˈsiːə/', pos: 'noun', def: 'A solution or remedy supposed to cure all problems or diseases.' },
-  { word: 'zephyr', pron: '/ˈzɛfər/', pos: 'noun', def: 'A soft, gentle breeze, especially one from the west.' },
-  { word: 'felicity', pron: '/fɪˈlɪsɪti/', pos: 'noun', def: 'Intense happiness; the ability to find apt and pleasing expression.' },
-  { word: 'verdant', pron: '/ˈvɜːdnt/', pos: 'adjective', def: 'Green with growing plants and vegetation; lush and flourishing.' },
-  { word: 'sanguine', pron: '/ˈsæŋɡwɪn/', pos: 'adjective', def: 'Optimistic or positive, especially in an apparently difficult situation.' },
-  { word: 'aplomb', pron: '/əˈplɒm/', pos: 'noun', def: 'Self-confidence or assurance, especially in a demanding situation; poise.' },
-  { word: 'lagom', pron: '/ˈlɑːɡɒm/', pos: 'noun', def: 'Swedish: not too much and not too little — the comfortable balance of just right.' },
-  { word: 'hiraeth', pron: '/ˈhɪraɪθ/', pos: 'noun', def: 'A Welsh longing or homesickness for a home you cannot return to, or never was.' },
-  { word: 'meraki', pron: '/meˈraki/', pos: 'noun', def: 'Greek: to do something with soul, creativity, and love; to put yourself into it.' },
-  { word: 'fernweh', pron: '/ˈfɛrnveː/', pos: 'noun', def: 'German: a deep ache or longing for far-off places one has yet to visit.' },
-  { word: 'pellucid', pron: '/pɪˈluːsɪd/', pos: 'adjective', def: 'Transparently clear in style or meaning; easy to understand.' },
-  { word: 'redolent', pron: '/ˈrɛdələnt/', pos: 'adjective', def: 'Strongly reminiscent or suggestive of something; fragrant or sweet-smelling.' },
-  { word: 'lissome', pron: '/ˈlɪsəm/', pos: 'adjective', def: 'Thin, supple, and graceful in movement.' },
-  { word: 'ethereal', pron: '/ɪˈθɪəriəl/', pos: 'adjective', def: 'Extremely delicate and light, seemingly too perfect for this world.' },
-  { word: 'cynosure', pron: '/ˈsɪnəzjʊər/', pos: 'noun', def: 'A person or thing that is the centre of attention or admiration.' },
-  { word: 'denouement', pron: '/deɪˈnuːmɒ̃/', pos: 'noun', def: 'The final part of a story in which strands are drawn together and resolved.' },
-  { word: 'sempiternal', pron: '/ˌsɛmpɪˈtɜːnl/', pos: 'adjective', def: 'Eternal and unchanging; everlasting.' },
-  { word: 'oneiric', pron: '/əˈnaɪrɪk/', pos: 'adjective', def: 'Relating to dreams or dreaming; having a dreamlike quality.' },
-  { word: 'tarantism', pron: '/ˈtærəntɪzəm/', pos: 'noun', def: 'An uncontrollable urge to dance, historically thought caused by a spider’s bite.' },
-  { word: 'syzygy', pron: '/ˈsɪzɪdʒi/', pos: 'noun', def: 'An alignment of three celestial bodies in a straight line, as in an eclipse.' },
-  { word: 'ebullient', pron: '/ɪˈbʌliənt/', pos: 'adjective', def: 'Cheerful and full of energy; overflowing with excitement.' },
-  { word: 'scintilla', pron: '/sɪnˈtɪlə/', pos: 'noun', def: 'A tiny trace or spark of a specified quality or feeling.' },
+  { word: 'serendipity', pron: '/ˌsɛrənˈdɪpɪti/', pos: 'noun', def: 'The occurrence of happy or beneficial events by chance, in a fortunate accident.', ex: 'By pure serendipity, she found the missing letter tucked inside a library book.' },
+  { word: 'petrichor', pron: '/ˈpɛtrɪkɔːr/', pos: 'noun', def: 'The earthy scent produced when rain falls on dry soil after a warm, dry spell.', ex: 'The first summer rain released a petrichor that drew everyone out onto their porches.' },
+  { word: 'ephemeral', pron: '/ɪˈfɛmərəl/', pos: 'adjective', def: 'Lasting for a very short time; fleeting and quick to fade away.', ex: 'Cherry blossoms are beloved precisely because their beauty is so ephemeral.' },
+  { word: 'sonder', pron: '/ˈsɒndər/', pos: 'noun', def: 'The realization that each passer-by is living a life as vivid and complex as your own.', ex: 'Watching the lit windows of the passing train, he was overcome by a quiet sonder.' },
+  { word: 'limerence', pron: '/ˈlɪmərəns/', pos: 'noun', def: 'The state of being infatuated, marked by an involuntary longing for reciprocation.', ex: 'The early weeks of the romance were a haze of sleepless limerence.' },
+  { word: 'mellifluous', pron: '/mɛˈlɪfluəs/', pos: 'adjective', def: 'Sweet or musical; pleasant to hear, as a smooth and flowing voice or sound.', ex: 'The cellist’s mellifluous tone lingered in the hall long after the final note.' },
+  { word: 'halcyon', pron: '/ˈhælsiən/', pos: 'adjective', def: 'Denoting a period that is idyllically happy and peaceful, often in fond memory.', ex: 'They spoke of their college years as halcyon days that could never quite return.' },
+  { word: 'susurrus', pron: '/suːˈsʌrəs/', pos: 'noun', def: 'A soft, whispering or rustling sound, like leaves or hushed voices.', ex: 'A susurrus of wind moved through the wheat as dusk settled over the field.' },
+  { word: 'apricity', pron: '/əˈprɪsɪti/', pos: 'noun', def: 'The warmth of the sun felt on a cold winter day.', ex: 'We lingered on the bench, grateful for the apricity of the winter afternoon.' },
+  { word: 'nepenthe', pron: '/nɪˈpɛnθi/', pos: 'noun', def: 'A drug or thing that brings forgetfulness of grief or suffering.', ex: 'He wished for some nepenthe to soften the memory of that long, hard year.' },
+  { word: 'eloquence', pron: '/ˈɛləkwəns/', pos: 'noun', def: 'Fluent, persuasive, and graceful speaking or writing.', ex: 'Her closing argument was delivered with an eloquence that silenced the room.' },
+  { word: 'quixotic', pron: '/kwɪkˈsɒtɪk/', pos: 'adjective', def: 'Exceedingly idealistic; unrealistic and impractical in a romantic, lofty way.', ex: 'His quixotic plan to sail around the world both charmed and worried his friends.' },
+  { word: 'sublime', pron: '/səˈblaɪm/', pos: 'adjective', def: 'Of such excellence or beauty as to inspire great admiration or awe.', ex: 'From the summit the valley opened into a view that was simply sublime.' },
+  { word: 'ineffable', pron: '/ɪnˈɛfəbl/', pos: 'adjective', def: 'Too great or extreme to be expressed or described in words.', ex: 'There was an ineffable calm in the empty cathedral at dawn.' },
+  { word: 'luminescence', pron: '/ˌluːmɪˈnɛsns/', pos: 'noun', def: 'The emission of light by a substance that has not been heated, as a soft glow.', ex: 'A faint luminescence rippled through the waves as we walked the darkened beach.' },
+  { word: 'wanderlust', pron: '/ˈwɒndəlʌst/', pos: 'noun', def: 'A strong, innate desire to travel and explore the world.', ex: 'A single postcard was enough to reawaken her old wanderlust.' },
+  { word: 'effervescent', pron: '/ˌɛfəˈvɛsnt/', pos: 'adjective', def: 'Vivacious and enthusiastic; bubbling with high spirits.', ex: 'The host’s effervescent welcome put every guest instantly at ease.' },
+  { word: 'solitude', pron: '/ˈsɒlɪtjuːd/', pos: 'noun', def: 'The state of being alone, often by choice and felt as restful.', ex: 'He treasured the solitude of early mornings before the city woke.' },
+  { word: 'aurora', pron: '/ɔːˈrɔːrə/', pos: 'noun', def: 'A natural light display in the sky, mainly seen in high-latitude regions.', ex: 'They drove north for hours, hoping to glimpse the aurora over the pines.' },
+  { word: 'reverie', pron: '/ˈrɛvəri/', pos: 'noun', def: 'A state of being pleasantly lost in one’s thoughts; a daydream.', ex: 'The whistle of the kettle pulled her out of a long reverie.' },
+  { word: 'gossamer', pron: '/ˈɡɒsəmər/', pos: 'noun', def: 'A fine, filmy substance of cobwebs; anything delicate, light, and insubstantial.', ex: 'Dew clung to the gossamer threads strung between the fence posts.' },
+  { word: 'incandescent', pron: '/ˌɪnkænˈdɛsnt/', pos: 'adjective', def: 'Emitting light from being heated; full of strong, intense emotion.', ex: 'She was incandescent with joy when the letter finally arrived.' },
+  { word: 'vellichor', pron: '/ˈvɛlɪkɔːr/', pos: 'noun', def: 'The strange wistfulness of used bookstores, steeped in time and old paper.', ex: 'Browsing the dim aisles, he felt the vellichor of a thousand unread lives.' },
+  { word: 'numinous', pron: '/ˈnjuːmɪnəs/', pos: 'adjective', def: 'Having a strong religious or spiritual quality; suggesting the presence of divinity.', ex: 'The old grove had a numinous stillness that hushed even the children.' },
+  { word: 'evanescent', pron: '/ˌɛvəˈnɛsnt/', pos: 'adjective', def: 'Soon passing out of sight, memory, or existence; quickly fading.', ex: 'Fame proved evanescent, gone almost before he understood he had it.' },
+  { word: 'plethora', pron: '/ˈplɛθərə/', pos: 'noun', def: 'A very large or excessive amount of something; an abundance.', ex: 'The market offered a plethora of ripe fruit at the height of summer.' },
+  { word: 'panacea', pron: '/ˌpænəˈsiːə/', pos: 'noun', def: 'A solution or remedy supposed to cure all problems or diseases.', ex: 'No single policy is a panacea for so tangled a problem.' },
+  { word: 'zephyr', pron: '/ˈzɛfər/', pos: 'noun', def: 'A soft, gentle breeze, especially one from the west.', ex: 'A gentle zephyr carried the scent of jasmine across the courtyard.' },
+  { word: 'felicity', pron: '/fɪˈlɪsɪti/', pos: 'noun', def: 'Intense happiness; the ability to find apt and pleasing expression.', ex: 'She wrote with a felicity that made difficult ideas feel effortless.' },
+  { word: 'verdant', pron: '/ˈvɜːdnt/', pos: 'adjective', def: 'Green with growing plants and vegetation; lush and flourishing.', ex: 'After the rains, the hills turned a deep, verdant green.' },
+  { word: 'sanguine', pron: '/ˈsæŋɡwɪn/', pos: 'adjective', def: 'Optimistic or positive, especially in an apparently difficult situation.', ex: 'Despite the setbacks, the coach remained sanguine about the season.' },
+  { word: 'aplomb', pron: '/əˈplɒm/', pos: 'noun', def: 'Self-confidence or assurance, especially in a demanding situation; poise.', ex: 'The young pianist handled the slip with remarkable aplomb.' },
+  { word: 'lagom', pron: '/ˈlɑːɡɒm/', pos: 'noun', def: 'Swedish: not too much and not too little — the comfortable balance of just right.', ex: 'They furnished the flat with a lagom sense of just enough and no more.' },
+  { word: 'hiraeth', pron: '/ˈhɪraɪθ/', pos: 'noun', def: 'A Welsh longing or homesickness for a home you cannot return to, or never was.', ex: 'Hearing the old song filled him with a hiraeth he could not quite name.' },
+  { word: 'meraki', pron: '/meˈraki/', pos: 'noun', def: 'Greek: to do something with soul, creativity, and love; to put yourself into it.', ex: 'She poured meraki into every loaf that left her small corner bakery.' },
+  { word: 'fernweh', pron: '/ˈfɛrnveː/', pos: 'noun', def: 'German: a deep ache or longing for far-off places one has yet to visit.', ex: 'The maps pinned across his wall only deepened his restless fernweh.' },
+  { word: 'pellucid', pron: '/pɪˈluːsɪd/', pos: 'adjective', def: 'Transparently clear in style or meaning; easy to understand.', ex: 'The essay was admired for its pellucid, unhurried prose.' },
+  { word: 'redolent', pron: '/ˈrɛdələnt/', pos: 'adjective', def: 'Strongly reminiscent or suggestive of something; fragrant or sweet-smelling.', ex: 'The kitchen was redolent of cinnamon and slow-roasting apples.' },
+  { word: 'lissome', pron: '/ˈlɪsəm/', pos: 'adjective', def: 'Thin, supple, and graceful in movement.', ex: 'The dancer crossed the stage with a lissome, almost weightless grace.' },
+  { word: 'ethereal', pron: '/ɪˈθɪəriəl/', pos: 'adjective', def: 'Extremely delicate and light, seemingly too perfect for this world.', ex: 'Morning fog gave the bridge an ethereal, half-there quality.' },
+  { word: 'cynosure', pron: '/ˈsɪnəzjʊər/', pos: 'noun', def: 'A person or thing that is the centre of attention or admiration.', ex: 'In her emerald gown, she was the cynosure of every eye at the reception.' },
+  { word: 'denouement', pron: '/deɪˈnuːmɒ̃/', pos: 'noun', def: 'The final part of a story in which strands are drawn together and resolved.', ex: 'The novel’s quiet denouement tied each loose thread with unexpected care.' },
+  { word: 'sempiternal', pron: '/ˌsɛmpɪˈtɜːnl/', pos: 'adjective', def: 'Eternal and unchanging; everlasting.', ex: 'The monks kept a sempiternal flame burning in the chapel.' },
+  { word: 'oneiric', pron: '/əˈnaɪrɪk/', pos: 'adjective', def: 'Relating to dreams or dreaming; having a dreamlike quality.', ex: 'The film unfolded with the drifting logic of an oneiric dream.' },
+  { word: 'tarantism', pron: '/ˈtærəntɪzəm/', pos: 'noun', def: 'An uncontrollable urge to dance, historically thought caused by a spider’s bite.', ex: 'The bright reel struck the crowd with a kind of joyful tarantism.' },
+  { word: 'syzygy', pron: '/ˈsɪzɪdʒi/', pos: 'noun', def: 'An alignment of three celestial bodies in a straight line, as in an eclipse.', ex: 'Astronomers gathered to watch the rare syzygy unfold across the night sky.' },
+  { word: 'ebullient', pron: '/ɪˈbʌliənt/', pos: 'adjective', def: 'Cheerful and full of energy; overflowing with excitement.', ex: 'The team returned ebullient after the last-minute victory.' },
+  { word: 'scintilla', pron: '/sɪnˈtɪlə/', pos: 'noun', def: 'A tiny trace or spark of a specified quality or feeling.', ex: 'There wasn’t a scintilla of doubt in her steady voice.' },
 ];
 
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
@@ -176,6 +176,11 @@ export default {
       .dly-pos { font-style:italic; font-size:13.5px; color:var(--ink-soft); }
       .dly-def { margin-top:7px; font-size:15px; line-height:1.38; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      /* example usage — a quiet italic line that shows the word living in a sentence.
+         The word itself is emphasised in mint so the eye finds it at a glance. */
+      .dly-ex { margin-top:6px; font-style:italic; font-size:13px; line-height:1.34; color:var(--ink-soft);
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-ex b { font-style:italic; font-weight:600; color:var(--mint); }
 
       /* ON THIS DAY (falls back to a plain fact when offline) */
       .dly-fact { font-size:15px; line-height:1.38; color:var(--ink);
@@ -183,9 +188,10 @@ export default {
       .dly-fact .yr { font-family:var(--font-display); font-weight:700; color:var(--mint);
         margin-right:8px; letter-spacing:.01em; }
 
-      /* QUOTE */
-      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:17px; line-height:1.36;
-        color:var(--ink); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+      /* QUOTE — clamped to 2 lines so a long live quote can never push the
+         attribution past the card's bottom edge (the section is last in the column). */
+      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:16px; line-height:1.34;
+        color:var(--ink); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .dly-auth { margin-top:7px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
         color:var(--mint); letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     `);
@@ -195,14 +201,30 @@ export default {
     const pronEl = h('span', { class: 'dly-pron' });
     const posEl = h('span', { class: 'dly-pos' });
     const defEl = h('div', { class: 'dly-def' });
+    const exEl = h('div', { class: 'dly-ex' });
     const wordSec = h('div', { class: 'dly-sec' },
       h('div', { class: 'dly-lbl' }, 'Word of the Day'),
       wordEl,
       h('div', { class: 'dly-wmeta' }, pronEl, posEl),
-      defEl);
+      defEl, exEl);
+    // Render the example with the headword emphasised in mint, matching case-
+    // insensitively so inflected forms still highlight. Falls back to plain text.
+    const applyExample = (w) => {
+      exEl.title = w.ex || '';
+      if (!w.ex) { exEl.replaceChildren(); return; }
+      const stem = w.word.slice(0, Math.max(4, w.word.length - 2));
+      const re = new RegExp(`(${stem}[\\w’']*)`, 'i');
+      const m = re.exec(w.ex);
+      if (!m) { exEl.textContent = w.ex; return; }
+      exEl.replaceChildren(
+        w.ex.slice(0, m.index),
+        h('b', {}, m[0]),
+        w.ex.slice(m.index + m[0].length));
+    };
     const applyWord = (w) => {
       wordEl.textContent = w.word; wordEl.title = w.word;
       pronEl.textContent = w.pron; posEl.textContent = w.pos; defEl.textContent = w.def;
+      applyExample(w);
     };
     applyWord(pickByDay(WORDS));
 
