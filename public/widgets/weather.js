@@ -10,6 +10,10 @@ const WMO = (c) => c === 0 ? ['Clear', 'clear-day'] : (c <= 2) ? ['Partly cloudy
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
+// Meteorological wind direction (degrees the wind blows FROM) → 8-point cardinal.
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const windCardinal = (deg) => Number.isFinite(deg) ? COMPASS[Math.round(deg / 45) % 8] : null;
+
 // UV index → [label, color]. Standard WHO bands; color-coded so the risk reads
 // at a glance from across the room. Night-time UV is 0 → "Low", which is correct.
 const uvBand = (u) => u == null ? ['—', 'var(--ink-faint)']
@@ -62,7 +66,13 @@ export default {
       .wx-stat { flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
         padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
       .wx-stat .k { font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap; }
-      .wx-stat .v { font-family:var(--font-display); font-size:15.5px; font-weight:600; color:var(--ink); line-height:1.05; white-space:nowrap; }
+      .wx-stat .v { font-family:var(--font-display); font-size:15.5px; font-weight:600; color:var(--ink); line-height:1.05;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:baseline; gap:3px; }
+      /* wind arrow — points the way the wind blows; static rotation, no animation */
+      .wx-stat .wx-wdir { display:inline-block; font-size:14px; line-height:1; color:var(--mint);
+        transform-origin:center; flex:none; }
+      .wx-stat .wx-wu { font-size:11px; font-weight:600; color:var(--ink-faint); letter-spacing:.02em;
+        overflow:hidden; text-overflow:ellipsis; }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
@@ -89,7 +99,7 @@ export default {
 
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m`
+        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m`
         + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
@@ -105,6 +115,11 @@ export default {
         const feels = Math.round(cur.apparent_temperature);
         const hum = Math.round(cur.relative_humidity_2m);
         const wind = Math.round(cur.wind_speed_10m);
+        // Wind direction: an arrow pointing the way the wind BLOWS (from-dir + 180°),
+        // labelled with the cardinal it comes from. Rotation is a one-shot static
+        // transform — no animation, free to render.
+        const windDir = cur.wind_direction_10m;
+        const windCard = windCardinal(windDir);
         const sunrise = fmtClock(d.daily.sunrise?.[0]);
         const sunset = fmtClock(d.daily.sunset?.[0]);
 
@@ -205,7 +220,16 @@ export default {
               ctx.h('div', { class: 'v' }, `${hum}%`)),
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Wind'),
-              ctx.h('div', { class: 'v' }, `${wind} mph`))),
+              ctx.h('div', {
+                class: 'v',
+                title: windCard ? `From the ${windCard} · ${wind} mph` : `${wind} mph`,
+              },
+                windCard ? ctx.h('span', {
+                  class: 'wx-wdir',
+                  style: { transform: `rotate(${windDir + 180}deg)` },
+                }, '↑') : null,
+                `${wind}`,
+                ctx.h('span', { class: 'wx-wu' }, windCard ? ` mph ${windCard}` : ' mph')))),
           ctx.h('div', { class: 'wx-tl' },
             plot,
             ctx.h('div', { class: 'wx-axis' }, ...axis))));
