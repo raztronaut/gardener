@@ -1,13 +1,15 @@
 // Air Quality — a compact square tile: the US AQI reading, its category, and PM2.5.
 // Keyless Open-Meteo air-quality API (through the proxy). Sized 'sq' (quarter-width
 // square) so two small tiles fit where one half-width card used to.
+// Each band carries a short, plain-English health cue — genuinely useful on an
+// ambient wall during SF's summer/fall wildfire-smoke spells, not just a number.
 const CATS = [
-  { max: 50, short: 'Good', color: '#74f7b0' },
-  { max: 100, short: 'Moderate', color: '#f7d774' },
-  { max: 150, short: 'Sensitive', color: '#f7a374' },
-  { max: 200, short: 'Unhealthy', color: '#f77474' },
-  { max: 300, short: 'Very bad', color: '#c074f7' },
-  { max: Infinity, short: 'Hazardous', color: '#f74a74' },
+  { max: 50, short: 'Good', color: '#74f7b0', tip: 'Fresh air — enjoy the outdoors' },
+  { max: 100, short: 'Moderate', color: '#f7d774', tip: 'Fine for most; sensitive folks take note' },
+  { max: 150, short: 'Sensitive', color: '#f7a374', tip: 'Sensitive groups should ease up outside' },
+  { max: 200, short: 'Unhealthy', color: '#f77474', tip: 'Limit prolonged time outdoors' },
+  { max: 300, short: 'Very bad', color: '#c074f7', tip: 'Avoid outdoor exertion' },
+  { max: Infinity, short: 'Hazardous', color: '#f74a74', tip: 'Stay indoors; keep windows shut' },
 ];
 const aqiCat = (v) => CATS.find((c) => v <= c.max) || CATS[CATS.length - 1];
 
@@ -52,6 +54,10 @@ export default {
         color:var(--ink-faint); text-transform:lowercase; }
       .aqs .cat { font-size:14px; font-weight:700; color:var(--aqs-c, var(--ink)); line-height:1;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      /* quiet health cue under the category — clamped to 2 lines so it never
+         pushes the scale/PM rows out of the small square tile. */
+      .aqs .tip { font-size:11px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* static gradient AQI scale (0→300+) with a marker showing today's position —
          a glanceable sense of how close we are to unhealthy. No animation. */
       .aqs .scale { position:relative; height:6px; border-radius:3px; margin:3px 0 2px;
@@ -97,6 +103,7 @@ export default {
         body.replaceChildren(
           numrow,
           h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short),
+          h('div', { class: 'tip', title: cat.tip }, cat.tip),
           h('div', { class: 'scale', title: 'AQI 0–300+ scale' },
             h('div', { class: 'mark', style: { left: `${pos}%` } })),
           h('div', { class: 'pm' }, pm == null ? 'PM2.5 —' : `PM2.5 ${pm.toFixed(1)}`));
