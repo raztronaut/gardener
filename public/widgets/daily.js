@@ -256,10 +256,10 @@ export default {
         .filter((e) => e && e.text && Number.isFinite(e.year))
         .sort((a, b) => b.year - a.year); // newest → oldest
       if (valid.length === 0) throw new Error('no events');
-      // Deterministic pick by day-of-year — stable across refreshes within a day,
-      // and ranges across the whole list (not just the most recent decades).
-      const e = valid[dayOfYear() % valid.length];
-      return { year: e.year, text: e.text.toString().trim() };
+      // Return the WHOLE list (newest→oldest) so the widget can rotate gently
+      // through today's history over the course of the day, rather than fixing
+      // on a single moment.
+      return valid.map((e) => ({ year: e.year, text: e.text.toString().trim() }));
     };
     const fetchQuote = async () => {
       const d = await ctx.fetchJSON('https://zenquotes.io/api/today');
@@ -272,14 +272,34 @@ export default {
 
     // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.
     const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.textContent = text; };
-    // Live historical moment: a mint year accent followed by the event text, under
-    // the "On This Day" label. Tracks that we have a good live render.
+
+    // Live historical moments: we hold the whole "on this day" list and rotate
+    // through it over the day, so a glance at the wall lands on a different moment
+    // each half-hour rather than the same fixed event. otdLive tracks that we have
+    // a good live render; otdDateKey lets us keep our rotation position when the
+    // network refresh returns the SAME date, and reset only when the day rolls over.
+    let otdEvents = [];
+    let otdIdx = 0;
+    let otdDateKey = '';
     let otdLive = false;
-    const applyOnThisDay = ({ year, text }) => {
+    const renderOnThisDay = () => {
+      if (!otdEvents.length) return;
+      const n = otdEvents.length;
+      const { year, text } = otdEvents[((otdIdx % n) + n) % n];
       otdLbl.textContent = 'On This Day';
       factEl.replaceChildren(h('span', { class: 'yr' }, fmtYear(year)), text);
       factEl.title = `${fmtYear(year)} — ${text}`;
       otdLive = true;
+    };
+    // Install a freshly fetched list. On a new date (or first load), seed the
+    // rotation deterministically by day-of-year; on the same date, preserve where
+    // the rotation currently sits so a background refresh doesn't jump the reader.
+    const loadOnThisDay = (list) => {
+      const now = new Date();
+      const key = `${now.getMonth() + 1}-${now.getDate()}`;
+      if (key !== otdDateKey) { otdDateKey = key; otdIdx = dayOfYear() % list.length; }
+      otdEvents = list;
+      renderOnThisDay();
     };
     const applyQuote = applyQuoteObj;
 
@@ -292,26 +312,34 @@ export default {
       // give up — embedded fallback already on screen
     };
     // Don't let one slow section block the other.
-    tryLoad(fetchOnThisDay, applyOnThisDay);
+    tryLoad(fetchOnThisDay, loadOnThisDay);
     tryLoad(fetchQuote, applyQuote);
 
     // Periodic refresh (every 30 min, so content rolls over at midnight):
     //   - re-pick the OFFLINE word so it always reflects the current day;
     //   - re-pick the embedded fact/quote first (covers a day-change while offline),
     //     then try the network and upgrade in place only if it succeeds (keeps the
-    //     last good render on failure — network calls never blank the section).
+    //     last good render on failure — network calls never blank the section);
+    //   - ADVANCE the "On This Day" rotation so each half-hour surfaces a fresh
+    //     moment from today's date (works offline once the list is loaded).
     let firstTick = true;
     ctx.interval(() => {
       // ctx.interval fires immediately; the initial network load is handled by
       // tryLoad above (with retry backoff), so skip the network on this first tick.
       if (firstTick) { firstTick = false; return; }
       applyWord(pickByDay(WORDS));
-      // Only reset the middle section to an embedded fact if we don't yet have a
-      // live "On This Day" — otherwise keep the last good historical moment and let
-      // the network call below refresh it (covers the midnight day-change in place).
-      if (!otdLive) applyFact(pickByDay(FACTS));
+      if (otdLive && otdEvents.length) {
+        // Step to the next historical moment we already hold — no network needed.
+        otdIdx += 1;
+        renderOnThisDay();
+      } else {
+        // Still offline for history — keep a rolling embedded fact on screen.
+        applyFact(pickByDay(FACTS));
+      }
       applyQuote(pickByDay(QUOTES));
-      fetchOnThisDay().then(applyOnThisDay).catch(() => {});
+      // Refresh the list from the network (covers the midnight day-change in place);
+      // loadOnThisDay preserves the rotation position within the same day.
+      fetchOnThisDay().then(loadOnThisDay).catch(() => {});
       fetchQuote().then(applyQuote).catch(() => {});
     }, 30 * 60 * 1000);
   },
