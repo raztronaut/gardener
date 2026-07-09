@@ -2,11 +2,22 @@
 // timeline, via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
 // [label, icon-slug] — slugs map to self-hosted animated Meteocons SVGs in
 // public/assets/weather/ (clouds drift, the sun slowly radiates; transparent).
+// Clear & partly-cloudy skies also have calm, static star-lit night faces that are
+// used after dark (see nightSlug + Open-Meteo's is_day flag).
 const WMO = (c) => c === 0 ? ['Clear', 'clear-day'] : (c <= 2) ? ['Partly cloudy', 'partly-cloudy-day'] : c === 3 ? ['Overcast', 'overcast']
   : (c >= 45 && c <= 48) ? ['Fog', 'fog'] : (c >= 51 && c <= 57) ? ['Drizzle', 'drizzle']
   : (c >= 61 && c <= 67) ? ['Rain', 'rain'] : (c >= 71 && c <= 77) ? ['Snow', 'snow']
   : (c >= 80 && c <= 82) ? ['Showers', 'rain'] : (c >= 85 && c <= 86) ? ['Snow', 'snow']
   : (c >= 95) ? ['Storm', 'thunderstorms'] : ['—', 'thermometer'];
+
+// Day/night-aware icon: a radiating sun at 10pm looks wrong on an evening wall.
+// Open-Meteo's is_day flag (1 day / 0 night) lets clear & partly-cloudy skies swap
+// to calm star-lit night glyphs; every other condition looks the same after dark,
+// so it keeps its single icon. Unknown/undefined is_day defaults to the day icon.
+const nightSlug = (slug, isDay) => isDay !== 0 ? slug
+  : slug === 'clear-day' ? 'clear-night'
+  : slug === 'partly-cloudy-day' ? 'partly-cloudy-night'
+  : slug;
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
@@ -99,15 +110,17 @@ export default {
 
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max`
+        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
       const refresh = async () => {
         const d = await ctx.fetchJSON(url);
         const cur = d.current;
-        const [cond, iconSlug] = WMO(cur.weather_code);
+        const [cond, baseSlug] = WMO(cur.weather_code);
+        // Now: pick the day or night face of the current condition.
+        const iconSlug = nightSlug(baseSlug, cur.is_day);
         const wxIcon = (slug, px) => ctx.h('img', { class: 'wx-icon', src: `/assets/weather/${slug}.svg`, width: px, height: px, alt: '' });
         const tF = Math.round(cur.temperature_2m);
         const hi = Math.round(d.daily.temperature_2m_max[0]);
@@ -150,7 +163,7 @@ export default {
           const hr = new Date(d.hourly.time[j]).getHours();
           const popRaw = d.hourly.precipitation_probability?.[j];
           const pop = Number.isFinite(popRaw) ? popRaw : null;
-          pts.push({ t, code: d.hourly.weather_code[j], hr, pop, first: i === 0 });
+          pts.push({ t, code: d.hourly.weather_code[j], hr, pop, first: i === 0, isDay: d.hourly.is_day?.[j] });
         }
         const temps = pts.map((p) => p.t);
         const tMin = Math.min(...temps), tMax = Math.max(...temps);
@@ -180,7 +193,7 @@ export default {
         }, ctx.h('div', { class: 'tv' }, `${p.t}°`), ctx.h('div', { class: 'dot' })));
 
         const axis = pts.map((p) => {
-          const [, slug] = WMO(p.code);
+          const slug = nightSlug(WMO(p.code)[1], p.isDay);
           const label = p.first ? 'now' : `${((p.hr + 11) % 12) + 1}${p.hr < 12 ? 'a' : 'p'}`;
           // Show rain chance only when it's worth a glance (>=25%); otherwise the
           // line stays in the layout but invisible, so the row never shifts.
