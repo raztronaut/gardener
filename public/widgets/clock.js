@@ -5,7 +5,8 @@
 // single, unmissable trash-night warning.)
 
 // Northern-hemisphere season for a given calendar date, plus which day of that
-// season it is — an ambient touch that grounds the wall in the turn of the year.
+// season it is AND a gentle countdown to the next turn of the year — an ambient
+// touch that grounds the wall in the seasons.
 // Boundaries use the usual astronomical dates (good enough for a quiet label).
 const SEASONS = [
   { name: 'Winter', icon: '❄️', m: 12, d: 21 },
@@ -15,16 +16,23 @@ const SEASONS = [
 ];
 function seasonInfo(y, m, d) {
   const key = m * 100 + d;
-  // Find the season whose start is the most recent one on/before today.
-  let s, startY = y;
-  if (key >= 1221 || key < 320) { s = SEASONS[0]; if (key < 320) startY = y - 1; }
-  else if (key < 621) s = SEASONS[1];
-  else if (key < 922) s = SEASONS[2];
-  else s = SEASONS[3];
+  // Find the season whose start is the most recent one on/before today, and the
+  // index of the one that follows it (wrapping around the year).
+  let i, startY = y;
+  if (key >= 1221 || key < 320) { i = 0; if (key < 320) startY = y - 1; }
+  else if (key < 621) i = 1;
+  else if (key < 922) i = 2;
+  else i = 3;
+  const s = SEASONS[i];
+  const next = SEASONS[(i + 1) % SEASONS.length];
+  // The next season starts in this year, except winter→spring wraps to next year.
+  const nextY = next.m > s.m ? startY : startY + 1;
   const startUTC = Date.UTC(startY, s.m - 1, s.d);
+  const nextUTC = Date.UTC(nextY, next.m - 1, next.d);
   const todayUTC = Date.UTC(y, m - 1, d);
   const day = Math.floor((todayUTC - startUTC) / 864e5) + 1;
-  return { name: s.name, icon: s.icon, day };
+  const toNext = Math.round((nextUTC - todayUTC) / 864e5);
+  return { name: s.name, icon: s.icon, day, toNext, nextName: next.name, nextIcon: next.icon };
 }
 
 export default {
@@ -46,6 +54,8 @@ export default {
         font-family:var(--font-mono); font-size:12.5px; letter-spacing:.04em; color:var(--ink-faint); }
       .clk .season .ic { font-size:15px; line-height:1; }
       .clk .season b { color:var(--ink-soft); font-weight:600; letter-spacing:.02em; }
+      /* countdown to the next turn of the year — a quiet mint clause */
+      .clk .season .to { color:var(--mint); }
       .clk .timerow { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
       .clk .time { font-family: var(--font-display); font-weight:600; letter-spacing:-.01em;
         font-size: 82px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
@@ -92,13 +102,21 @@ export default {
       // day (and therefore the "day N of season") actually changes.
       const [yy, mm, dd] = fmtYMD.format(now).split('-').map((n) => parseInt(n, 10));
       const s = seasonInfo(yy, mm, dd);
-      const sKey = `${s.name}|${s.day}`;
+      const sKey = `${s.name}|${s.day}|${s.toNext}`;
       if (sKey !== lastS) {
         lastS = sKey;
+        // The nearer the turn, the more the countdown earns its place; far from it
+        // we keep the calmer "day N" reading. Within a fortnight it becomes the
+        // headline so the season's change feels anticipated.
+        const soon = s.toNext <= 14;
+        const toLabel = `${s.toNext}d to ${s.nextName.toLowerCase()} ${s.nextIcon}`;
         season.replaceChildren(
           ctx.h('span', { class: 'ic' }, s.icon),
           ctx.h('b', {}, s.name),
-          ctx.h('span', {}, `· day ${s.day}`));
+          soon
+            ? ctx.h('span', { class: 'to' }, `· ${toLabel}`)
+            : ctx.h('span', {}, `· day ${s.day} · `,
+                ctx.h('span', { class: 'to' }, toLabel)));
       }
     };
     ctx.interval(tick, 10000);

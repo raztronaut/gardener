@@ -164,6 +164,14 @@ async function loadWidgets(enabled, mountPoint) {
       }
     })());
   });
+  // Every widget card is now in the DOM (each showing its own loading→data/error
+  // state), so the garden is STRUCTURALLY ready. Publish the contract markers here
+  // — before awaiting the data-fetching mounts — so a slow/stalled external API
+  // fetch can't push readiness past the headless render budget. The fetches keep
+  // resolving in the background; boot()'s finally re-affirms these same markers.
+  document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
+  document.documentElement.dataset.gardenerReady = 'true';
+  document.documentElement.dataset.gardenerBoot = 'ready';
   await Promise.all(mounts);
 }
 
