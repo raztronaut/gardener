@@ -623,6 +623,15 @@ export function googleBusyCount(userId, sinceMs = Date.now()) { return _googleCo
 // Every member's blocks overlapping [fromMs, toMs] (for the free-window calc).
 const _busyInWindow = db.prepare('SELECT user_id, start_ms, end_ms, source FROM house_busy WHERE end_ms >= ? AND start_ms <= ?');
 export function busyBlocksInWindow(fromMs, toMs) { return _busyInWindow.all(fromMs, toMs); }
+// Which members have a calendar CONNECTION right now — i.e. any busy row (google
+// OR manual) that hasn't fully ended yet. This is deliberately independent of the
+// short free-window scan: a member who synced Google but happens to be free for
+// the next few days is still "connected" (they just have no upcoming busy time),
+// so the wall widget shows their availability instead of "sync a calendar".
+const _connectedMembers = db.prepare('SELECT DISTINCT user_id FROM house_busy WHERE end_ms >= ?');
+export function connectedMemberIds(sinceMs = Date.now()) {
+  return new Set(_connectedMembers.all(sinceMs).map((r) => r.user_id));
+}
 // Prune busy blocks that ended before `beforeMs` (housekeeping; not exposed).
 const _pruneBusy = db.prepare('DELETE FROM house_busy WHERE end_ms < ?');
 export function pruneBusyBlocks(beforeMs) { return _pruneBusy.run(beforeMs).changes; }

@@ -42,7 +42,8 @@ def _atomic_jpg(src_tmp):
     os.replace(src_tmp, bc.LATEST_JPG)
 
 
-MAX_CLIPS = int(os.environ.get("GARDENER_BLINK_KEEP", "60"))  # motion clips to retain
+MAX_CLIPS = int(os.environ.get("GARDENER_BLINK_KEEP", "400"))  # hard disk backstop (count)
+MAX_AGE_DAYS = int(os.environ.get("GARDENER_BLINK_KEEP_DAYS", "30"))  # retain motion for 30 days
 
 
 def _safe_stamp(s):
@@ -66,9 +67,28 @@ def _save_motion_index(idx):
 
 
 def _prune_motion(idx):
-    """Keep only the newest MAX_CLIPS events; delete the rest off disk."""
+    """Retain motion events for MAX_AGE_DAYS (default 30); delete older ones off
+    disk. MAX_CLIPS is a hard count backstop so a busy camera can't fill the disk.
+    Events dropped by either rule have their files removed."""
     idx.sort(key=lambda e: e.get("ts", ""), reverse=True)
-    for old in idx[MAX_CLIPS:]:
+
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=MAX_AGE_DAYS)
+    keep, drop = [], []
+    for i, e in enumerate(idx):
+        too_old = False
+        ts = e.get("ts")
+        if ts:
+            try:
+                when = datetime.datetime.fromisoformat(ts)
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=datetime.timezone.utc)
+                too_old = when < cutoff
+            except ValueError:
+                too_old = False
+        # keep if within the age window AND within the count backstop
+        (drop if (too_old or i >= MAX_CLIPS) else keep).append(e)
+
+    for old in drop:
         for k in ("file", "thumb"):
             p = old.get(k)
             if p:
@@ -76,7 +96,7 @@ def _prune_motion(idx):
                     os.remove(os.path.join(bc.MOTION_DIR, os.path.basename(p)))
                 except OSError:
                     pass
-    return idx[:MAX_CLIPS]
+    return keep
 
 
 async def _archive_clip(camera, clip_meta):

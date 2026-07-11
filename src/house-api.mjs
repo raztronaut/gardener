@@ -15,7 +15,7 @@ import {
   activeHouseSessions, latestHouseSessionByEmail, listHouseUsersWithActivity,
   renameHouseUser, setHouseUserAvatar, setHouseUserAvatarFile, googlePictureByUser,
   addBusyBlock, deleteBusyBlock, busyBlocksForUser, busyBlocksInWindow,
-  replaceGoogleBusy, clearGoogleBusy,
+  connectedMemberIds, replaceGoogleBusy, clearGoogleBusy,
 } from './db.mjs';
 import { config, paths } from './config.mjs';
 import { getVapidPublicKey, sendToAll } from './push.mjs';
@@ -181,9 +181,15 @@ async function houseCalendar(log = () => {}) {
     busyByUser.set(u.id, mergeIntervals(blocksByUser.get(u.id) || []));
   }
 
+  // "Connected" = the member has a live calendar connection (any busy row, google
+  // or manual, that hasn't fully ended) — NOT merely "has busy time in the next
+  // few days". A member who synced Google but is free for the whole scan window is
+  // still connected; the widget then shows them as free instead of "sync a
+  // calendar". This looks across the full stored horizon, not just the scan days.
+  const connectedIds = connectedMemberIds(now);
   const members = users.map((u) => {
     const gp = pics.get(u.id) || null;
-    const connected = (blocksByUser.get(u.id) || []).length > 0;
+    const connected = connectedIds.has(u.id);
     return { id: String(u.id), name: u.name, avatarUrl: avatarUrlFor(u, gp), connected };
   });
   const totalCount = members.length;

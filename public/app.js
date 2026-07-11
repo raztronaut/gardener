@@ -355,7 +355,9 @@ function closePanel() {
     return;
   }
   p.classList.remove('open'); p.setAttribute('aria-hidden', 'true');
-  focusInput();
+  // In keyboard selection mode, closing a panel returns to the widget highlight
+  // (staying in selection mode) rather than jumping back to the writing console.
+  if (selectMode) setFocus(focusIdx < 0 ? 0 : focusIdx); else focusInput();
 }
 function fmtWhen(ms) { try { return ms ? new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''; } catch { return ''; } }
 
@@ -1088,7 +1090,7 @@ function saveEdit(slot, value, msg) {
 // The right stick walks a highlight across the widgets; A (or stick-click)
 // opens the highlighted widget as a fullscreen panel. HN and events open their
 // rich panels; everything else re-mounts the same widget module at panel size.
-let focusIdx = -1, focusClearT = 0;
+let focusIdx = -1, focusClearT = 0, selectMode = false;
 function focusCards() { return [...document.querySelectorAll('#garden > .card[data-wid]')]; }
 function setFocus(i) {
   const cards = focusCards();
@@ -1096,12 +1098,32 @@ function setFocus(i) {
   focusIdx = Math.max(-1, Math.min(cards.length - 1, i));
   cards.forEach((c, k) => c.classList.toggle('focused', k === focusIdx));
   clearTimeout(focusClearT);
-  if (focusIdx >= 0) focusClearT = setTimeout(() => setFocus(-1), 14000); // fade after idle
+  // In keyboard selection mode the highlight stays put; the right-stick highlight
+  // still fades on its own after idle.
+  if (focusIdx >= 0 && !selectMode) focusClearT = setTimeout(() => setFocus(-1), 14000);
 }
 function moveFocus(delta) {
   if (panelOpen() || paletteOpen()) return;
   setFocus(focusIdx < 0 ? 0 : focusIdx + delta);
 }
+// ---- keyboard selection mode (Esc at the top level toggles it) ---------------
+// The wall is normally in "writing mode": type anywhere and it lands in the note
+// console. Pressing Esc when nothing is open flips into "selection mode": arrows
+// move a highlight across the widgets and Enter opens the focused one. Esc again
+// returns to writing mode. (Esc still backs out of any open panel first.)
+function enterSelectMode() {
+  selectMode = true;
+  document.getElementById('feedbackInput')?.blur();
+  setFocus(focusIdx < 0 ? 0 : focusIdx);
+  toast('Selection mode · arrows move · Enter opens · Esc to write');
+}
+function exitSelectMode() {
+  selectMode = false;
+  setFocus(-1);
+  focusInput();
+  toast('Writing mode · type a note · Esc to select');
+}
+function toggleSelectMode() { selectMode ? exitSelectMode() : enterSelectMode(); }
 function openFocusedWidget() {
   const card = focusCards()[focusIdx];
   if (!card) return false;
@@ -1480,7 +1502,15 @@ function wireFeedback() {
   // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
     if (mdEl) return; // markdown editor open → its textarea owns the keyboard
-    if (e.key === 'Escape') { if (panelOpen()) { e.preventDefault(); closePanel(); } return; }
+    // Esc backs out of an open panel first; once nothing is open it toggles
+    // between writing mode (the note console) and keyboard selection mode.
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (panelOpen()) { closePanel(); return; }
+      if (paletteOpen()) { hidePalette(); return; }
+      toggleSelectMode();
+      return;
+    }
     if (window.__GARDEN_GAME) return; // a running game handles its own keys
     // Cmd/Ctrl + ↑ expands the command line into a full markdown editor.
     if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp' && !panelOpen()) { e.preventDefault(); openMdEditor(); return; }
@@ -1497,6 +1527,15 @@ function wireFeedback() {
       const moves = { ArrowDown: 64, ArrowUp: -64, PageDown: page, PageUp: -page,
         Home: -1e9, End: 1e9, ' ': page };
       if (e.key in moves) { e.preventDefault(); panelScrollBy(moves[e.key]); }
+      return;
+    }
+    // Dashboard selection mode: arrows walk the widget highlight, Enter opens it.
+    if (selectMode) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); moveFocus(1); return; }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); moveFocus(-1); return; }
+      if (e.key === 'Enter') { e.preventDefault(); openFocusedWidget(); return; }
+      // Any printable key drops back to writing mode and starts the note.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) { exitSelectMode(); return; }
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1523,8 +1562,9 @@ function wireFeedback() {
   }, true);
   // Refocus if the field ever loses focus (kiosk: always ready to type).
   input.addEventListener('blur', () => setTimeout(() => {
-    // Don't steal focus back while a panel/editor is open or a hand-pruning edit is active.
-    if (!panelOpen() && !mdEl && !(document.activeElement && document.activeElement.isContentEditable)) focusInput();
+    // Don't steal focus back while a panel/editor is open, a hand-pruning edit is
+    // active, or the wall is in keyboard selection mode.
+    if (!panelOpen() && !mdEl && !selectMode && !(document.activeElement && document.activeElement.isContentEditable)) focusInput();
   }, 0));
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
   document.getElementById('panelClose')?.addEventListener('click', closePanel);

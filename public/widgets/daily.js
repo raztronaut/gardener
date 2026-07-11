@@ -151,49 +151,63 @@ export default {
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
-      /* Three sections distributed evenly down the tall card. Sections size to their
-         OWN content (no rigid equal thirds) and the slack is shared as even gaps, so
-         the word never floats in a half-empty box and nothing is squeezed. */
+      /* Three sections split the tall card into FIXED, non-overlapping regions
+         (flex thirds). Because a 'tall' card's height is coupled to the grid, it
+         can shrink in production; equal regions + per-region overflow:hidden mean
+         each block always ends in a clean ellipsis WITHIN its own region rather
+         than being cut at the card's bottom edge. Content is vertically centred so
+         the leftover slack reads as balanced breathing room, not an empty gap. */
       .dly { display:flex; flex-direction:column; height:100%; min-height:0;
-        justify-content:space-between; gap:10px; animation:dlyfade .6s ease-out both; }
+        animation:dlyfade .6s ease-out both; }
       @keyframes dlyfade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
       @media (prefers-reduced-motion: reduce) { .dly { animation:none; } }
-      .dly-sec { display:flex; flex-direction:column; min-height:0; padding:11px 0; }
+      .dly-sec { display:flex; flex-direction:column; justify-content:center;
+        min-height:0; overflow:hidden; padding:8px 0; }
+      /* basis:auto → each region is sized by its own content (so the card keeps
+         its generous 'tall' height and stays full); grow shares any extra space,
+         shrink lets a region give way gracefully if the grid ever forces the card
+         shorter — clamping within its region instead of at the card's edge. */
+      .dly-word-sec { flex:1.15 1 auto; }
+      .dly-fact-sec { flex:1 1 auto; }
+      .dly-quote-sec { flex:1 1 auto; }
       .dly-sec + .dly-sec { border-top:1px solid var(--stroke); }
-      .dly-sec:first-child { padding-top:0; }
-      .dly-sec:last-child { padding-bottom:0; }
       .dly-lbl { font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.2em;
-        text-transform:uppercase; color:var(--ink-faint); margin-bottom:7px; }
+        text-transform:uppercase; color:var(--ink-faint); margin-bottom:6px; flex:none; }
 
-      /* WORD — the hero. Wraps to a 2nd line for long entries (no more ellipsis cut-off). */
-      .dly-word { font-family:var(--font-display); font-weight:600; font-size:28px; line-height:1.12;
-        padding:2px 0; color:var(--mint);
+      /* WORD — the hero. Wraps to a 2nd line for long entries, then ellipsizes. */
+      .dly-word { font-family:var(--font-display); font-weight:600; font-size:26px; line-height:1.1;
+        color:var(--mint);
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text;
         background-clip:text; -webkit-text-fill-color:transparent;
-        overflow-wrap:break-word; word-break:break-word; }
-      .dly-wmeta { margin-top:7px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
-      .dly-pron { font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
-      .dly-pos { font-style:italic; font-size:13.5px; color:var(--ink-soft); }
-      .dly-def { margin-top:7px; font-size:15px; line-height:1.38; color:var(--ink);
+        overflow-wrap:break-word; word-break:break-word;
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-wmeta { margin-top:5px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; flex:none; }
+      .dly-pron { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); }
+      .dly-pos { font-style:italic; font-size:13px; color:var(--ink-soft); }
+      .dly-def { margin-top:6px; font-size:14px; line-height:1.34; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* example usage — a quiet italic line that shows the word living in a sentence.
          The word itself is emphasised in mint so the eye finds it at a glance. */
-      .dly-ex { margin-top:6px; font-style:italic; font-size:13px; line-height:1.34; color:var(--ink-soft);
-        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-ex { margin-top:5px; font-style:italic; font-size:12.5px; line-height:1.3; color:var(--ink-soft);
+        display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
       .dly-ex b { font-style:italic; font-weight:600; color:var(--mint); }
 
-      /* ON THIS DAY (falls back to a plain fact when offline) */
-      .dly-fact { font-size:15px; line-height:1.38; color:var(--ink);
-        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+      /* ON THIS DAY (falls back to a plain fact when offline). The text is the
+         flexible middle of its region and clamps with an ellipsis. */
+      .dly-fact { font-size:14px; line-height:1.36; color:var(--ink); min-height:0;
+        display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
       .dly-fact .yr { font-family:var(--font-display); font-weight:700; color:var(--mint);
         margin-right:8px; letter-spacing:.01em; }
 
-      /* QUOTE — clamped to 2 lines so a long live quote can never push the
-         attribution past the card's bottom edge (the section is last in the column). */
-      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:16px; line-height:1.34;
-        color:var(--ink); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .dly-auth { margin-top:7px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
-        color:var(--mint); letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      /* QUOTE — the quote clamps and the attribution is pinned as a fixed footer
+         inside this region (margin-top:auto), so it can never overlap the block
+         above nor slip past the card's bottom edge. */
+      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:15px; line-height:1.32;
+        color:var(--ink); min-height:0;
+        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
+        color:var(--mint); letter-spacing:.02em; flex:none;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     `);
 
     // ---- WORD: fully offline, never fails ------------------------------------
@@ -202,7 +216,7 @@ export default {
     const posEl = h('span', { class: 'dly-pos' });
     const defEl = h('div', { class: 'dly-def' });
     const exEl = h('div', { class: 'dly-ex' });
-    const wordSec = h('div', { class: 'dly-sec' },
+    const wordSec = h('div', { class: 'dly-sec dly-word-sec' },
       h('div', { class: 'dly-lbl' }, 'Word of the Day'),
       wordEl,
       h('div', { class: 'dly-wmeta' }, pronEl, posEl),
@@ -234,11 +248,11 @@ export default {
     // holds something rather than blanking.
     const otdLbl = h('div', { class: 'dly-lbl' }, 'Fact of the Day');
     const factEl = h('div', { class: 'dly-fact' }, pickByDay(FACTS));
-    const factSec = h('div', { class: 'dly-sec' }, otdLbl, factEl);
+    const factSec = h('div', { class: 'dly-sec dly-fact-sec' }, otdLbl, factEl);
 
     const quoteEl = h('div', { class: 'dly-quote' });
     const authEl = h('div', { class: 'dly-auth' });
-    const quoteSec = h('div', { class: 'dly-sec' },
+    const quoteSec = h('div', { class: 'dly-sec dly-quote-sec' },
       h('div', { class: 'dly-lbl' }, 'Quote of the Day'), quoteEl, authEl);
     const applyQuoteObj = ({ q, a }) => { quoteEl.textContent = `“${q}”`; authEl.textContent = `— ${a}`; };
     applyQuoteObj(pickByDay(QUOTES));

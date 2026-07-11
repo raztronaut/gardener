@@ -32,8 +32,8 @@
       "order": 5
     },
     {
-      "id": "house-cleaning",
-      "file": "house-cleaning.js",
+      "id": "motion-gallery",
+      "file": "motion-gallery.js",
       "enabled": true,
       "order": 6
     },

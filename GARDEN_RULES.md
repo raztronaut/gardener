@@ -16,6 +16,10 @@ every day, including quiet no-feedback days.
   moon phase) in any form. The humans removed it on request. (Removed 2026-06-14; logged
   here 2026-06-21 after finding the removal was never recorded. Note: the Weather widget's
   own sunrise/sunset line predates and is separate from this — it stays.)
+- **roots / house-cleaning wall widget** — do not add the "Roots" chore/leaderboard card
+  (public/widgets/house-cleaning.js) back to the wall grid. The humans asked to remove it.
+  IMPORTANT: keep the corner Roots QR code (#cornerqr in app.js) — that is NOT the widget and
+  stays. The Roots household app itself (public/house, house-api) is unaffected. (Removed 2026-07-11.)
 
 ## General standing rules
 - Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent
