@@ -60,6 +60,60 @@ const WORDS = [
   { word: 'scintilla', pron: '/sɪnˈtɪlə/', pos: 'noun', def: 'A tiny trace or spark of a specified quality or feeling.', ex: 'There wasn’t a scintilla of doubt in her steady voice.' },
 ];
 
+// ---- WORD ORIGINS — a quiet etymology for each word (offline, keyed by word).
+// Kept as a separate map so the WORDS list above is never touched: a missing
+// entry simply renders no origin line. Concise: language + literal roots.
+const ORIGINS = {
+  serendipity: 'coined 1754 · from “Serendip”',
+  petrichor: 'Greek petra “stone” + ichor',
+  ephemeral: 'Greek ephēmeros “lasting a day”',
+  sonder: 'modern coinage',
+  limerence: 'coined 1970s by D. Tennov',
+  mellifluous: 'Latin mel “honey” + fluere',
+  halcyon: 'Greek halkyōn “kingfisher”',
+  susurrus: 'Latin · “a whispering”',
+  apricity: 'Latin apricari “to bask”',
+  nepenthe: 'Greek · “banishing grief”',
+  eloquence: 'Latin eloqui “to speak out”',
+  quixotic: 'from Don Quixote, 1605',
+  sublime: 'Latin sublimis “lofty”',
+  ineffable: 'Latin · “unutterable”',
+  luminescence: 'Latin lumen “light”',
+  wanderlust: 'German · “desire to wander”',
+  effervescent: 'Latin · “to boil up”',
+  solitude: 'Latin solus “alone”',
+  aurora: 'Latin · Roman goddess of dawn',
+  reverie: 'Old French · “revelry”',
+  gossamer: 'Middle English “goose summer”',
+  incandescent: 'Latin · “to glow white”',
+  vellichor: 'modern coinage',
+  numinous: 'Latin numen “divine power”',
+  evanescent: 'Latin evanescere “to vanish”',
+  plethora: 'Greek plēthōrē “fullness”',
+  panacea: 'Greek · “all-healing”',
+  zephyr: 'Greek Zephyros, west wind',
+  felicity: 'Latin felicitas “happiness”',
+  verdant: 'Old French “becoming green”',
+  sanguine: 'Latin sanguis “blood”',
+  aplomb: 'French à plomb “plumb-straight”',
+  lagom: 'Swedish · “just enough”',
+  hiraeth: 'Welsh · longing for home',
+  meraki: 'Greek · to do with soul',
+  fernweh: 'German fern “far” + Weh “ache”',
+  pellucid: 'Latin pellucidus “transparent”',
+  redolent: 'Latin redolere “to give scent”',
+  lissome: 'variant of “lithesome”',
+  ethereal: 'Greek aithēr “upper air”',
+  cynosure: 'Greek “dog’s tail” · Pole Star',
+  denouement: 'French dénouer “to untie”',
+  sempiternal: 'Latin semper “always”',
+  oneiric: 'Greek oneiros “dream”',
+  tarantism: 'from Taranto, Italy',
+  syzygy: 'Greek · “yoked together”',
+  ebullient: 'Latin ebullire “to bubble”',
+  scintilla: 'Latin · “a spark”',
+};
+
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
 const FACTS = [
   'Honey never spoils — archaeologists have found 3,000-year-old jars in Egyptian tombs still perfectly edible.',
@@ -184,6 +238,13 @@ export default {
       .dly-wmeta { margin-top:5px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; flex:none; }
       .dly-pron { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); }
       .dly-pos { font-style:italic; font-size:13px; color:var(--ink-soft); }
+      /* etymology — a quiet mono caption beneath the word's pronunciation/part of
+         speech, telling where the word comes from. One line, ellipsised, so it can
+         never push the definition or example out of the region. */
+      .dly-orig { margin-top:3px; font-family:var(--font-mono); font-size:11.5px; line-height:1.2;
+        color:var(--ink-faint); letter-spacing:.01em; flex:none;
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+      .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
       .dly-def { margin-top:6px; font-size:14px; line-height:1.34; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* example usage — a quiet italic line that shows the word living in a sentence.
@@ -214,12 +275,14 @@ export default {
     const wordEl = h('div', { class: 'dly-word' });
     const pronEl = h('span', { class: 'dly-pron' });
     const posEl = h('span', { class: 'dly-pos' });
+    const origEl = h('div', { class: 'dly-orig' });
     const defEl = h('div', { class: 'dly-def' });
     const exEl = h('div', { class: 'dly-ex' });
     const wordSec = h('div', { class: 'dly-sec dly-word-sec' },
       h('div', { class: 'dly-lbl' }, 'Word of the Day'),
       wordEl,
       h('div', { class: 'dly-wmeta' }, pronEl, posEl),
+      origEl,
       defEl, exEl);
     // Render the example with the headword emphasised in mint, matching case-
     // insensitively so inflected forms still highlight. Falls back to plain text.
@@ -238,6 +301,17 @@ export default {
     const applyWord = (w) => {
       wordEl.textContent = w.word; wordEl.title = w.word;
       pronEl.textContent = w.pron; posEl.textContent = w.pos; defEl.textContent = w.def;
+      // Etymology (optional): a quiet "root" mark + the word's origin. Hidden
+      // entirely when we have none, so no empty caption line is ever left behind.
+      const origin = ORIGINS[w.word];
+      if (origin) {
+        origEl.style.display = '';
+        origEl.title = `Origin — ${origin}`;
+        origEl.replaceChildren(h('span', { class: 'rt' }, 'origin'), origin);
+      } else {
+        origEl.style.display = 'none';
+        origEl.replaceChildren();
+      }
       applyExample(w);
     };
     applyWord(pickByDay(WORDS));
