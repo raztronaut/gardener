@@ -1,5 +1,6 @@
-// Weather — current conditions + sunrise/sunset + a linear hourly temperature
-// timeline, via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
+// Weather — current conditions + sunrise/sunset + length of day (with a quiet
+// day-over-day trend as the seasons turn) + a linear hourly temperature timeline,
+// via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
 // [label, icon-slug] — slugs map to self-hosted animated Meteocons SVGs in
 // public/assets/weather/ (clouds drift, the sun slowly radiates; transparent).
 // Clear & partly-cloudy skies also have calm, static star-lit night faces that are
@@ -20,6 +21,20 @@ const nightSlug = (slug, isDay) => isDay !== 0 ? slug
   : slug;
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
+
+// Length of day from Open-Meteo's daily daylight_duration (seconds) → "14h 32m".
+const fmtDayLen = (secs) => {
+  const m = Math.round(secs / 60);
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+};
+// Day-over-day change in daylight (today → tomorrow), the seasons quietly turning.
+// After the summer solstice this reads negative (shorter); before it, positive.
+// "1m 12s" — minutes dropped when zero. Sign is carried by the arrow, not the text.
+const fmtDayDelta = (secs) => {
+  const a = Math.abs(Math.round(secs));
+  const m = Math.floor(a / 60), s = a % 60;
+  return m ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`;
+};
 
 // Meteorological wind direction (degrees the wind blows FROM) → 8-point cardinal.
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -69,6 +84,11 @@ export default {
          so nothing is dropped when the header row narrows. */
       .wx-sky { display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.02em; }
       .wx-sky .sun { color:var(--ink-soft); }
+      /* length of day — derived from sunrise/sunset; the trend clause is a hushed
+         mono caption so it never competes with the hero readings above. */
+      .wx-sky .day { color:var(--ink-soft); display:inline-flex; align-items:baseline; gap:5px; white-space:nowrap; }
+      .wx-sky .day b { color:var(--ink); font-weight:600; }
+      .wx-sky .day .tr { color:var(--ink-faint); letter-spacing:.01em; }
       .wx-sky .tmrw { color:var(--mint); }
       .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
       .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
@@ -111,7 +131,7 @@ export default {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
@@ -135,6 +155,21 @@ export default {
         const windCard = windCardinal(windDir);
         const sunrise = fmtClock(d.daily.sunrise?.[0]);
         const sunset = fmtClock(d.daily.sunset?.[0]);
+
+        // Length of day + how it's changing — a quiet, seasonal reading derived
+        // from the sunrise/sunset the widget already shows. daylight_duration is
+        // in seconds; the day-over-day delta (today→tomorrow) shows the year turning.
+        const dayLenSecs = d.daily.daylight_duration?.[0];
+        const tmrwLenSecs = d.daily.daylight_duration?.[1];
+        const dayLen = Number.isFinite(dayLenSecs) ? fmtDayLen(dayLenSecs) : null;
+        const dayDeltaSecs = (Number.isFinite(dayLenSecs) && Number.isFinite(tmrwLenSecs))
+          ? tmrwLenSecs - dayLenSecs : null;
+        // Ignore sub-15s wobble (rounding near a solstice) so the arrow is honest.
+        const dayTrend = (dayDeltaSecs != null && Math.abs(dayDeltaSecs) >= 15)
+          ? (dayDeltaSecs > 0
+            ? { arrow: '↑', word: 'longer' }
+            : { arrow: '↓', word: 'shorter' })
+          : null;
 
         // UV index — current hour's reading, with the day's peak for context.
         const hNow = new Date().getHours();
@@ -217,6 +252,14 @@ export default {
               ctx.h('div', { class: 'cond' }, cond),
               ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`))),
           ctx.h('div', { class: 'wx-sky' },
+            dayLen ? ctx.h('span', {
+              class: 'day',
+              title: dayTrend
+                ? `${dayLen} of daylight · ${fmtDayDelta(dayDeltaSecs)} ${dayTrend.word} tomorrow`
+                : `${dayLen} of daylight`,
+            }, '☀ ', ctx.h('b', {}, dayLen),
+              dayTrend ? ctx.h('span', { class: 'tr' },
+                `${dayTrend.arrow} ${fmtDayDelta(dayDeltaSecs)}`) : null) : null,
             ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset}`),
             ctx.h('span', {
               class: 'uv',
