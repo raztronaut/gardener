@@ -115,16 +115,15 @@ export default {
       /* fade-in for tiles (one-shot, no perpetual animation) */
       .mg-tile { animation:mg-in .45s ease both; }
       @keyframes mg-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-
-      /* calm empty / error state */
-      .mg-empty { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center;
-        justify-content:center; gap:9px; text-align:center; color:var(--ink-soft); border-radius:14px;
-        border:1px dashed var(--stroke); background:#06140f; }
-      .mg-empty .ic { font-size:28px; opacity:.6; }
-      .mg-empty .t { font-size:15px; color:var(--ink); font-weight:600; }
-      .mg-empty .d { font-size:12px; color:var(--ink-faint); }
     `);
     body.classList.add('mg');
+
+    // Per the humans' standing preference, this widget is CONDITIONAL: it only
+    // occupies the wall when there is motion to show. When the feed is empty (the
+    // common case) or unreachable on the first load, we hide the entire card so it
+    // leaves no empty placeholder behind; it reappears the moment a clip arrives.
+    const card = body.closest('.card');
+    const setHidden = (hide) => { if (card) card.style.display = hide ? 'none' : ''; };
 
     // How many tiles fit in one full-width row. Computed from the card width, with
     // a sensible clamp so it stays legible (never one giant tile, never a dozen
@@ -136,24 +135,22 @@ export default {
       return Math.max(4, Math.min(7, Math.floor((w + 10) / TILE_MIN)));
     };
 
-    const emptyState = (icon, title, detail) => h('div', { class: 'mg-empty' },
-      h('div', { class: 'ic' }, icon),
-      h('div', { class: 't' }, title),
-      detail ? h('div', { class: 'd' }, detail) : null);
-
     const render = (events) => {
       const withThumb = events.filter((e) => e && e.thumb);
+
+      // No motion → the widget removes itself from the wall entirely.
+      if (!withThumb.length) {
+        setHidden(true);
+        body.replaceChildren();
+        return;
+      }
+      setHidden(false);
+
       const head = h('div', { class: 'mg-head' },
         h('span', { class: 'lbl' }, 'Motion'),
         h('span', { class: 'sub' }, '· recent'),
-        h('span', { class: 'count' }, withThumb.length
-          ? `${withThumb.length} clip${withThumb.length === 1 ? '' : 's'}` : ''));
-
-      if (!withThumb.length) {
-        body.replaceChildren(head, emptyState('📸', 'No motion captured yet',
-          'Snapshots appear here when a camera sees movement.'));
-        return;
-      }
+        h('span', { class: 'count' },
+          `${withThumb.length} clip${withThumb.length === 1 ? '' : 's'}`));
 
       const n = tileCount();
       const shown = withThumb.slice(0, n);
@@ -190,12 +187,12 @@ export default {
         body.dataset.loaded = '1';
         render(events);
       } catch {
-        // Only surface an error if we've never rendered anything good; otherwise
-        // silently keep the last good strip on screen.
+        // If we've never rendered anything good, there is nothing to show — hide
+        // the card (no motion, no clutter). If we HAD a good render, keep the last
+        // good strip on screen and just skip this failed poll.
         if (!body.dataset.loaded) {
-          body.replaceChildren(
-            h('div', { class: 'mg-head' }, h('span', { class: 'lbl' }, 'Motion'), h('span', { class: 'sub' }, '· recent')),
-            emptyState('📷', 'Motion feed unavailable', 'The camera service is not reachable right now.'));
+          setHidden(true);
+          body.replaceChildren();
         }
       } finally {
         firstLoad = false;
