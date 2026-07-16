@@ -1,5 +1,6 @@
 // Weather — current conditions + sunrise/sunset + length of day (with a quiet
-// day-over-day trend as the seasons turn) + a linear hourly temperature timeline,
+// day-over-day trend as the seasons turn) + a linear hourly temperature timeline
+// whose after-dark hours are gently shaded so the evening reads at a glance,
 // via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
 // [label, icon-slug] — slugs map to self-hosted animated Meteocons SVGs in
 // public/assets/weather/ (clouds drift, the sun slowly radiates; transparent).
@@ -210,6 +211,38 @@ export default {
 
         const linePts = pts.map((p, i) => `${xOf(i)},${yOf(p.t)}`).join(' ');
         const areaPts = `0,100 ${linePts} 100,100`;
+
+        // Night shading — a static, cool wash behind the hours that fall after
+        // sunset / before sunrise, so the evening reads at a glance on the temp
+        // curve (it echoes the star-lit night icons already used on the axis).
+        // Purely additive to the SVG; adds NO height, so the card can't clip.
+        // Each sample owns the span to the midpoint of its neighbours; runs of
+        // night samples merge into one rect, and internal day↔night edges get a
+        // hushed vertical divider marking the moment the sun crosses.
+        // Midpoint between samples i-1 and i (valid for 1..len-1); a column's left
+        // edge is the midpoint to its previous neighbour, its right edge the
+        // midpoint to the next — with the plot's 0/100 edges capping the ends.
+        const mid = (i) => (xOf(i - 1) + xOf(i)) / 2;
+        const colOf = (i) => [
+          i === 0 ? 0 : mid(i),
+          i === pts.length - 1 ? 100 : mid(i + 1),
+        ];
+        const isNight = (p) => p.isDay === 0;
+        let nightRects = '', edgeLines = '', k = 0;
+        while (k < pts.length) {
+          if (isNight(pts[k])) {
+            const [start] = colOf(k);
+            let e = k;
+            while (e + 1 < pts.length && isNight(pts[e + 1])) e++;
+            const [, end] = colOf(e);
+            nightRects += `<rect x="${start}" y="0" width="${Math.max(0, end - start)}" height="100" fill="url(#wxnight)"/>`;
+            // A faint divider at an interior sun-crossing (skip the plot edges).
+            if (start > 0.5) edgeLines += `<line x1="${start}" y1="0" x2="${start}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+            if (end < 99.5) edgeLines += `<line x1="${end}" y1="0" x2="${end}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+            k = e + 1;
+          } else k++;
+        }
+
         const svg = `
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <defs>
@@ -217,8 +250,14 @@ export default {
                 <stop offset="0" stop-color="rgba(116,247,176,.28)"/>
                 <stop offset="1" stop-color="rgba(116,247,176,0)"/>
               </linearGradient>
+              <linearGradient id="wxnight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="rgba(84,102,170,.26)"/>
+                <stop offset="1" stop-color="rgba(60,74,130,.10)"/>
+              </linearGradient>
             </defs>
+            ${nightRects}
             <polygon points="${areaPts}" fill="url(#wxfill)"/>
+            ${edgeLines}
             <polyline points="${linePts}" fill="none" stroke="var(--mint)" stroke-width="2"
               stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
           </svg>`;

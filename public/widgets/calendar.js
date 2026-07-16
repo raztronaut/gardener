@@ -94,6 +94,18 @@ export default {
 
       .cal-msg { font-size:15px; line-height:1.5; color:var(--ink-soft); }
       .cal-msg .em { color:var(--mint); font-weight:700; }
+
+      /* empty / not-yet-synced state — fills the tall card so it never reads as a
+         blank region. A centered invitation up top, faint ghost windows below. */
+      .cal-empty { flex:1 1 auto; display:flex; flex-direction:column;
+        justify-content:center; min-height:0; }
+      .cal-empty .lead { flex:0 0 auto; display:flex; flex-direction:column; align-items:center;
+        text-align:center; gap:11px; padding:16px 6px; }
+      .cal-empty .glyph { font-size:42px; line-height:1; opacity:.9; }
+      .cal-empty .headline { font-family:var(--font-display); font-weight:800; font-size:22px;
+        line-height:1.15; color:var(--ink); }
+      .cal-empty .sub { font-size:14px; line-height:1.5; color:var(--ink-soft); max-width:250px; }
+      .cal-empty .sub .em { color:var(--mint); font-weight:700; }
     `);
     body.classList.add('cal');
     body.appendChild(ctx.loading('checking the calendar…'));
@@ -177,14 +189,20 @@ export default {
         : null;
 
       // Nobody synced anything yet → invite into Roots, but still show any faces
-      // we have so the card has presence.
+      // we have so the card has presence. Fill the tall card with a centered
+      // invitation and a faint preview of what free windows will look like, so
+      // the widget never reads as a blank region.
       if (!connected) {
         body.replaceChildren(
           rosterEl || h('div', {}),
           h('div', { class: 'cal-div' }),
-          h('div', { class: 'cal-msg' },
-            'Sync a calendar in ', h('span', { class: 'em' }, 'Roots'),
-            ' to see when everyone is free.'));
+          h('div', { class: 'cal-empty' },
+            h('div', { class: 'lead' },
+              h('div', { class: 'glyph' }, '🗓️'),
+              h('div', { class: 'headline' }, 'When everyone’s free'),
+              h('div', { class: 'sub' },
+                'Connect a calendar in ', h('span', { class: 'em' }, 'Roots'),
+                ' and the garden will find the windows when you’re all free together.'))));
         return;
       }
 
