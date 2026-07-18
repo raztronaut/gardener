@@ -195,6 +195,14 @@ const pickByDay = (arr) => arr[dayOfYear() % arr.length];
 // Wikipedia returns negative years for BC — render legibly, never as "-480".
 const fmtYear = (y) => (y < 0 ? `${-y} BC` : String(y));
 const p2 = (n) => String(n).padStart(2, '0');
+// A relative "how long ago" phrase for a historical year — grounds a bare date
+// in lived time ("1906 · 120 yrs ago"). BC years land far in the past, which is
+// correct; the off-by-one from the missing year 0 is immaterial for an ambient wall.
+const relYears = (y, nowY = new Date().getFullYear()) => {
+  const n = nowY - y;
+  if (n <= 0) return 'this year';
+  return `${n.toLocaleString()} ${n === 1 ? 'yr' : 'yrs'} ago`;
+};
 
 export default {
   id: 'daily',
@@ -259,6 +267,10 @@ export default {
         display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
       .dly-fact .yr { font-family:var(--font-display); font-weight:700; color:var(--mint);
         margin-right:8px; letter-spacing:.01em; }
+      /* relative "how long ago" — a hushed mono caption beside the year, so the
+         moment reads as both dated and grounded in lived time at a glance. */
+      .dly-fact .ago { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);
+        margin-right:8px; letter-spacing:.02em; white-space:nowrap; }
 
       /* QUOTE — the quote clamps and the attribution is pinned as a fixed footer
          inside this region (margin-top:auto), so it can never overlap the block
@@ -375,8 +387,12 @@ export default {
       const n = otdEvents.length;
       const { year, text } = otdEvents[((otdIdx % n) + n) % n];
       otdLbl.textContent = 'On This Day';
-      factEl.replaceChildren(h('span', { class: 'yr' }, fmtYear(year)), text);
-      factEl.title = `${fmtYear(year)} — ${text}`;
+      const ago = relYears(year);
+      factEl.replaceChildren(
+        h('span', { class: 'yr' }, fmtYear(year)),
+        h('span', { class: 'ago' }, ago),
+        text);
+      factEl.title = `${fmtYear(year)} (${ago}) — ${text}`;
       otdLive = true;
     };
     // Install a freshly fetched list. On a new date (or first load), seed the
