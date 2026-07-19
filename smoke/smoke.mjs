@@ -54,6 +54,14 @@ async function main() {
     for (const f of ['index.html', 'app.js', 'styles.css']) {
       check(`core file exists: ${f}`, existsSync(join(PUBLIC, f)));
     }
+    // Voice input: the mic affordance and its SpeechRecognition wiring must stay
+    // present so the wall can be driven without a keyboard.
+    try {
+      const shell = readFileSync(join(PUBLIC, 'index.html'), 'utf8');
+      const appjs = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
+      check('feedback bar has a voice mic button', /id="feedbackMic"/.test(shell));
+      check('voice input wired to SpeechRecognition', /webkitSpeechRecognition|SpeechRecognition/.test(appjs) && /wireVoice/.test(appjs));
+    } catch (e) { bad('voice input present', e.message); }
 
     // 3) Boot the server with an isolated DB + port.
     console.log('\n[3] server boot');

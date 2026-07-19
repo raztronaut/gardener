@@ -242,6 +242,18 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
   background: linear-gradient(120deg, var(--mint), var(--mint-2));
   box-shadow: 0 6px 18px rgba(67,230,198,.35); transition: transform .15s ease, filter .15s ease; }
 #feedbackSend:active { transform: scale(.96); filter: brightness(1.08); }
+/* Mic — speak a note instead of typing (no keyboard needed on the wall). */
+#feedbackMic { border: 1px solid var(--stroke); cursor: pointer; background: var(--glass);
+  color: var(--ink); font-size: 18px; line-height: 1; width: 42px; height: 42px; flex: none;
+  border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease; }
+#feedbackMic:active { transform: scale(.94); }
+#feedbackMic.listening { background: linear-gradient(120deg, var(--mint), var(--mint-2));
+  border-color: transparent; color: #042018; animation: micpulse 1.1s ease-in-out infinite; }
+@keyframes micpulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(67,230,198,.55); }
+  50%      { box-shadow: 0 0 0 9px rgba(67,230,198,0); }
+}
 
 /* ---------- toast ---------- */
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%) translateY(20px);

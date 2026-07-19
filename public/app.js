@@ -1492,11 +1492,57 @@ async function plantMd(text) {
   } catch { toast('Could not reach the gardener — try again'); }
 }
 
+// ---- voice input ------------------------------------------------------------
+// "Add a voice so we don't have to use keyboard." The mic 🎙 dictates a note
+// straight into the command line via the browser's Web Speech API — tap once to
+// listen, speak, tap Plant (or the mic again) to stop. Degrades gracefully:
+// if the kiosk browser has no SpeechRecognition, the mic simply hides itself so
+// it never becomes a dead button.
+function wireVoice(input) {
+  const mic = document.getElementById('feedbackMic');
+  if (!mic || !input) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { mic.style.display = 'none'; return; }
+  let rec = null, listening = false, baseText = '';
+  function stop() {
+    listening = false;
+    mic.classList.remove('listening');
+    if (rec) { try { rec.stop(); } catch { /* ignore */ } }
+  }
+  mic.addEventListener('click', () => {
+    if (listening) { stop(); return; }
+    let r;
+    try { r = new SR(); } catch { toast('Voice isn’t available on this screen'); return; }
+    rec = r;
+    r.lang = 'en-US';
+    r.interimResults = true;
+    r.continuous = false;
+    r.maxAlternatives = 1;
+    // Append to whatever's already typed so voice augments rather than clobbers.
+    baseText = input.value ? input.value.replace(/\s+$/, '') + ' ' : '';
+    r.onstart = () => { listening = true; mic.classList.add('listening'); toast('Listening… speak your note 🎙'); };
+    r.onresult = (e) => {
+      let txt = '';
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      input.value = (baseText + txt).replace(/^\s+/, '');
+    };
+    r.onerror = (e) => {
+      stop();
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Let the wall use the microphone to speak notes');
+      else if (e.error === 'no-speech' || e.error === 'aborted') toast('Didn’t catch that — tap 🎙 to try again');
+      else toast('Voice unavailable right now');
+    };
+    r.onend = () => { stop(); if (input.value.trim()) focusInput(); };
+    try { r.start(); } catch { stop(); toast('Voice unavailable right now'); }
+  });
+}
+
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
   const input = document.getElementById('feedbackInput');
   if (!form || !input) return;
   focusInput();
+  wireVoice(input);
 
   // Type anywhere → the note field (no clicking needed); Esc closes a panel.
   // Capture phase so Esc is caught even when focus is on a button or the panel.
