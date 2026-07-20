@@ -20,6 +20,12 @@ every day, including quiet no-feedback days.
   (public/widgets/house-cleaning.js) back to the wall grid. The humans asked to remove it.
   IMPORTANT: keep the corner Roots QR code (#cornerqr in app.js) — that is NOT the widget and
   stays. The Roots household app itself (public/house, house-api) is unaffected. (Removed 2026-07-11.)
+- **World Cup** — do not add a FIFA World Cup schedule/scores widget, a "World Cup" tab/mode on
+  the "What's On" card, or a /worldcup panel in any form. The humans asked to remove it after the
+  2026 tournament. The "What's On" card is now SF-events-only ("Out in SF"). (Removed 2026-07-20.)
+- **voice / mic audio capture** — do not re-add a microphone / voice-dictation / SpeechRecognition
+  "speak your note" affordance to the feedback bar (or anywhere). The humans asked to remove audio
+  capture. Notes are typed only. (Added 2026-07-19, removed on request 2026-07-20.)
 
 ## General standing rules
 - Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent

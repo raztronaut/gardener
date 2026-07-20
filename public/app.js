@@ -383,7 +383,6 @@ function showHelp() {
     h('div', { class: 'help-cmds' },
       cmd('/help', 'show this panel'),
       cmd('/events  ·  /e', 'full-screen list of upcoming SF events (↑ ↓ to scroll)'),
-      cmd('/worldcup  ·  /wc', 'FIFA World Cup 2026 schedule — matches, venues, scores'),
       cmd('/architecture', 'how the gardener works & iterates'),
       cmd('/tendings', 'changelog of every tending so far'),
       cmd('/notes', 'notes you’ve planted — and delete any before tending'),
@@ -522,55 +521,6 @@ async function showEvents() {
         e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null));
   });
   openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl' }, ...rows));
-}
-
-// Full-screen FIFA World Cup 2026 schedule (the /worldcup · /wc command, and the
-// click target when the What's On card is in World Cup mode). Lists every match
-// we can see — grouped by day — with teams, venue + city, and scores/kickoff.
-async function showWorldCup() {
-  openPanel('FIFA World Cup 2026', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'loading the schedule…')));
-  const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
-  const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
-  const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', month: 'short', day: 'numeric' });
-  const dayKeyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
-  const fetchJSON = (url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-  let matches = [], lib;
-  try {
-    lib = await import(`/lib/worldcup.js?v=${window.__GARDEN_VERSION}`);
-    matches = await lib.fetchAll(fetchJSON);
-  } catch {
-    return openPanel('FIFA World Cup 2026', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'The schedule is unavailable right now — try again shortly.')));
-  }
-  if (!matches.length) {
-    return openPanel('FIFA World Cup 2026', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No fixtures published yet — knockout pairings appear as teams advance.')));
-  }
-  // Group by day so the long list reads as a calendar.
-  const groups = [];
-  let cur = null;
-  for (const m of matches) {
-    const key = m.when ? dayKeyFmt.format(m.when) : (m.dateEvent || 'tbd');
-    if (!cur || cur.key !== key) { cur = { key, label: m.when ? dayFmt.format(m.when) : key, items: [] }; groups.push(cur); }
-    cur.items.push(m);
-  }
-  const rows = [];
-  for (const g of groups) {
-    rows.push(h('div', { class: 'wc-day' }, g.label));
-    for (const m of g.items) {
-      const place = [m.venue, m.city].filter(Boolean).join(' · ');
-      const tv = lib.broadcastFull ? lib.broadcastFull(m) : '';
-      let tag;
-      if (lib.isLive(m)) tag = `LIVE ${m.homeScore ?? 0}–${m.awayScore ?? 0}`;
-      else if (lib.isFinished(m)) tag = `FT ${m.homeScore ?? 0}–${m.awayScore ?? 0}`;
-      else tag = m.when ? timeFmt.format(m.when).replace(' ', '') : '';
-      const meta = [place ? `📍 ${place}` : null, tv ? `📺 ${tv}` : null].filter(Boolean).join('   ');
-      rows.push(h('div', { class: 'cl-row' },
-        h('div', { class: 'wc-when' }, tag),
-        h('div', { class: 'cl-main' },
-          h('div', { class: 'cl-phrase' }, `${m.home} v ${m.away}`),
-          meta ? h('div', { class: 'cl-meta' }, meta) : null)));
-    }
-  }
-  openPanel(`FIFA World Cup 2026 — ${matches.length} matches`, h('div', { class: 'cl wc-sched' }, ...rows));
 }
 
 // Full Hacker News front page in a panel (the /hn command; controller: Y).
@@ -818,7 +768,6 @@ const COMMANDS = [
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
-  { cmd: 'worldcup', aliases: ['wc', 'fifa'], icon: '⚽', desc: 'FIFA World Cup 2026 schedule', run: () => showWorldCup() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
   { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },
@@ -1102,9 +1051,31 @@ function setFocus(i) {
   // still fades on its own after idle.
   if (focusIdx >= 0 && !selectMode) focusClearT = setTimeout(() => setFocus(-1), 14000);
 }
-function moveFocus(delta) {
+// Directional (spatial) widget focus for the d-pad / arrow keys. The grid is
+// two columns with mixed-size cards, so a flat "next/prev" made ↓ behave like →.
+// Instead, pick the geometrically-nearest card in the pressed direction using the
+// rendered layout, so ↓ really moves DOWN a row, ↑ up, ← / → sideways.
+function moveFocusDir(dir) {
   if (panelOpen() || paletteOpen()) return;
-  setFocus(focusIdx < 0 ? 0 : focusIdx + delta);
+  const cards = focusCards();
+  if (!cards.length) return;
+  if (focusIdx < 0) { setFocus(0); return; }
+  const cur = cards[focusIdx].getBoundingClientRect();
+  const cx = cur.left + cur.width / 2, cy = cur.top + cur.height / 2;
+  let best = -1, bestScore = Infinity;
+  cards.forEach((c, i) => {
+    if (i === focusIdx) return;
+    const r = c.getBoundingClientRect();
+    const dx = (r.left + r.width / 2) - cx, dy = (r.top + r.height / 2) - cy;
+    let along, across;
+    if (dir === 'down') { if (dy <= 4) return; along = dy; across = Math.abs(dx); }
+    else if (dir === 'up') { if (dy >= -4) return; along = -dy; across = Math.abs(dx); }
+    else if (dir === 'right') { if (dx <= 4) return; along = dx; across = Math.abs(dy); }
+    else { if (dx >= -4) return; along = -dx; across = Math.abs(dy); } // left
+    const score = along + across * 2; // prefer nearest along travel, penalise lateral drift
+    if (score < bestScore) { bestScore = score; best = i; }
+  });
+  if (best >= 0) setFocus(best);
 }
 // ---- keyboard selection mode (Esc at the top level toggles it) ---------------
 // The wall is normally in "writing mode": type anywhere and it lands in the note
@@ -1132,7 +1103,7 @@ function openFocusedWidget() {
 }
 function openWidgetPanel(id) {
   if (id === 'hacker-news') return showHackerNews();
-  if (id === 'sf-events') return window.__WHATS_ON_MODE === 'wc' ? showWorldCup() : showEvents();
+  if (id === 'sf-events') return showEvents();
   if (id === 'house-cleaning') return showRootsChores();
   const w = WIDGET_MODS[id];
   if (!w) return;
@@ -1371,7 +1342,7 @@ function wirePad() {
           // a panel with rows → MOVE THE SELECTION (left/right too); else scroll.
           if (!movePanelRow(delta)) panelScrollBy(delta * 160);
         } else {
-          moveFocus(delta); // on the wall → move the widget highlight (d-pad or stick)
+          moveFocusDir(action); // on the wall → move the highlight SPATIALLY (↓ = down a row)
         }
         break;
       }
@@ -1387,11 +1358,11 @@ function wirePad() {
         const dir = action === 'fdown' ? 1 : -1;
         if (document.getElementById('panelBody')?.classList.contains('reading')) readerScroll(dir * 220);
         else if (panelOpen()) panelScrollBy(dir * 200);
-        else moveFocus(dir);
+        else moveFocusDir(action === 'fdown' ? 'down' : 'up');
         break;
       }
-      case 'fleft': moveFocus(-1); break;
-      case 'fright': moveFocus(+1); break;
+      case 'fleft': moveFocusDir('left'); break;
+      case 'fright': moveFocusDir('right'); break;
       case 'fopen':
         if (pal) break;
         if (panelOpen()) activatePanelRow(); else openFocusedWidget();
@@ -1492,57 +1463,11 @@ async function plantMd(text) {
   } catch { toast('Could not reach the gardener — try again'); }
 }
 
-// ---- voice input ------------------------------------------------------------
-// "Add a voice so we don't have to use keyboard." The mic 🎙 dictates a note
-// straight into the command line via the browser's Web Speech API — tap once to
-// listen, speak, tap Plant (or the mic again) to stop. Degrades gracefully:
-// if the kiosk browser has no SpeechRecognition, the mic simply hides itself so
-// it never becomes a dead button.
-function wireVoice(input) {
-  const mic = document.getElementById('feedbackMic');
-  if (!mic || !input) return;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { mic.style.display = 'none'; return; }
-  let rec = null, listening = false, baseText = '';
-  function stop() {
-    listening = false;
-    mic.classList.remove('listening');
-    if (rec) { try { rec.stop(); } catch { /* ignore */ } }
-  }
-  mic.addEventListener('click', () => {
-    if (listening) { stop(); return; }
-    let r;
-    try { r = new SR(); } catch { toast('Voice isn’t available on this screen'); return; }
-    rec = r;
-    r.lang = 'en-US';
-    r.interimResults = true;
-    r.continuous = false;
-    r.maxAlternatives = 1;
-    // Append to whatever's already typed so voice augments rather than clobbers.
-    baseText = input.value ? input.value.replace(/\s+$/, '') + ' ' : '';
-    r.onstart = () => { listening = true; mic.classList.add('listening'); toast('Listening… speak your note 🎙'); };
-    r.onresult = (e) => {
-      let txt = '';
-      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
-      input.value = (baseText + txt).replace(/^\s+/, '');
-    };
-    r.onerror = (e) => {
-      stop();
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') toast('Let the wall use the microphone to speak notes');
-      else if (e.error === 'no-speech' || e.error === 'aborted') toast('Didn’t catch that — tap 🎙 to try again');
-      else toast('Voice unavailable right now');
-    };
-    r.onend = () => { stop(); if (input.value.trim()) focusInput(); };
-    try { r.start(); } catch { stop(); toast('Voice unavailable right now'); }
-  });
-}
-
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
   const input = document.getElementById('feedbackInput');
   if (!form || !input) return;
   focusInput();
-  wireVoice(input);
 
   // Type anywhere → the note field (no clicking needed); Esc closes a panel.
   // Capture phase so Esc is caught even when focus is on a button or the panel.
@@ -1577,8 +1502,10 @@ function wireFeedback() {
     }
     // Dashboard selection mode: arrows walk the widget highlight, Enter opens it.
     if (selectMode) {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); moveFocus(1); return; }
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); moveFocus(-1); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); moveFocusDir('right'); return; }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); moveFocusDir('left'); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); moveFocusDir('down'); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); moveFocusDir('up'); return; }
       if (e.key === 'Enter') { e.preventDefault(); openFocusedWidget(); return; }
       // Any printable key drops back to writing mode and starts the note.
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) { exitSelectMode(); return; }
