@@ -33,6 +33,20 @@ function ageOf(unixSecs) {
   return `${Math.round(hrs / 24)}d`;
 }
 
+// Momentum: is this a genuinely fast-CLIMBING story right now? Derived purely
+// from the score + age we already have (no extra API). We flag only recent
+// items (≤12h old) accruing points quickly — the ambient "what's hot this hour"
+// signal a wall feed wants — while ignoring old stories that merely amassed a
+// big total slowly. Returns points-per-hour when rising, else 0.
+function risingRate(item) {
+  const t = item.time, score = Number.isFinite(item.score) ? item.score : 0;
+  if (!Number.isFinite(t) || score <= 0) return 0;
+  const hrs = (Date.now() / 1000 - t) / 3600;
+  if (hrs > 12) return 0;                 // only fresh stories can be "climbing"
+  const pph = score / Math.max(hrs, 0.5); // floor age so brand-new posts don't spike
+  return pph >= 100 ? Math.round(pph) : 0;
+}
+
 export default {
   id: 'hacker-news',
   title: 'Hacker News',
@@ -58,6 +72,9 @@ export default {
       .hn-score { color:var(--gold); font-weight:600; }
       .hn-cmts { color:var(--mint-2); }
       .hn-age { color:var(--ink-soft); }
+      /* momentum marker — a quiet flame on a story that's climbing fast right
+         now. Static (no animation); the glyph itself carries the meaning. */
+      .hn-fire { color:var(--gold); font-weight:700; letter-spacing:.02em; }
       .hn-dot { color:var(--ink-faint); opacity:.5; }
       .hn-domain { color:var(--ink-soft); flex:1 1 auto; min-width:0;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
@@ -94,6 +111,7 @@ export default {
           const cmts = Number.isFinite(s.descendants) ? s.descendants : 0;
           const badge = badgeOf(s);
           const age = ageOf(s.time);
+          const rate = risingRate(s);
           const domain = domainOf(s.url);
           // Self-posts (Ask/Show HN, and link-less jobs) always resolve to the
           // HN domain — redundant once the badge is shown, so drop it there.
@@ -108,6 +126,7 @@ export default {
                 ctx.h('span', { class: 'hn-cmts' }, `💬 ${cmts}`),
                 age ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 age ? ctx.h('span', { class: 'hn-age' }, age) : null,
+                rate ? ctx.h('span', { class: 'hn-fire', title: `climbing fast · ~${rate} pts/hr` }, '🔥') : null,
                 badge ? ctx.h('span', { class: `hn-badge ${badge.kind}` }, badge.label) : null,
                 showDomain ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 showDomain ? ctx.h('span', { class: 'hn-domain' }, domain || 'news.ycombinator.com') : null)));
