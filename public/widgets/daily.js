@@ -114,6 +114,52 @@ const ORIGINS = {
   scintilla: 'Latin · “a spark”',
 };
 
+// ---- SYNONYMS — a few kindred words for each entry (offline, keyed by word).
+// Same pattern as ORIGINS: a separate map so WORDS is never touched, and a
+// missing entry simply renders no synonyms line. Kept to 2-3 apt near-synonyms;
+// the genuinely untranslatable coinages (petrichor, sonder, lagom, hiraeth…)
+// are intentionally absent — they have no real synonym, and that silence is apt.
+const SYNONYMS = {
+  serendipity: ['chance', 'fluke', 'providence'],
+  ephemeral: ['fleeting', 'transient', 'momentary'],
+  limerence: ['infatuation', 'obsession'],
+  mellifluous: ['honeyed', 'dulcet', 'melodious'],
+  halcyon: ['peaceful', 'serene', 'idyllic'],
+  susurrus: ['whisper', 'murmur', 'rustle'],
+  nepenthe: ['solace', 'balm', 'oblivion'],
+  eloquence: ['fluency', 'articulacy', 'expressiveness'],
+  quixotic: ['idealistic', 'romantic', 'impractical'],
+  sublime: ['majestic', 'awe-inspiring', 'exalted'],
+  ineffable: ['indescribable', 'inexpressible', 'unutterable'],
+  luminescence: ['glow', 'radiance', 'phosphorescence'],
+  wanderlust: ['restlessness', 'itchy feet'],
+  effervescent: ['bubbly', 'vivacious', 'lively'],
+  solitude: ['seclusion', 'aloneness', 'isolation'],
+  aurora: ['dawn', 'daybreak', 'sunrise'],
+  reverie: ['daydream', 'musing', 'trance'],
+  gossamer: ['delicate', 'filmy', 'diaphanous'],
+  incandescent: ['glowing', 'radiant', 'luminous'],
+  numinous: ['spiritual', 'sacred', 'transcendent'],
+  evanescent: ['fleeting', 'transient', 'vanishing'],
+  plethora: ['abundance', 'excess', 'surfeit'],
+  panacea: ['cure-all', 'remedy', 'elixir'],
+  zephyr: ['breeze', 'gust', 'waft'],
+  felicity: ['bliss', 'happiness', 'joy'],
+  verdant: ['green', 'lush', 'leafy'],
+  sanguine: ['optimistic', 'hopeful', 'buoyant'],
+  aplomb: ['poise', 'composure', 'self-assurance'],
+  pellucid: ['clear', 'lucid', 'transparent'],
+  redolent: ['evocative', 'reminiscent', 'suggestive'],
+  lissome: ['supple', 'lithe', 'graceful'],
+  ethereal: ['delicate', 'airy', 'celestial'],
+  cynosure: ['focal point', 'lodestar', 'centrepiece'],
+  denouement: ['resolution', 'finale', 'conclusion'],
+  sempiternal: ['eternal', 'everlasting', 'perpetual'],
+  oneiric: ['dreamlike', 'dreamy', 'surreal'],
+  ebullient: ['exuberant', 'buoyant', 'high-spirited'],
+  scintilla: ['trace', 'spark', 'iota'],
+};
+
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
 const FACTS = [
   'Honey never spoils — archaeologists have found 3,000-year-old jars in Egyptian tombs still perfectly edible.',
@@ -255,6 +301,13 @@ export default {
       .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
       .dly-def { margin-top:6px; font-size:14px; line-height:1.34; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      /* synonyms — a quiet kindred-words line beneath the definition, led by a
+         mint "≈". One line, ellipsised, so it can never push the example out of
+         the region; hidden entirely when the word has no listed synonyms. */
+      .dly-syn { margin-top:5px; font-size:12.5px; line-height:1.25; color:var(--ink-soft);
+        flex:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+      .dly-syn .eq { color:var(--mint); font-weight:700; margin-right:7px; }
+      .dly-syn .sw + .sw::before { content:'·'; color:var(--ink-faint); margin:0 6px; }
       /* example usage — a quiet italic line that shows the word living in a sentence.
          The word itself is emphasised in mint so the eye finds it at a glance. */
       .dly-ex { margin-top:5px; font-style:italic; font-size:12.5px; line-height:1.3; color:var(--ink-soft);
@@ -289,13 +342,14 @@ export default {
     const posEl = h('span', { class: 'dly-pos' });
     const origEl = h('div', { class: 'dly-orig' });
     const defEl = h('div', { class: 'dly-def' });
+    const synEl = h('div', { class: 'dly-syn' });
     const exEl = h('div', { class: 'dly-ex' });
     const wordSec = h('div', { class: 'dly-sec dly-word-sec' },
       h('div', { class: 'dly-lbl' }, 'Word of the Day'),
       wordEl,
       h('div', { class: 'dly-wmeta' }, pronEl, posEl),
       origEl,
-      defEl, exEl);
+      defEl, synEl, exEl);
     // Render the example with the headword emphasised in mint, matching case-
     // insensitively so inflected forms still highlight. Falls back to plain text.
     const applyExample = (w) => {
@@ -323,6 +377,19 @@ export default {
       } else {
         origEl.style.display = 'none';
         origEl.replaceChildren();
+      }
+      // Synonyms (optional): a mint "≈" then a few kindred words, dot-separated.
+      // Hidden entirely when we have none, so no empty line is left behind.
+      const syns = SYNONYMS[w.word];
+      if (syns && syns.length) {
+        synEl.style.display = '';
+        synEl.title = `Synonyms — ${syns.join(', ')}`;
+        synEl.replaceChildren(
+          h('span', { class: 'eq' }, '≈'),
+          ...syns.map((s) => h('span', { class: 'sw' }, s)));
+      } else {
+        synEl.style.display = 'none';
+        synEl.replaceChildren();
       }
       applyExample(w);
     };
