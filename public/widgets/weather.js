@@ -55,6 +55,15 @@ function fmtClock(iso) {
   const ap = h < 12 ? 'a' : 'p'; h = h % 12; if (h === 0) h = 12;
   return `${h}:${min}${ap}`;
 }
+// Minutes past local midnight for an Open-Meteo local ISO time ("…T06:12").
+// Both the sun times and "now" are read in the SAME display tz and compared as
+// minutes-past-midnight, so the countdown is immune to the host clock's own zone.
+function minutesOf(iso) {
+  const m = /T(\d{2}):(\d{2})/.exec(iso || '');
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+// "3h 12m" / "48m" — a compact duration from a minute count (minutes dropped at 0).
+const fmtDur = (min) => { const h = Math.floor(min / 60), m = min % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
 
 export default {
   id: 'weather',
@@ -85,6 +94,10 @@ export default {
          so nothing is dropped when the header row narrows. */
       .wx-sky { display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.02em; }
       .wx-sky .sun { color:var(--ink-soft); }
+      /* which sun event is next, and how soon — a live mint clause beside the
+         sunrise/sunset times, updated each minute (cheap text-only repaint). It
+         turns a pair of fixed clock times into an at-a-glance "sunset in 3h 12m". */
+      .wx-sky .nextsun { color:var(--mint); white-space:nowrap; }
       /* length of day — derived from sunrise/sunset; the trend clause is a hushed
          mono caption so it never competes with the hero readings above. */
       .wx-sky .day { color:var(--ink-soft); display:inline-flex; align-items:baseline; gap:5px; white-space:nowrap; }
@@ -136,6 +149,33 @@ export default {
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
+      // Live "next sun event" countdown. sunMins holds today's sunrise/sunset as
+      // minutes-past-midnight (display tz); sunNextEl is the span we update each
+      // minute. Comparing against "now" (also read in the display tz) keeps the
+      // countdown correct no matter what zone the host clock runs in.
+      let sunMins = null;
+      let sunNextEl = null;
+      const nowFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+      const nowMinutes = () => {
+        const p = nowFmt.formatToParts(new Date());
+        const hh = parseInt(p.find((x) => x.type === 'hour')?.value || '0', 10);
+        const mm = parseInt(p.find((x) => x.type === 'minute')?.value || '0', 10);
+        return hh * 60 + mm;
+      };
+      const updateSunNext = () => {
+        if (!sunNextEl || !sunMins) return;
+        const { sunrise, sunset } = sunMins;
+        const now = nowMinutes();
+        let ev = null;
+        if (sunrise != null && now < sunrise) ev = { name: 'sunrise', at: sunrise };
+        else if (sunset != null && now < sunset) ev = { name: 'sunset', at: sunset };
+        else if (sunrise != null) ev = { name: 'sunrise', at: sunrise + 1440 }; // tomorrow (≈ same time)
+        if (!ev) { sunNextEl.textContent = ''; sunNextEl.title = ''; return; }
+        const txt = `${ev.name} in ${fmtDur(ev.at - now)}`;
+        sunNextEl.textContent = `· ${txt}`;
+        sunNextEl.title = `Next: ${txt}`;
+      };
+
       const refresh = async () => {
         const d = await ctx.fetchJSON(url);
         const cur = d.current;
@@ -156,6 +196,8 @@ export default {
         const windCard = windCardinal(windDir);
         const sunrise = fmtClock(d.daily.sunrise?.[0]);
         const sunset = fmtClock(d.daily.sunset?.[0]);
+        const sunriseMin = minutesOf(d.daily.sunrise?.[0]);
+        const sunsetMin = minutesOf(d.daily.sunset?.[0]);
 
         // Length of day + how it's changing — a quiet, seasonal reading derived
         // from the sunrise/sunset the widget already shows. daylight_duration is
@@ -299,7 +341,8 @@ export default {
             }, '☀ ', ctx.h('b', {}, dayLen),
               dayTrend ? ctx.h('span', { class: 'tr' },
                 `${dayTrend.arrow} ${fmtDayDelta(dayDeltaSecs)}`) : null) : null,
-            ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset}`),
+            ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset} `,
+              ctx.h('span', { class: 'nextsun' })),
             ctx.h('span', {
               class: 'uv',
               title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
@@ -328,6 +371,11 @@ export default {
           ctx.h('div', { class: 'wx-tl' },
             plot,
             ctx.h('div', { class: 'wx-axis' }, ...axis))));
+
+        // Wire up the live "next sun event" countdown against this fresh render.
+        sunMins = { sunrise: sunriseMin, sunset: sunsetMin };
+        sunNextEl = body.querySelector('.nextsun');
+        updateSunNext();
       };
       // Initial load: a few attempts so one slow/aborted response doesn't blank
       // the widget for a whole refresh cycle.
@@ -339,6 +387,9 @@ export default {
       if (!loaded) body.replaceChildren(ctx.error('weather unavailable — retrying…'));
       // Steady refresh; on failure KEEP the last good reading (don't blank).
       ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
+      // Tick the "next sun event" countdown each minute (cheap text-only update)
+      // so it stays live between the 15-minute data refreshes; no-ops until loaded.
+      ctx.interval(updateSunNext, 60 * 1000);
     } catch (e) {
       body.replaceChildren(ctx.error('weather unavailable'));
     }
