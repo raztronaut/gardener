@@ -17,6 +17,11 @@ export default {
         padding-bottom:13px; border-bottom:1px solid var(--stroke); min-height:0; }
       .won-ev:last-child { border-bottom:none; padding-bottom:0; }
       .won-date { flex:0 0 auto; width:54px; text-align:center; line-height:1; padding-top:2px; }
+      /* weekday cap above the day number — lets a glance tell a weekend from a
+         weeknight; weekend days are accented in mint since they're likelier plans. */
+      .won-date .wd { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em;
+        color:var(--ink-faint); margin-bottom:3px; }
+      .won-date .wd.wknd { color:var(--mint); }
       .won-date .d { font-family:var(--font-display); font-weight:700; font-size:27px; color:var(--mint); }
       .won-date .m { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.12em; color:var(--ink-faint); margin-top:3px; }
       .won-date.soon .d { font-size:16px; line-height:1.1; }
@@ -41,6 +46,9 @@ export default {
     const dayMs = 864e5;
     const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
     const dayKeyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+    // Weekday cap ("SAT") read in SF time, so a glance tells a weekend from a
+    // weeknight even for events weeks out.
+    const wdayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
 
     // Date column: today shows the start TIME; otherwise day + month.
     const dateCol = (when, allDay) => {
@@ -53,7 +61,10 @@ export default {
       }
       if (diff <= 0) return ctx.h('div', { class: 'won-date soon' }, ctx.h('div', { class: 'd' }, 'Today'));
       if (diff === 1) return ctx.h('div', { class: 'won-date soon' }, ctx.h('div', { class: 'd' }, 'Tmrw'));
+      const wd = wdayFmt.format(when).toUpperCase(); // "SAT"
+      const wknd = wd === 'SAT' || wd === 'SUN';
       return ctx.h('div', { class: 'won-date' },
+        ctx.h('div', { class: `wd${wknd ? ' wknd' : ''}` }, wd),
         ctx.h('div', { class: 'd' }, String(when.getDate())),
         ctx.h('div', { class: 'm' }, MON[when.getMonth()]));
     };

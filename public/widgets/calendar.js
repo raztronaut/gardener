@@ -39,9 +39,10 @@ export default {
       .cal-roster { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
       .cal-roster .lbl { font-family:var(--font-mono); font-size:9.5px; letter-spacing:.15em;
         text-transform:uppercase; color:var(--ink-faint); flex:0 0 auto; }
-      .cal-faces { display:flex; align-items:center; }
-      .cal-faces .av { margin-left:-7px; }
-      .cal-faces .av:first-child { margin-left:0; }
+      /* roster faces sit in an evenly-spaced row (fixed gaps, no overlap) so the
+         circles never collide; a +N chip absorbs any overflow cleanly. */
+      .cal-faces { display:flex; align-items:center; gap:6px; min-width:0; flex:1 1 auto; overflow:hidden; }
+      .cal-faces .av.more { background:var(--glass); color:var(--ink-soft); }
       .cal-roster .synced { margin-left:auto; flex:0 0 auto; font-family:var(--font-mono);
         font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); }
       .cal-roster .synced b { color:var(--mint); font-weight:700; }
@@ -180,11 +181,20 @@ export default {
         return names.map((n) => byName.get(n) || { id: n, name: n, avatarUrl: null });
       };
 
+      // Roster faces: evenly-spaced (no overlap), capped with a clean +N chip so
+      // a large household never crowds/collides into the "synced" tally.
+      const ROSTER_MAX = 6;
+      const rosterFaces = members.slice(0, ROSTER_MAX).map((m) => avatar(m, 30, { dim: m.connected === false }));
+      if (members.length > ROSTER_MAX) {
+        rosterFaces.push(h('div', {
+          class: 'av more',
+          style: { width: '30px', height: '30px', fontSize: '11px' },
+        }, '+' + (members.length - ROSTER_MAX)));
+      }
       const rosterEl = members.length
         ? h('div', { class: 'cal-roster' },
             h('span', { class: 'lbl' }, 'Household'),
-            h('div', { class: 'cal-faces' },
-              ...members.slice(0, 7).map((m) => avatar(m, 30, { dim: m.connected === false }))),
+            h('div', { class: 'cal-faces' }, ...rosterFaces),
             h('div', { class: 'synced' }, h('b', {}, String(connected)), ' synced'))
         : null;
 
