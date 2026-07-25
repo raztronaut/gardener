@@ -114,13 +114,27 @@ export default {
       .bk-badge .dot { width:8px; height:8px; border-radius:50%; background:var(--mint); box-shadow:0 0 9px rgba(116,247,176,.9); }
       .bk-badge.stale { color:var(--ink-soft); }
       .bk-badge.stale .dot { background:var(--ink-faint); box-shadow:none; }
-      /* empty / login states */
-      .bk-msg { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
-        text-align:center; color:var(--ink-soft); border-radius:16px; border:1px dashed var(--stroke); background:#06140f; }
-      .bk-msg .ic { font-size:30px; opacity:.7; }
-      .bk-msg .t { font-size:16px; color:var(--ink); font-weight:600; }
-      .bk-msg .d { font-size:12.5px; color:var(--ink-faint); line-height:1.4; max-width:80%; }
-      .bk-msg code { font-family:var(--font-mono); font-size:11.5px; color:var(--mint); }
+      /* empty / login states — an intentional "camera standby" viewfinder that
+         FILLS the tall card (never a flat black box): soft dark-green gradient,
+         faint corner brackets like a viewfinder, and calm centered copy. */
+      .bk-msg { position:relative; flex:1; min-height:0; display:flex; flex-direction:column;
+        align-items:center; justify-content:center; gap:11px; text-align:center; color:var(--ink-soft);
+        border-radius:16px; border:1px solid var(--stroke); overflow:hidden;
+        background:radial-gradient(130% 100% at 50% 34%, #10301f 0%, #0a1f15 46%, #06130e 100%); }
+      /* viewfinder corner brackets */
+      .bk-msg::before, .bk-msg::after { content:''; position:absolute; width:34px; height:34px;
+        border:2px solid var(--stroke-strong); opacity:.55; pointer-events:none; }
+      .bk-msg::before { top:14px; left:14px; border-right:0; border-bottom:0; border-top-left-radius:8px; }
+      .bk-msg::after { bottom:14px; right:14px; border-left:0; border-top:0; border-bottom-right-radius:8px; }
+      .bk-msg .ic { font-size:40px; opacity:.85; filter:drop-shadow(0 2px 8px rgba(0,0,0,.45)); }
+      .bk-msg .t { font-family:var(--font-display); font-size:19px; color:var(--ink); font-weight:800; letter-spacing:.01em; }
+      .bk-msg .d { font-size:12.5px; color:var(--ink-faint); line-height:1.5; max-width:78%; }
+      .bk-msg code { font-family:var(--font-mono); font-size:11px; color:var(--mint); }
+      /* a quiet "standby" pill so the state reads as calm & intentional */
+      .bk-msg .pill { display:inline-flex; align-items:center; gap:7px; margin-top:2px; padding:5px 12px;
+        border-radius:999px; background:rgba(8,20,15,.55); border:1px solid var(--stroke-strong);
+        font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); }
+      .bk-msg .pill .dot { width:8px; height:8px; border-radius:50%; background:var(--ink-faint); }
     `);
     body.classList.add('bk');
 
@@ -132,10 +146,11 @@ export default {
         : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
     };
 
-    const msg = (icon, title, detail) => h('div', { class: 'bk-msg' },
+    const msg = (icon, title, detail, pill) => h('div', { class: 'bk-msg' },
       h('div', { class: 'ic' }, icon),
       h('div', { class: 't' }, title),
-      detail ? h('div', { class: 'd', html: detail }) : null);
+      detail ? h('div', { class: 'd', html: detail }) : null,
+      pill ? h('div', { class: 'pill' }, h('span', { class: 'dot' }), pill) : null);
 
     // The TILE shows the REAL-TIME live feed (rapid-poll the live frame the always-
     // on daemon keeps fresh). When live momentarily drops (reconnect / Blink
@@ -194,8 +209,9 @@ export default {
       body.dataset.loaded = '1';
 
       if (s.state === 'needs-login') {
-        if (mode !== 'login') { liveStopped = true; body.replaceChildren(msg('📷', 'Connect Blink',
-          'Run <code>src/blink/blink_login.py</code> on the wall to sign in.')); mode = 'login'; }
+        if (mode !== 'login') { liveStopped = true; body.replaceChildren(msg('📷', 'Camera',
+          'Sign in on the wall to bring the live view online — run <code>src/blink/blink_login.py</code>.',
+          'awaiting sign-in')); mode = 'login'; }
         return;
       }
       if (mode !== 'view') buildView();

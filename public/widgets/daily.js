@@ -1,8 +1,10 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
 //   📖 Word of the day   — fully OFFLINE, deterministic by day-of-year (never fails).
-//   📜 On this day        — a dated historical moment from Wikipedia's keyless
-//        onthisday feed; gracefully falls back to an embedded "Fact of the day"
-//        (uselessfacts-style) when the network is unavailable, so it never blanks.
+//   📜 On this day        — a rotating mix of today's historical events plus the
+//        notable people born and who died on this date, from Wikipedia's keyless
+//        onthisday feed; each birth/death is tagged so it reads unambiguously.
+//        Gracefully falls back to an embedded "Fact of the day" when the network
+//        is unavailable, so it never blanks.
 //   ❝  Quote of the day   — zenquotes.io/today, embedded fallback.
 // Sits beside the Weather card (both 'tall'). Network is best-effort: initial load
 // retries with short backoff, periodic refresh fetches BEFORE replacing the DOM so a
@@ -324,6 +326,13 @@ export default {
          moment reads as both dated and grounded in lived time at a glance. */
       .dly-fact .ago { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);
         margin-right:8px; letter-spacing:.02em; white-space:nowrap; }
+      /* kind tag — a quiet "born"/"died" caption that leads a birthday or memorial
+         entry, so the rotating history reads unambiguously (a life, not an event).
+         Plain events carry no tag; the "On This Day" label already implies them. */
+      .dly-fact .kind { font-family:var(--font-mono); font-size:10.5px; font-weight:700;
+        letter-spacing:.1em; text-transform:uppercase; margin-right:8px; }
+      .dly-fact .kind.born { color:var(--mint); }
+      .dly-fact .kind.died { color:var(--ink-soft); }
 
       /* QUOTE — the quote clamps and the attribution is pinned as a fixed footer
          inside this region (margin-top:auto), so it can never overlap the block
@@ -416,17 +425,32 @@ export default {
     // until we have a good value, so a failure simply keeps the last good render.
     const fetchOnThisDay = async () => {
       const now = new Date();
-      const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${p2(now.getMonth() + 1)}/${p2(now.getDate())}`;
-      const d = await ctx.fetchJSON(url);
-      const events = Array.isArray(d && d.events) ? d.events : [];
-      const valid = events
+      // The combined "all" feed carries events, curated highlights, and notable
+      // births/deaths for today's date in a single keyless call — a richer, more
+      // human read of the day than events alone.
+      const url = `https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/${p2(now.getMonth() + 1)}/${p2(now.getDate())}`;
+      const d = await ctx.fetchJSON(url) || {};
+      const clean = (arr, kind) => (Array.isArray(arr) ? arr : [])
         .filter((e) => e && e.text && Number.isFinite(e.year))
-        .sort((a, b) => b.year - a.year); // newest → oldest
-      if (valid.length === 0) throw new Error('no events');
-      // Return the WHOLE list (newest→oldest) so the widget can rotate gently
-      // through today's history over the course of the day, rather than fixing
-      // on a single moment.
-      return valid.map((e) => ({ year: e.year, text: e.text.toString().trim() }));
+        .map((e) => ({ kind, year: e.year, text: e.text.toString().trim() }))
+        .sort((a, b) => b.year - a.year); // newest → oldest within a kind
+      // Prefer Wikipedia's curated "selected" highlights for the event stream
+      // (the day's most notable moments); fall back to the raw events list.
+      const selected = clean(d.selected, 'event');
+      const events = (selected.length ? selected : clean(d.events, 'event')).slice(0, 12);
+      const births = clean(d.births, 'born').slice(0, 8);
+      const deaths = clean(d.deaths, 'died').slice(0, 8);
+      if (!events.length && !births.length && !deaths.length) throw new Error('no entries');
+      // Interleave the three kinds so the half-hourly rotation alternates
+      // event → born → died for varied texture, rather than a long run of one.
+      const mixed = [];
+      const max = Math.max(events.length, births.length, deaths.length);
+      for (let i = 0; i < max; i++) {
+        if (i < events.length) mixed.push(events[i]);
+        if (i < births.length) mixed.push(births[i]);
+        if (i < deaths.length) mixed.push(deaths[i]);
+      }
+      return mixed;
     };
     const fetchQuote = async () => {
       const d = await ctx.fetchJSON('https://zenquotes.io/api/today');
@@ -452,14 +476,19 @@ export default {
     const renderOnThisDay = () => {
       if (!otdEvents.length) return;
       const n = otdEvents.length;
-      const { year, text } = otdEvents[((otdIdx % n) + n) % n];
+      const { kind, year, text } = otdEvents[((otdIdx % n) + n) % n];
       otdLbl.textContent = 'On This Day';
       const ago = relYears(year);
-      factEl.replaceChildren(
+      const kids = [];
+      if (kind === 'born') kids.push(h('span', { class: 'kind born' }, 'born'));
+      else if (kind === 'died') kids.push(h('span', { class: 'kind died' }, 'died'));
+      kids.push(
         h('span', { class: 'yr' }, fmtYear(year)),
         h('span', { class: 'ago' }, ago),
         text);
-      factEl.title = `${fmtYear(year)} (${ago}) — ${text}`;
+      factEl.replaceChildren(...kids);
+      const lead = kind === 'born' ? 'Born ' : kind === 'died' ? 'Died ' : '';
+      factEl.title = `${lead}${fmtYear(year)} (${ago}) — ${text}`;
       otdLive = true;
     };
     // Install a freshly fetched list. On a new date (or first load), seed the
