@@ -100,6 +100,18 @@
     </div>
   </div>
 
+  <!-- Plant-watering reminder: full-screen calm GREEN, weekly, until acknowledged.
+       The first occurrence carries a personal note from Gui; later weeks are the short nudge. -->
+  <div id="plantalarm" aria-hidden="true">
+    <div class="pa-inner">
+      <div class="pa-icon">🪴</div>
+      <div class="pa-text" id="plantText">MAX — PLEASE<br>WATER&nbsp;THE&nbsp;PLANTS</div>
+      <div class="pa-sub" id="plantSub">There are 4 plants in the living room (maybe some in back too). Give them a good drink — enough that they don’t dry out, but don’t overwater.</div>
+      <button id="plantAck" type="button">✓ &nbsp;Done — plants are watered</button>
+      <div class="pa-hint">press <b>enter</b> or <b>esc</b> to dismiss · returns next week</div>
+    </div>
+  </div>
+
   <!-- Toasts -->
   <div id="toast" role="status"></div>
 

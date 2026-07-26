@@ -432,6 +432,31 @@ body.screenshot #trashalarm { display: none !important; }
 .sa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
 body.screenshot #streetalarm { display: none !important; }
 
+/* ---------- plant-watering reminder (full-screen, GREEN, until acknowledged) ----------
+   A weekly, friendly nudge — not a panic alarm — so it's a calm STATIC green (no flashing
+   animation, no blur/filter: ~0% GPU). Shows only while unacknowledged; dismissed with the
+   button or Enter/Esc, then re-arms next week. Hidden in screenshot mode like the others. */
+#plantalarm { position: fixed; inset: 0; z-index: 150; display: none;
+  align-items: center; justify-content: center; text-align: center;
+  background: radial-gradient(120% 100% at 50% 0%, #1f8a52 0%, #0c5c34 55%, #073d22 100%);
+  color: #fff; padding: 48px 40px; }
+#plantalarm.on { display: flex; }
+.pa-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 720px; }
+.pa-icon { font-size: 92px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.3)); }
+.pa-text { font-family: var(--font-display); font-weight: 700; font-size: 72px; line-height: .98;
+  letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.35); }
+.pa-text.note { font-size: 52px; }
+.pa-sub { font-size: 23px; line-height: 1.5; color: #fff; opacity: .95; margin-top: 8px;
+  max-height: 46vh; overflow: auto; }
+.pa-sub.note { font-size: 25px; text-align: left; line-height: 1.55; }
+#plantAck { margin-top: 28px; font-family: var(--font); font-size: 24px; font-weight: 700;
+  padding: 20px 44px; border-radius: 999px; cursor: pointer; color: #0a4a2a;
+  background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+#plantAck:active { transform: scale(.97); }
+.pa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
+.pa-hint b { color: #fff; }
+body.screenshot #plantalarm { display: none !important; }
+
 /* ---------- header: right side (QR) ---------- */
 .topright { display: flex; align-items: center; gap: 14px; }
 

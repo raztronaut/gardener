@@ -54,12 +54,6 @@
       "file": "sf-events.js",
       "enabled": true,
       "order": 9
-    },
-    {
-      "id": "calendar",
-      "file": "calendar.js",
-      "enabled": true,
-      "order": 10
     }
   ]
 }

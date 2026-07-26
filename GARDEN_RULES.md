@@ -26,6 +26,17 @@ every day, including quiet no-feedback days.
 - **voice / mic audio capture** — do not re-add a microphone / voice-dictation / SpeechRecognition
   "speak your note" affordance to the feedback bar (or anywhere). The humans asked to remove audio
   capture. Notes are typed only. (Added 2026-07-19, removed on request 2026-07-20.)
+- **When We're Free / shared calendar wall widget** — do not add the "When We're Free" household
+  free-time / availability card (public/widgets/calendar.js) back to the wall grid in any form. The
+  humans asked to remove it. (Removed 2026-07-26.)
+
+## Standing behaviours the humans asked for (keep these working)
+- **Full-screen reminders are Enter/Esc-dismissible** — the trash, street-sweeping car, and plant
+  reminders must always be dismissible by pressing Enter or Esc (not just the on-screen button).
+  (Requested 2026-07-26.)
+- **Weekly plant-watering reminder** — a friendly full-screen GREEN reminder to water the plants,
+  once a week starting 2026-07-31 (#plantalarm in index.html + wirePlantAlarm in app.js). The FIRST
+  occurrence shows Gui's personal note; later weeks show the short nudge. Keep it weekly. (Requested 2026-07-26.)
 
 ## General standing rules
 - Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent

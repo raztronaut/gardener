@@ -106,6 +106,37 @@ function makeCtx(widgetId) {
 const SIZE_CLASS = { sq: 'q', sm: '', md: '', lg: 'w4', full: 'w4', wide: 'w4', tall: 'tall', hero: 'w4 tall' };
 const WIDGET_MODS = {}; // id → widget module object (filled by loadWidgets)
 
+// ---- one-day surprise: a single widget gets "taken over" for exactly one day ----
+// On PRANK.date (one random day this month), the PRANK.widget card renders a message
+// instead of its normal contents — a private in-joke for Max. Any other day it mounts
+// normally. (?pranktest=1 forces it on for a look.) Rendered in place of the real
+// mount so the widget never overwrites it.
+const PRANK = {
+  date: '2026-08-14',                 // a random day within the month after this tending
+  widget: 'hacker-news',              // the (arbitrarily chosen) widget that gets taken over
+  head: 'MAX !!!!',
+  body: 'stop fucking in the couch — i can see you in the hidden camera bro',
+  foot: '· 👀 hidden camera ·',
+};
+function prankDayKey() {
+  const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function prankActiveFor(id) {
+  const on = (typeof qs !== 'undefined' && qs.has('pranktest')) || prankDayKey() === PRANK.date;
+  return on && id === PRANK.widget;
+}
+function renderPrank(body) {
+  body.replaceChildren(h('div', {
+    style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', textAlign: 'center', gap: '18px', padding: '10px' },
+  },
+    h('div', { style: { fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '46px',
+      lineHeight: '1', letterSpacing: '.02em', color: '#ff5a5a', textShadow: '0 4px 20px rgba(0,0,0,.35)' } }, PRANK.head),
+    h('div', { style: { fontSize: '22px', lineHeight: '1.35', fontWeight: '600', color: 'var(--ink)', maxWidth: '92%' } }, PRANK.body),
+    h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: '12px', letterSpacing: '.1em', color: 'var(--ink-faint)' } }, PRANK.foot)));
+}
+
 // Load ALL widgets CONCURRENTLY while preserving visual order: modules are
 // imported in parallel, then cards are created synchronously in manifest order,
 // then every mount() (the data-fetching part) runs in parallel. Sequential
@@ -154,6 +185,9 @@ async function loadWidgets(enabled, mountPoint) {
       card.appendChild(body);
     }
     mountPoint.appendChild(card);
+    // One-day takeover: on its day, this widget shows the surprise message instead
+    // of mounting normally (so nothing overwrites it). Every other day: mount as usual.
+    if (prankActiveFor(entry.id)) { try { renderPrank(body); } catch { /* never break boot */ } return; }
     mounts.push((async () => {
       try {
         const cleanup = await w.mount(body, makeCtx(w.id));
@@ -748,15 +782,85 @@ function refreshStreetAlarm() {
   el.classList.toggle('on', show);
   el.setAttribute('aria-hidden', show ? 'false' : 'true');
 }
+// Mark today's street-sweep done (from the button or Enter/Esc on the takeover).
+function ackStreet() {
+  const el = document.getElementById('streetalarm');
+  try { if (el && el._key) localStorage.setItem(STREET_ACK, el._key); } catch { /* ignore */ }
+  refreshStreetAlarm();
+  toast('Thanks — car moved 🚗');
+}
 function wireStreetAlarm() {
-  document.getElementById('streetAck')?.addEventListener('click', () => {
-    const el = document.getElementById('streetalarm');
-    try { if (el && el._key) localStorage.setItem(STREET_ACK, el._key); } catch { /* ignore */ }
-    refreshStreetAlarm();
-    toast('Thanks — car moved 🚗');
-  });
+  document.getElementById('streetAck')?.addEventListener('click', ackStreet);
   refreshStreetAlarm();
   setInterval(refreshStreetAlarm, 30000);
+}
+
+// ---- weekly plant-watering reminder ----------------------------------------
+// A friendly full-screen GREEN nudge to water the plants, once a week, starting on
+// PLANT_START. The FIRST occurrence carries a personal note (from Gui); every later
+// week is the short "please water the plants" nudge. Shows all day on a watering day
+// until acknowledged (button or Enter/Esc), then re-arms the following week. Ack is
+// stamped with that occurrence's date in localStorage. (?planttest=1 / ?planttest=note
+// force it on for QA.) Hidden in screenshot mode so QA captures the dashboard.
+const PLANT_ACK = 'garden.plantWaterAck';
+const PLANT_START = '2026-07-31'; // first reminder — 5 days after the 2026-07-26 tending
+const PLANT_NOTE = `hey, this is gui from the past. i hope you are doing well buddy. so here's the thing man — since talbs isn't here i need you to water these plants. just give them enough water so they don't die. there's 4 plants here in the living room that need water. maybe some in the back, idk, check it out. give them good water every week but don't overwater them. this will show up again next week to remind you — press esc or enter to dismiss it. thanks buddy, i hope you and jennifer are enjoying the place alone 😉`;
+// Local YYYY-MM-DD in the garden's timezone.
+function plantDayKey(now) {
+  const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}
+// Which weekly occurrence is today (0 = first, 1 = second, …), or null if today
+// isn't a watering day. Anchored to PLANT_START, every 7 days at local midnight.
+function plantWeekIndex(now) {
+  const today = plantDayKey(now);
+  const startMs = Date.parse(PLANT_START + 'T00:00:00Z');
+  const todayMs = Date.parse(today + 'T00:00:00Z');
+  if (!Number.isFinite(startMs) || !Number.isFinite(todayMs)) return null;
+  const days = Math.round((todayMs - startMs) / 864e5);
+  if (days < 0 || days % 7 !== 0) return null;
+  return days / 7;
+}
+function refreshPlantAlarm() {
+  const el = document.getElementById('plantalarm');
+  if (!el) return;
+  const test = qs.get('planttest');
+  const now = new Date();
+  const idx = test != null ? (test === 'note' ? 0 : 1) : plantWeekIndex(now);
+  const key = test != null ? 'test' : (idx == null ? null : plantDayKey(now));
+  let acked = false;
+  try { acked = !!key && localStorage.getItem(PLANT_ACK) === key; } catch { /* ignore */ }
+  const show = key != null && !acked && !SCREENSHOT;
+  el._key = key;
+  // First occurrence → the personal note; later weeks → the short nudge.
+  const textEl = document.getElementById('plantText');
+  const subEl = document.getElementById('plantSub');
+  if (show && textEl && subEl) {
+    if (idx === 0) {
+      textEl.classList.add('note');
+      subEl.classList.add('note');
+      textEl.innerHTML = 'MAX — HEY,<br>IT’S&nbsp;GUI 🌱';
+      subEl.textContent = PLANT_NOTE;
+    } else {
+      textEl.classList.remove('note');
+      subEl.classList.remove('note');
+      textEl.innerHTML = 'MAX — PLEASE<br>WATER&nbsp;THE&nbsp;PLANTS';
+      subEl.textContent = 'There are 4 plants in the living room (maybe some in back too). Give them a good drink — enough that they don’t dry out, but don’t overwater.';
+    }
+  }
+  el.classList.toggle('on', show);
+  el.setAttribute('aria-hidden', show ? 'false' : 'true');
+}
+function ackPlant() {
+  const el = document.getElementById('plantalarm');
+  try { if (el && el._key) localStorage.setItem(PLANT_ACK, el._key); } catch { /* ignore */ }
+  refreshPlantAlarm();
+  toast('Thanks — the plants will be happy 🪴');
+}
+function wirePlantAlarm() {
+  document.getElementById('plantAck')?.addEventListener('click', ackPlant);
+  refreshPlantAlarm();
+  setInterval(refreshPlantAlarm, 30000);
 }
 
 // ---- slash-command registry + palette ---------------------------------------
@@ -1472,6 +1576,18 @@ function wireFeedback() {
   // Type anywhere → the note field (no clicking needed); Esc closes a panel.
   // Capture phase so Esc is caught even when focus is on a button or the panel.
   window.addEventListener('keydown', (e) => {
+    // Full-screen alarms (trash / street car / plant watering) are dismissible with
+    // Enter or Esc — highest priority, before anything else can claim the key.
+    if (e.key === 'Enter' || e.key === 'Escape') {
+      const alarm = document.querySelector('#trashalarm.on, #streetalarm.on, #plantalarm.on');
+      if (alarm) {
+        e.preventDefault(); e.stopPropagation();
+        if (alarm.id === 'trashalarm') ackTrash();
+        else if (alarm.id === 'streetalarm') ackStreet();
+        else if (alarm.id === 'plantalarm') ackPlant();
+        return;
+      }
+    }
     if (mdEl) return; // markdown editor open → its textarea owns the keyboard
     // Esc backs out of an open panel first; once nothing is open it toggles
     // between writing mode (the note console) and keyboard selection mode.
@@ -1663,6 +1779,7 @@ wireEditing(); // right-click hand-pruning of titles/labels
 if (!SCREENSHOT) wirePad(); // controller bridge (skip in QA captures)
 wireTrashAlarm();
 wireStreetAlarm();
+wirePlantAlarm();
 wireCursor();
 wireCornerQr();
 boot();

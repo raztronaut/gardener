@@ -7,15 +7,19 @@ export default {
   id: 'sf-events',
   title: 'Out in SF',
   icon: '🎉',
-  size: 'tall',
+  size: 'hero',
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
       .won { display:flex; flex-direction:column; gap:14px; height:100%; }
-      .won-list { flex:1; display:flex; flex-direction:column; gap:14px; min-height:0; }
-      .won-ev { flex:1; display:flex; gap:12px; align-items:flex-start;
-        padding-bottom:13px; border-bottom:1px solid var(--stroke); min-height:0; }
-      .won-ev:last-child { border-bottom:none; padding-bottom:0; }
+      /* full-width hero card → a 2-column grid of events so the row fills the width
+         instead of leaving a wide empty gutter on the right. */
+      .won-list { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr;
+        gap:12px 34px; min-height:0; }
+      .won-ev { display:flex; gap:12px; align-items:flex-start;
+        padding-bottom:12px; border-bottom:1px solid var(--stroke); min-height:0; }
+      /* drop the divider under the bottom row (last two cells) */
+      .won-ev:nth-last-child(-n+2) { border-bottom:none; }
       .won-date { flex:0 0 auto; width:54px; text-align:center; line-height:1; padding-top:2px; }
       /* weekday cap above the day number — lets a glance tell a weekend from a
          weeknight; weekend days are accented in mint since they're likelier plans. */
@@ -28,7 +32,7 @@ export default {
       .won-date.now .d { font-size:18px; line-height:1; white-space:nowrap; }
       .won-date.now .ap { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.1em; color:var(--mint); margin-top:3px; }
       .won-main { flex:1; min-width:0; }
-      .won-name { font-size:16px; font-weight:600; line-height:1.22; color:var(--ink);
+      .won-name { font-size:17.5px; font-weight:600; line-height:1.24; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .won-meta { margin-top:5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
       .won-place { font-size:12.5px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis;
@@ -36,7 +40,7 @@ export default {
       .won-pill { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.04em; font-weight:600;
         color:var(--mint); background:rgba(120,247,176,.12); border:1px solid var(--stroke);
         border-radius:999px; padding:2px 9px; white-space:nowrap; }
-      .won-empty { flex:1; display:flex; align-items:center; justify-content:center; text-align:center;
+      .won-empty { grid-column:1/-1; flex:1; display:flex; align-items:center; justify-content:center; text-align:center;
         color:var(--ink-faint); font-size:13px; padding:0 10px; }
       .won-foot { flex:0 0 auto; text-align:center; font-family:var(--font-mono); font-size:10px;
         letter-spacing:.08em; color:var(--ink-faint); padding-top:2px; }
@@ -75,7 +79,7 @@ export default {
 
     const render = (evs) => {
       const all = evs || [];
-      const picks = all.slice(0, 5);
+      const picks = all.slice(0, 6);
       if (!picks.length) { foot.style.display = 'none'; list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now')); return; }
       list.replaceChildren(...picks.map((e) => {
         const isToday = e.when && Math.round((new Date(dayKeyFmt.format(e.when) + 'T00:00:00') - startOfToday) / dayMs) <= 0;
