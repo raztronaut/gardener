@@ -130,6 +130,14 @@ export default {
         background:var(--mint); box-shadow:0 0 8px rgba(116,247,176,.7); }
       .wx-pt .tv { position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
         font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; }
+      /* Warmest / coolest hour ahead — the curve's own peak and trough, tinted so
+         the day's temperature arc reads at a glance across the room. Colour + a
+         caret in the label carry the meaning; no extra height, no animation. */
+      .wx-pt .dot.hi { background:var(--gold); box-shadow:0 0 10px rgba(255,217,138,.85); }
+      .wx-pt .dot.lo { background:#9cc0ff; box-shadow:0 0 10px rgba(156,192,255,.85); }
+      .wx-pt .tv.hi { color:var(--gold); }
+      .wx-pt .tv.lo { color:#9cc0ff; }
+      .wx-pt .tv .cr { font-size:10px; margin-right:1px; vertical-align:1px; }
       .wx-axis { display:flex; margin-top:5px; }
       .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:2px; }
       .wx-axis .hr .e { font-size:13px; line-height:1; }
@@ -246,6 +254,12 @@ export default {
         const temps = pts.map((p) => p.t);
         const tMin = Math.min(...temps), tMax = Math.max(...temps);
         const span = (tMax - tMin) || 1;
+        // The warmest and coolest sampled hours ahead — the curve's peak/trough.
+        // Only flagged when there's a real spread (≥3°F) so a flat day stays calm;
+        // ties resolve to the FIRST/EARLIEST occurrence (the soonest peak/low).
+        let hiIdx = 0, loIdx = 0;
+        pts.forEach((p, i) => { if (p.t > pts[hiIdx].t) hiIdx = i; if (p.t < pts[loIdx].t) loIdx = i; });
+        const markExtremes = (tMax - tMin) >= 3 && hiIdx !== loIdx;
         // y as a percentage from top; warm sits high, cool sits low, padded so
         // temp labels above the dots never clip the plot.
         const yOf = (t) => 80 - ((t - tMin) / span) * 52; // 28%..80%
@@ -304,9 +318,22 @@ export default {
               stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
           </svg>`;
 
-        const dots = pts.map((p, i) => ctx.h('div', {
-          class: 'wx-pt', style: { left: `${xOf(i)}%`, top: `${yOf(p.t)}%` },
-        }, ctx.h('div', { class: 'tv' }, `${p.t}°`), ctx.h('div', { class: 'dot' })));
+        const hr12 = (hh) => `${((hh + 11) % 12) + 1}${hh < 12 ? 'a' : 'p'}`;
+        const dots = pts.map((p, i) => {
+          const isHi = markExtremes && i === hiIdx;
+          const isLo = markExtremes && i === loIdx;
+          const kind = isHi ? ' hi' : isLo ? ' lo' : '';
+          const when = p.first ? 'now' : hr12(p.hr);
+          const title = isHi ? `Warmest ahead · ${p.t}°F at ${when}`
+            : isLo ? `Coolest ahead · ${p.t}°F at ${when}` : '';
+          return ctx.h('div', {
+            class: 'wx-pt', style: { left: `${xOf(i)}%`, top: `${yOf(p.t)}%` }, title,
+          },
+            ctx.h('div', { class: `tv${kind}` },
+              (isHi || isLo) ? ctx.h('span', { class: 'cr' }, isHi ? '▲' : '▼') : null,
+              `${p.t}°`),
+            ctx.h('div', { class: `dot${kind}` }));
+        });
 
         const axis = pts.map((p) => {
           const slug = nightSlug(WMO(p.code)[1], p.isDay);
