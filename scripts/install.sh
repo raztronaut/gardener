@@ -12,6 +12,13 @@ cp "$ROOT"/systemd/*.service "$ROOT"/systemd/*.timer "$UD"/
 
 systemctl --user daemon-reload
 
+# Enable LINGER so the user's systemd instance starts at BOOT and keeps these
+# --user services running across reboots WITHOUT an interactive login. Without
+# this, everything below (backend, kiosk, and the Roots/plant app) only comes up
+# once someone logs in — which is why Roots had to be restarted by hand after a
+# reboot. Idempotent; safe to re-run.
+loginctl enable-linger "$(whoami)" || echo "WARN: could not enable linger (may need: sudo loginctl enable-linger $(whoami))"
+
 # Always-on services
 systemctl --user enable --now gardener-backend.service
 systemctl --user enable --now gardener-plant.service || true     # public note page (tunnel target)

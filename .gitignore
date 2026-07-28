@@ -13,6 +13,6 @@ data/
 .DS_Store
 *.log
 
-# Python bytecode (blink sidecar)
+# Python bytecode
 __pycache__/
 *.pyc

@@ -34,8 +34,6 @@ case "$cmd" in
   sync)    exec node src/display.mjs sync ;;
   plant)   exec node src/plant-server.mjs ;;   # locked-down PUBLIC surface (note page + feedback only)
   pad)     exec node src/pad.mjs ;;            # SN30 Pro controller → dashboard bridge
-  blink)   exec data/blink/venv/bin/python src/blink/blink_daemon.py ;;  # Blink motion → latest.jpg (venv has blinkpy)
-  blink-live) exec data/blink/venv/bin/python src/blink/blink_live.py ;; # always-on Blink Live View → live frame
   tunnel)
     # Expose the PLANT server publicly. Prefer a PERMANENT ngrok static domain if
     # configured (.env: GARDENER_NGROK_DOMAIN); otherwise fall back to a free
@@ -116,5 +114,5 @@ case "$cmd" in
       --enable-unsafe-swiftshader \
       --remote-debugging-port=9223 \
       --window-position=0,0 --window-size=900,1600 ;;
-  *) echo "usage: gardener.sh {server|iterate|day|evening|night|sync|plant|tunnel|pad|blink|blink-live|kiosk}"; exit 2 ;;
+  *) echo "usage: gardener.sh {server|iterate|day|evening|night|sync|plant|tunnel|pad|kiosk}"; exit 2 ;;
 esac

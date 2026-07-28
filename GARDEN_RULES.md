@@ -29,6 +29,11 @@ every day, including quiet no-feedback days.
 - **When We're Free / shared calendar wall widget** — do not add the "When We're Free" household
   free-time / availability card (public/widgets/calendar.js) back to the wall grid in any form. The
   humans asked to remove it. (Removed 2026-07-26.)
+- **Blink camera / motion gallery** — do not add back the "Camera" live-view widget
+  (public/widgets/blink-camera.js), the "Motion" filmstrip (public/widgets/motion-gallery.js), the
+  Python blinkpy sidecar (src/blink/), the /api/blink/* endpoints, or the gardener-blink /
+  gardener-blink-live services in any form. The humans asked to remove the Blink camera and stop the
+  system connecting to it. (Removed 2026-07-28.)
 
 ## Standing behaviours the humans asked for (keep these working)
 - **Full-screen reminders are Enter/Esc-dismissible** — the trash, street-sweeping car, and plant

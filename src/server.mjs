@@ -3,7 +3,7 @@
 // only. Includes an SSRF-hardened, allowlisted proxy so widgets can reach
 // keyless public APIs without CORS headaches.
 import http from 'node:http';
-import { promises as fs, readFileSync, existsSync, appendFileSync } from 'node:fs';
+import { promises as fs, readFileSync, appendFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
@@ -117,87 +117,6 @@ async function serveRom(req, res, urlPath) {
   } catch {
     send(res, 404, 'text/plain', 'not found');
   }
-}
-// Blink camera — the blinkpy daemon (src/blink/) drops its status + snapshot into
-// data/blink/. These two endpoints surface them to the widget (localhost-only).
-async function serveBlinkLatest(req, res) {
-  const file = join(paths.BLINK, 'latest.json');
-  try {
-    const meta = JSON.parse(await fs.readFile(file, 'utf8'));
-    // Tell the widget whether a snapshot exists and a cache-busting version stamp.
-    let hasImage = false, imgV = 0;
-    try { const st = await fs.stat(join(paths.BLINK, 'latest.jpg')); hasImage = st.size > 0; imgV = Math.round(st.mtimeMs); }
-    catch { /* no image yet */ }
-    // Saved-motion summary so the widget can show that clips are being archived.
-    let savedMotion = 0, lastSavedAt = null;
-    try {
-      const idx = JSON.parse(await fs.readFile(join(paths.BLINK, 'motion', 'index.json'), 'utf8'));
-      if (Array.isArray(idx)) { savedMotion = idx.length; lastSavedAt = idx[0]?.ts || null; }
-    } catch { /* no motion yet */ }
-    return json(res, 200, { ...meta, hasImage, imageVersion: imgV, savedMotion, lastSavedAt });
-  } catch {
-    // No file yet → the daemon hasn't run / nobody has logged in.
-    return json(res, 200, { state: 'needs-login', message: 'Blink not connected yet', hasImage: false });
-  }
-}
-async function serveBlinkImage(req, res) {
-  try {
-    const data = await fs.readFile(join(paths.BLINK, 'latest.jpg'));
-    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'no-store' });
-    res.end(data);
-  } catch {
-    send(res, 404, 'text/plain', 'no snapshot');
-  }
-}
-// ---- Blink LIVE VIEW (ALWAYS-ON, self-healing real-time video) ------------
-// blink_live.py opens Blink's immis Live View and re-serves it as MPEG-TS on a
-// localhost port; ffmpeg decodes that and continuously overwrites ONE jpg
-// (/dev/shm, tmpfs) with the latest frame. The wall (tile + fullscreen) rapid-
-// polls /api/blink/live.jpg. A supervisor keeps the session up 24/7 and RESTARTS
-// it whenever it breaks — Blink Live View sessions end after ~90min, and the
-// stream can choke on a scene/lighting/codec change; a restart re-negotiates a
-// fresh keyframe, so the feed self-heals. NOTE: the snapshot daemon must NOT call
-// snap_picture while this runs (that command kills the live session) — it detects
-// liveness via the frame file's freshness and backs off (see blink_daemon.py).
-// Live View is owned by the always-on, self-healing gardener-blink-live service
-// (src/blink/blink_live.py): one Blink Live View session, watchdog-restarted, with
-// polite backoff if Blink ever throttles. The server just serves the latest frame;
-// when it's stale (session reconnecting/throttled) we 503 so the widget falls back
-// to the snapshot instead of showing a frozen frame.
-const LIVE_FRAME = existsSync('/dev/shm') ? '/dev/shm/gardener-blink-live.jpg' : join(paths.BLINK, 'live.jpg');
-async function serveBlinkLiveJpg(req, res) {
-  try {
-    const st = await fs.stat(LIVE_FRAME);
-    if (Date.now() - st.mtimeMs > 15000) return send(res, 503, 'text/plain', 'stale');
-    const data = await fs.readFile(LIVE_FRAME);
-    res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'no-store' });
-    res.end(data);
-  } catch {
-    send(res, 503, 'text/plain', 'warming');
-  }
-}
-
-// List saved motion events (newest first) from the archive index.
-async function serveBlinkMotion(req, res) {
-  try {
-    const idx = JSON.parse(await fs.readFile(join(paths.BLINK, 'motion', 'index.json'), 'utf8'));
-    return json(res, 200, { events: Array.isArray(idx) ? idx : [] });
-  } catch {
-    return json(res, 200, { events: [] });
-  }
-}
-// Stream one saved motion file (jpg thumb or mp4 clip), basename-guarded.
-async function serveBlinkMotionFile(req, res, urlPath) {
-  const base = (decodeURIComponent(urlPath.split('?')[0]).split('/').pop() || '');
-  const ext = extname(base).toLowerCase();
-  if (!base || base.startsWith('.') || !['.jpg', '.mp4'].includes(ext)) return send(res, 404, 'text/plain', 'not found');
-  const full = normalize(join(paths.BLINK, 'motion', base));
-  if (!full.startsWith(resolve(join(paths.BLINK, 'motion')))) return send(res, 403, 'text/plain', 'forbidden');
-  try {
-    const data = await fs.readFile(full);
-    res.writeHead(200, { 'Content-Type': ext === '.mp4' ? 'video/mp4' : 'image/jpeg', 'Content-Length': data.length, 'Cache-Control': 'public, max-age=86400' });
-    res.end(data);
-  } catch { send(res, 404, 'text/plain', 'not found'); }
 }
 
 // Arcade — emit the EmulatorJS bootstrap as a REAL same-origin page. The widget
@@ -696,14 +615,6 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
     // Stream one ROM's bytes (read-only, basename-guarded path traversal).
     if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/roms/')) return serveRom(req, res, p);
-
-    // Blink camera — the Python blinkpy daemon writes latest.json + latest.jpg into
-    // data/blink/. The widget reads the metadata and shows the snapshot. (localhost.)
-    if (req.method === 'GET' && p === '/api/blink/latest') return serveBlinkLatest(req, res);
-    if (req.method === 'GET' && p === '/api/blink/image') return serveBlinkImage(req, res);
-    if (req.method === 'GET' && p === '/api/blink/live.jpg') return serveBlinkLiveJpg(req, res);
-    if (req.method === 'GET' && p === '/api/blink/motion') return serveBlinkMotion(req, res);
-    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/api/blink/motion/')) return serveBlinkMotionFile(req, res, p);
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
     // Localhost wall surface: reads, PLUS the chore-logging write so the Roots
