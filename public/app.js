@@ -681,15 +681,16 @@ async function toggleNight() {
 // one acknowledgement:
 //   • a quiet dashboard PILL (header) that's available all day Tuesday so anyone
 //     can put the bins out early and mark it done; and
-//   • the full-screen flashing-red TAKEOVER that only fires at NIGHT (from 19:00),
+//   • the full-screen flashing-red TAKEOVER that fires from 17:00 (5 PM) onwards,
 //     the unmissable last call — runs until Wednesday 07:00 or until acknowledged.
-// (It used to take over the whole screen from 7AM — too early; now mornings just
-// show the small button.) Acknowledgement is stamped with the trash cycle's
+// (The humans asked for the big, flashing, impossible-to-miss takeover from 5 PM on
+// Tuesday, since pickup is very early Wednesday morning — mornings/afternoons before
+// 5 PM just show the small button.) Acknowledgement is stamped with the trash cycle's
 // Tuesday date in localStorage, so EITHER control dismisses BOTH for the week and
 // it re-arms automatically next Tuesday. (?alarmtest=1 forces the takeover on for
 // QA.) The takeover is hidden in screenshot mode so QA captures the dashboard.
 const TRASH_ACK = 'garden.trashCurbAck';
-const TRASH_NIGHT_HOUR = 19; // 7 PM — the takeover's "it's trash night" threshold
+const TRASH_NIGHT_HOUR = 17; // 5 PM — the takeover's "it's trash night" threshold (humans' request, 2026-07-29)
 function tzNow(parts) {
   const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, ...parts });
@@ -707,7 +708,7 @@ function trashWeekKey(now) {
   if (wd === 'Wed' && hr < 7) return dayOf(new Date(now.getTime() - 864e5)); // before Wed 7AM → yesterday (Tue)
   return null;
 }
-// Is it the NIGHT takeover window? Tue from 19:00, through Wed 07:00.
+// Is it the NIGHT takeover window? Tue from 17:00 (5 PM), through Wed 07:00.
 function isTrashNight(now) {
   const wd = tzNow({ weekday: 'short' }).format(now);
   const hr = parseInt(tzNow({ hour: 'numeric', hour12: false }).format(now), 10);

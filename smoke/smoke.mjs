@@ -54,6 +54,14 @@ async function main() {
     for (const f of ['index.html', 'app.js', 'styles.css']) {
       check(`core file exists: ${f}`, existsSync(join(PUBLIC, f)));
     }
+    // The Tuesday curb-trash takeover must fire early enough to be unmissable before
+    // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
+    // from 5 PM onwards. Guard against it silently drifting later again (regression 2026-07-29).
+    try {
+      const appSrc = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
+      const m = appSrc.match(/TRASH_NIGHT_HOUR\s*=\s*(\d+)/);
+      check('trash takeover fires by 5 PM (TRASH_NIGHT_HOUR ≤ 17)', m && Number(m[1]) <= 17, m ? `is ${m[1]}` : 'TRASH_NIGHT_HOUR not found');
+    } catch (e) { bad('trash takeover threshold', e.message); }
 
     // 3) Boot the server with an isolated DB + port.
     console.log('\n[3] server boot');

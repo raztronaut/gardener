@@ -387,7 +387,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 body.night #nightveil { opacity: 1; pointer-events: auto; }
 
 /* ---------- curb-trash alarm (full-screen, flashing red until acknowledged) ----------
-   Only ever visible Tue 16:00 → Wed 07:00 while unacknowledged — i.e. a rare, transient
+   Only ever visible Tue 17:00 (5 PM) → Wed 07:00 while unacknowledged — i.e. a rare, transient
    ALARM state, not the idle dashboard. The flash is a stepped solid-color swap (no blur /
    filter / gradient tween), so it's cheap; it stops entirely the instant it's dismissed or
    the window closes, returning the screen to ~0% CPU idle. */

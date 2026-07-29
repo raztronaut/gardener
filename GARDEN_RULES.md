@@ -42,6 +42,11 @@ every day, including quiet no-feedback days.
 - **Weekly plant-watering reminder** — a friendly full-screen GREEN reminder to water the plants,
   once a week starting 2026-07-31 (#plantalarm in index.html + wirePlantAlarm in app.js). The FIRST
   occurrence shows Gui's personal note; later weeks show the short nudge. Keep it weekly. (Requested 2026-07-26.)
+- **Tuesday curb-trash takeover must be big, red, flashing, and start at 5 PM** — every Tuesday the
+  trash goes to the curb for very-early-Wednesday pickup, so the full-screen flashing-red TAKEOVER
+  (#trashalarm) must fire from 17:00 (5 PM) onwards until acknowledged — unmissable, not just the
+  small header pill. Governed by TRASH_NIGHT_HOUR in app.js (must stay ≤ 17; smoke guards this). Do
+  NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
 - Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent
