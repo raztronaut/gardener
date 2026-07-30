@@ -23,6 +23,13 @@ function fmtDate(iso) {
   return `${mon} ${parseInt(m[3], 10)}, ${m[1]}`;
 }
 
+// NASA's explanation arrives as one long paragraph, sometimes with double spaces
+// and stray line breaks. Collapse it to a single clean run of text; the CSS
+// line-clamp handles length, so we keep the full string for the tooltip.
+function tidy(text) {
+  return (text || '').toString().replace(/\s+/g, ' ').trim();
+}
+
 export default {
   id: 'apod',
   title: 'Astronomy Photo',
@@ -70,6 +77,16 @@ export default {
         color:rgba(234,255,244,.72); text-shadow:0 1px 5px rgba(0,0,0,.7);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .apod-date .cr { color:rgba(234,255,244,.5); }
+      /* a quiet museum caption — NASA's own words on today's image, clamped to two
+         lines so the photo stays the hero. Hidden entirely when absent. Sits over
+         the scrim (absolutely positioned) so it can never grow the card's height. */
+      .apod-desc { margin-top:8px; font-size:12.5px; line-height:1.42; font-weight:400;
+        color:rgba(234,255,244,.84); text-shadow:0 1px 6px rgba(0,0,0,.85);
+        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      /* the same caption, styled for the video-day placeholder card */
+      .apod-ph.vid .vx { margin-top:2px; max-width:92%; font-size:12.5px; line-height:1.42;
+        color:var(--ink-soft);
+        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     `);
     body.classList.add('apod');
 
@@ -80,7 +97,8 @@ export default {
     const img = h('img', { class: 'apod-img', alt: '' });
     const titleEl = h('div', { class: 'apod-title' });
     const dateEl = h('div', { class: 'apod-date' });
-    const cap = h('div', { class: 'apod-cap' }, titleEl, dateEl);
+    const descEl = h('div', { class: 'apod-desc' });
+    const cap = h('div', { class: 'apod-cap' }, titleEl, dateEl, descEl);
     const scrim = h('div', { class: 'apod-scrim' });
 
     // Decode an image THROUGH the proxy into a detached Image; resolve only on a
@@ -101,6 +119,11 @@ export default {
       titleEl.textContent = d.title || 'Astronomy Picture of the Day';
       dateEl.replaceChildren(fmtDate(d.date), d.copyright
         ? h('span', { class: 'cr' }, `  ·  © ${String(d.copyright).replace(/\s+/g, ' ').trim()}`) : null);
+      // Museum caption — NASA's own words, clamped to two lines. Hidden when absent.
+      const blurb = tidy(d.explanation);
+      descEl.textContent = blurb;
+      descEl.title = blurb;
+      descEl.style.display = blurb ? '' : 'none';
       body.replaceChildren(img, scrim, cap);
       // one-shot fade-in (next frame so the transition takes)
       requestAnimationFrame(() => img.classList.add('in'));
@@ -109,10 +132,12 @@ export default {
     // Render a VIDEO day (or an image with no usable url): a calm placeholder that
     // still shows the title + date. No iframe, no autoplay.
     const renderVideo = (d) => {
+      const blurb = tidy(d.explanation);
       body.replaceChildren(h('div', { class: 'apod-ph vid' },
         h('div', { class: 'ic' }, '🎬'),
         h('div', { class: 'vt' }, d.title || 'Astronomy Video of the Day'),
         h('div', { class: 'vd' }, fmtDate(d.date)),
+        blurb ? h('div', { class: 'vx', title: blurb }, blurb) : null,
         h('div', { class: 'vc' }, '🎬 video — view on nasa.gov')));
     };
 
