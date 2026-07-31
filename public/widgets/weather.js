@@ -1,5 +1,6 @@
 // Weather — current conditions + sunrise/sunset + length of day (with a quiet
-// day-over-day trend as the seasons turn) + a linear hourly temperature timeline
+// day-over-day trend as the seasons turn) + tomorrow's outlook carrying a
+// glanceable warmer/cooler-than-today cue + a linear hourly temperature timeline
 // whose after-dark hours are gently shaded so the evening reads at a glance,
 // via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
 // [label, icon-slug] — slugs map to self-hosted animated Meteocons SVGs in
@@ -104,6 +105,9 @@ export default {
       .wx-sky .day b { color:var(--ink); font-weight:600; }
       .wx-sky .day .tr { color:var(--ink-faint); letter-spacing:.01em; }
       .wx-sky .tmrw { color:var(--mint); }
+      /* tomorrow's warmer/cooler cue — a quiet caret + word tinted gold (warmer)
+         or blue (cooler), echoing the timeline's peak/trough colours. */
+      .wx-sky .tmrw .tt { font-weight:600; letter-spacing:.01em; white-space:nowrap; }
       .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
       .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .wx-sky .uv b { color:var(--ink); font-weight:600; }
@@ -234,9 +238,20 @@ export default {
         // (forecast_days=2 guarantees it's present). What the humans actually
         // wanted here: "what's it going to be like tomorrow", not a countdown.
         const tmrwCode = d.daily.weather_code?.[1];
-        const tmrwLabel = (tmrwCode != null && d.daily.temperature_2m_max?.[1] != null)
-          ? `${WMO(tmrwCode)[0]} · H ${Math.round(d.daily.temperature_2m_max[1])}° L ${Math.round(d.daily.temperature_2m_min[1])}°`
+        const tmrwHi = d.daily.temperature_2m_max?.[1];
+        const tmrwLabel = (tmrwCode != null && tmrwHi != null)
+          ? `${WMO(tmrwCode)[0]} · H ${Math.round(tmrwHi)}° L ${Math.round(d.daily.temperature_2m_min[1])}°`
           : '—';
+        // …and how tomorrow's high compares to today's — a glanceable "dress
+        // warmer / lighter" cue. Uses the SAME gold-▲ (warmer) / blue-▼ (cooler)
+        // language as the hourly timeline's peak/trough, so it reads instantly.
+        // Only spoken when the swing is worth noting (≥3°F); a similar day stays
+        // a hushed word so the line doesn't cry wolf over a 1° wobble.
+        const tmrwDelta = (tmrwHi != null && Number.isFinite(hi)) ? Math.round(tmrwHi) - hi : null;
+        const tmrwTrend = tmrwDelta == null ? null
+          : tmrwDelta >= 3 ? { car: '▲', word: `${tmrwDelta}° warmer`, color: 'var(--gold)' }
+          : tmrwDelta <= -3 ? { car: '▼', word: `${-tmrwDelta}° cooler`, color: '#9cc0ff' }
+          : { car: '', word: 'about the same', color: 'var(--ink-faint)' };
 
         // Sample the next ~14h every 2 hours for a linear timeline.
         const idx = new Date().getHours();
@@ -375,7 +390,14 @@ export default {
               title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
             }, ctx.h('span', { class: 'dot', style: { background: uvColor, boxShadow: `0 0 6px ${uvColor}` } }),
               'UV ', ctx.h('b', {}, `${uvNow ?? '—'}`), ` ${uvLabel}`),
-            ctx.h('span', { class: 'tmrw' }, `Tomorrow: ${tmrwLabel}`)),
+            ctx.h('span', {
+              class: 'tmrw',
+              title: tmrwTrend && tmrwTrend.car
+                ? `Tomorrow — ${tmrwLabel} · ${tmrwTrend.word} than today`
+                : `Tomorrow — ${tmrwLabel}`,
+            }, `Tomorrow: ${tmrwLabel}`,
+              tmrwTrend ? ctx.h('span', { class: 'tt', style: { color: tmrwTrend.color } },
+                ` ${tmrwTrend.car ? tmrwTrend.car + ' ' : ''}${tmrwTrend.word}`) : null)),
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Feels like'),
