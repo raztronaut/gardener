@@ -1,5 +1,7 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
-//   📖 Word of the day   — fully OFFLINE, deterministic by day-of-year (never fails).
+//   📖 Word of the day   — fully OFFLINE, deterministic by day-of-year (never fails);
+//        carries its pronunciation, part of speech, etymology, definition, an example
+//        sentence, and a quiet "≈ synonyms  ≠ antonyms" line for words that have them.
 //   📜 On this day        — a rotating mix of today's historical events plus the
 //        notable people born and who died on this date, from Wikipedia's keyless
 //        onthisday feed; each birth/death is tagged so it reads unambiguously.
@@ -162,6 +164,38 @@ const SYNONYMS = {
   scintilla: ['trace', 'spark', 'iota'],
 };
 
+// ---- ANTONYMS — a few opposite words for each entry (offline, keyed by word).
+// Same pattern as SYNONYMS: a separate map so WORDS is never touched, and a
+// missing entry simply renders no antonyms clause. Only words with a genuine,
+// clean opposite are listed; the untranslatable coinages and the neutral nouns
+// (petrichor, sonder, aurora, reverie, zephyr…) are intentionally absent.
+const ANTONYMS = {
+  ephemeral: ['eternal', 'enduring', 'permanent'],
+  mellifluous: ['harsh', 'grating', 'discordant'],
+  halcyon: ['turbulent', 'stormy', 'troubled'],
+  quixotic: ['pragmatic', 'realistic', 'hard-nosed'],
+  sublime: ['ordinary', 'mundane', 'unremarkable'],
+  ineffable: ['expressible', 'describable', 'commonplace'],
+  luminescence: ['darkness', 'gloom'],
+  effervescent: ['flat', 'listless', 'subdued'],
+  solitude: ['company', 'togetherness', 'crowd'],
+  gossamer: ['sturdy', 'heavy', 'substantial'],
+  incandescent: ['dull', 'dim', 'lifeless'],
+  numinous: ['mundane', 'profane', 'earthly'],
+  evanescent: ['enduring', 'permanent', 'lasting'],
+  plethora: ['scarcity', 'dearth', 'lack'],
+  panacea: ['scourge', 'affliction'],
+  felicity: ['misery', 'woe', 'wretchedness'],
+  verdant: ['barren', 'arid', 'withered'],
+  sanguine: ['pessimistic', 'gloomy', 'despondent'],
+  aplomb: ['awkwardness', 'nervousness', 'unease'],
+  pellucid: ['murky', 'opaque', 'muddled'],
+  lissome: ['stiff', 'clumsy', 'ungainly'],
+  ethereal: ['earthly', 'solid', 'corporeal'],
+  sempiternal: ['fleeting', 'transient', 'momentary'],
+  ebullient: ['subdued', 'listless', 'downcast'],
+};
+
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
 const FACTS = [
   'Honey never spoils — archaeologists have found 3,000-year-old jars in Egyptian tombs still perfectly edible.',
@@ -303,13 +337,20 @@ export default {
       .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
       .dly-def { margin-top:6px; font-size:14px; line-height:1.34; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      /* synonyms — a quiet kindred-words line beneath the definition, led by a
-         mint "≈". One line, ellipsised, so it can never push the example out of
-         the region; hidden entirely when the word has no listed synonyms. */
+      /* synonyms & antonyms — a quiet "kindred + opposite" line beneath the
+         definition: a mint "≈" leads a few near-synonyms, and (when the word has
+         a clean opposite) a cool blue "≠" leads a few antonyms on the SAME line.
+         One line, ellipsised, so it can never push the example out of the region;
+         adds no height. Hidden entirely when the word has neither. */
       .dly-syn { margin-top:5px; font-size:12.5px; line-height:1.25; color:var(--ink-soft);
         flex:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
       .dly-syn .eq { color:var(--mint); font-weight:700; margin-right:7px; }
       .dly-syn .sw + .sw::before { content:'·'; color:var(--ink-faint); margin:0 6px; }
+      /* antonyms — cool blue "≠" marker (paired with the mint "≈"); a wider left
+         gap sets the opposites apart from the synonyms when both are present. */
+      .dly-syn .neq { color:#9cc0ff; font-weight:700; margin-right:7px; }
+      .dly-syn .sw + .neq { margin-left:13px; }
+      .dly-syn .aw + .aw::before { content:'·'; color:var(--ink-faint); margin:0 6px; }
       /* example usage — a quiet italic line that shows the word living in a sentence.
          The word itself is emphasised in mint so the eye finds it at a glance. */
       .dly-ex { margin-top:5px; font-style:italic; font-size:12.5px; line-height:1.3; color:var(--ink-soft);
@@ -387,15 +428,30 @@ export default {
         origEl.style.display = 'none';
         origEl.replaceChildren();
       }
-      // Synonyms (optional): a mint "≈" then a few kindred words, dot-separated.
-      // Hidden entirely when we have none, so no empty line is left behind.
+      // Synonyms + antonyms (both optional) share ONE line: a mint "≈" then a few
+      // kindred words, and a cool-blue "≠" then a few opposites. Either clause is
+      // shown only when we have it; the whole line hides when we have neither, so
+      // no empty line is ever left behind and no vertical height is added.
       const syns = SYNONYMS[w.word];
-      if (syns && syns.length) {
+      const ants = ANTONYMS[w.word];
+      const hasSyn = syns && syns.length;
+      const hasAnt = ants && ants.length;
+      if (hasSyn || hasAnt) {
         synEl.style.display = '';
-        synEl.title = `Synonyms — ${syns.join(', ')}`;
-        synEl.replaceChildren(
-          h('span', { class: 'eq' }, '≈'),
-          ...syns.map((s) => h('span', { class: 'sw' }, s)));
+        const parts = [];
+        const titleBits = [];
+        if (hasSyn) {
+          parts.push(h('span', { class: 'eq' }, '≈'),
+            ...syns.map((s) => h('span', { class: 'sw' }, s)));
+          titleBits.push(`Synonyms — ${syns.join(', ')}`);
+        }
+        if (hasAnt) {
+          parts.push(h('span', { class: 'neq' }, '≠'),
+            ...ants.map((a) => h('span', { class: 'aw' }, a)));
+          titleBits.push(`Antonyms — ${ants.join(', ')}`);
+        }
+        synEl.title = titleBits.join('   ·   ');
+        synEl.replaceChildren(...parts);
       } else {
         synEl.style.display = 'none';
         synEl.replaceChildren();
