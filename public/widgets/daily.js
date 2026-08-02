@@ -62,6 +62,18 @@ const WORDS = [
   { word: 'syzygy', pron: '/ˈsɪzɪdʒi/', pos: 'noun', def: 'An alignment of three celestial bodies in a straight line, as in an eclipse.', ex: 'Astronomers gathered to watch the rare syzygy unfold across the night sky.' },
   { word: 'ebullient', pron: '/ɪˈbʌliənt/', pos: 'adjective', def: 'Cheerful and full of energy; overflowing with excitement.', ex: 'The team returned ebullient after the last-minute victory.' },
   { word: 'scintilla', pron: '/sɪnˈtɪlə/', pos: 'noun', def: 'A tiny trace or spark of a specified quality or feeling.', ex: 'There wasn’t a scintilla of doubt in her steady voice.' },
+  { word: 'gloaming', pron: '/ˈɡləʊmɪŋ/', pos: 'noun', def: 'Twilight; the soft half-light of dusk just after the sun goes down.', ex: 'They walked the shoreline in the gloaming, the water gone to pewter.' },
+  { word: 'crepuscular', pron: '/krɪˈpʌskjʊlə/', pos: 'adjective', def: 'Of, resembling, or active at twilight; dim and shadowy.', ex: 'Foxes are crepuscular, slipping out to hunt in the failing light.' },
+  { word: 'quiescent', pron: '/kwiˈɛsnt/', pos: 'adjective', def: 'In a state of quiet inactivity; dormant and at rest.', ex: 'The volcano had lain quiescent for a hundred years.' },
+  { word: 'eudaimonia', pron: '/ˌjuːdɪˈməʊniə/', pos: 'noun', def: 'Human flourishing; a deep, contented well-being that comes from living well.', ex: 'For Aristotle, eudaimonia was the highest aim of a good life.' },
+  { word: 'frisson', pron: '/ˈfriːsɒn/', pos: 'noun', def: 'A sudden, passing shiver of excitement or delight.', ex: 'A frisson ran through the audience as the lights went down.' },
+  { word: 'saudade', pron: '/saʊˈdɑːdə/', pos: 'noun', def: 'Portuguese: a wistful, aching longing for something loved and lost, or perhaps never had.', ex: 'The old fado songs are steeped in saudade for a vanished Lisbon.' },
+  { word: 'komorebi', pron: '/ˌkoʊmoʊˈrɛbi/', pos: 'noun', def: 'Japanese: the dappled sunlight that filters through the leaves of trees.', ex: 'We ate beneath the maple, freckled with komorebi.' },
+  { word: 'eunoia', pron: '/juːˈnɔɪə/', pos: 'noun', def: 'Beautiful thinking; a well mind and heart, and the goodwill it extends to others.', ex: 'She met every stranger with a quiet eunoia.' },
+  { word: 'nebulous', pron: '/ˈnɛbjʊləs/', pos: 'adjective', def: 'Vague and ill-defined; hazy and cloud-like in form or meaning.', ex: 'His plans were still nebulous, more mood than map.' },
+  { word: 'languor', pron: '/ˈlæŋɡə/', pos: 'noun', def: 'A pleasant heaviness or dreamy stillness; a soft, unhurried lack of energy.', ex: 'A summer languor settled over the porch by mid-afternoon.' },
+  { word: 'quintessence', pron: '/kwɪnˈtɛsns/', pos: 'noun', def: 'The purest, most perfect example or embodiment of a quality.', ex: 'The little café was the quintessence of unhurried Parisian mornings.' },
+  { word: 'noctilucent', pron: '/ˌnɒktɪˈluːsnt/', pos: 'adjective', def: 'Shining or glowing in the night, as the rare high clouds lit long after sunset.', ex: 'On midsummer nights the sky held faint, noctilucent clouds.' },
 ];
 
 // ---- WORD ORIGINS — a quiet etymology for each word (offline, keyed by word).
@@ -116,6 +128,18 @@ const ORIGINS = {
   syzygy: 'Greek · “yoked together”',
   ebullient: 'Latin ebullire “to bubble”',
   scintilla: 'Latin · “a spark”',
+  gloaming: 'Old English glōm “twilight”',
+  crepuscular: 'Latin crepusculum “dusk”',
+  quiescent: 'Latin quiescere “to rest”',
+  eudaimonia: 'Greek eu “good” + daimōn',
+  frisson: 'French · “a shiver”',
+  saudade: 'Portuguese · Latin solitas',
+  komorebi: 'Japanese 木漏れ日 · leaf-light',
+  eunoia: 'Greek eu “good” + nous “mind”',
+  nebulous: 'Latin nebula “mist, cloud”',
+  languor: 'Latin languēre “to be faint”',
+  quintessence: 'Latin quinta essentia',
+  noctilucent: 'Latin nox “night” + lucēre',
 };
 
 // ---- SYNONYMS — a few kindred words for each entry (offline, keyed by word).
@@ -162,6 +186,16 @@ const SYNONYMS = {
   oneiric: ['dreamlike', 'dreamy', 'surreal'],
   ebullient: ['exuberant', 'buoyant', 'high-spirited'],
   scintilla: ['trace', 'spark', 'iota'],
+  gloaming: ['dusk', 'twilight', 'nightfall'],
+  crepuscular: ['dim', 'shadowy', 'dusky'],
+  quiescent: ['dormant', 'still', 'latent'],
+  eudaimonia: ['flourishing', 'well-being', 'contentment'],
+  frisson: ['thrill', 'shiver', 'tingle'],
+  eunoia: ['goodwill', 'benevolence', 'kindliness'],
+  nebulous: ['vague', 'hazy', 'indistinct'],
+  languor: ['lassitude', 'listlessness', 'torpor'],
+  quintessence: ['essence', 'epitome', 'embodiment'],
+  noctilucent: ['night-glowing', 'luminous', 'gleaming'],
 };
 
 // ---- ANTONYMS — a few opposite words for each entry (offline, keyed by word).
@@ -194,6 +228,14 @@ const ANTONYMS = {
   ethereal: ['earthly', 'solid', 'corporeal'],
   sempiternal: ['fleeting', 'transient', 'momentary'],
   ebullient: ['subdued', 'listless', 'downcast'],
+  gloaming: ['dawn', 'daybreak', 'sunrise'],
+  crepuscular: ['bright', 'radiant', 'sunlit'],
+  quiescent: ['active', 'restless', 'agitated'],
+  eudaimonia: ['misery', 'wretchedness'],
+  eunoia: ['ill will', 'malice'],
+  nebulous: ['clear', 'distinct', 'defined'],
+  languor: ['vigour', 'energy', 'briskness'],
+  noctilucent: ['dark', 'lightless'],
 };
 
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
