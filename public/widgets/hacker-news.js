@@ -51,14 +51,22 @@ export default {
   id: 'hacker-news',
   title: 'Hacker News',
   icon: '📰',
-  size: 'tall', // half width × 2 rows — a roomy front-page feed beside the camera
+  size: 'tall', // half width × 2 rows — a roomy front-page feed beside the APOD photo
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
       .hn { display:flex; flex-direction:column; gap:7px; height:100%; }
-      .hn-item { display:flex; gap:12px; align-items:flex-start; flex:1; min-height:0;
-        padding:7px 12px; background:rgba(255,255,255,.04);
+      .hn-item { position:relative; display:flex; gap:12px; align-items:flex-start; flex:1; min-height:0;
+        padding:7px 12px 7px 20px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; }
+      /* relative-popularity accent — a quiet vertical "equalizer" bar down the left
+         edge whose FILL height (and, via the gradient, its colour) encodes this
+         story's score against today's top story. Adds no vertical height, so it
+         never risks clipping; static, no animation. */
+      .hn-track { position:absolute; left:8px; top:10px; bottom:10px; width:3px;
+        border-radius:2px; background:rgba(255,255,255,.06); overflow:hidden; }
+      .hn-fill { position:absolute; left:0; right:0; bottom:0; border-radius:2px;
+        background:linear-gradient(to top, var(--mint-2), var(--gold)); }
       .hn-rank { font-family:var(--font-display); font-size:23px; font-weight:700;
         line-height:1; color:var(--mint); min-width:24px; text-align:center; margin-top:1px;
         filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
@@ -104,6 +112,9 @@ export default {
       if (!Array.isArray(ids) || ids.length === 0) throw new Error('no stories');
       const top = ids.slice(0, COUNT);
       const stories = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id)).catch(() => null)));
+      // The day's busiest score among the shown stories, used to scale each
+      // popularity bar. Floor at 1 so a quiet front page never divides by zero.
+      const topScore = Math.max(1, ...stories.map((s) => (s && Number.isFinite(s.score) ? s.score : 0)));
       const rows = stories
         .map((s, i) => {
           if (!s || !s.title) return null;
@@ -113,10 +124,17 @@ export default {
           const age = ageOf(s.time);
           const rate = risingRate(s);
           const domain = domainOf(s.url);
+          // Fill fraction vs the top story; keep a small floor so even a modest
+          // story shows a visible sliver rather than a bare track.
+          const pct = Math.max(9, Math.round((score / topScore) * 100));
           // Self-posts (Ask/Show HN, and link-less jobs) always resolve to the
           // HN domain — redundant once the badge is shown, so drop it there.
           const showDomain = !(badge && !s.url);
           return ctx.h('div', { class: 'hn-item' },
+            ctx.h('div', {
+              class: 'hn-track',
+              title: `${score} points · ${Math.round((score / topScore) * 100)}% of today's top story`,
+            }, ctx.h('div', { class: 'hn-fill', style: { height: `${pct}%` } })),
             ctx.h('div', { class: 'hn-rank' }, String(i + 1)),
             ctx.h('div', { class: 'hn-body' },
               ctx.h('div', { class: 'hn-title' }, s.title),
