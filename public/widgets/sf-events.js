@@ -40,6 +40,10 @@ export default {
       .won-pill { font-family:var(--font-mono); font-size:10.5px; letter-spacing:.04em; font-weight:600;
         color:var(--mint); background:rgba(120,247,176,.12); border:1px solid var(--stroke);
         border-radius:999px; padding:2px 9px; white-space:nowrap; }
+      /* interest pill — a quiet gold star + count on the events drawing the biggest
+         crowd (relative to today's shown picks), so a glance finds the popular plans.
+         Stays hidden on a low-interest day; speaks up only when something's buzzing. */
+      .won-pill.hot { color:var(--gold); background:rgba(255,217,138,.12); }
       .won-empty { grid-column:1/-1; flex:1; display:flex; align-items:center; justify-content:center; text-align:center;
         color:var(--ink-faint); font-size:13px; padding:0 10px; }
       .won-foot { flex:0 0 auto; text-align:center; font-family:var(--font-mono); font-size:10px;
@@ -81,16 +85,27 @@ export default {
       const all = evs || [];
       const picks = all.slice(0, 6);
       if (!picks.length) { foot.style.display = 'none'; list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now')); return; }
+      // How busy is the busiest shown event? The interest star is surfaced only for
+      // events near that peak (and above a small floor), so the flag reads as "one
+      // of the popular ones" — quiet when nothing's buzzing, informative when it is.
+      const maxInterest = Math.max(0, ...picks.map((e) => (Number.isFinite(e.interest) ? e.interest : 0)));
+      const hotFloor = Math.max(8, Math.round(maxInterest * 0.5));
       list.replaceChildren(...picks.map((e) => {
         const isToday = e.when && Math.round((new Date(dayKeyFmt.format(e.when) + 'T00:00:00') - startOfToday) / dayMs) <= 0;
         const time = (e.when && !e.allDay && !isToday) ? timeFmt.format(e.when).replace(' ', '') : '';
+        const interest = Number.isFinite(e.interest) ? e.interest : 0;
+        const hot = maxInterest > 0 && interest >= hotFloor;
         return ctx.h('div', { class: 'won-ev' },
           dateCol(e.when, e.allDay),
           ctx.h('div', { class: 'won-main' },
             ctx.h('div', { class: 'won-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
-            (e.place || time) ? ctx.h('div', { class: 'won-meta' },
+            (e.place || time || hot) ? ctx.h('div', { class: 'won-meta' },
               e.place ? ctx.h('span', { class: 'won-place' }, `📍 ${e.place}`) : null,
-              time ? ctx.h('span', { class: 'won-pill' }, time) : null) : null));
+              time ? ctx.h('span', { class: 'won-pill' }, time) : null,
+              hot ? ctx.h('span', {
+                class: 'won-pill hot',
+                title: `${interest} people interested`,
+              }, `★ ${interest}`) : null) : null));
       }));
       foot.textContent = all.length > picks.length ? `+ more — tap for all ${all.length} events` : 'tap for the full list';
       foot.style.display = '';
