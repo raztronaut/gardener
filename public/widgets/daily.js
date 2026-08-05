@@ -416,6 +416,21 @@ export default {
         letter-spacing:.1em; text-transform:uppercase; margin-right:8px; }
       .dly-fact .kind.born { color:var(--mint); }
       .dly-fact .kind.died { color:var(--ink-soft); }
+      /* rotation indicator — a hushed "moment N of M today" caption with a slim
+         progress rail, revealing that On This Day quietly cycles through all of
+         today's notable moments over the day (advances every half-hour). Bounded
+         width + fixed tiny height (flex:none), so it never grows the region or
+         clips; static, no animation. Hidden entirely in the offline fact fallback. */
+      .dly-otd-nav { display:flex; align-items:center; gap:9px; margin-top:7px; flex:none; }
+      .dly-otd-nav .rail { position:relative; flex:1 1 auto; height:2px; border-radius:2px;
+        background:rgba(255,255,255,.08); overflow:hidden; }
+      .dly-otd-nav .rail .fill { position:absolute; left:0; top:0; bottom:0; border-radius:2px;
+        background:var(--mint); opacity:.75; }
+      .dly-otd-nav .rail .fill.born { background:var(--mint); }
+      .dly-otd-nav .rail .fill.died { background:var(--ink-soft); }
+      .dly-otd-nav .lbl { flex:0 0 auto; font-family:var(--font-mono); font-size:10px;
+        letter-spacing:.1em; color:var(--ink-faint); white-space:nowrap; }
+      .dly-otd-nav .lbl b { color:var(--ink-soft); font-weight:600; }
 
       /* QUOTE — the quote clamps and the attribution is pinned as a fixed footer
          inside this region (margin-top:auto), so it can never overlap the block
@@ -508,7 +523,14 @@ export default {
     // holds something rather than blanking.
     const otdLbl = h('div', { class: 'dly-lbl' }, 'Fact of the Day');
     const factEl = h('div', { class: 'dly-fact' }, pickByDay(FACTS));
-    const factSec = h('div', { class: 'dly-sec dly-fact-sec' }, otdLbl, factEl);
+    // Rotation indicator (hidden until a live "On This Day" list is loaded): a slim
+    // progress rail + "N of M today" caption showing where the half-hourly rotation
+    // currently sits within all of today's notable moments.
+    const otdFill = h('div', { class: 'fill' });
+    const otdLblPos = h('div', { class: 'lbl' });
+    const otdNav = h('div', { class: 'dly-otd-nav', style: 'display:none' },
+      h('div', { class: 'rail' }, otdFill), otdLblPos);
+    const factSec = h('div', { class: 'dly-sec dly-fact-sec' }, otdLbl, factEl, otdNav);
 
     const quoteEl = h('div', { class: 'dly-quote' });
     const authEl = h('div', { class: 'dly-auth' });
@@ -560,7 +582,7 @@ export default {
     };
 
     // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.
-    const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.textContent = text; };
+    const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.textContent = text; otdNav.style.display = 'none'; };
 
     // Live historical moments: we hold the whole "on this day" list and rotate
     // through it over the day, so a glance at the wall lands on a different moment
@@ -587,6 +609,18 @@ export default {
       factEl.replaceChildren(...kids);
       const lead = kind === 'born' ? 'Born ' : kind === 'died' ? 'Died ' : '';
       factEl.title = `${lead}${fmtYear(year)} (${ago}) — ${text}`;
+      // Position indicator: which moment of today's M we're showing. Only shown
+      // when there's more than one moment to rotate through; the rail is tinted to
+      // the current entry's kind so the caption echoes the moment above it.
+      const pos = (((otdIdx % n) + n) % n) + 1;
+      if (n > 1) {
+        otdFill.className = `fill${kind === 'born' ? ' born' : kind === 'died' ? ' died' : ''}`;
+        otdFill.style.width = `${Math.round((pos / n) * 100)}%`;
+        otdLblPos.replaceChildren(h('b', {}, String(pos)), ` of ${n} today`);
+        otdNav.style.display = '';
+      } else {
+        otdNav.style.display = 'none';
+      }
       otdLive = true;
     };
     // Install a freshly fetched list. On a new date (or first load), seed the
