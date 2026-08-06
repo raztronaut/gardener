@@ -151,7 +151,32 @@ export default {
       .wx-axis .hr .p { font-family:var(--font-mono); font-size:10px; line-height:1; min-height:10px;
         color:#9cc0ff; letter-spacing:.01em; }
       .wx-axis .hr .p.dry { visibility:hidden; }
+      /* sunrise ☀ / sunset ☾ markers — tiny hushed glyphs pinned to the TOP of the
+         plot at the exact day↔night crossing, naming what the faint divider line
+         below them already marks. Absolutely positioned in the plot's empty upper
+         band (the temp curve lives in the lower ~28–80%), so they add no height and
+         can't clip; static, no animation. Gold sunrise / cool-blue sunset echo the
+         timeline's own warm/cool language. */
+      .wx-sun { position:absolute; top:0; transform:translateX(-50%); font-size:11px;
+        line-height:1; opacity:.75; pointer-events:none; text-shadow:0 1px 4px rgba(0,0,0,.5); }
+      .wx-sun.rise { color:var(--gold); }
+      .wx-sun.set { color:#9cc0ff; }
+
+      /* graceful fallback — fills the tall card so a network miss at boot never
+         leaves a large empty region (matching Hacker News & APOD); static. */
+      .wx-fallback { display:flex; flex-direction:column; align-items:center;
+        justify-content:center; gap:10px; height:100%; text-align:center; color:var(--ink-soft); }
+      .wx-fallback .wx-fb-icon { font-size:40px; opacity:.55; line-height:1; }
+      .wx-fallback .wx-fb-msg { font-size:15px; color:var(--ink); }
+      .wx-fallback .wx-fb-sub { font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
     `);
+
+    // A calm full-card fallback (icon + message) for when the sky can't be read —
+    // fills the tall card instead of a bare error line stranded in a black void.
+    const fallback = (msg, sub) => ctx.h('div', { class: 'wx-fallback' },
+      ctx.h('div', { class: 'wx-fb-icon' }, '🌤'),
+      ctx.h('div', { class: 'wx-fb-msg' }, msg),
+      ctx.h('div', { class: 'wx-fb-sub' }, sub));
     body.appendChild(ctx.loading('reading the sky…'));
 
     try {
@@ -299,7 +324,10 @@ export default {
           i === pts.length - 1 ? 100 : mid(i + 1),
         ];
         const isNight = (p) => p.isDay === 0;
+        // sunMarks: interior day↔night crossings, tagged as sunset (entering a
+        // night run) or sunrise (leaving one), for the little glyphs above the plot.
         let nightRects = '', edgeLines = '', k = 0;
+        const sunMarks = [];
         while (k < pts.length) {
           if (isNight(pts[k])) {
             const [start] = colOf(k);
@@ -307,9 +335,10 @@ export default {
             while (e + 1 < pts.length && isNight(pts[e + 1])) e++;
             const [, end] = colOf(e);
             nightRects += `<rect x="${start}" y="0" width="${Math.max(0, end - start)}" height="100" fill="url(#wxnight)"/>`;
-            // A faint divider at an interior sun-crossing (skip the plot edges).
-            if (start > 0.5) edgeLines += `<line x1="${start}" y1="0" x2="${start}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
-            if (end < 99.5) edgeLines += `<line x1="${end}" y1="0" x2="${end}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+            // A faint divider at an interior sun-crossing (skip the plot edges); the
+            // sunset/sunrise glyph is pinned above it so the line reads unambiguously.
+            if (start > 0.5) { edgeLines += `<line x1="${start}" y1="0" x2="${start}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; sunMarks.push({ x: start, type: 'set' }); }
+            if (end < 99.5) { edgeLines += `<line x1="${end}" y1="0" x2="${end}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; sunMarks.push({ x: end, type: 'rise' }); }
             k = e + 1;
           } else k++;
         }
@@ -364,6 +393,14 @@ export default {
 
         const plot = ctx.h('div', { class: 'wx-plot', html: svg });
         dots.forEach((dt) => plot.appendChild(dt));
+        // Sunrise / sunset glyphs above the plot's crossing lines — hushed, static,
+        // and clip-safe (they live in the empty upper band). Tooltip carries the
+        // exact clock time so a tap/hover names the moment precisely.
+        sunMarks.forEach((s) => plot.appendChild(ctx.h('div', {
+          class: `wx-sun ${s.type === 'rise' ? 'rise' : 'set'}`,
+          style: { left: `${s.x}%` },
+          title: s.type === 'rise' ? `Sunrise · ${sunrise}` : `Sunset · ${sunset}`,
+        }, s.type === 'rise' ? '☀' : '☾')));
 
         body.replaceChildren(ctx.h('div', { class: 'wx' },
           ctx.h('div', { class: 'wx-top' },
@@ -433,14 +470,14 @@ export default {
         try { await refresh(); loaded = true; }
         catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 2500)); }
       }
-      if (!loaded) body.replaceChildren(ctx.error('weather unavailable — retrying…'));
+      if (!loaded) body.replaceChildren(fallback('The sky is quiet', 'reconnecting to the forecast…'));
       // Steady refresh; on failure KEEP the last good reading (don't blank).
       ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
       // Tick the "next sun event" countdown each minute (cheap text-only update)
       // so it stays live between the 15-minute data refreshes; no-ops until loaded.
       ctx.interval(updateSunNext, 60 * 1000);
     } catch (e) {
-      body.replaceChildren(ctx.error('weather unavailable'));
+      body.replaceChildren(fallback('Weather unavailable', 'could not reach the forecast'));
     }
   },
 };
