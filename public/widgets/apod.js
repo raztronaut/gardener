@@ -30,6 +30,29 @@ function tidy(text) {
   return (text || '').toString().replace(/\s+/g, ' ').trim();
 }
 
+// A quiet freshness label for the picture's date, relative to "today" in the
+// display timezone. NASA publishes a new APOD once a day, so this tells the wall
+// at a glance whether it's looking at the very latest image. The two freshest
+// days read in bright mint ("TODAY" / "YESTERDAY"); an older picture — the feed
+// hasn't refreshed — reads as a muted "N DAYS AGO" so staleness is honest without
+// shouting. A not-yet-local "tomorrow" edge case near midnight (days < 0) stays
+// unlabelled. Returns { text, stale } or null.
+function freshnessTag(iso, tz) {
+  const a = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  if (!a) return null;
+  const todayStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+  const b = /^(\d{4})-(\d{2})-(\d{2})/.exec(todayStr);
+  if (!b) return null;
+  const days = Math.round(
+    (Date.UTC(+b[1], +b[2] - 1, +b[3]) - Date.UTC(+a[1], +a[2] - 1, +a[3])) / 864e5);
+  if (days < 0) return null;
+  if (days === 0) return { text: 'TODAY', stale: false };
+  if (days === 1) return { text: 'YESTERDAY', stale: false };
+  return { text: `${days} DAYS AGO`, stale: true };
+}
+
 export default {
   id: 'apod',
   title: 'Astronomy Photo',
@@ -39,6 +62,7 @@ export default {
 
   async mount(body, ctx) {
     const { h } = ctx;
+    const tz = ctx.config?.tz || 'America/Los_Angeles';
     ctx.style(`
       .apod { position:relative; width:100%; height:100%; min-height:0; border-radius:16px;
         overflow:hidden; background:#05070f; border:1px solid var(--stroke); }
@@ -77,6 +101,16 @@ export default {
         color:rgba(234,255,244,.72); text-shadow:0 1px 5px rgba(0,0,0,.7);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .apod-date .cr { color:rgba(234,255,244,.5); }
+      /* freshness chip — a hushed pill naming how recent the picture is, so a
+         glance tells whether the wall is showing today's newest image. */
+      .apod-fresh { display:inline-block; margin-right:8px; padding:1px 7px; border-radius:999px;
+        font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.1em;
+        color:var(--mint); background:rgba(120,247,176,.16); border:1px solid rgba(120,247,176,.34);
+        vertical-align:1px; text-shadow:none; }
+      /* stale (2+ days old) — the feed hasn't refreshed; a hushed neutral pill
+         so it's honest but never alarming. */
+      .apod-fresh.stale { color:rgba(234,255,244,.6); background:rgba(255,255,255,.08);
+        border-color:rgba(255,255,255,.16); }
       /* a quiet museum caption — NASA's own words on today's image, clamped to two
          lines so the photo stays the hero. Hidden entirely when absent. Sits over
          the scrim (absolutely positioned) so it can never grow the card's height. */
@@ -117,8 +151,11 @@ export default {
       const src = await decode(d.url); // rejects → caller keeps the last good render
       img.src = src;
       titleEl.textContent = d.title || 'Astronomy Picture of the Day';
-      dateEl.replaceChildren(fmtDate(d.date), d.copyright
-        ? h('span', { class: 'cr' }, `  ·  © ${String(d.copyright).replace(/\s+/g, ' ').trim()}`) : null);
+      const fresh = freshnessTag(d.date, tz);
+      dateEl.replaceChildren(
+        fresh ? h('span', { class: `apod-fresh${fresh.stale ? ' stale' : ''}` }, fresh.text) : null,
+        fmtDate(d.date), d.copyright
+          ? h('span', { class: 'cr' }, `  ·  © ${String(d.copyright).replace(/\s+/g, ' ').trim()}`) : null);
       // Museum caption — NASA's own words, clamped to two lines. Hidden when absent.
       const blurb = tidy(d.explanation);
       descEl.textContent = blurb;
@@ -133,10 +170,12 @@ export default {
     // still shows the title + date. No iframe, no autoplay.
     const renderVideo = (d) => {
       const blurb = tidy(d.explanation);
+      const fresh = freshnessTag(d.date, tz);
       body.replaceChildren(h('div', { class: 'apod-ph vid' },
         h('div', { class: 'ic' }, '🎬'),
         h('div', { class: 'vt' }, d.title || 'Astronomy Video of the Day'),
-        h('div', { class: 'vd' }, fmtDate(d.date)),
+        h('div', { class: 'vd' },
+          fresh ? h('span', { class: `apod-fresh${fresh.stale ? ' stale' : ''}` }, fresh.text) : null, fmtDate(d.date)),
         blurb ? h('div', { class: 'vx', title: blurb }, blurb) : null,
         h('div', { class: 'vc' }, '🎬 video — view on nasa.gov')));
     };
