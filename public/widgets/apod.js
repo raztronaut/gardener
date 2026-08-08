@@ -13,6 +13,25 @@
 
 const API = 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY';
 
+// The keyless DEMO_KEY is heavily rate-limited (~30-50 req/day per IP), so on a
+// 24/7 kiosk the API call fails often. We persist the last GOOD picture to
+// localStorage so a rate-limited / offline morning can still re-decode the most
+// recent image from NASA's image CDN (a different host that usually stays up),
+// instead of dropping to a bare placeholder.
+const LS_KEY = 'apod:last:v1';
+function saveCache(d) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      url: d.url, title: d.title, date: d.date,
+      copyright: d.copyright, explanation: d.explanation, media_type: d.media_type,
+    }));
+  } catch { /* private mode / quota — non-fatal */ }
+}
+function loadCache() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); }
+  catch { return null; }
+}
+
 // "2026-07-28" → "July 28, 2026" (parsed as a plain date, no timezone drift).
 function fmtDate(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
@@ -79,6 +98,28 @@ export default {
       .apod-ph .ic { font-size:38px; opacity:.7; filter:drop-shadow(0 2px 10px rgba(0,0,0,.5)); }
       .apod-ph .t { font-family:var(--font-mono); font-size:12px; letter-spacing:.06em;
         color:var(--ink-faint); }
+      .apod-ph .sub { font-family:var(--font-mono); font-size:10px; letter-spacing:.05em;
+        color:var(--ink-faint); opacity:.6; margin-top:-4px; }
+      /* Last-resort fallback: a hand-composed on-brand starfield so a missing feed
+         still reads as an intentional night-sky illustration, never a broken box.
+         All layers are STATIC radial gradients (essentially free to render — no
+         animation, no blur). A soft mint horizon glow ties it to the garden theme. */
+      .apod-ph.stars {
+        background:
+          radial-gradient(1.6px 1.6px at 18% 24%, rgba(255,255,255,.95), transparent 60%),
+          radial-gradient(1.2px 1.2px at 68% 16%, rgba(255,255,255,.75), transparent 60%),
+          radial-gradient(1px 1px at 82% 40%, rgba(200,225,255,.8), transparent 60%),
+          radial-gradient(1.4px 1.4px at 34% 58%, rgba(255,255,255,.7), transparent 60%),
+          radial-gradient(1px 1px at 54% 30%, rgba(255,255,255,.55), transparent 60%),
+          radial-gradient(1.2px 1.2px at 12% 66%, rgba(200,225,255,.65), transparent 60%),
+          radial-gradient(1px 1px at 74% 72%, rgba(255,255,255,.6), transparent 60%),
+          radial-gradient(1.5px 1.5px at 90% 62%, rgba(255,255,255,.7), transparent 60%),
+          radial-gradient(1px 1px at 44% 82%, rgba(200,225,255,.55), transparent 60%),
+          radial-gradient(2px 2px at 26% 12%, rgba(255,247,220,.9), transparent 55%),
+          radial-gradient(120% 80% at 50% 118%, rgba(120,247,176,.14) 0%, transparent 60%),
+          radial-gradient(130% 100% at 50% 22%, #1a2652 0%, #0a0f28 50%, #05070f 100%); }
+      .apod-ph.stars .ic { opacity:.85; filter:drop-shadow(0 2px 14px rgba(120,247,176,.35)); }
+      .apod-ph.stars .t { color:var(--ink-soft); }
       /* video-day placeholder carries the real title + date + a small caption */
       .apod-ph.vid .vt { font-family:var(--font-display); font-weight:700; font-size:18px;
         line-height:1.2; color:var(--ink); max-width:92%;
@@ -185,6 +226,16 @@ export default {
       if (d.media_type === 'video' || !d.url) renderVideo(d);
       else await renderPhoto(d);
       body.dataset.loaded = '1';
+      saveCache(d); // remember this good picture for rate-limited / offline days
+    };
+
+    // Last-resort fallback: a calm, on-brand starfield illustration that FILLS the
+    // card so a missing feed reads as intentional, never a broken dark box.
+    const showStarfield = (msg) => {
+      body.replaceChildren(h('div', { class: 'apod-ph stars' },
+        h('div', { class: 'ic' }, '✦'),
+        h('div', { class: 't' }, msg || 'The night sky is resting'),
+        h('div', { class: 'sub' }, 'new photo at dawn')));
     };
 
     const fetchApod = () => ctx.fetchJSON(API);
@@ -200,9 +251,12 @@ export default {
         catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 1200 * attempt)); }
       }
       if (!ok && !body.dataset.loaded) {
-        // Graceful error that FILLS the card (never a bare black box).
-        phTxt.textContent = 'Astronomy photo unavailable';
-        body.replaceChildren(ph);
+        // API failed (often DEMO_KEY rate-limiting). Try the last good picture from
+        // cache — the image CDN usually stays up even when the API is throttled.
+        const cached = loadCache();
+        if (cached) { try { await render(cached); ok = true; } catch { /* fall through */ } }
+        // Still nothing → a calm on-brand starfield illustration, never a bare box.
+        if (!ok && !body.dataset.loaded) showStarfield();
       }
 
       // APOD changes once/day; check every 6 hours. On failure KEEP the last good
@@ -215,9 +269,8 @@ export default {
         fetchApod().then(render).catch(() => {});
       }, 6 * 60 * 60 * 1000);
     } catch (e) {
-      // mount() must never throw.
-      phTxt.textContent = 'Astronomy photo unavailable';
-      body.replaceChildren(ph);
+      // mount() must never throw — fall back to the calm starfield illustration.
+      try { showStarfield(); } catch { body.replaceChildren(ph); }
     }
   },
 };

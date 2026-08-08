@@ -14,6 +14,21 @@ const SEASONS = [
   { name: 'Summer', icon: '☀️', m: 6, d: 21 },
   { name: 'Autumn', icon: '🍂', m: 9, d: 22 },
 ];
+// A warm, day-of-week-aware greeting. The base is the time of day, but weekends
+// and Fridays get their own gentle phrasing so the wall feels a little more like
+// home ("Happy Saturday" on a slow morning, not a flat "Good afternoon"). Fully
+// offline and deterministic — it only changes as the hour band or the weekday
+// turns over, so it's free to render on this low-power kiosk.
+function greetingFor(h, weekday) {
+  const weekend = weekday === 'Saturday' || weekday === 'Sunday';
+  const friday = weekday === 'Friday';
+  if (h < 5) return 'A quiet night in the garden';        // the small hours, unchanged
+  if (h < 12) return weekend ? `A slow ${weekday} morning` : 'Good morning';
+  if (h < 17) return weekend ? `Happy ${weekday}` : friday ? 'Happy Friday' : 'Good afternoon';
+  if (h < 21) return weekend ? `A gentle ${weekday} evening` : friday ? 'Happy Friday' : 'Good evening';
+  return weekend ? `A cosy ${weekday} night` : 'Good night';
+}
+
 function seasonInfo(y, m, d) {
   const key = m * 100 + d;
   // Find the season whose start is the most recent one on/before today, and the
@@ -75,6 +90,7 @@ export default {
     const fmtTime = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true });
     const fmtDate = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     const hourOf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false });
+    const fmtWeekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' });
     // Y/M/D in the display timezone, for a correct seasonal marker regardless of
     // the host clock's own zone.
     const fmtYMD = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -94,9 +110,9 @@ export default {
       const d = fmtDate.format(now);
       if (d !== lastD) { lastD = d; date.textContent = d; }
       const h = parseInt(hourOf.format(now), 10);
-      const g = h < 5 ? 'A quiet night in the garden'
-        : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon'
-        : h < 21 ? 'Good evening' : 'Good night';
+      // Day-of-week-aware greeting (weekends & Fridays get their own warmth),
+      // read in the display tz so it turns over correctly at local midnight.
+      const g = greetingFor(h, fmtWeekday.format(now));
       if (g !== lastG) { lastG = g; greet.textContent = g; }
       // Seasonal marker — recomputed from the tz-local date; only repaints when the
       // day (and therefore the "day N of season") actually changes.
