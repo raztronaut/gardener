@@ -1,5 +1,6 @@
 // Weather — current conditions + sunrise/sunset + length of day (with a quiet
-// day-over-day trend as the seasons turn) + tomorrow's outlook carrying a
+// day-over-day trend as the seasons turn) + a visibility/fog reading (SF's marine
+// layer is a daily character of the city) + tomorrow's outlook carrying a
 // glanceable warmer/cooler-than-today cue + a linear hourly temperature timeline
 // whose after-dark hours are gently shaded so the evening reads at a glance,
 // via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
@@ -66,6 +67,22 @@ function minutesOf(iso) {
 // "3h 12m" / "48m" — a compact duration from a minute count (minutes dropped at 0).
 const fmtDur = (min) => { const h = Math.floor(min / 60), m = min % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
 
+// Visibility (metres, from Open-Meteo) → a glanceable distance in miles. Sub-mile
+// distances keep a decimal (fog reads as "0.4 mi"); clear air caps at "10+ mi" so
+// the number never balloons past what a person can actually judge across the bay.
+const fmtVis = (m) => {
+  const mi = m / 1609.34;
+  return mi < 1 ? `${mi.toFixed(1)} mi` : mi < 10 ? `${Math.round(mi)} mi` : '10+ mi';
+};
+// Visibility band → { label, foggy }. SF's marine layer earns a cool-blue clause
+// when the air is genuinely hazy/foggy; crystal-clear air stays a calm faint note.
+const visBand = (m) => m == null ? null
+  : m < 400 ? { label: 'Dense fog', foggy: true }
+  : m < 2000 ? { label: 'Fog', foggy: true }
+  : m < 5000 ? { label: 'Mist', foggy: true }
+  : m < 8000 ? { label: 'Haze', foggy: true }
+  : { label: 'Clear', foggy: false };
+
 export default {
   id: 'weather',
   title: 'Weather',
@@ -108,6 +125,11 @@ export default {
       /* tomorrow's warmer/cooler cue — a quiet caret + word tinted gold (warmer)
          or blue (cooler), echoing the timeline's peak/trough colours. */
       .wx-sky .tmrw .tt { font-weight:600; letter-spacing:.01em; white-space:nowrap; }
+      /* visibility / fog — a calm faint note in clear air ("👁 10+ mi"); turns a
+         cool-blue clause naming SF's marine layer when it rolls in ("🌫 Fog · 0.4 mi"). */
+      .wx-sky .vis { color:var(--ink-faint); display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap; }
+      .wx-sky .vis.foggy { color:#9cc0ff; }
+      .wx-sky .vis.foggy b { color:var(--ink); font-weight:600; }
       .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
       .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .wx-sky .uv b { color:var(--ink); font-weight:600; }
@@ -182,7 +204,7 @@ export default {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
@@ -258,6 +280,13 @@ export default {
         const uvPeakRaw = d.daily.uv_index_max?.[0];
         const uvPeak = Number.isFinite(uvPeakRaw) ? Math.round(uvPeakRaw) : null;
         const [uvLabel, uvColor] = uvBand(uvNow);
+
+        // Visibility / fog — read the current hour's visibility (metres). SF's
+        // marine layer makes this a genuinely local reading: it sits calm and faint
+        // when the air is clear, and turns a cool-blue "🌫 Fog · 0.4 mi" when Karl
+        // rolls in. Always present so the sky line reads consistently.
+        const visM = Number.isFinite(d.hourly.visibility?.[hNow]) ? d.hourly.visibility[hNow] : null;
+        const vis = visBand(visM);
 
         // Tomorrow's outlook — condition + high/low from the second daily entry
         // (forecast_days=2 guarantees it's present). What the humans actually
@@ -422,6 +451,12 @@ export default {
                 `${dayTrend.arrow} ${fmtDayDelta(dayDeltaSecs)}`) : null) : null,
             ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset} `,
               ctx.h('span', { class: 'nextsun' })),
+            vis ? ctx.h('span', {
+              class: `vis${vis.foggy ? ' foggy' : ''}`,
+              title: `Visibility ~${fmtVis(visM)} · ${vis.label}`,
+            }, vis.foggy ? '🌫 ' : '👁 ',
+              vis.foggy ? ctx.h('b', {}, vis.label) : null,
+              vis.foggy ? ` · ${fmtVis(visM)}` : fmtVis(visM)) : null,
             ctx.h('span', {
               class: 'uv',
               title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
