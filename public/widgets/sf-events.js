@@ -14,10 +14,10 @@ export default {
       .won { display:flex; flex-direction:column; gap:14px; height:100%; }
       /* full-width hero card → a 2-column grid of events so the row fills the width
          instead of leaving a wide empty gutter on the right. */
-      .won-list { flex:1; display:grid; grid-template-columns:1fr 1fr; grid-auto-rows:1fr;
-        gap:12px 34px; min-height:0; }
+      .won-list { flex:1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-auto-rows:1fr;
+        gap:12px 28px; min-height:0; }
       .won-ev { display:flex; gap:12px; align-items:flex-start;
-        padding-bottom:12px; border-bottom:1px solid var(--stroke); min-height:0; }
+        padding-bottom:12px; border-bottom:1px solid var(--stroke); min-width:0; min-height:0; }
       /* drop the divider under the bottom row (last two cells) */
       .won-ev:nth-last-child(-n+2) { border-bottom:none; }
       .won-date { flex:0 0 auto; width:54px; text-align:center; line-height:1; padding-top:2px; }

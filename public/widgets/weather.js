@@ -1,6 +1,8 @@
 // Weather — current conditions + sunrise/sunset + length of day (with a quiet
 // day-over-day trend as the seasons turn) + a visibility/fog reading (SF's marine
-// layer is a daily character of the city) + tomorrow's outlook carrying a
+// layer is a daily character of the city) + a wind reading that names its gusts
+// when the air is genuinely gusty (SF's afternoon westerlies routinely gust well
+// above their sustained speed) + tomorrow's outlook carrying a
 // glanceable warmer/cooler-than-today cue + a linear hourly temperature timeline
 // whose after-dark hours are gently shaded so the evening reads at a glance,
 // via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
@@ -144,6 +146,10 @@ export default {
         transform-origin:center; flex:none; }
       .wx-stat .wx-wu { font-size:11px; font-weight:600; color:var(--ink-faint); letter-spacing:.02em;
         overflow:hidden; text-overflow:ellipsis; }
+      /* gust clause — a quiet "· g27" appended to the wind unit when the air is
+         genuinely gusty (gust ≥ sustained + 3 mph). Mint-2 ties it to the wind
+         arrow's colour family; adds no height, so it can't clip. */
+      .wx-stat .wx-wu .wx-gust { color:var(--mint-2); font-weight:700; }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
@@ -203,7 +209,7 @@ export default {
 
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,is_day`
+        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
         + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
@@ -248,6 +254,12 @@ export default {
         const feels = Math.round(cur.apparent_temperature);
         const hum = Math.round(cur.relative_humidity_2m);
         const wind = Math.round(cur.wind_speed_10m);
+        // Wind gusts — always kept for the tooltip; surfaced as a compact "· gNN"
+        // clause only when the air is genuinely gusty (gust ≥ sustained + 3 mph),
+        // so the tile stays calm on still days and speaks up when the wind is
+        // snapping — a common, genuinely useful reading on SF's breezy afternoons.
+        const gust = Number.isFinite(cur.wind_gusts_10m) ? Math.round(cur.wind_gusts_10m) : null;
+        const gusty = gust != null && gust >= wind + 3;
         // Wind direction: an arrow pointing the way the wind BLOWS (from-dir + 180°),
         // labelled with the cardinal it comes from. Rotation is a one-shot static
         // transform — no animation, free to render.
@@ -481,14 +493,17 @@ export default {
               ctx.h('div', { class: 'k' }, 'Wind'),
               ctx.h('div', {
                 class: 'v',
-                title: windCard ? `From the ${windCard} · ${wind} mph` : `${wind} mph`,
+                title: `${windCard ? `From the ${windCard} · ` : ''}${wind} mph`
+                  + (gust != null ? ` · gusting to ${gust} mph` : ''),
               },
                 windCard ? ctx.h('span', {
                   class: 'wx-wdir',
                   style: { transform: `rotate(${windDir + 180}deg)` },
                 }, '↑') : null,
                 `${wind}`,
-                ctx.h('span', { class: 'wx-wu' }, windCard ? ` mph ${windCard}` : ' mph')))),
+                ctx.h('span', { class: 'wx-wu' },
+                  windCard ? ` mph ${windCard}` : ' mph',
+                  gusty ? ctx.h('span', { class: 'wx-gust' }, ` · g${gust}`) : null)))),
           ctx.h('div', { class: 'wx-tl' },
             plot,
             ctx.h('div', { class: 'wx-axis' }, ...axis))));
