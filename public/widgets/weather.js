@@ -150,6 +150,14 @@ export default {
          genuinely gusty (gust ≥ sustained + 3 mph). Mint-2 ties it to the wind
          arrow's colour family; adds no height, so it can't clip. */
       .wx-stat .wx-wu .wx-gust { color:var(--mint-2); font-weight:700; }
+      /* feels-like comfort caret — when the apparent temperature diverges from the
+         real air by ≥3°F (SF's wind chill routinely bites), a compact tinted caret
+         names it: gold ▲ warmer / cool-blue ▼ cooler, the SAME language the hourly
+         timeline and tomorrow's outlook use, so it reads instantly. Replaces the
+         redundant °C on that tile only (the hero temp already carries °C), so it
+         adds no width and can't clip. Calm days keep the plain °F · °C reading. */
+      .wx-stat .wx-feeltr { font-size:11.5px; font-weight:700; letter-spacing:.01em; white-space:nowrap; }
+      .wx-stat .wx-feeltr .cr { font-size:9px; vertical-align:1px; margin-right:1px; }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
@@ -252,6 +260,16 @@ export default {
         const hi = Math.round(d.daily.temperature_2m_max[0]);
         const lo = Math.round(d.daily.temperature_2m_min[0]);
         const feels = Math.round(cur.apparent_temperature);
+        // Comfort read — how the apparent temperature diverges from the real air.
+        // Only surfaced when the swing is worth a glance (≥3°F): SF's afternoon
+        // wind chill (and the occasional muggy warmth) is a genuinely useful "grab
+        // a jacket" cue. Uses the gold-▲-warmer / blue-▼-cooler language shared with
+        // the hourly timeline and tomorrow's outlook, so it reads at once.
+        const feelsDelta = feels - tF;
+        const feelsTrend = Math.abs(feelsDelta) < 3 ? null
+          : feelsDelta < 0
+            ? { car: '▼', color: '#9cc0ff', word: `${-feelsDelta}° cooler` }
+            : { car: '▲', color: 'var(--gold)', word: `${feelsDelta}° warmer` };
         const hum = Math.round(cur.relative_humidity_2m);
         const wind = Math.round(cur.wind_speed_10m);
         // Wind gusts — always kept for the tooltip; surfaced as a compact "· gNN"
@@ -485,7 +503,16 @@ export default {
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Feels like'),
-              ctx.h('div', { class: 'v' }, `${feels}°F · ${fToC(feels)}°C`)),
+              ctx.h('div', {
+                class: 'v',
+                title: feelsTrend
+                  ? `Feels ${feelsTrend.word} than the ${tF}° air`
+                  : `Feels like ${feels}°F · ${fToC(feels)}°C`,
+              }, `${feels}°F`,
+                feelsTrend
+                  ? ctx.h('span', { class: 'wx-feeltr', style: { color: feelsTrend.color } },
+                      ' ', ctx.h('span', { class: 'cr' }, feelsTrend.car), `${Math.abs(feelsDelta)}°`)
+                  : ` · ${fToC(feels)}°C`)),
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Humidity'),
               ctx.h('div', { class: 'v' }, `${hum}%`)),
