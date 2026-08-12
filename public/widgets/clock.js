@@ -47,7 +47,13 @@ function seasonInfo(y, m, d) {
   const todayUTC = Date.UTC(y, m - 1, d);
   const day = Math.floor((todayUTC - startUTC) / 864e5) + 1;
   const toNext = Math.round((nextUTC - todayUTC) / 864e5);
-  return { name: s.name, icon: s.icon, day, toNext, nextName: next.name, nextIcon: next.icon };
+  // Where we sit within the season, as a fraction (0 at the turn, →1 near the
+  // next). We read this as an evocative "Early"/"Late" phase — a warmer, more
+  // human note than a bare "day N" on an ambient wall ("Late Summer" as autumn
+  // nears). Split at the halfway point so every day wears a natural adjective.
+  const frac = (todayUTC - startUTC) / (nextUTC - startUTC);
+  const phase = frac < 0.5 ? 'Early' : 'Late';
+  return { name: s.name, icon: s.icon, day, toNext, phase, nextName: next.name, nextIcon: next.icon };
 }
 
 export default {
@@ -118,21 +124,19 @@ export default {
       // day (and therefore the "day N of season") actually changes.
       const [yy, mm, dd] = fmtYMD.format(now).split('-').map((n) => parseInt(n, 10));
       const s = seasonInfo(yy, mm, dd);
-      const sKey = `${s.name}|${s.day}|${s.toNext}`;
+      const sKey = `${s.phase}|${s.name}|${s.toNext}`;
       if (sKey !== lastS) {
         lastS = sKey;
-        // The nearer the turn, the more the countdown earns its place; far from it
-        // we keep the calmer "day N" reading. Within a fortnight it becomes the
-        // headline so the season's change feels anticipated.
-        const soon = s.toNext <= 14;
+        // An evocative "Early/Late <Season>" phase (e.g. "Late Summer") reads more
+        // like home than a numeric "day N", and a mint countdown to the next turn
+        // of the year keeps the change gently anticipated — the nearer it is, the
+        // more the small number speaks for itself.
         const toLabel = `${s.toNext}d to ${s.nextName.toLowerCase()} ${s.nextIcon}`;
+        season.title = `${s.phase} ${s.name} · day ${s.day} · ${toLabel}`;
         season.replaceChildren(
           ctx.h('span', { class: 'ic' }, s.icon),
-          ctx.h('b', {}, s.name),
-          soon
-            ? ctx.h('span', { class: 'to' }, `· ${toLabel}`)
-            : ctx.h('span', {}, `· day ${s.day} · `,
-                ctx.h('span', { class: 'to' }, toLabel)));
+          ctx.h('b', {}, `${s.phase} ${s.name}`),
+          ctx.h('span', { class: 'to' }, `· ${toLabel}`));
       }
     };
     ctx.interval(tick, 10000);
