@@ -434,10 +434,15 @@ export default {
 
       /* QUOTE — the quote clamps and the attribution is pinned as a fixed footer
          inside this region (margin-top:auto), so it can never overlap the block
-         above nor slip past the card's bottom edge. */
+         above nor slip past the card's bottom edge. A soft mint blockquote rule
+         and mint-tinted quotation marks give the day's quote its own presence, so
+         it reads distinctly from the word/fact sections above rather than as one
+         more label-plus-text block. Purely decorative — static, adds no height. */
       .dly-quote { font-family:var(--font-display); font-style:italic; font-size:15px; line-height:1.32;
-        color:var(--ink); min-height:0;
+        color:var(--ink); min-height:0; padding-left:13px;
+        border-left:2px solid rgba(120,247,176,.32);
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-quote .qm { color:var(--mint); font-weight:600; font-style:normal; }
       .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
         color:var(--mint); letter-spacing:.02em; flex:none;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -536,7 +541,13 @@ export default {
     const authEl = h('div', { class: 'dly-auth' });
     const quoteSec = h('div', { class: 'dly-sec dly-quote-sec' },
       h('div', { class: 'dly-lbl' }, 'Quote of the Day'), quoteEl, authEl);
-    const applyQuoteObj = ({ q, a }) => { quoteEl.textContent = `“${q}”`; authEl.textContent = `— ${a}`; };
+    const applyQuoteObj = ({ q, a }) => {
+      // Build the quote with mint-tinted opening/closing marks (a span each) rather
+      // than a plain string, so the quotation reads as a quotation at a glance.
+      quoteEl.replaceChildren(h('span', { class: 'qm' }, '“'), q, h('span', { class: 'qm' }, '”'));
+      quoteEl.title = `“${q}” — ${a}`;
+      authEl.textContent = `— ${a}`;
+    };
     applyQuoteObj(pickByDay(QUOTES));
 
     body.replaceChildren(h('div', { class: 'dly' }, wordSec, factSec, quoteSec));
