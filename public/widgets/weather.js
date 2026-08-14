@@ -27,6 +27,20 @@ const nightSlug = (slug, isDay) => isDay !== 0 ? slug
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
+// Dew point (°F) → a glanceable "how the air feels" comfort word. Dew point is
+// the honest measure of mugginess (relative humidity alone misleads as the temp
+// swings), so it turns the plain Humidity % into a real comfort read. SF's marine
+// air mostly lands "crisp"/"comfy"; it speaks up in gold/rose only when the air
+// turns genuinely humid. Returns { word, color } or null when we've no dew point.
+const dewComfort = (dewF) => {
+  if (!Number.isFinite(dewF)) return null;
+  if (dewF < 50) return { word: 'crisp', color: 'var(--mint-2)' };
+  if (dewF < 59) return { word: 'comfy', color: 'var(--ink-soft)' };
+  if (dewF < 65) return { word: 'humid', color: 'var(--gold)' };
+  if (dewF < 70) return { word: 'muggy', color: '#f7a374' };
+  return { word: 'sultry', color: '#ff9bb0' };
+};
+
 // Length of day from Open-Meteo's daily daylight_duration (seconds) → "14h 32m".
 const fmtDayLen = (secs) => {
   const m = Math.round(secs / 60);
@@ -150,6 +164,11 @@ export default {
          genuinely gusty (gust ≥ sustained + 3 mph). Mint-2 ties it to the wind
          arrow's colour family; adds no height, so it can't clip. */
       .wx-stat .wx-wu .wx-gust { color:var(--mint-2); font-weight:700; }
+      /* dew-point comfort word — a quiet "· crisp / · muggy" appended to the
+         humidity %, tinted by how the air feels (mint crisp → rose sultry). Turns
+         a bare number into a comfort cue, matching the Feels-like caret and Wind's
+         gust clause. Adds no height, so it can't clip. */
+      .wx-stat .wx-wu .wx-dew { font-weight:700; }
       /* feels-like comfort caret — when the apparent temperature diverges from the
          real air by ≥3°F (SF's wind chill routinely bites), a compact tinted caret
          names it: gold ▲ warmer / cool-blue ▼ cooler, the SAME language the hourly
@@ -217,7 +236,7 @@ export default {
 
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
+        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
         + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
@@ -271,6 +290,12 @@ export default {
             ? { car: '▼', color: '#9cc0ff', word: `${-feelsDelta}° cooler` }
             : { car: '▲', color: 'var(--gold)', word: `${feelsDelta}° warmer` };
         const hum = Math.round(cur.relative_humidity_2m);
+        // Dew point → a glanceable comfort word beside the humidity %, so the
+        // Humidity tile reads like a comfort cue (matching the Feels-like caret and
+        // Wind's gust clause) rather than a bare number. Kept for the tooltip even
+        // when the air is calm, so a tap always names the exact dew point.
+        const dewF = Math.round(cur.dew_point_2m);
+        const comfort = dewComfort(dewF);
         const wind = Math.round(cur.wind_speed_10m);
         // Wind gusts — always kept for the tooltip; surfaced as a compact "· gNN"
         // clause only when the air is genuinely gusty (gust ≥ sustained + 3 mph),
@@ -515,7 +540,14 @@ export default {
                   : ` · ${fToC(feels)}°C`)),
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Humidity'),
-              ctx.h('div', { class: 'v' }, `${hum}%`)),
+              ctx.h('div', {
+                class: 'v',
+                title: Number.isFinite(dewF)
+                  ? `${hum}% relative humidity · dew point ${dewF}°F${comfort ? ` — ${comfort.word}` : ''}`
+                  : `${hum}% relative humidity`,
+              }, `${hum}%`,
+                comfort ? ctx.h('span', { class: 'wx-wu' },
+                  ctx.h('span', { class: 'wx-dew', style: { color: comfort.color } }, ` · ${comfort.word}`)) : null)),
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Wind'),
               ctx.h('div', {

@@ -54,6 +54,24 @@ async function main() {
     for (const f of ['index.html', 'app.js', 'styles.css']) {
       check(`core file exists: ${f}`, existsSync(join(PUBLIC, f)));
     }
+    // Hacker News profanity guard — this is an unattended WALL display, so a crude
+    // front-page title must never render. Exercise the widget's isClean() filter
+    // against a battery of offensive (incl. obfuscated) and legitimate titles.
+    try {
+      const { isClean } = await import(join(PUBLIC, 'widgets', 'hacker-news.js'));
+      const mustDrop = [
+        'stop fucking in the couch — i can see you in the hidden camera bro',
+        'F*ck this API', 'sh1t happens', 'a f u c k story', 'This is bullshit',
+      ];
+      const mustKeep = [
+        'Show HN: A new Rust compiler', 'Cloudflare outage postmortem',
+        'Why I quit my job', 'Analysis of assembly performance',
+      ];
+      const leaks = mustDrop.filter((t) => isClean(t));
+      const wrongDrops = mustKeep.filter((t) => !isClean(t));
+      check('HN filter drops profane/offensive titles', leaks.length === 0, `leaked: ${leaks.join(' | ')}`);
+      check('HN filter keeps legitimate titles', wrongDrops.length === 0, `over-filtered: ${wrongDrops.join(' | ')}`);
+    } catch (e) { bad('HN profanity guard', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
     // from 5 PM onwards. Guard against it silently drifting later again (regression 2026-07-29).

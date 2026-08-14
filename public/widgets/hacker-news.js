@@ -6,6 +6,45 @@
 const TOP = 'https://hacker-news.firebaseio.com/v0/topstories.json';
 const ITEM = (id) => `https://hacker-news.firebaseio.com/v0/item/${id}.json`;
 const COUNT = 4;
+// Fetch a buffer beyond COUNT so profane/flagged titles can be skipped while
+// still filling the card with clean stories.
+const FETCH = 12;
+
+// Profanity / offensive-content guard. This is an unattended WALL display, so a
+// single crude front-page title (HN occasionally surfaces one) is unacceptable.
+// We DROP any story whose title trips the filter rather than censor-in-place —
+// cleaner for an ambient feed. Word-boundary matched, case-insensitive, and
+// tolerant of common leet/spacing obfuscation (f u c k, f*ck, sh1t).
+const BAD_WORDS = [
+  'fuck', 'shit', 'cunt', 'bitch', 'bastard', 'asshole', 'dick', 'piss',
+  'cock', 'pussy', 'slut', 'whore', 'nigger', 'faggot', 'retard', 'wank',
+  'jerk off', 'jack off', 'blowjob', 'cum', 'porn', 'rape', 'nazi',
+];
+export function isClean(title) {
+  if (!title) return true;
+  // Normalise: lowercase, map common leet substitutions, collapse separators
+  // between letters (f-u-c-k, f*ck, f u c k) so obfuscated forms are caught.
+  const norm = String(title)
+    .toLowerCase()
+    .replace(/[@4]/g, 'a').replace(/[$5]/g, 's').replace(/[1!|]/g, 'i')
+    .replace(/0/g, 'o').replace(/3/g, 'e')
+    .replace(/[^a-z ]+/g, '')       // drop punctuation used to break up words
+    .replace(/\s+/g, ' ');
+  const squished = norm.replace(/ /g, ''); // catches "f u c k" style spacing
+  // Vowel-agnostic form: drops vowels from both the text and each bad word so
+  // asterisk/vowel-censored spellings (f*ck → "fck", sh!t → "sht") still match.
+  const devowel = (s) => s.replace(/[aeiou]/g, '');
+  const squishedNV = devowel(squished);
+  return !BAD_WORDS.some((w) => {
+    const bare = w.replace(/ /g, '');
+    const re = new RegExp(`\\b${bare}\\b`);
+    if (re.test(norm) || squished.includes(bare)) return true;
+    // Only apply the vowel-agnostic pass to stems long enough that dropping
+    // vowels won't collide with common words (≥4 letters, ≥2 consonants).
+    const nv = devowel(bare);
+    return nv.length >= 3 && bare.length >= 4 && squishedNV.includes(nv);
+  });
+}
 
 function domainOf(url) {
   if (!url) return 'news.ycombinator.com';
@@ -110,8 +149,13 @@ export default {
     const refresh = async () => {
       const ids = await ctx.fetchJSON(TOP);
       if (!Array.isArray(ids) || ids.length === 0) throw new Error('no stories');
-      const top = ids.slice(0, COUNT);
-      const stories = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id)).catch(() => null)));
+      // Pull a buffer of stories, then keep only clean, renderable ones and take
+      // the top COUNT — so a crude/flagged title is skipped, not shown.
+      const top = ids.slice(0, FETCH);
+      const fetched = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id)).catch(() => null)));
+      const stories = fetched
+        .filter((s) => s && s.title && isClean(s.title))
+        .slice(0, COUNT);
       // The day's busiest score among the shown stories, used to scale each
       // popularity bar. Floor at 1 so a quiet front page never divides by zero.
       const topScore = Math.max(1, ...stories.map((s) => (s && Number.isFinite(s.score) ? s.score : 0)));
