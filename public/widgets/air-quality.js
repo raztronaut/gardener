@@ -34,14 +34,49 @@ function dominant(cur) {
   return best;
 }
 
-// The hourly US-AQI series is local to the requested tz. Find the index whose
-// hour matches "now" so both the trend and the forecast peak start from the
-// present moment. Falls back to the series start if nothing matches.
-function nowIndex(times) {
+// The hourly US-AQI series is local to the requested tz. Find the index of the
+// entry for the current tz-local DATE and hour, so both the trend and the
+// forecast peak start from the present moment. This is date-aware (not just
+// hour-matched) so it stays correct even when the series carries past days —
+// otherwise a bare hour match would land on YESTERDAY's same hour. Falls back to
+// a plain hour match, then the series start, if the date prefix isn't found.
+function nowIndex(times, tz) {
   if (!Array.isArray(times)) return 0;
+  if (tz) {
+    try {
+      const p = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', hourCycle: 'h23',
+      }).formatToParts(new Date());
+      const g = (t) => p.find((x) => x.type === t)?.value;
+      const prefix = `${g('year')}-${g('month')}-${g('day')}T${g('hour')}`;
+      const j = times.findIndex((t) => typeof t === 'string' && t.startsWith(prefix));
+      if (j >= 0) return j;
+    } catch { /* fall through to hour match */ }
+  }
   const nowH = new Date().getHours();
   const i = times.findIndex((t) => new Date(t).getHours() === nowH);
   return i < 0 ? 0 : i;
+}
+
+// How today's air compares to the SAME HOUR yesterday — a genuinely SF-useful
+// read during fire season, distinct from the short-term "next 6h" trend. Reads
+// the past day from the hourly series (24 entries back from "now") and reports a
+// meaningful shift only (≥10 AQI), so the tile stays calm on steady days and
+// speaks up when the smoke actually thickened or cleared overnight. Returns
+// { word, arrow, color, delta } or null.
+function vsYesterday(hourly, current, tz) {
+  const times = hourly && hourly.time;
+  const vals = hourly && hourly.us_aqi;
+  if (!Array.isArray(times) || !Array.isArray(vals)) return null;
+  const i = nowIndex(times, tz);
+  const y = vals[i - 24];
+  if (!Number.isFinite(current) || !Number.isFinite(y)) return null;
+  const delta = Math.round(current - y);
+  if (Math.abs(delta) < 10) return null;
+  return delta < 0
+    ? { word: 'Clearer than yesterday', arrow: '↓', color: '#74f7b0', delta: -delta }
+    : { word: 'Hazier than yesterday', arrow: '↑', color: '#f7a374', delta };
 }
 
 // Trend over the next ~6h from the hourly US-AQI series. Semantic colours: air
@@ -53,7 +88,7 @@ function aqiTrend(hourly, tz) {
   const times = hourly && hourly.time;
   const vals = hourly && hourly.us_aqi;
   if (!Array.isArray(times) || !Array.isArray(vals)) return null;
-  const i = nowIndex(times);
+  const i = nowIndex(times, tz);
   const cur = vals[i];
   const ahead = vals[i + 6];
   if (!Number.isFinite(cur) || !Number.isFinite(ahead)) return null;
@@ -67,11 +102,11 @@ function aqiTrend(hourly, tz) {
 // hint — with a quiet ghost tick on the scale — how far the air is expected to
 // climb before the day is out; genuinely useful when SF smoke is building.
 // Returns null without enough data to be honest.
-function aqiPeak(hourly) {
+function aqiPeak(hourly, tz) {
   const times = hourly && hourly.time;
   const vals = hourly && hourly.us_aqi;
   if (!Array.isArray(times) || !Array.isArray(vals)) return null;
-  const i = nowIndex(times);
+  const i = nowIndex(times, tz);
   let peak = -Infinity, peakIdx = -1;
   for (let j = i; j < Math.min(i + 12, vals.length); j++) {
     if (Number.isFinite(vals[j]) && vals[j] > peak) { peak = vals[j]; peakIdx = j; }
@@ -105,6 +140,16 @@ export default {
          pushes the scale/PM rows out of the small square tile. */
       .aqs .tip { font-size:11px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+      /* "vs. yesterday" cue — a compact coloured line that sits ABOVE the health
+         tip only when the air shifted notably from the same hour yesterday. When
+         it shows, the tip below drops to a single line (.one), so the two together
+         occupy the SAME two-line box the tip used alone — no added height, no clip.
+         A mint ↓ reads "cleared overnight"; a warm ↑ reads "smokier than yesterday". */
+      .aqs .vsy { font-size:11px; line-height:1.28; font-weight:700; letter-spacing:.01em;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex;
+        align-items:baseline; gap:4px; }
+      .aqs .vsy .ar { font-weight:700; flex:0 0 auto; }
+      .aqs .tip.one { -webkit-line-clamp:1; }
       /* static gradient AQI scale (0→300+) with a marker showing today's position —
          a glanceable sense of how close we are to unhealthy. No animation. */
       .aqs .scale { position:relative; height:6px; border-radius:3px; margin:3px 0 2px;
@@ -144,7 +189,7 @@ export default {
         const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}`
           + `&longitude=${lon}&current=us_aqi,pm2_5,us_aqi_pm2_5,us_aqi_pm10,us_aqi_ozone,`
           + `us_aqi_nitrogen_dioxide,us_aqi_sulphur_dioxide,us_aqi_carbon_monoxide`
-          + `&hourly=us_aqi&forecast_days=2`
+          + `&hourly=us_aqi&forecast_days=2&past_days=1`
           + `&timezone=${encodeURIComponent(tz)}`;
         const d = await ctx.fetchJSON(url);
         const aqi = d && d.current && d.current.us_aqi;
@@ -163,9 +208,13 @@ export default {
         // Forecast peak: only surfaced when the air is expected to climb a full
         // category-ish step (≥15 AQI) above now — so the tile stays calm on
         // steady days and speaks up only when there's a reason to.
-        const peak = aqiPeak(d.hourly);
+        const peak = aqiPeak(d.hourly, tz);
         const showPeak = peak && peak.val - aqi >= 15;
         if (showPeak) body.style.setProperty('--aqs-peak', aqiCat(peak.val).color);
+        // How the air compares to the same hour yesterday (overnight shift). Shown
+        // above the health tip only when it moved notably; the tip then drops to a
+        // single line so the pair keeps the tip's original two-line footprint.
+        const vsy = vsYesterday(d.hourly, aqi, tz);
         const hr12 = (hh) => `${((hh + 11) % 12) + 1}${hh < 12 ? 'a' : 'p'}`;
         // Which pollutant is driving the AQI? Only surfaced when it's NOT PM2.5
         // (which is already shown) and the air is at least worth a glance.
@@ -182,7 +231,12 @@ export default {
         body.replaceChildren(
           numrow,
           h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short),
-          h('div', { class: 'tip', title: cat.tip }, cat.tip),
+          vsy ? h('div', {
+            class: 'vsy',
+            style: { color: vsy.color },
+            title: `AQI ${Math.round(aqi)} now vs ~${Math.round(aqi - (vsy.arrow === '↓' ? -vsy.delta : vsy.delta))} at this hour yesterday`,
+          }, h('span', { class: 'ar' }, vsy.arrow), `${vsy.word} (${vsy.delta})`) : null,
+          h('div', { class: `tip${vsy ? ' one' : ''}`, title: cat.tip }, cat.tip),
           h('div', {
             class: 'scale',
             title: showPeak
