@@ -83,6 +83,22 @@ export default {
         -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:12px; }
       .clk .time .ap { font-size:30px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
       .clk .date { color: var(--ink); font-size:22px; opacity:.92; }
+      /* Year-progress rail — a hushed ambient reading of how far the calendar year
+         has run, pinned to the BOTTOM of the card (margin-top:auto) so it fills the
+         breathing room beneath the date rather than leaving an empty band. Distinct
+         from the seasonal countdown above: that reads the turn of the SEASON, this
+         reads the whole year at a glance ("Day 228 · 62%"). Recomputed only when the
+         day rolls over, and the fill is a STATIC gradient — free to render, no
+         animation. */
+      .clk .year { margin-top:auto; display:flex; flex-direction:column; gap:6px; padding-top:12px; }
+      .clk .year .yr-head { display:flex; align-items:baseline; justify-content:space-between;
+        font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; color:var(--ink-faint); }
+      .clk .year .yr-head .doy { color:var(--ink-soft); }
+      .clk .year .yr-head .pct { color:var(--mint); font-weight:600; letter-spacing:.02em; }
+      .clk .year .yr-rail { position:relative; height:5px; border-radius:3px;
+        background:rgba(255,255,255,.07); overflow:hidden; }
+      .clk .year .yr-rail .yr-fill { position:absolute; left:0; top:0; bottom:0; border-radius:3px;
+        background:linear-gradient(90deg, var(--mint-2), var(--mint)); }
     `);
     const topline = root.appendChild(ctx.h('div', { class: 'topline' }));
     const greet = topline.appendChild(ctx.h('div', { class: 'greet' }));
@@ -90,6 +106,13 @@ export default {
     const timerow = root.appendChild(ctx.h('div', { class: 'timerow' }));
     const time = timerow.appendChild(ctx.h('div', { class: 'time' }));
     const date = root.appendChild(ctx.h('div', { class: 'date' }));
+    // Year-progress rail, pinned to the bottom of the card (see .clk .year CSS).
+    const year = root.appendChild(ctx.h('div', { class: 'year' }));
+    const yrHead = year.appendChild(ctx.h('div', { class: 'yr-head' }));
+    const doyEl = yrHead.appendChild(ctx.h('span', { class: 'doy' }));
+    const pctEl = yrHead.appendChild(ctx.h('span', { class: 'pct' }));
+    const yrRail = year.appendChild(ctx.h('div', { class: 'yr-rail' }));
+    const yrFill = yrRail.appendChild(ctx.h('div', { class: 'yr-fill' }));
     root.parentElement?.classList.add('clk-wrap');
     root.classList.add('clk');
 
@@ -105,7 +128,7 @@ export default {
     // changes — i.e. ~once a minute, not 60×. Repainting the 96px gradient-clipped
     // time text every second pegs this Jetson's software renderer. The 10s tick is
     // cheap (string compare, no repaint) and flips the minute within ~10s of :00.
-    let lastT = '', lastD = '', lastG = '', lastS = '';
+    let lastT = '', lastD = '', lastG = '', lastS = '', lastY = '';
     const tick = () => {
       const now = new Date();
       const parts = fmtTime.formatToParts(now);
@@ -137,6 +160,23 @@ export default {
           ctx.h('span', { class: 'ic' }, s.icon),
           ctx.h('b', {}, `${s.phase} ${s.name}`),
           ctx.h('span', { class: 'to' }, `· ${toLabel}`));
+      }
+      // Year progress — day-of-year and the fraction of the calendar year elapsed,
+      // from the SAME tz-local date, so it rolls over at local midnight. A quiet
+      // ambient reading distinct from the seasonal marker; only repaints on a
+      // day-change (a static gradient fill, no animation).
+      const isLeap = (yy % 4 === 0 && yy % 100 !== 0) || yy % 400 === 0;
+      const totalDays = isLeap ? 366 : 365;
+      const doy = Math.floor((Date.UTC(yy, mm - 1, dd) - Date.UTC(yy, 0, 1)) / 864e5) + 1;
+      const yKey = `${yy}-${doy}`;
+      if (yKey !== lastY) {
+        lastY = yKey;
+        const frac = doy / totalDays;
+        const pct = Math.round(frac * 100);
+        doyEl.textContent = `Day ${doy} of ${yy}`;
+        pctEl.textContent = `${pct}%`;
+        yrFill.style.width = `${(frac * 100).toFixed(1)}%`;
+        year.title = `Day ${doy} of ${totalDays} · ${pct}% through ${yy}`;
       }
     };
     ctx.interval(tick, 10000);
