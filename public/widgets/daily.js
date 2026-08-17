@@ -309,6 +309,41 @@ const QUOTES = [
   { q: 'What you do speaks so loudly that I cannot hear what you say.', a: 'Ralph Waldo Emerson' },
 ];
 
+// ---- QUOTE AUTHORS — a quiet role/era for each embedded author (offline, keyed
+// by name). Same pattern as ORIGINS/SYNONYMS: a separate map so QUOTES is never
+// touched, and a missing entry (e.g. an unfamiliar author from the live feed)
+// simply renders no role tag. Concise — one or two words that place the voice.
+const AUTHORS = {
+  'Steve Jobs': 'Apple co-founder',
+  'Albert Einstein': 'physicist',
+  'Buddha': 'spiritual teacher',
+  'Alan Kay': 'computer scientist',
+  'Nelson Mandela': 'statesman',
+  'Henry Ford': 'industrialist',
+  'Lao Tzu': 'Taoist sage',
+  'Dalai Lama': 'spiritual leader',
+  'Theodore Roosevelt': 'US president',
+  'Socrates': 'philosopher',
+  'Leonardo da Vinci': 'polymath',
+  'Aristotle': 'philosopher',
+  'Oprah Winfrey': 'broadcaster',
+  'Franklin D. Roosevelt': 'US president',
+  'Pablo Picasso': 'painter',
+  'John Lennon': 'musician',
+  'Confucius': 'philosopher',
+  'Eleanor Roosevelt': 'diplomat',
+  'Wayne Gretzky': 'hockey great',
+  'William James': 'psychologist',
+  'Booker T. Washington': 'educator',
+  'Walt Whitman': 'poet',
+  'Cicero': 'Roman orator',
+  'Frank Sinatra': 'singer',
+  'Audrey Hepburn': 'actor',
+  'Norman Vaughan': 'explorer',
+  'Stewart Brand': 'writer',
+  'Ralph Waldo Emerson': 'essayist',
+};
+
 // Day-of-year (1..366) in local time — stable for the whole day, rolls at midnight.
 function dayOfYear(d = new Date()) {
   const start = new Date(d.getFullYear(), 0, 0);
@@ -446,6 +481,11 @@ export default {
       .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
         color:var(--mint); letter-spacing:.02em; flex:none;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      /* author's role/era — a hushed caption trailing the attribution ("· poet"),
+         so the day's quote is placed by a voice, not just a name. Faint and
+         un-tinted so it never competes with the mint author; on the SAME line,
+         ellipsised, so it adds no height and can't clip. Hidden when unknown. */
+      .dly-auth .role { color:var(--ink-faint); font-weight:400; letter-spacing:.01em; }
     `);
 
     // ---- WORD: fully offline, never fails ------------------------------------
@@ -545,8 +585,13 @@ export default {
       // Build the quote with mint-tinted opening/closing marks (a span each) rather
       // than a plain string, so the quotation reads as a quotation at a glance.
       quoteEl.replaceChildren(h('span', { class: 'qm' }, '“'), q, h('span', { class: 'qm' }, '”'));
-      quoteEl.title = `“${q}” — ${a}`;
-      authEl.textContent = `— ${a}`;
+      // Place the voice with a quiet role/era when we know it (offline map); an
+      // unfamiliar author from the live feed simply shows the bare name.
+      const role = AUTHORS[a];
+      quoteEl.title = role ? `“${q}” — ${a} · ${role}` : `“${q}” — ${a}`;
+      authEl.replaceChildren(`— ${a}`,
+        role ? h('span', { class: 'role' }, ` · ${role}`) : null);
+      authEl.title = role ? `${a} · ${role}` : a;
     };
     applyQuoteObj(pickByDay(QUOTES));
 
