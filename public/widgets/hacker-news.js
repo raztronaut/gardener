@@ -86,6 +86,23 @@ function risingRate(item) {
   return pph >= 100 ? Math.round(pph) : 0;
 }
 
+// Discussion pulse: is the front page ARGUING about this one? Derived purely from
+// the score + comment count we already have (no extra API). On HN a comment count
+// that rivals or exceeds a story's upvotes marks a genuinely lively debate — a
+// useful ambient "big conversation here" cue that complements the 🔥 fast-rising
+// signal (surging) with a distinct 🗣 signal (contested). Conservative thresholds
+// keep it quiet on ordinary stories: a real crowd must be talking (≥80 comments)
+// AND the comments must rival the upvotes. Returns the comment count when the
+// story qualifies, else 0.
+function debateRate(item) {
+  const score = Number.isFinite(item.score) ? item.score : 0;
+  const cmts = Number.isFinite(item.descendants) ? item.descendants : 0;
+  if (cmts < 80) return 0;          // needs a real crowd in the thread
+  if (cmts < score * 0.9) return 0; // comments must rival the upvotes
+  return cmts;
+}
+export { debateRate };
+
 export default {
   id: 'hacker-news',
   title: 'Hacker News',
@@ -122,6 +139,10 @@ export default {
       /* momentum marker — a quiet flame on a story that's climbing fast right
          now. Static (no animation); the glyph itself carries the meaning. */
       .hn-fire { color:var(--gold); font-weight:700; letter-spacing:.02em; }
+      /* discussion marker — a quiet speech glyph on a story the front page is
+         actively arguing about (comments rival its upvotes). Mint-2 sets it apart
+         from the gold flame; static, the glyph carries the meaning. */
+      .hn-talk { color:var(--mint-2); font-weight:700; letter-spacing:.02em; }
       .hn-dot { color:var(--ink-faint); opacity:.5; }
       .hn-domain { color:var(--ink-soft); flex:1 1 auto; min-width:0;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
@@ -167,6 +188,7 @@ export default {
           const badge = badgeOf(s);
           const age = ageOf(s.time);
           const rate = risingRate(s);
+          const debate = debateRate(s);
           const domain = domainOf(s.url);
           // Fill fraction vs the top story; keep a small floor so even a modest
           // story shows a visible sliver rather than a bare track.
@@ -189,6 +211,7 @@ export default {
                 age ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 age ? ctx.h('span', { class: 'hn-age' }, age) : null,
                 rate ? ctx.h('span', { class: 'hn-fire', title: `climbing fast · ~${rate} pts/hr` }, '🔥') : null,
+                debate ? ctx.h('span', { class: 'hn-talk', title: `lively discussion · ${debate} comments vs ${score} points` }, '🗣') : null,
                 badge ? ctx.h('span', { class: `hn-badge ${badge.kind}` }, badge.label) : null,
                 showDomain ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 showDomain ? ctx.h('span', { class: 'hn-domain' }, domain || 'news.ycombinator.com') : null)));

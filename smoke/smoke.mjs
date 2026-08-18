@@ -72,6 +72,21 @@ async function main() {
       check('HN filter drops profane/offensive titles', leaks.length === 0, `leaked: ${leaks.join(' | ')}`);
       check('HN filter keeps legitimate titles', wrongDrops.length === 0, `over-filtered: ${wrongDrops.join(' | ')}`);
     } catch (e) { bad('HN profanity guard', e.message); }
+    // Discussion-pulse marker — the 🗣 cue must fire only for genuinely contested
+    // stories (a real crowd talking AND comments rivaling upvotes) and stay quiet
+    // on ordinary ones, so the wall isn't peppered with meaningless glyphs.
+    try {
+      const { debateRate } = await import(join(PUBLIC, 'widgets', 'hacker-news.js'));
+      check('HN discussion marker fires on a contested story',
+        debateRate({ score: 120, descendants: 140 }) === 140, 'expected 140');
+      const quiet = [
+        debateRate({ score: 800, descendants: 40 }),  // busy but not a big thread
+        debateRate({ score: 500, descendants: 90 }),  // crowd, but dwarfed by upvotes
+        debateRate({ score: 0, descendants: 0 }),      // empty
+      ];
+      check('HN discussion marker stays quiet on ordinary stories',
+        quiet.every((v) => v === 0), `got ${quiet.join(',')}`);
+    } catch (e) { bad('HN discussion marker', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
     // from 5 PM onwards. Guard against it silently drifting later again (regression 2026-07-29).

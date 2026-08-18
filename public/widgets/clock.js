@@ -65,8 +65,8 @@ export default {
   async mount(root, ctx) {
     const tz = ctx.config?.tz || 'America/Los_Angeles';
     ctx.style(`
-      .clk { display:flex; flex-direction:column; gap:6px; padding:8px 10px 4px; }
-      .clk .topline { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:34px; }
+      .clk { display:flex; flex-direction:column; gap:4px; padding:8px 10px 4px; }
+      .clk .topline { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:28px; }
       .clk .greet { color: var(--ink-soft); font-size:17px; letter-spacing:.04em;
         flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       /* Seasonal marker — a hushed companion to the greeting; never competes with
@@ -82,7 +82,7 @@ export default {
         font-size: 82px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
         -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:12px; }
       .clk .time .ap { font-size:30px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
-      .clk .date { color: var(--ink); font-size:22px; opacity:.92; }
+      .clk .date { color: var(--ink); font-size:20px; opacity:.92; }
       /* Year-progress rail — a hushed ambient reading of how far the calendar year
          has run, pinned to the BOTTOM of the card (margin-top:auto) so it fills the
          breathing room beneath the date rather than leaving an empty band. Distinct
@@ -90,12 +90,12 @@ export default {
          reads the whole year at a glance ("Day 228 · 62%"). Recomputed only when the
          day rolls over, and the fill is a STATIC gradient — free to render, no
          animation. */
-      .clk .year { margin-top:auto; display:flex; flex-direction:column; gap:6px; padding-top:12px; }
+      .clk .year { margin-top:auto; display:flex; flex-direction:column; gap:4px; padding-top:7px; }
       .clk .year .yr-head { display:flex; align-items:baseline; justify-content:space-between;
         font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; color:var(--ink-faint); }
       .clk .year .yr-head .doy { color:var(--ink-soft); }
       .clk .year .yr-head .pct { color:var(--mint); font-weight:600; letter-spacing:.02em; }
-      .clk .year .yr-rail { position:relative; height:5px; border-radius:3px;
+      .clk .year .yr-rail { position:relative; height:4px; border-radius:3px;
         background:rgba(255,255,255,.07); overflow:hidden; }
       .clk .year .yr-rail .yr-fill { position:absolute; left:0; top:0; bottom:0; border-radius:3px;
         background:linear-gradient(90deg, var(--mint-2), var(--mint)); }
