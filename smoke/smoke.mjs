@@ -201,6 +201,15 @@ async function main() {
       const cardClip = (dom.match(/data-gardener-card-clip="(\d+)"/) || [])[1];
       const clipped = (dom.match(/data-gardener-clipped="([^"]*)"/) || [])[1] || '';
       check('no content clipped inside any widget', !cardClip || Number(cardClip) <= 8, `clipped widgets: ${clipped || cardClip + 'px'}`);
+      // Guard against a null/undefined value coerced into a visible text node —
+      // native Node.appendChild/replaceChildren turn a null arg into the literal
+      // string "null" (ctx.h filters these, but direct DOM calls don't). Such a
+      // node is a text node that is EXACTLY "null"/"undefined" between two tags,
+      // which never occurs in legitimate rendered copy. Scope to markup only
+      // (scripts/styles stripped) so code containing the words can't false-positive.
+      const markup = dom.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
+      const strays = markup.match(/>(?:null|undefined)</g) || [];
+      check('no stray null/undefined text rendered', strays.length === 0, `found ${strays.length} stray value node(s)`);
     } catch (e) { bad('headless render', e.message); }
 
   } finally {

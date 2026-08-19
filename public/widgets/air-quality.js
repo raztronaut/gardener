@@ -228,7 +228,11 @@ export default {
           }, h('span', { class: 'ar', style: { color: trend.color } }, trend.arrow),
             h('span', { class: 'tl' }, trend.label)));
         }
-        body.replaceChildren(
+        // NOTE: native Node.replaceChildren coerces a null argument to the text
+        // node "null" (unlike ctx.h, which drops null children). So build the
+        // top-level children as an array and filter falsy entries out — otherwise
+        // the calm-air day (no "vs. yesterday" cue) prints a stray "null" line.
+        body.replaceChildren(...[
           numrow,
           h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short),
           vsy ? h('div', {
@@ -255,7 +259,8 @@ export default {
               : 'PM2.5 · fine particulate (µg/m³)',
           },
             showLead ? h('span', { class: 'lead' }, `${lead.label} lead`) : null,
-            h('span', { class: 'val' }, pm == null ? 'PM2.5 —' : `PM2.5 ${pm.toFixed(1)}`)));
+            h('span', { class: 'val' }, pm == null ? 'PM2.5 —' : `PM2.5 ${pm.toFixed(1)}`)),
+        ].filter(Boolean));
         body.dataset.loaded = '1';
       } catch (e) {
         if (retry) throw e;
