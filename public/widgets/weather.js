@@ -2,7 +2,9 @@
 // day-over-day trend as the seasons turn) + a visibility/fog reading (SF's marine
 // layer is a daily character of the city) + a wind reading that names its gusts
 // when the air is genuinely gusty (SF's afternoon westerlies routinely gust well
-// above their sustained speed) + tomorrow's outlook carrying a
+// above their sustained speed) + a barometric-pressure reading (inHg) with its
+// 3-hour rising/falling tendency — the honest "which way is the weather leaning"
+// signal + tomorrow's outlook carrying a
 // glanceable warmer/cooler-than-today cue + a linear hourly temperature timeline
 // whose after-dark hours are gently shaded so the evening reads at a glance,
 // via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
@@ -53,6 +55,20 @@ const fmtDayDelta = (secs) => {
   const a = Math.abs(Math.round(secs));
   const m = Math.floor(a / 60), s = a % 60;
   return m ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`;
+};
+
+// Barometric pressure — sea-level hPa (as Open-Meteo reports it) → inches of
+// mercury, the unit a US barometer is read in ("30.02"). The 3-hour tendency is
+// the honest forecasting signal a wall wants: air that's FALLING is unsettled
+// weather on the way, RISING is fair and settling, STEADY holds. Thresholds use
+// the classic ~1 hPa / 3h "slowly rising/falling" band so the clause stays calm
+// on a flat day and speaks up only when the barometer is genuinely moving.
+const inHg = (hpa) => (hpa * 0.0295300).toFixed(2);
+const baroTendency = (dp) => {
+  if (!Number.isFinite(dp)) return null;
+  if (dp <= -1) return { arrow: '↓', word: 'falling', hint: 'weather may turn unsettled', color: '#9cc0ff' };
+  if (dp >= 1) return { arrow: '↑', word: 'rising', hint: 'fair and settling', color: 'var(--mint)' };
+  return { arrow: '→', word: 'steady', hint: 'settled', color: 'var(--ink-faint)' };
 };
 
 // Meteorological wind direction (degrees the wind blows FROM) → 8-point cardinal.
@@ -149,6 +165,14 @@ export default {
       .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
       .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .wx-sky .uv b { color:var(--ink); font-weight:600; }
+      /* barometric pressure — a quiet clause reading the barometer in inHg with a
+         3-hour tendency (a cool-blue ↓ falling / mint ↑ rising / faint → steady),
+         echoing the warm/cool trend language used elsewhere on the card. One line,
+         nowrap, so it never grows the sky line's height beyond a fresh wrap row. */
+      .wx-sky .baro { color:var(--ink-soft); display:inline-flex; align-items:baseline; gap:3px; white-space:nowrap; }
+      .wx-sky .baro b { color:var(--ink); font-weight:600; }
+      .wx-sky .baro .bar { font-weight:700; }
+      .wx-sky .baro .bw { color:var(--ink-faint); letter-spacing:.01em; }
       .wx-stats { display:flex; gap:8px; }
       .wx-stat { flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
         padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
@@ -236,8 +260,8 @@ export default {
 
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
+        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,pressure_msl,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,pressure_msl,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
 
@@ -342,6 +366,14 @@ export default {
         // rolls in. Always present so the sky line reads consistently.
         const visM = Number.isFinite(d.hourly.visibility?.[hNow]) ? d.hourly.visibility[hNow] : null;
         const vis = visBand(visM);
+
+        // Barometric pressure + its 3-hour tendency. The current reading comes from
+        // the `current` block; the trend compares it against the hourly series three
+        // hours back (skipped before 3am, when there's no prior hour to read), so a
+        // rising/falling barometer tells the wall which way the weather is leaning.
+        const pNow = Number.isFinite(cur.pressure_msl) ? cur.pressure_msl : null;
+        const p3 = (hNow >= 3 && Array.isArray(d.hourly.pressure_msl)) ? d.hourly.pressure_msl[hNow - 3] : null;
+        const baro = (Number.isFinite(pNow) && Number.isFinite(p3)) ? baroTendency(pNow - p3) : null;
 
         // Tomorrow's outlook — condition + high/low from the second daily entry
         // (forecast_days=2 guarantees it's present). What the humans actually
@@ -517,6 +549,15 @@ export default {
               title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
             }, ctx.h('span', { class: 'dot', style: { background: uvColor, boxShadow: `0 0 6px ${uvColor}` } }),
               'UV ', ctx.h('b', {}, `${uvNow ?? '—'}`), ` ${uvLabel}`),
+            Number.isFinite(pNow) ? ctx.h('span', {
+              class: 'baro',
+              title: `Barometric pressure — ${inHg(pNow)} inHg (${Math.round(pNow)} hPa)`
+                + (baro ? ` · ${baro.word} — ${baro.hint}` : ''),
+            }, baro
+              ? ctx.h('span', { class: 'bar', style: { color: baro.color } }, `${baro.arrow} `)
+              : '◦ ',
+              ctx.h('b', {}, `${inHg(pNow)}″`),
+              baro ? ctx.h('span', { class: 'bw' }, ` ${baro.word}`) : null) : null,
             ctx.h('span', {
               class: 'tmrw',
               title: tmrwTrend && tmrwTrend.car
