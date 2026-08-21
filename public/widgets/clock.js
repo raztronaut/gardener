@@ -142,7 +142,8 @@ export default {
       // Day-of-week-aware greeting (weekends & Fridays get their own warmth),
       // read in the display tz so it turns over correctly at local midnight.
       const g = greetingFor(h, fmtWeekday.format(now));
-      if (g !== lastG) { lastG = g; greet.textContent = g; }
+      let toplineDirty = false;
+      if (g !== lastG) { lastG = g; greet.textContent = g; toplineDirty = true; }
       // Seasonal marker — recomputed from the tz-local date; only repaints when the
       // day (and therefore the "day N of season") actually changes.
       const [yy, mm, dd] = fmtYMD.format(now).split('-').map((n) => parseInt(n, 10));
@@ -155,11 +156,32 @@ export default {
         // of the year keeps the change gently anticipated — the nearer it is, the
         // more the small number speaks for itself.
         const toLabel = `${s.toNext}d to ${s.nextName.toLowerCase()} ${s.nextIcon}`;
+        const toShort = `${s.toNext}d ${s.nextIcon}`; // compact fallback when the row is tight
         season.title = `${s.phase} ${s.name} · day ${s.day} · ${toLabel}`;
         season.replaceChildren(
           ctx.h('span', { class: 'ic' }, s.icon),
           ctx.h('b', {}, `${s.phase} ${s.name}`),
-          ctx.h('span', { class: 'to' }, `· ${toLabel}`));
+          ctx.h('span', { class: 'to', 'data-full': `· ${toLabel}`, 'data-short': `· ${toShort}` }, `· ${toLabel}`));
+        toplineDirty = true;
+      }
+      // Keep the greeting whole. The greeting and the seasonal marker share one
+      // line on a half-width card; when they'd collide, the greeting used to get
+      // ellipsised ("Good morni…"). Instead, let the season COUNTDOWN yield first —
+      // "Late Summer" always stays. We step it down gracefully: full clause
+      // ("· 32d to autumn 🍂") → compact ("· 32d 🍂") → hidden, taking only as much
+      // room as the greeting actually needs. Measured only when a line changed
+      // (cheap; the 900px canvas is fixed).
+      if (toplineDirty) {
+        const to = season.querySelector('.to');
+        if (to) {
+          const overflow = () => greet.scrollWidth > greet.clientWidth + 1;
+          to.style.display = '';
+          to.textContent = to.dataset.full;
+          if (overflow()) {
+            to.textContent = to.dataset.short;
+            if (overflow()) to.style.display = 'none';
+          }
+        }
       }
       // Year progress — day-of-year and the fraction of the calendar year elapsed,
       // from the SAME tz-local date, so it rolls over at local midnight. A quiet
