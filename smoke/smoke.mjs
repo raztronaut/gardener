@@ -87,6 +87,20 @@ async function main() {
       check('HN discussion marker stays quiet on ordinary stories',
         quiet.every((v) => v === 0), `got ${quiet.join(',')}`);
     } catch (e) { bad('HN discussion marker', e.message); }
+    // SF events feed carries scraped HTML entities (&#8220;curly quotes&#8221;, &amp;,
+    // &#39;, &eacute;…) that render as PLAIN TEXT on the wall — a literal "&#8221;"
+    // must never leak onto the hero card. Exercise the shared cleanName() decoder.
+    try {
+      const { cleanName, cleanPlace } = await import(join(PUBLIC, 'lib', 'events.js'));
+      const decoded = cleanName('9/18/26: $1 Drink Fridays: &#8220;Battle of the Decades&#8221; DJ Party - FREE');
+      check('events feed decodes HTML entities in titles',
+        decoded === '$1 Drink Fridays: “Battle of the Decades” DJ Party', `got: ${decoded}`);
+      const amp = cleanName('Tom &amp; Jerry&#39;s Caf&eacute;');
+      check('events feed decodes named + numeric entities',
+        amp === "Tom & Jerry's Café", `got: ${amp}`);
+      const venue = cleanPlace('R&amp;R Lounge, San Francisco, CA');
+      check('events feed decodes entities in venue names', venue === 'R&R Lounge', `got: ${venue}`);
+    } catch (e) { bad('events entity decode', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
     // from 5 PM onwards. Guard against it silently drifting later again (regression 2026-07-29).

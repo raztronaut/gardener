@@ -13,7 +13,33 @@ export const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 export const TZ = 'America/Los_Angeles';
 export const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-const tidy = (s) => String(s || '').trim().replace(/\s+/g, ' ');
+// Scraped titles/venues arrive carrying HTML entities — mostly numeric curly
+// quotes and dashes (&#8220;…&#8221;), plus the odd &amp; / &#39; / &eacute;.
+// They render as PLAIN TEXT in the widget and the /events modal, so a literal
+// "&#8221;" leaks onto the wall. Decode to real characters here — pure and
+// deterministic (no DOM), handling decimal/hex numeric refs plus the common
+// named ones; unknown or lone-ampersand tokens are left untouched.
+const NAMED = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  mdash: '—', ndash: '–', hellip: '…', ldquo: '“', rdquo: '”',
+  lsquo: '‘', rsquo: '’', deg: '°', trade: '™', copy: '©', reg: '®',
+  eacute: 'é', egrave: 'è', agrave: 'à', ccedil: 'ç', ntilde: 'ñ',
+  uuml: 'ü', ouml: 'ö', auml: 'ä',
+};
+function decodeEntities(s) {
+  return String(s == null ? '' : s).replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (m, e) => {
+    try {
+      if (e[0] === '#') {
+        const cp = (e[1] === 'x' || e[1] === 'X') ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+        return (Number.isFinite(cp) && cp > 0 && cp <= 0x10FFFF) ? String.fromCodePoint(cp) : m;
+      }
+      const k = e.toLowerCase();
+      return Object.prototype.hasOwnProperty.call(NAMED, k) ? NAMED[k] : m;
+    } catch { return m; }
+  });
+}
+
+const tidy = (s) => decodeEntities(s).trim().replace(/\s+/g, ' ');
 
 // Titles from scraped sources look like "6/20/26: Name (Venue) - FREE". The real
 // date lives in available_from, so strip the leading date prefix and trailing price
