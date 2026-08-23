@@ -1,7 +1,9 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
 //   📖 Word of the day   — fully OFFLINE, deterministic by day-of-year (never fails);
-//        carries its pronunciation, part of speech, etymology, definition, an example
-//        sentence, and a quiet "≈ synonyms  ≠ antonyms" line for words that have them.
+//        carries its pronunciation (IPA + a plain-English "say-it-like" respelling so
+//        the word is actually sayable), part of speech, etymology, definition, an
+//        example sentence, and a quiet "≈ synonyms  ≠ antonyms" line for words that
+//        have them.
 //   📜 On this day        — a rotating mix of today's historical events plus the
 //        notable people born and who died on this date, from Wikipedia's keyless
 //        onthisday feed; each birth/death is tagged so it reads unambiguously.
@@ -75,6 +77,75 @@ const WORDS = [
   { word: 'quintessence', pron: '/kwɪnˈtɛsns/', pos: 'noun', def: 'The purest, most perfect example or embodiment of a quality.', ex: 'The little café was the quintessence of unhurried Parisian mornings.' },
   { word: 'noctilucent', pron: '/ˌnɒktɪˈluːsnt/', pos: 'adjective', def: 'Shining or glowing in the night, as the rare high clouds lit long after sunset.', ex: 'On midsummer nights the sky held faint, noctilucent clouds.' },
 ];
+
+// ---- SAY IT LIKE — a plain-English pronunciation respelling for each word
+// (offline, keyed by word). The IPA in WORDS is precise but unreadable to most
+// people; this is the "say-it-like" cue that actually lets someone pronounce these
+// lovely words aloud. Same pattern as ORIGINS/SYNONYMS: a separate map so WORDS is
+// never touched, and a missing entry simply renders no respelling. The STRESSED
+// syllable is written in CAPS so the emphasis reads at a glance.
+const SAY = {
+  serendipity: 'seh-ruhn-DIP-ih-tee',
+  petrichor: 'PET-rih-kor',
+  ephemeral: 'ih-FEM-er-uhl',
+  sonder: 'SON-der',
+  limerence: 'LIM-er-uhns',
+  mellifluous: 'meh-LIF-loo-uhs',
+  halcyon: 'HAL-see-uhn',
+  susurrus: 'soo-SUR-uhs',
+  apricity: 'uh-PRIS-ih-tee',
+  nepenthe: 'nih-PEN-thee',
+  eloquence: 'EL-uh-kwuhns',
+  quixotic: 'kwik-SOT-ik',
+  sublime: 'suh-BLYME',
+  ineffable: 'in-EF-uh-buhl',
+  luminescence: 'loo-mih-NES-uhns',
+  wanderlust: 'WON-der-lust',
+  effervescent: 'ef-er-VES-uhnt',
+  solitude: 'SOL-ih-tood',
+  aurora: 'aw-ROR-uh',
+  reverie: 'REV-er-ee',
+  gossamer: 'GOS-uh-mer',
+  incandescent: 'in-kan-DES-uhnt',
+  vellichor: 'VEL-ih-kor',
+  numinous: 'NOO-mih-nuhs',
+  evanescent: 'ev-uh-NES-uhnt',
+  plethora: 'PLETH-er-uh',
+  panacea: 'pan-uh-SEE-uh',
+  zephyr: 'ZEF-er',
+  felicity: 'fuh-LIS-ih-tee',
+  verdant: 'VUR-duhnt',
+  sanguine: 'SANG-gwin',
+  aplomb: 'uh-PLOM',
+  lagom: 'LAH-gom',
+  hiraeth: 'HEER-ryth',
+  meraki: 'meh-RAH-kee',
+  fernweh: 'FERN-vey',
+  pellucid: 'peh-LOO-sid',
+  redolent: 'RED-uh-luhnt',
+  lissome: 'LIS-uhm',
+  ethereal: 'ih-THEER-ee-uhl',
+  cynosure: 'SIN-uh-shoor',
+  denouement: 'day-noo-MON',
+  sempiternal: 'sem-pih-TUR-nuhl',
+  oneiric: 'oh-NY-rik',
+  tarantism: 'TAR-uhn-tiz-uhm',
+  syzygy: 'SIZ-ih-jee',
+  ebullient: 'ih-BULL-yuhnt',
+  scintilla: 'sin-TIL-uh',
+  gloaming: 'GLOH-ming',
+  crepuscular: 'krih-PUS-kyuh-ler',
+  quiescent: 'kwee-ES-uhnt',
+  eudaimonia: 'yoo-dy-MOH-nee-uh',
+  frisson: 'free-SON',
+  saudade: 'sow-DAH-duh',
+  komorebi: 'koh-moh-REH-bee',
+  eunoia: 'yoo-NOY-uh',
+  nebulous: 'NEB-yuh-luhs',
+  languor: 'LANG-ger',
+  quintessence: 'kwin-TES-uhns',
+  noctilucent: 'nok-tih-LOO-suhnt',
+};
 
 // ---- WORD ORIGINS — a quiet etymology for each word (offline, keyed by word).
 // Kept as a separate map so the WORDS list above is never touched: a missing
@@ -404,6 +475,11 @@ export default {
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .dly-wmeta { margin-top:5px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; flex:none; }
       .dly-pron { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); }
+      /* plain-English "say-it-like" respelling, trailing the IPA on the SAME line —
+         a hushed mint clause (the stressed syllable is CAPS in the data itself), so
+         the word is actually sayable. Fits within the half-width line, adding no
+         height; hidden entirely when the word has no respelling. */
+      .dly-pron .say { color:var(--mint-2); letter-spacing:.01em; }
       .dly-pos { font-style:italic; font-size:13px; color:var(--ink-soft); }
       /* etymology — a quiet mono caption beneath the word's pronunciation/part of
          speech, telling where the word comes from. One line, ellipsised, so it can
@@ -518,7 +594,13 @@ export default {
     };
     const applyWord = (w) => {
       wordEl.textContent = w.word; wordEl.title = w.word;
-      pronEl.textContent = w.pron; posEl.textContent = w.pos; defEl.textContent = w.def;
+      // Pronunciation: the precise IPA, followed on the same line by a plain-English
+      // "say-it-like" respelling (when we have one) so the word is actually sayable.
+      const say = SAY[w.word];
+      pronEl.replaceChildren(w.pron,
+        say ? h('span', { class: 'say' }, ` · ${say}`) : null);
+      pronEl.title = say ? `${w.pron} · say it: ${say}` : w.pron;
+      posEl.textContent = w.pos; defEl.textContent = w.def;
       // Etymology (optional): a quiet "root" mark + the word's origin. Hidden
       // entirely when we have none, so no empty caption line is ever left behind.
       const origin = ORIGINS[w.word];
