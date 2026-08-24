@@ -74,6 +74,18 @@ function titleDateKey(title) {
   return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
 }
 
+// Does an available_from timestamp sit at EXACTLY noon UTC? That's the source's
+// "no real start time" placeholder — 12:00Z renders as 5:00 AM PDT, so a native
+// (non-title-dated) row carrying it would otherwise print a bogus "5:00 AM" start
+// on the wall (e.g. a comedy show or beat battle "at 5 AM"). We treat such rows as
+// all-day/time-unknown, the same way title-dated scraped rows already are. NOTE:
+// midnight UTC (00:00Z → 5:00 PM PDT) is deliberately NOT matched — that's the
+// real evening-event hour the rest of this file relies on.
+function isNoonUtcPlaceholder(iso) {
+  if (!iso) return false;
+  return /T12:00(?::00)?(?:\.0+)?(?:Z|\+00:?00)$/i.test(String(iso).trim());
+}
+
 // Is this event already over?
 // - ALL-DAY rows (title-dated placeholders): past once their written calendar day
 //   has fully ended in SF.
@@ -112,13 +124,19 @@ export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
     const dayKey = titleDateKey(r.title); // non-null → all-day placeholder row
     let when = r.available_from ? new Date(r.available_from) : null;
     if (when && isNaN(when)) when = null;
-    // For all-day rows, anchor `when` to SF noon of the WRITTEN day so date
-    // displays are stable (the stored noon-UTC placeholder is 5 AM PDT).
+    // Native rows sometimes carry the same noon-UTC "no real time" placeholder the
+    // scraped rows use, but WITHOUT a title date prefix — those must be treated as
+    // all-day too, or the widget prints a spurious "5:00 AM" start on the wall.
+    const noonPlaceholder = !dayKey && !!when && isNoonUtcPlaceholder(r.available_from);
+    // For all-day rows, anchor `when` to SF noon of the day so date displays are
+    // stable (the stored noon-UTC placeholder is 5 AM PDT). Title-dated rows use
+    // the written day; noon-UTC native rows use that placeholder's own SF day.
     if (dayKey) when = new Date(`${dayKey}T12:00:00-07:00`);
+    else if (noonPlaceholder) when = new Date(`${dayKeyOf(when)}T12:00:00-07:00`);
     const ev = {
       name,
       when,
-      allDay: !!dayKey,
+      allDay: !!dayKey || noonPlaceholder,
       dayKey: dayKey || (when ? dayKeyOf(when) : null),
       place: cleanPlace(r.location_address),
       placeFull: tidy(r.location_address),
