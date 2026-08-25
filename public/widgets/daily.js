@@ -76,6 +76,30 @@ const WORDS = [
   { word: 'languor', pron: '/ˈlæŋɡə/', pos: 'noun', def: 'A pleasant heaviness or dreamy stillness; a soft, unhurried lack of energy.', ex: 'A summer languor settled over the porch by mid-afternoon.' },
   { word: 'quintessence', pron: '/kwɪnˈtɛsns/', pos: 'noun', def: 'The purest, most perfect example or embodiment of a quality.', ex: 'The little café was the quintessence of unhurried Parisian mornings.' },
   { word: 'noctilucent', pron: '/ˌnɒktɪˈluːsnt/', pos: 'adjective', def: 'Shining or glowing in the night, as the rare high clouds lit long after sunset.', ex: 'On midsummer nights the sky held faint, noctilucent clouds.' },
+  { word: 'brume', pron: '/bruːm/', pos: 'noun', def: 'Mist or fog, especially a soft wintry haze that softens the view.', ex: 'A pale brume hung over the bay, dissolving the far hills into grey.' },
+  { word: 'aubade', pron: '/əʊˈbɑːd/', pos: 'noun', def: 'A song or poem greeting the dawn; music made for the early morning.', ex: 'He woke to birdsong, an aubade drifting through the open window.' },
+  { word: 'lambent', pron: '/ˈlæmbənt/', pos: 'adjective', def: 'Glowing softly; flickering over a surface with a gentle, radiant light.', ex: 'Lambent candlelight moved slowly across the old stone walls.' },
+  { word: 'vespertine', pron: '/ˈvɛspərtaɪn/', pos: 'adjective', def: 'Of, relating to, or occurring in the evening.', ex: 'The garden released its vespertine scent as the light began to fail.' },
+  { word: 'psithurism', pron: '/ˈsɪθjʊrɪzəm/', pos: 'noun', def: 'The soft whispering sound of wind moving through the trees.', ex: 'We lay in the meadow and listened to the psithurism of the pines.' },
+  { word: 'murmuration', pron: '/ˌmɜːmjʊˈreɪʃn/', pos: 'noun', def: 'A great flock of starlings wheeling as one; a low, continuous murmur.', ex: 'At dusk a murmuration folded and unfolded above the reeds.' },
+  { word: 'sillage', pron: '/siːˈjɑːʒ/', pos: 'noun', def: 'The lingering trail of scent left behind by someone as they pass.', ex: 'A sillage of jasmine lingered in the hallway long after she had gone.' },
+  { word: 'hygge', pron: '/ˈhuːɡə/', pos: 'noun', def: 'Danish: a cosy, contented warmth found in simple comforts and good company.', ex: 'Rain on the roof and a pot of tea — the evening was pure hygge.' },
+  { word: 'ikigai', pron: '/ˌiːkɪˈɡaɪ/', pos: 'noun', def: 'Japanese: a reason for being — the thing that makes life feel worth living.', ex: 'Tending the garden each morning had become her quiet ikigai.' },
+  { word: 'cwtch', pron: '/kʊtʃ/', pos: 'noun', def: 'Welsh: a warm, affectionate hug, or a small safe and cosy place.', ex: 'Come here for a cwtch — the world can wait a moment.' },
+  { word: 'pluviophile', pron: '/ˈpluːviəfaɪl/', pos: 'noun', def: 'A lover of rain; someone who finds joy and calm in rainy days.', ex: 'A true pluviophile, she flung the windows open at the first storm.' },
+  { word: 'nemophilist', pron: '/nɪˈmɒfɪlɪst/', pos: 'noun', def: 'One who loves woods and forests; a haunter of quiet groves.', ex: 'The old nemophilist knew every deer path through the redwoods.' },
+  { word: 'ataraxia', pron: '/ˌætəˈræksiə/', pos: 'noun', def: 'A serene calm; freedom from worry and emotional disturbance.', ex: 'After a week by the sea he returned in a state of gentle ataraxia.' },
+  { word: 'solivagant', pron: '/səˈlɪvəɡənt/', pos: 'adjective', def: 'Wandering alone; given to solitary rambling.', ex: 'His solivagant habit led him down streets no map had ever named.' },
+  { word: 'chatoyant', pron: '/ʃəˈtɔɪənt/', pos: 'adjective', def: 'Shimmering with a shifting lustre, like a cat’s eye or fine silk.', ex: 'The chatoyant silk shifted from green to gold as she turned.' },
+  { word: 'refulgent', pron: '/rɪˈfʌldʒənt/', pos: 'adjective', def: 'Shining brilliantly; radiant and gleaming with light.', ex: 'The refulgent dome caught and held the very last of the sun.' },
+  { word: 'limpid', pron: '/ˈlɪmpɪd/', pos: 'adjective', def: 'Perfectly clear and transparent; calm and untroubled.', ex: 'The stream ran limpid over a bed of pale, rounded stones.' },
+  { word: 'sonorous', pron: '/ˈsɒnərəs/', pos: 'adjective', def: 'Deep, full, and resonant in sound.', ex: 'The old bell gave a sonorous toll that rolled across the valley.' },
+  { word: 'eventide', pron: '/ˈiːvəntaɪd/', pos: 'noun', def: 'The end of the day; evening, especially at its gentle close.', ex: 'They walked home at eventide, the sky gone to rose and grey.' },
+  { word: 'coddiwomple', pron: '/ˈkɒdiwɒmpl/', pos: 'verb', def: 'To travel purposefully toward an as-yet-unknown destination.', ex: 'With no plan but a full tank, they set off to coddiwomple up the coast.' },
+  { word: 'brontide', pron: '/ˈbrɒntaɪd/', pos: 'noun', def: 'The low, distant rumble of thunder, or a thunder-like sound.', ex: 'A faint brontide rolled beyond the hills, promising rain by morning.' },
+  { word: 'selcouth', pron: '/ˈsɛlkuːθ/', pos: 'adjective', def: 'Strange and rare, yet wonderful; unfamiliar in a marvellous way.', ex: 'The tide pools held a selcouth world of drifting, glowing things.' },
+  { word: 'estival', pron: '/ˈɛstɪvl/', pos: 'adjective', def: 'Of or belonging to summer; appearing in the summertime.', ex: 'The estival heat drew everyone into the shade of the plane trees.' },
+  { word: 'dwaal', pron: '/dwɑːl/', pos: 'noun', def: 'South African: a dreamy, absent-minded or pleasantly dazed state.', ex: 'She drifted through the whole slow afternoon in a pleasant dwaal.' },
 ];
 
 // ---- SAY IT LIKE — a plain-English pronunciation respelling for each word
@@ -145,6 +169,30 @@ const SAY = {
   languor: 'LANG-ger',
   quintessence: 'kwin-TES-uhns',
   noctilucent: 'nok-tih-LOO-suhnt',
+  brume: 'BROOM',
+  aubade: 'oh-BAHD',
+  lambent: 'LAM-buhnt',
+  vespertine: 'VES-per-tyne',
+  psithurism: 'SITH-yoo-riz-uhm',
+  murmuration: 'mur-myuh-RAY-shuhn',
+  sillage: 'see-YAHZH',
+  hygge: 'HOO-guh',
+  ikigai: 'ee-kee-GUY',
+  cwtch: 'KUUTCH',
+  pluviophile: 'PLOO-vee-uh-file',
+  nemophilist: 'nih-MOF-ih-list',
+  ataraxia: 'at-uh-RAK-see-uh',
+  solivagant: 'suh-LIV-uh-guhnt',
+  chatoyant: 'shuh-TOY-uhnt',
+  refulgent: 'rih-FUHL-juhnt',
+  limpid: 'LIM-pid',
+  sonorous: 'SON-er-uhs',
+  eventide: 'EE-vuhn-tide',
+  coddiwomple: 'KOD-ee-wom-pul',
+  brontide: 'BRON-tide',
+  selcouth: 'SEL-kooth',
+  estival: 'ES-tih-vuhl',
+  dwaal: 'DVAHL',
 };
 
 // ---- WORD ORIGINS — a quiet etymology for each word (offline, keyed by word).
@@ -211,6 +259,30 @@ const ORIGINS = {
   languor: 'Latin languēre “to be faint”',
   quintessence: 'Latin quinta essentia',
   noctilucent: 'Latin nox “night” + lucēre',
+  brume: 'French brume “fog, mist”',
+  aubade: 'French · Spanish alba “dawn”',
+  lambent: 'Latin lambere “to lick”',
+  vespertine: 'Latin vesper “evening”',
+  psithurism: 'Greek psithuros “whispering”',
+  murmuration: 'Latin murmur “a murmur”',
+  sillage: 'French sillage “wake, trail”',
+  hygge: 'Danish · Norwegian “well-being”',
+  ikigai: 'Japanese 生き甲斐 “reason to live”',
+  cwtch: 'Welsh · “cubbyhole, embrace”',
+  pluviophile: 'Latin pluvia “rain” + -phile',
+  nemophilist: 'Greek nemos “grove” + -phile',
+  ataraxia: 'Greek · “impassiveness”',
+  solivagant: 'Latin solus “alone” + vagari',
+  chatoyant: 'French chatoyer “to shimmer”',
+  refulgent: 'Latin refulgēre “to shine out”',
+  limpid: 'Latin limpidus “clear”',
+  sonorous: 'Latin sonor “sound”',
+  eventide: 'Old English ǣfentīd “eventime”',
+  coddiwomple: 'modern English coinage',
+  brontide: 'Greek brontē “thunder”',
+  selcouth: 'Old English seldcūth “seldom known”',
+  estival: 'Latin aestas “summer”',
+  dwaal: 'Afrikaans · Dutch dwalen “to wander”',
 };
 
 // ---- SYNONYMS — a few kindred words for each entry (offline, keyed by word).
@@ -267,6 +339,20 @@ const SYNONYMS = {
   languor: ['lassitude', 'listlessness', 'torpor'],
   quintessence: ['essence', 'epitome', 'embodiment'],
   noctilucent: ['night-glowing', 'luminous', 'gleaming'],
+  brume: ['mist', 'haze', 'fog'],
+  lambent: ['glowing', 'radiant', 'flickering'],
+  vespertine: ['evening', 'twilit', 'crepuscular'],
+  psithurism: ['whisper', 'rustle', 'susurrus'],
+  ataraxia: ['serenity', 'calm', 'tranquillity'],
+  solivagant: ['wandering', 'roving', 'roaming'],
+  chatoyant: ['shimmering', 'iridescent', 'lustrous'],
+  refulgent: ['radiant', 'brilliant', 'luminous'],
+  limpid: ['clear', 'transparent', 'lucid'],
+  sonorous: ['resonant', 'rich', 'full'],
+  eventide: ['evening', 'dusk', 'gloaming'],
+  brontide: ['rumble', 'roll', 'roar'],
+  selcouth: ['strange', 'wondrous', 'marvellous'],
+  estival: ['summery', 'summerlike'],
 };
 
 // ---- ANTONYMS — a few opposite words for each entry (offline, keyed by word).
@@ -307,6 +393,16 @@ const ANTONYMS = {
   nebulous: ['clear', 'distinct', 'defined'],
   languor: ['vigour', 'energy', 'briskness'],
   noctilucent: ['dark', 'lightless'],
+  brume: ['clarity', 'clearness'],
+  lambent: ['dull', 'dark', 'lightless'],
+  ataraxia: ['anxiety', 'turmoil', 'agitation'],
+  chatoyant: ['matte', 'dull', 'lustreless'],
+  refulgent: ['dull', 'dim', 'lightless'],
+  limpid: ['murky', 'cloudy', 'opaque'],
+  sonorous: ['thin', 'tinny', 'muffled'],
+  eventide: ['dawn', 'daybreak', 'morning'],
+  selcouth: ['familiar', 'ordinary', 'commonplace'],
+  estival: ['hibernal', 'wintry'],
 };
 
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
@@ -597,8 +693,11 @@ export default {
       // Pronunciation: the precise IPA, followed on the same line by a plain-English
       // "say-it-like" respelling (when we have one) so the word is actually sayable.
       const say = SAY[w.word];
-      pronEl.replaceChildren(w.pron,
-        say ? h('span', { class: 'say' }, ` · ${say}`) : null);
+      // NOTE: native replaceChildren coerces a null argument to the text node
+      // "null" (unlike ctx.h, which drops null children) — so a word with no
+      // respelling would print a stray "null" after the IPA. Filter falsy out.
+      pronEl.replaceChildren(...[w.pron,
+        say ? h('span', { class: 'say' }, ` · ${say}`) : null].filter(Boolean));
       pronEl.title = say ? `${w.pron} · say it: ${say}` : w.pron;
       posEl.textContent = w.pos; defEl.textContent = w.def;
       // Etymology (optional): a quiet "root" mark + the word's origin. Hidden
@@ -671,8 +770,11 @@ export default {
       // unfamiliar author from the live feed simply shows the bare name.
       const role = AUTHORS[a];
       quoteEl.title = role ? `“${q}” — ${a} · ${role}` : `“${q}” — ${a}`;
-      authEl.replaceChildren(`— ${a}`,
-        role ? h('span', { class: 'role' }, ` · ${role}`) : null);
+      // Filter falsy: native replaceChildren would render a bare `null` text node
+      // for the missing-role case (e.g. an unfamiliar author from the live feed),
+      // printing "— Denis Waitleynull". ctx.h drops nulls; the raw call does not.
+      authEl.replaceChildren(...[`— ${a}`,
+        role ? h('span', { class: 'role' }, ` · ${role}`) : null].filter(Boolean));
       authEl.title = role ? `${a} · ${role}` : a;
     };
     applyQuoteObj(pickByDay(QUOTES));
