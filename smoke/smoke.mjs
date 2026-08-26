@@ -217,12 +217,17 @@ async function main() {
       check('no content clipped inside any widget', !cardClip || Number(cardClip) <= 8, `clipped widgets: ${clipped || cardClip + 'px'}`);
       // Guard against a null/undefined value coerced into a visible text node —
       // native Node.appendChild/replaceChildren turn a null arg into the literal
-      // string "null" (ctx.h filters these, but direct DOM calls don't). Such a
-      // node is a text node that is EXACTLY "null"/"undefined" between two tags,
-      // which never occurs in legitimate rendered copy. Scope to markup only
-      // (scripts/styles stripped) so code containing the words can't false-positive.
+      // string "null" (ctx.h filters these, but direct DOM calls don't). Scope to
+      // markup only (scripts/styles stripped) so code containing the words can't
+      // false-positive. Two shapes are caught: (a) a node that is EXACTLY
+      // "null"/"undefined" between two tags (">null<"); and (b) the coercion GLUED
+      // onto a preceding sibling's text — the case that once printed
+      // "August 26, 2026null" — which appears as null/undefined trailing a digit or
+      // "> " right before a closing tag. Requiring a digit/">" prefix keeps this
+      // free of false positives on real copy (e.g. an HN title ending in the word
+      // "null" is preceded by a letter/space, never a digit).
       const markup = dom.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '');
-      const strays = markup.match(/>(?:null|undefined)</g) || [];
+      const strays = markup.match(/(?:>|\d)(?:null|undefined)</g) || [];
       check('no stray null/undefined text rendered', strays.length === 0, `found ${strays.length} stray value node(s)`);
     } catch (e) { bad('headless render', e.message); }
 

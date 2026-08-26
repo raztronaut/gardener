@@ -193,10 +193,17 @@ export default {
       img.src = src;
       titleEl.textContent = d.title || 'Astronomy Picture of the Day';
       const fresh = freshnessTag(d.date, tz);
-      dateEl.replaceChildren(
+      // NOTE: native Node.replaceChildren coerces a null argument into the literal
+      // text node "null" (unlike ctx.h, which drops falsy children). On a public-
+      // domain NASA day (no copyright) — or near midnight when the freshness tag is
+      // absent — a bare `null` would glue onto the date ("August 26, 2026null"), so
+      // build the children as an array and filter the falsy entries out.
+      dateEl.replaceChildren(...[
         fresh ? h('span', { class: `apod-fresh${fresh.stale ? ' stale' : ''}` }, fresh.text) : null,
-        fmtDate(d.date), d.copyright
-          ? h('span', { class: 'cr' }, `  ·  © ${String(d.copyright).replace(/\s+/g, ' ').trim()}`) : null);
+        fmtDate(d.date),
+        d.copyright
+          ? h('span', { class: 'cr' }, `  ·  © ${String(d.copyright).replace(/\s+/g, ' ').trim()}`) : null,
+      ].filter(Boolean));
       // Museum caption — NASA's own words, clamped to two lines. Hidden when absent.
       const blurb = tidy(d.explanation);
       descEl.textContent = blurb;
