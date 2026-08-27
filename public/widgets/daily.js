@@ -100,6 +100,20 @@ const WORDS = [
   { word: 'selcouth', pron: '/ˈsɛlkuːθ/', pos: 'adjective', def: 'Strange and rare, yet wonderful; unfamiliar in a marvellous way.', ex: 'The tide pools held a selcouth world of drifting, glowing things.' },
   { word: 'estival', pron: '/ˈɛstɪvl/', pos: 'adjective', def: 'Of or belonging to summer; appearing in the summertime.', ex: 'The estival heat drew everyone into the shade of the plane trees.' },
   { word: 'dwaal', pron: '/dwɑːl/', pos: 'noun', def: 'South African: a dreamy, absent-minded or pleasantly dazed state.', ex: 'She drifted through the whole slow afternoon in a pleasant dwaal.' },
+  { word: 'mångata', pron: '/ˈmoːnɡɑːta/', pos: 'noun', def: 'Swedish: the shimmering, road-like reflection of the moon on water.', ex: 'A single mångata stretched across the black water toward the far shore.' },
+  { word: 'gökotta', pron: '/jœˈkɔta/', pos: 'noun', def: 'Swedish: to rise at dawn and go outside just to hear the first birdsong.', ex: 'They kept a summer gökotta, slipping out at first light to hear the thrushes.' },
+  { word: 'resfeber', pron: '/ˈreːsfeːber/', pos: 'noun', def: 'Swedish: the restless, fluttering heart in the moments before a journey begins.', ex: 'The night before the flight she lay awake in a happy resfeber.' },
+  { word: 'friluftsliv', pron: '/ˈfriːlʊftsliːv/', pos: 'noun', def: 'Norwegian: open-air living — a restorative, unhurried communion with nature.', ex: 'Weekends were for friluftsliv: a rucksack, a trail, and the open sky.' },
+  { word: 'waldeinsamkeit', pron: '/valtˈaɪnzamkaɪt/', pos: 'noun', def: 'German: the serene, solitary feeling of being alone in the woods.', ex: 'Deep among the redwoods he felt a hush of pure waldeinsamkeit.' },
+  { word: 'vorfreude', pron: '/ˈfoːɐfrɔɪdə/', pos: 'noun', def: 'German: the savoured, joyful anticipation of a pleasure still to come.', ex: 'Half the joy of the trip was the vorfreude of planning it for months.' },
+  { word: 'wabi-sabi', pron: '/ˈwɑːbi ˈsɑːbi/', pos: 'noun', def: 'Japanese: the art of finding beauty in imperfection, age, and impermanence.', ex: 'The cracked, hand-thrown bowl held a quiet wabi-sabi all its own.' },
+  { word: 'tsundoku', pron: '/tsɯnˈdokɯ/', pos: 'noun', def: 'Japanese: the gentle habit of buying books and letting them pile up unread.', ex: 'Her nightstand was a monument to tsundoku, ten spines deep.' },
+  { word: 'querencia', pron: '/keˈɾenθja/', pos: 'noun', def: 'Spanish: a place where one feels safe, at home, and most truly oneself.', ex: 'The old reading chair by the window was her querencia.' },
+  { word: 'duende', pron: '/ˈdwende/', pos: 'noun', def: 'Spanish: a surge of soulful, spellbinding passion, especially in art or music.', ex: 'The guitarist played with a raw duende that stilled the whole room.' },
+  { word: 'sprezzatura', pron: '/ˌsprɛtsaˈtuːra/', pos: 'noun', def: 'Italian: studied nonchalance — making the difficult look wholly effortless.', ex: 'He wore the borrowed tux with an easy sprezzatura, as if born to it.' },
+  { word: 'flâneur', pron: '/flɑːˈnɜːr/', pos: 'noun', def: 'French: one who strolls the city slowly, savouring it with no aim but delight.', ex: 'A born flâneur, he let the side streets decide where the evening went.' },
+  { word: 'mudita', pron: '/mʊˈdiːtɑː/', pos: 'noun', def: 'Sanskrit: the pure, unselfish joy of delighting in another’s happiness.', ex: 'Watching her rival take the prize, she felt only a warm mudita.' },
+  { word: 'eucatastrophe', pron: '/ˌjuːkəˈtæstrəfi/', pos: 'noun', def: 'A sudden, redemptive turn of events; a joyous catastrophe.', ex: 'The rescue arrived like a eucatastrophe, snatching hope from the last page.' },
 ];
 
 // ---- SAY IT LIKE — a plain-English pronunciation respelling for each word
@@ -193,6 +207,20 @@ const SAY = {
   selcouth: 'SEL-kooth',
   estival: 'ES-tih-vuhl',
   dwaal: 'DVAHL',
+  'mångata': 'MOHN-gah-ta',
+  'gökotta': 'yer-KOT-a',
+  resfeber: 'RESS-fay-ber',
+  friluftsliv: 'FREE-loofts-liv',
+  waldeinsamkeit: 'VALD-ine-zam-kite',
+  vorfreude: 'FOR-froy-duh',
+  'wabi-sabi': 'WAH-bee SAH-bee',
+  tsundoku: 'tsoon-DOH-koo',
+  querencia: 'keh-REN-see-ah',
+  duende: 'DWEN-day',
+  sprezzatura: 'spret-sah-TOO-rah',
+  'flâneur': 'flah-NUR',
+  mudita: 'moo-DEE-tah',
+  eucatastrophe: 'yoo-kuh-TAS-truh-fee',
 };
 
 // ---- WORD ORIGINS — a quiet etymology for each word (offline, keyed by word).
@@ -283,6 +311,20 @@ const ORIGINS = {
   selcouth: 'Old English seldcūth “seldom known”',
   estival: 'Latin aestas “summer”',
   dwaal: 'Afrikaans · Dutch dwalen “to wander”',
+  'mångata': 'Swedish måne “moon” + gata “road”',
+  'gökotta': 'Swedish · “dawn cuckoo-song”',
+  resfeber: 'Swedish resa “journey” + feber “fever”',
+  friluftsliv: 'Norwegian · “free-air life”',
+  waldeinsamkeit: 'German Wald “forest” + Einsamkeit',
+  vorfreude: 'German vor “before” + Freude “joy”',
+  'wabi-sabi': 'Japanese 侘寂 · “rustic patina”',
+  tsundoku: 'Japanese 積ん読 · “pile-up reading”',
+  querencia: 'Spanish querer “to love, to desire”',
+  duende: 'Spanish · “spirit, sprite”',
+  sprezzatura: 'Italian · coined 1528, Castiglione',
+  'flâneur': 'French flâner “to stroll, saunter”',
+  mudita: 'Sanskrit/Pali · “sympathetic joy”',
+  eucatastrophe: 'coined by Tolkien · Greek eu “good”',
 };
 
 // ---- SYNONYMS — a few kindred words for each entry (offline, keyed by word).
@@ -353,6 +395,9 @@ const SYNONYMS = {
   brontide: ['rumble', 'roll', 'roar'],
   selcouth: ['strange', 'wondrous', 'marvellous'],
   estival: ['summery', 'summerlike'],
+  duende: ['passion', 'soul', 'fire'],
+  sprezzatura: ['nonchalance', 'insouciance', 'panache'],
+  'flâneur': ['stroller', 'saunterer', 'idler'],
 };
 
 // ---- ANTONYMS — a few opposite words for each entry (offline, keyed by word).
