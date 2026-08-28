@@ -109,39 +109,65 @@ export default {
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
-      .em { flex:1; min-height:0; display:flex; flex-direction:column; align-items:center;
-        justify-content:center; gap:9px; cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none; }
-      .em-glyph { width:60px; height:46px; }
+      .em { position:relative; flex:1; min-height:0; display:flex; flex-direction:column;
+        align-items:center; justify-content:center; gap:11px; cursor:pointer; overflow:hidden;
+        -webkit-tap-highlight-color:transparent; user-select:none; }
+      /* faint static CRT scanlines confined to the tile — a cheap repeating gradient
+         (no animation, essentially free to render) that gives the empty Arcade card
+         a retro-cabinet feel instead of a bare glass square. */
+      .em::before { content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+        background:repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 2px, transparent 2px 4px); }
+      /* a hushed mint glow pooled behind the gamepad — static radial, no blur filter */
+      .em::after { content:''; position:absolute; left:50%; top:46%; width:150px; height:150px;
+        transform:translate(-50%,-50%); pointer-events:none;
+        background:radial-gradient(circle, rgba(116,247,176,.16) 0%, transparent 62%); }
+      .em-glyph { position:relative; width:70px; height:52px;
+        filter:drop-shadow(0 3px 12px rgba(116,247,176,.35)); }
       .em-glyph svg { width:100%; height:100%; display:block; image-rendering:pixelated; }
-      .em-hint { font-family:var(--font-mono); font-size:9px; letter-spacing:.1em;
-        text-transform:uppercase; color:var(--ink-faint); text-align:center; line-height:1.7; }
-      .em-hint b { color:var(--mint); font-weight:600; }
+      .em-hint { position:relative; text-align:center; line-height:1.4; }
+      /* game count as the hero: a mint display number beside a hushed caption */
+      .em-count { display:flex; align-items:baseline; justify-content:center; gap:6px; }
+      .em-count .n { font-family:var(--font-display); font-weight:700; font-size:22px; line-height:1;
+        color:var(--mint); text-shadow:0 0 12px rgba(116,247,176,.4); }
+      .em-count .lbl, .em-empty { font-family:var(--font-mono); font-size:9px; letter-spacing:.14em;
+        text-transform:uppercase; color:var(--ink-faint); }
+      /* the call-to-action, styled like a cabinet marquee prompt */
+      .em-cta { position:relative; margin-top:8px; font-family:var(--font-mono); font-size:9.5px;
+        font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--mint);
+        text-shadow:0 0 10px rgba(116,247,176,.35); }
+      .em-cta .ar { color:var(--mint-2); }
     `);
     // A pixel game-pad glyph drawn in the mint palette (inline SVG, no assets).
     const glyph = h('div', { class: 'em-glyph', html: `
-      <svg viewBox="0 0 42 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
-        <rect x="2" y="8"  width="38" height="18" rx="7" fill="none" stroke="#74f7b0" stroke-width="2"/>
+      <svg viewBox="0 0 48 34" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+        <rect x="3" y="9" width="42" height="18" rx="8" fill="none" stroke="#74f7b0" stroke-width="2"/>
         <!-- d-pad -->
-        <rect x="9"  y="15" width="9" height="3" fill="#74f7b0"/>
-        <rect x="12" y="12" width="3" height="9" fill="#74f7b0"/>
-        <!-- buttons -->
-        <circle cx="29" cy="14" r="2.2" fill="#43e6c6"/>
-        <circle cx="34" cy="18" r="2.2" fill="#43e6c6"/>
+        <rect x="10"   y="16.5" width="10" height="3" fill="#74f7b0"/>
+        <rect x="13.5" y="13"   width="3"  height="10" fill="#74f7b0"/>
+        <!-- face buttons (diamond) -->
+        <circle cx="34" cy="14" r="2" fill="#43e6c6"/>
+        <circle cx="38" cy="18" r="2" fill="#43e6c6"/>
+        <circle cx="34" cy="22" r="2" fill="#43e6c6"/>
+        <circle cx="30" cy="18" r="2" fill="#43e6c6"/>
       </svg>` });
-    const hint = h('div', { class: 'em-hint' });
-    hint.innerHTML = '<b>click to play</b> ▶<br>retro console';
+    // Library state (updated once the ROM count resolves); starts calm and neutral.
+    const hint = h('div', { class: 'em-hint' },
+      h('div', { class: 'em-empty' }, 'retro console'));
+    const cta = h('div', { class: 'em-cta' }, 'Click to play ', h('span', { class: 'ar' }, '▶'));
     body.classList.add('em');
-    body.replaceChildren(glyph, hint);
+    body.replaceChildren(glyph, hint, cta);
 
     // Cheap one-shot ROM count (no animation, no heavy work — smoke renders
     // the dashboard headless, so this must stay light and never throw).
     try {
       const r = await fetch('/api/roms', { cache: 'no-store' });
       const { roms = [] } = await r.json();
-      hint.innerHTML = roms.length
-        ? `<b>click to play</b> ▶<br>${roms.length} game${roms.length === 1 ? '' : 's'} ready`
-        : '<b>click to play</b> ▶<br>drop ROMs to begin';
-    } catch { /* offline / no endpoint — keep the default hint */ }
+      hint.replaceChildren(roms.length
+        ? h('div', { class: 'em-count' },
+            h('span', { class: 'n' }, String(roms.length)),
+            h('span', { class: 'lbl' }, `game${roms.length === 1 ? '' : 's'} ready`))
+        : h('div', { class: 'em-empty' }, 'drop ROMs to begin'));
+    } catch { /* offline / no endpoint — keep the neutral hint */ }
   },
 
   // ---- fullscreen: ROM picker → EmulatorJS -----------------------------------
