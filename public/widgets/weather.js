@@ -115,6 +115,16 @@ const visBand = (m) => m == null ? null
   : m < 8000 ? { label: 'Haze', foggy: true }
   : { label: 'Clear', foggy: false };
 
+// Weekday for a plain local ISO date ("2026-08-30") — computed in UTC from the
+// date parts so it's independent of the host clock's zone (these are date-only
+// labels for the multi-day outlook strip). Returns 0=Sun … 6=Sat, or null.
+const WD_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WD_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const weekdayIdx = (iso) => {
+  const m = /(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay() : null;
+};
+
 export default {
   id: 'weather',
   title: 'Weather',
@@ -153,10 +163,6 @@ export default {
       .wx-sky .day { color:var(--ink-soft); display:inline-flex; align-items:baseline; gap:5px; white-space:nowrap; }
       .wx-sky .day b { color:var(--ink); font-weight:600; }
       .wx-sky .day .tr { color:var(--ink-faint); letter-spacing:.01em; }
-      .wx-sky .tmrw { color:var(--mint); }
-      /* tomorrow's warmer/cooler cue — a quiet caret + word tinted gold (warmer)
-         or blue (cooler), echoing the timeline's peak/trough colours. */
-      .wx-sky .tmrw .tt { font-weight:600; letter-spacing:.01em; white-space:nowrap; }
       /* visibility / fog — a calm faint note in clear air ("👁 10+ mi"); turns a
          cool-blue clause naming SF's marine layer when it rolls in ("🌫 Fog · 0.4 mi"). */
       .wx-sky .vis { color:var(--ink-faint); display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap; }
@@ -201,6 +207,23 @@ export default {
          adds no width and can't clip. Calm days keep the plain °F · °C reading. */
       .wx-stat .wx-feeltr { font-size:11.5px; font-weight:700; letter-spacing:.01em; white-space:nowrap; }
       .wx-stat .wx-feeltr .cr { font-size:9px; vertical-align:1px; margin-right:1px; }
+
+      /* 3-day outlook strip — fills the calm band between the stat tiles and the
+         hourly timeline with a glanceable few-days-ahead forecast (icon + hi/lo),
+         replacing the old single-line "Tomorrow:" clause with a richer, visual read.
+         Weekend caps are tinted mint; a day markedly warmer/cooler than today tints
+         its high gold/blue, echoing the timeline's warm/cool language. Static SVG
+         icons, no animation; fixed height, so it can't clip. */
+      .wx-fc { display:flex; gap:8px; }
+      .wx-fc .fc { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
+        background:rgba(255,255,255,.03); border:1px solid var(--stroke); border-radius:12px; padding:7px 4px; }
+      .wx-fc .fc .d { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+        color:var(--ink-faint); }
+      .wx-fc .fc .d.wknd { color:var(--mint); }
+      .wx-fc .fc img { display:block; width:26px; height:26px; }
+      .wx-fc .fc .r { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
+      .wx-fc .fc .r .hi { font-family:var(--font-display); font-size:15px; font-weight:600; line-height:1; color:var(--ink); }
+      .wx-fc .fc .r .lo { font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
@@ -263,7 +286,7 @@ export default {
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,pressure_msl,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
         + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,pressure_msl,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
-        + `&timezone=${encodeURIComponent(tz)}&forecast_days=2`;
+        + `&timezone=${encodeURIComponent(tz)}&forecast_days=4`;
 
       // Live "next sun event" countdown. sunMins holds today's sunrise/sunset as
       // minutes-past-midnight (display tz); sunNextEl is the span we update each
@@ -375,24 +398,22 @@ export default {
         const p3 = (hNow >= 3 && Array.isArray(d.hourly.pressure_msl)) ? d.hourly.pressure_msl[hNow - 3] : null;
         const baro = (Number.isFinite(pNow) && Number.isFinite(p3)) ? baroTendency(pNow - p3) : null;
 
-        // Tomorrow's outlook — condition + high/low from the second daily entry
-        // (forecast_days=2 guarantees it's present). What the humans actually
-        // wanted here: "what's it going to be like tomorrow", not a countdown.
-        const tmrwCode = d.daily.weather_code?.[1];
-        const tmrwHi = d.daily.temperature_2m_max?.[1];
-        const tmrwLabel = (tmrwCode != null && tmrwHi != null)
-          ? `${WMO(tmrwCode)[0]} · H ${Math.round(tmrwHi)}° L ${Math.round(d.daily.temperature_2m_min[1])}°`
-          : '—';
-        // …and how tomorrow's high compares to today's — a glanceable "dress
-        // warmer / lighter" cue. Uses the SAME gold-▲ (warmer) / blue-▼ (cooler)
-        // language as the hourly timeline's peak/trough, so it reads instantly.
-        // Only spoken when the swing is worth noting (≥3°F); a similar day stays
-        // a hushed word so the line doesn't cry wolf over a 1° wobble.
-        const tmrwDelta = (tmrwHi != null && Number.isFinite(hi)) ? Math.round(tmrwHi) - hi : null;
-        const tmrwTrend = tmrwDelta == null ? null
-          : tmrwDelta >= 3 ? { car: '▲', word: `${tmrwDelta}° warmer`, color: 'var(--gold)' }
-          : tmrwDelta <= -3 ? { car: '▼', word: `${-tmrwDelta}° cooler`, color: '#9cc0ff' }
-          : { car: '', word: 'about the same', color: 'var(--ink-faint)' };
+        // Next few days' outlook — a compact strip of the three days ahead
+        // (condition icon + high/low), read from the daily arrays (forecast_days=4
+        // guarantees indices 1–3 are present). Richer than the old one-line
+        // "Tomorrow:" clause and it fills the calm band above the hourly timeline
+        // with genuinely useful "what's coming" information. Each day's high is
+        // tinted gold/blue when it's markedly warmer/cooler than TODAY's high,
+        // echoing the timeline's warm/cool language.
+        const fc = [];
+        for (let i = 1; i <= 3; i++) {
+          const iso = d.daily.time?.[i];
+          const code = d.daily.weather_code?.[i];
+          const dhi = d.daily.temperature_2m_max?.[i];
+          const dlo = d.daily.temperature_2m_min?.[i];
+          if (iso == null || code == null || !Number.isFinite(dhi) || !Number.isFinite(dlo)) continue;
+          fc.push({ iso, code, hi: Math.round(dhi), lo: Math.round(dlo) });
+        }
 
         // Sample the next ~14h every 2 hours for a linear timeline.
         const idx = new Date().getHours();
@@ -557,15 +578,7 @@ export default {
               ? ctx.h('span', { class: 'bar', style: { color: baro.color } }, `${baro.arrow} `)
               : '◦ ',
               ctx.h('b', {}, `${inHg(pNow)}″`),
-              baro ? ctx.h('span', { class: 'bw' }, ` ${baro.word}`) : null) : null,
-            ctx.h('span', {
-              class: 'tmrw',
-              title: tmrwTrend && tmrwTrend.car
-                ? `Tomorrow — ${tmrwLabel} · ${tmrwTrend.word} than today`
-                : `Tomorrow — ${tmrwLabel}`,
-            }, `Tomorrow: ${tmrwLabel}`,
-              tmrwTrend ? ctx.h('span', { class: 'tt', style: { color: tmrwTrend.color } },
-                ` ${tmrwTrend.car ? tmrwTrend.car + ' ' : ''}${tmrwTrend.word}`) : null)),
+              baro ? ctx.h('span', { class: 'bw' }, ` ${baro.word}`) : null) : null),
           ctx.h('div', { class: 'wx-stats' },
             ctx.h('div', { class: 'wx-stat' },
               ctx.h('div', { class: 'k' }, 'Feels like'),
@@ -604,6 +617,22 @@ export default {
                 ctx.h('span', { class: 'wx-wu' },
                   windCard ? ` mph ${windCard}` : ' mph',
                   gusty ? ctx.h('span', { class: 'wx-gust' }, ` · g${gust}`) : null)))),
+          fc.length ? ctx.h('div', { class: 'wx-fc' }, ...fc.map((f) => {
+            const wd = weekdayIdx(f.iso);
+            const wknd = wd === 0 || wd === 6;
+            const [flabel, fslug] = WMO(f.code);
+            const dHi = Number.isFinite(hi) ? f.hi - hi : 0;
+            const hiTint = dHi >= 4 ? 'var(--gold)' : dHi <= -4 ? '#9cc0ff' : 'var(--ink)';
+            return ctx.h('div', {
+              class: 'fc',
+              title: `${wd == null ? '' : WD_FULL[wd] + ' · '}${flabel} · H ${f.hi}° L ${f.lo}°`,
+            },
+              ctx.h('div', { class: `d${wknd ? ' wknd' : ''}` }, wd == null ? '—' : WD_SHORT[wd]),
+              wxIcon(fslug, 26),
+              ctx.h('div', { class: 'r' },
+                ctx.h('span', { class: 'hi', style: { color: hiTint } }, `${f.hi}°`),
+                ctx.h('span', { class: 'lo' }, `${f.lo}°`)));
+          })) : null,
           ctx.h('div', { class: 'wx-tl' },
             plot,
             ctx.h('div', { class: 'wx-axis' }, ...axis))));
