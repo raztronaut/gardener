@@ -1,9 +1,12 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
-//   📖 Word of the day   — fully OFFLINE, deterministic by day-of-year (never fails);
-//        carries its pronunciation (IPA + a plain-English "say-it-like" respelling so
-//        the word is actually sayable), part of speech, etymology, definition, an
-//        example sentence, and a quiet "≈ synonyms  ≠ antonyms" line for words that
-//        have them.
+//   📖 Word of the day   — a LIVE word drawn each day from Datamuse (a keyless API):
+//        one evocative theme seed per day surfaces kindred words with their definition,
+//        part of speech and pronunciation, and one is chosen deterministically for the
+//        day — so the word has genuine, ever-fresh variety instead of recycling a fixed
+//        list every few months. Datamuse's ARPAbet pronunciation is rendered as the same
+//        plain-English "say-it-like" respelling used by the curated words. If the network
+//        is unavailable it falls back to a curated, fully-annotated OFFLINE word (IPA,
+//        etymology, example sentence, "≈ synonyms ≠ antonyms"), so it never fails.
 //   📜 On this day        — a rotating mix of today's historical events plus the
 //        notable people born and who died on this date, from Wikipedia's keyless
 //        onthisday feed; each birth/death is tagged so it reads unambiguously.
@@ -563,6 +566,95 @@ function dayOfYear(d = new Date()) {
 }
 const pickByDay = (arr) => arr[dayOfYear() % arr.length];
 
+// ---- LIVE WORD OF THE DAY (Datamuse) ---------------------------------------
+// The curated WORDS list above is beautiful but finite, so a purely offline pick
+// (dayOfYear % length) recycles the same words every few months. To give the word
+// genuine, ever-fresh variety we draw the day's word LIVE from Datamuse — a
+// reputable, keyless API that returns a word together with its definition, part of
+// speech and pronunciation in ONE call. Each day we choose one evocative THEME seed
+// and let Datamuse surface words that mean-like it (dusk→gloaming, twilit, evenfall…),
+// then pick one deterministically for the day. Datamuse's ARPAbet pronunciation is
+// converted to the same plain-English "say-it-like" respelling the curated words use.
+// If the network is unavailable the widget silently keeps the offline curated word,
+// so it never blanks. The seeds are evocative MOOD/QUALITY words (not concrete
+// nouns) — these reliably surface lovely true-synonym clouds (serene → tranquil,
+// placid; ephemeral → transient, transitory) rather than mundane associations.
+const SEEDS = ['luminous', 'serene', 'ephemeral', 'radiant', 'tranquil', 'graceful',
+  'delicate', 'fragrant', 'tender', 'dreamy', 'mysterious', 'elegant', 'soothing',
+  'brilliant', 'hushed', 'lush', 'vivid', 'twilight', 'wondrous', 'gentle', 'solitary',
+  'gleaming', 'sublime', 'ethereal', 'verdant', 'celestial'];
+
+// ARPAbet phoneme string (e.g. "P EH1 T R IH0 K ER0") → a plain-English respelling
+// ("PEH-trih-ker") with the stressed syllable in CAPS, matching the curated SAY map's
+// house style so live words are just as sayable. Rough but readable; returns '' if it
+// can't parse anything, in which case the pronunciation line simply hides.
+const ARPA_V = { AA: 'ah', AE: 'a', AH: 'uh', AO: 'aw', AW: 'ow', AY: 'y', EH: 'eh',
+  ER: 'er', EY: 'ay', IH: 'ih', IY: 'ee', OW: 'oh', OY: 'oy', UH: 'uu', UW: 'oo' };
+const ARPA_C = { B: 'b', CH: 'ch', D: 'd', DH: 'th', F: 'f', G: 'g', HH: 'h', JH: 'j',
+  K: 'k', L: 'l', M: 'm', N: 'n', NG: 'ng', P: 'p', R: 'r', S: 's', SH: 'sh', T: 't',
+  TH: 'th', V: 'v', W: 'w', Y: 'y', Z: 'z', ZH: 'zh' };
+function arpabetToSay(arpa) {
+  const toks = String(arpa || '').trim().split(/\s+/);
+  // Build syllables around each vowel nucleus. Consonants between two vowels split
+  // "maximal-onset-lite": the last pending consonant opens the next syllable, the
+  // rest close the previous one — so "P EH T R IH K ER" reads "PEHT-rih-ker" rather
+  // than clumping every consonant onto one syllable.
+  const syls = [];
+  let prev = null, cons = [];
+  const flushPrev = (coda) => { if (prev) { prev.coda = coda.join(''); syls.push(prev); } };
+  for (const t of toks) {
+    const m = t.match(/^([A-Z]+)(\d?)$/);
+    if (!m) continue;
+    const base = m[1];
+    if (ARPA_V[base] !== undefined) {
+      const stress = m[2] === '1' ? 1 : (m[2] === '2' ? 2 : 0);
+      let onset = '';
+      if (prev) {
+        if (cons.length) { onset = cons[cons.length - 1]; flushPrev(cons.slice(0, -1)); }
+        else flushPrev([]);
+      } else { onset = cons.join(''); }
+      prev = { onset, nucleus: ARPA_V[base], coda: '', stress };
+      cons = [];
+    } else if (ARPA_C[base] !== undefined) {
+      cons.push(ARPA_C[base]);
+    }
+  }
+  if (prev) { prev.coda = cons.join(''); syls.push(prev); }
+  if (!syls.length) return '';
+  const hasPrimary = syls.some((s) => s.stress === 1);
+  return syls
+    .map((s, i) => {
+      const txt = s.onset + s.nucleus + s.coda;
+      return (s.stress === 1 || syls.length === 1 || (!hasPrimary && i === 0)) ? txt.toUpperCase() : txt;
+    })
+    .join('-');
+}
+
+// Turn one Datamuse result into a tidy candidate, or null if it lacks the parts we
+// need. `defs` entries are "<pos>\t<definition>"; `tags` carry the part of speech,
+// an ARPAbet "pron:…" and a frequency "f:…". We keep the definition that matches the
+// word's part of speech when possible.
+const DM_POS = { n: 'noun', adj: 'adjective', adv: 'adverb', v: 'verb' };
+function parseDatamuse(c) {
+  if (!c || !c.word) return null;
+  const tags = Array.isArray(c.tags) ? c.tags : [];
+  let pos = '', abbr = '';
+  for (const t of tags) { if (DM_POS[t]) { pos = DM_POS[t]; abbr = t; break; } }
+  const pronTag = tags.find((t) => t.startsWith('pron:'));
+  const fTag = tags.find((t) => t.startsWith('f:'));
+  const f = fTag ? parseFloat(fTag.slice(2)) : null;
+  const defs = Array.isArray(c.defs) ? c.defs : [];
+  const picked = (abbr && defs.find((d) => d.startsWith(abbr + '\t'))) || defs[0] || '';
+  let def = picked.replace(/^[a-z]+\t/i, '').trim();
+  // drop bare "(usage)" parentheticals that some Wiktionary defs open with, and tidy
+  def = def.replace(/^\((?:transitive|intransitive|obsolete|archaic|rare|dated|informal|figuratively)\)\s*/i, '').trim();
+  if (def) { def = def.charAt(0).toUpperCase() + def.slice(1); if (!/[.!?]$/.test(def)) def += '.'; }
+  // `syn` marks a true synonym of the seed (vs a merely-associated word), which is
+  // how we keep the day's word lovely rather than tangential.
+  return { word: c.word, pos, def, say: pronTag ? arpabetToSay(pronTag.slice(5)) : '',
+    f, score: c.score || 0, syn: tags.includes('syn') };
+}
+
 // Wikipedia returns negative years for BC — render legibly, never as "-480".
 const fmtYear = (y) => (y < 0 ? `${-y} BC` : String(y));
 const p2 = (n) => String(n).padStart(2, '0');
@@ -721,37 +813,46 @@ export default {
       defEl, synEl, exEl);
     // Render the example with the headword emphasised in mint, matching case-
     // insensitively so inflected forms still highlight. Falls back to plain text.
-    const applyExample = (w) => {
-      exEl.title = w.ex || '';
-      if (!w.ex) { exEl.replaceChildren(); return; }
-      const stem = w.word.slice(0, Math.max(4, w.word.length - 2));
+    // Hidden entirely (no height) when the word carries no example, as live
+    // Datamuse words do — the definition then simply stands on its own.
+    const applyExample = (n) => {
+      exEl.title = n.ex || '';
+      if (!n.ex) { exEl.style.display = 'none'; exEl.replaceChildren(); return; }
+      exEl.style.display = '';
+      const stem = n.word.slice(0, Math.max(4, n.word.length - 2));
       const re = new RegExp(`(${stem}[\\w’']*)`, 'i');
-      const m = re.exec(w.ex);
-      if (!m) { exEl.textContent = w.ex; return; }
+      const m = re.exec(n.ex);
+      if (!m) { exEl.textContent = n.ex; return; }
       exEl.replaceChildren(
-        w.ex.slice(0, m.index),
+        n.ex.slice(0, m.index),
         h('b', {}, m[0]),
-        w.ex.slice(m.index + m[0].length));
+        n.ex.slice(m.index + m[0].length));
     };
-    const applyWord = (w) => {
-      wordEl.textContent = w.word; wordEl.title = w.word;
-      // Pronunciation: the precise IPA, followed on the same line by a plain-English
-      // "say-it-like" respelling (when we have one) so the word is actually sayable.
-      const say = SAY[w.word];
-      // NOTE: native replaceChildren coerces a null argument to the text node
-      // "null" (unlike ctx.h, which drops null children) — so a word with no
-      // respelling would print a stray "null" after the IPA. Filter falsy out.
-      pronEl.replaceChildren(...[w.pron,
-        say ? h('span', { class: 'say' }, ` · ${say}`) : null].filter(Boolean));
-      pronEl.title = say ? `${w.pron} · say it: ${say}` : w.pron;
-      posEl.textContent = w.pos; defEl.textContent = w.def;
-      // Etymology (optional): a quiet "root" mark + the word's origin. Hidden
-      // entirely when we have none, so no empty caption line is ever left behind.
-      const origin = ORIGINS[w.word];
-      if (origin) {
+    // renderWord takes a NORMALISED word object so it can present both an offline
+    // curated word (rich: IPA, etymology, hand-written example, synonyms/antonyms)
+    // and a live Datamuse word (definition + say-it-like + a "theme" caption). Any
+    // field that is empty simply hides its line, so neither source leaves a gap.
+    //   { word, ipa, say, pos, def, ex, originLabel, originText, syns, ants }
+    const renderWord = (n) => {
+      wordEl.textContent = n.word; wordEl.title = n.word;
+      // Pronunciation: precise IPA (curated) and/or a plain-English "say-it-like"
+      // respelling on the same line. Filter falsy so a missing part never prints
+      // a stray "null"; the whole line hides when we have neither.
+      const pronParts = [], pronTitle = [];
+      if (n.ipa) { pronParts.push(n.ipa); pronTitle.push(n.ipa); }
+      if (n.say) { pronParts.push(h('span', { class: 'say' }, n.ipa ? ` · ${n.say}` : n.say)); pronTitle.push(`say it: ${n.say}`); }
+      if (pronParts.length) { pronEl.style.display = ''; pronEl.replaceChildren(...pronParts); pronEl.title = pronTitle.join(' · '); }
+      else { pronEl.style.display = 'none'; pronEl.replaceChildren(); }
+      posEl.textContent = n.pos || '';
+      defEl.textContent = n.def || '';
+      // Caption (optional): "origin · <etymology>" for a curated word, or
+      // "theme · <seed>" for a live word placing it by the day's mood. Hidden when
+      // absent, so no empty caption line is ever left behind.
+      if (n.originText) {
         origEl.style.display = '';
-        origEl.title = `Origin — ${origin}`;
-        origEl.replaceChildren(h('span', { class: 'rt' }, 'origin'), origin);
+        const lbl = n.originLabel || 'origin';
+        origEl.title = `${lbl.charAt(0).toUpperCase() + lbl.slice(1)} — ${n.originText}`;
+        origEl.replaceChildren(h('span', { class: 'rt' }, lbl), n.originText);
       } else {
         origEl.style.display = 'none';
         origEl.replaceChildren();
@@ -760,8 +861,7 @@ export default {
       // kindred words, and a cool-blue "≠" then a few opposites. Either clause is
       // shown only when we have it; the whole line hides when we have neither, so
       // no empty line is ever left behind and no vertical height is added.
-      const syns = SYNONYMS[w.word];
-      const ants = ANTONYMS[w.word];
+      const syns = n.syns, ants = n.ants;
       const hasSyn = syns && syns.length;
       const hasAnt = ants && ants.length;
       if (hasSyn || hasAnt) {
@@ -771,7 +871,7 @@ export default {
         if (hasSyn) {
           parts.push(h('span', { class: 'eq' }, '≈'),
             ...syns.map((s) => h('span', { class: 'sw' }, s)));
-          titleBits.push(`Synonyms — ${syns.join(', ')}`);
+          titleBits.push(`Kindred — ${syns.join(', ')}`);
         }
         if (hasAnt) {
           parts.push(h('span', { class: 'neq' }, '≠'),
@@ -784,9 +884,24 @@ export default {
         synEl.style.display = 'none';
         synEl.replaceChildren();
       }
-      applyExample(w);
+      applyExample(n);
     };
-    applyWord(pickByDay(WORDS));
+    // Offline curated word → normalised (rich: IPA, etymology, example, syn/ant).
+    const curatedWord = (w) => ({
+      word: w.word, ipa: w.pron || '', say: SAY[w.word] || '', pos: w.pos || '',
+      def: w.def || '', ex: w.ex || '', originLabel: 'origin', originText: ORIGINS[w.word] || '',
+      syns: SYNONYMS[w.word] || null, ants: ANTONYMS[w.word] || null,
+    });
+    // Live Datamuse word → normalised. No IPA/example/antonyms, but a say-it-like
+    // respelling, a live definition, the day's theme as its caption, and a few
+    // kindred words from the same theme pool as the "≈" line.
+    const liveWord = (c, seed, related) => ({
+      word: c.word, ipa: '', say: c.say || '', pos: c.pos || '', def: c.def || '', ex: '',
+      originLabel: 'theme', originText: seed,
+      syns: related && related.length ? related : null, ants: null,
+    });
+    // Instant offline render; the live word upgrades it once the network answers.
+    renderWord(curatedWord(pickByDay(WORDS)));
 
     // ---- ON THIS DAY + QUOTE: start from embedded fallback, upgrade from network
     // The middle section shows a dated historical moment when Wikipedia answers,
@@ -865,6 +980,33 @@ export default {
       if (!q) throw new Error('empty quote');
       return { q, a: a || 'Unknown' };
     };
+    // Live word of the day (Datamuse). Picks the day's THEME seed, fetches words that
+    // mean-like it (each carrying a definition, part of speech and pronunciation),
+    // keeps only clean single-word candidates with a real definition in a pleasant
+    // frequency band, then chooses one deterministically for the day (stable through
+    // the day, rolls at midnight). Returns a normalised word object or throws — a
+    // throw simply leaves the offline curated word in place, so the section never blanks.
+    const fetchWordOfDay = async () => {
+      const seed = SEEDS[dayOfYear() % SEEDS.length];
+      const list = await ctx.fetchJSON(`https://api.datamuse.com/words?ml=${encodeURIComponent(seed)}&md=dpsrf&max=50`);
+      if (!Array.isArray(list)) throw new Error('bad word list');
+      // Keep only clean single-word TRUE synonyms (noun/adjective/verb) of the seed
+      // that carry a real definition and sit in a pleasant frequency band — this is
+      // what keeps the word lovely and legible rather than obscure or tangential.
+      const pool = list.map(parseDatamuse).filter(Boolean).filter((c) =>
+        c.syn && /^[a-z]{4,14}$/.test(c.word) && c.def && c.pos && c.pos !== 'adverb'
+        && c.word !== seed && (c.f == null || (c.f >= 0.02 && c.f <= 50)));
+      if (!pool.length) throw new Error('no candidates');
+      // Take the most theme-relevant words (highest Datamuse score — usually the core
+      // evocative synonyms), then pick one deterministically for the day: stable
+      // through the day, and both the seed and this index roll with the date, so the
+      // word changes daily across a large, ever-fresh space.
+      const top = pool.slice().sort((a, b) => b.score - a.score).slice(0, 15);
+      const chosen = top[dayOfYear() % top.length];
+      // A few kindred words from the same top set for the "≈" line.
+      const related = top.filter((c) => c.word !== chosen.word).slice(0, 3).map((c) => c.word);
+      return liveWord(chosen, seed, related);
+    };
 
     // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.
     const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.textContent = text; otdNav.style.display = 'none'; };
@@ -929,11 +1071,16 @@ export default {
       // give up — embedded fallback already on screen
     };
     // Don't let one slow section block the other.
+    // wordLive tracks whether we've upgraded to a live Datamuse word, so an offline
+    // refresh keeps rolling the curated word instead of clobbering a good live one.
+    let wordLive = false;
+    tryLoad(fetchWordOfDay, (n) => { renderWord(n); wordLive = true; });
     tryLoad(fetchOnThisDay, loadOnThisDay);
     tryLoad(fetchQuote, applyQuote);
 
     // Periodic refresh (every 30 min, so content rolls over at midnight):
-    //   - re-pick the OFFLINE word so it always reflects the current day;
+    //   - re-fetch the LIVE word (rolls to the new day's theme at midnight), keeping
+    //     the offline curated word only if we have never had a live one;
     //   - re-pick the embedded fact/quote first (covers a day-change while offline),
     //     then try the network and upgrade in place only if it succeeds (keeps the
     //     last good render on failure — network calls never blank the section);
@@ -944,7 +1091,10 @@ export default {
       // ctx.interval fires immediately; the initial network load is handled by
       // tryLoad above (with retry backoff), so skip the network on this first tick.
       if (firstTick) { firstTick = false; return; }
-      applyWord(pickByDay(WORDS));
+      // Word: try the live word first; only fall back to rolling the curated word
+      // when we have never had a live one (so a flaky refresh never downgrades it).
+      fetchWordOfDay().then((n) => { renderWord(n); wordLive = true; })
+        .catch(() => { if (!wordLive) renderWord(curatedWord(pickByDay(WORDS))); });
       if (otdLive && otdEvents.length) {
         // Step to the next historical moment we already hold — no network needed.
         otdIdx += 1;
