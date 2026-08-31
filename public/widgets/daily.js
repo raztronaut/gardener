@@ -1,12 +1,14 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
 //   📖 Word of the day   — a LIVE word drawn each day from Datamuse (a keyless API):
-//        one evocative theme seed per day surfaces kindred words with their definition,
-//        part of speech and pronunciation, and one is chosen deterministically for the
-//        day — so the word has genuine, ever-fresh variety instead of recycling a fixed
-//        list every few months. Datamuse's ARPAbet pronunciation is rendered as the same
-//        plain-English "say-it-like" respelling used by the curated words. If the network
-//        is unavailable it falls back to a curated, fully-annotated OFFLINE word (IPA,
-//        etymology, example sentence, "≈ synonyms ≠ antonyms"), so it never fails.
+//        one of ~56 evocative theme seeds per day surfaces kindred words with their
+//        definition, part of speech and pronunciation. Dull over-common words are
+//        filtered out, and a rolling localStorage memory skips any word shown in the
+//        last ~45 days — so the word has genuine, ever-fresh variety instead of
+//        recycling the same vocabulary every few weeks. The day's pick is cached so it
+//        stays stable across refreshes/reloads. Datamuse's ARPAbet pronunciation is
+//        rendered as the same plain-English "say-it-like" respelling used by the curated
+//        words. If the network is unavailable it falls back to a curated, fully-annotated
+//        OFFLINE word (IPA, etymology, example, "≈ synonyms ≠ antonyms"), so it never fails.
 //   📜 On this day        — a rotating mix of today's historical events plus the
 //        notable people born and who died on this date, from Wikipedia's keyless
 //        onthisday feed; each birth/death is tagged so it reads unambiguously.
@@ -565,6 +567,30 @@ function dayOfYear(d = new Date()) {
   return Math.floor((d - start) / 864e5);
 }
 const pickByDay = (arr) => arr[dayOfYear() % arr.length];
+// Stable per-day key (local time) for caching/deduping the live word.
+const todayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+
+// ---- ANTI-REPEAT MEMORY (localStorage) -------------------------------------
+// The humans noticed the Word of the Day recycling the same vocabulary. The live
+// word is drawn from a theme cloud, but similar themes surface overlapping words,
+// so purely picking by score/day still recurs every few weeks. To make it feel
+// genuinely fresh we keep a small rolling memory of recently-shown words and skip
+// them when choosing, and we cache the day's chosen word so it stays stable across
+// the day's refreshes and page reloads. All access is wrapped so a locked-down or
+// unavailable localStorage simply disables the memory rather than throwing.
+const LS_HIST = 'garden.wotd.history.v1';   // [{w,d}] recently-shown words, oldest→newest
+const LS_TODAY = 'garden.wotd.today.v1';    // {d, n} today's chosen normalised word
+const HIST_KEEP = 45;                        // don't repeat a word within ~45 days
+const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+const recentWords = () => { const h = lsGet(LS_HIST); return Array.isArray(h) ? h.map((e) => e && e.w).filter(Boolean) : []; };
+const rememberWord = (w) => {
+  let h = lsGet(LS_HIST); if (!Array.isArray(h)) h = [];
+  h = h.filter((e) => e && e.w && e.w !== w);   // drop any prior copy, then re-add as newest
+  h.push({ w, d: todayKey() });
+  if (h.length > HIST_KEEP) h = h.slice(h.length - HIST_KEEP);
+  lsSet(LS_HIST, h);
+};
 
 // ---- LIVE WORD OF THE DAY (Datamuse) ---------------------------------------
 // The curated WORDS list above is beautiful but finite, so a purely offline pick
@@ -580,9 +606,14 @@ const pickByDay = (arr) => arr[dayOfYear() % arr.length];
 // nouns) — these reliably surface lovely true-synonym clouds (serene → tranquil,
 // placid; ephemeral → transient, transitory) rather than mundane associations.
 const SEEDS = ['luminous', 'serene', 'ephemeral', 'radiant', 'tranquil', 'graceful',
-  'delicate', 'fragrant', 'tender', 'dreamy', 'mysterious', 'elegant', 'soothing',
-  'brilliant', 'hushed', 'lush', 'vivid', 'twilight', 'wondrous', 'gentle', 'solitary',
-  'gleaming', 'sublime', 'ethereal', 'verdant', 'celestial'];
+  'delicate', 'fragrant', 'dreamy', 'mysterious', 'elegant', 'soothing', 'hushed',
+  'lush', 'vivid', 'wondrous', 'solitary', 'gleaming', 'sublime', 'ethereal',
+  'verdant', 'celestial', 'melancholy', 'wistful', 'nostalgic', 'fleeting',
+  'shimmering', 'velvety', 'whimsical', 'opulent', 'austere', 'resplendent',
+  'secluded', 'boundless', 'idyllic', 'languid', 'enigmatic', 'incandescent',
+  'gossamer', 'twilit', 'sonorous', 'fervent', 'yearning', 'untamed', 'sacred',
+  'windswept', 'moonlit', 'brooding', 'effervescent', 'pristine', 'clandestine',
+  'labyrinthine', 'spellbound', 'halcyon', 'ineffable', 'mercurial'];
 
 // ARPAbet phoneme string (e.g. "P EH1 T R IH0 K ER0") → a plain-English respelling
 // ("PEH-trih-ker") with the stressed syllable in CAPS, matching the curated SAY map's
@@ -987,25 +1018,46 @@ export default {
     // the day, rolls at midnight). Returns a normalised word object or throws — a
     // throw simply leaves the offline curated word in place, so the section never blanks.
     const fetchWordOfDay = async () => {
+      // Reuse today's already-chosen word if we cached one — keeps the word stable
+      // across the day's 30-min refreshes and page reloads (so it never flickers to
+      // a different word), and means the recent-word memory advances only once a day.
+      const cached = lsGet(LS_TODAY);
+      if (cached && cached.d === todayKey() && cached.n && cached.n.word) return cached.n;
+
       const seed = SEEDS[dayOfYear() % SEEDS.length];
-      const list = await ctx.fetchJSON(`https://api.datamuse.com/words?ml=${encodeURIComponent(seed)}&md=dpsrf&max=50`);
+      const list = await ctx.fetchJSON(`https://api.datamuse.com/words?ml=${encodeURIComponent(seed)}&md=dpsrf&max=60`);
       if (!Array.isArray(list)) throw new Error('bad word list');
       // Keep only clean single-word TRUE synonyms (noun/adjective/verb) of the seed
-      // that carry a real definition and sit in a pleasant frequency band — this is
-      // what keeps the word lovely and legible rather than obscure or tangential.
-      const pool = list.map(parseDatamuse).filter(Boolean).filter((c) =>
-        c.syn && /^[a-z]{4,14}$/.test(c.word) && c.def && c.pos && c.pos !== 'adverb'
-        && c.word !== seed && (c.f == null || (c.f >= 0.02 && c.f <= 50)));
+      // that carry a real definition — this keeps the word lovely and legible rather
+      // than obscure or tangential.
+      const clean = list.map(parseDatamuse).filter(Boolean).filter((c) =>
+        c.syn && /^[a-z]{4,15}$/.test(c.word) && c.def && c.pos && c.pos !== 'adverb' && c.word !== seed);
+      // Prefer an evocative, mid-rare frequency band: this skips the dull, over-common
+      // words ("quiet", "bright", "calm") that made the section feel repetitive, and
+      // favours richer vocabulary. Relax the band only if it would leave too little.
+      const inBand = (lo, hi) => clean.filter((c) => c.f == null || (c.f >= lo && c.f <= hi));
+      let pool = inBand(0.05, 8);
+      if (pool.length < 4) pool = inBand(0.02, 15);   // relax, but still skip the very-common words
       if (!pool.length) throw new Error('no candidates');
       // Take the most theme-relevant words (highest Datamuse score — usually the core
-      // evocative synonyms), then pick one deterministically for the day: stable
-      // through the day, and both the seed and this index roll with the date, so the
-      // word changes daily across a large, ever-fresh space.
-      const top = pool.slice().sort((a, b) => b.score - a.score).slice(0, 15);
-      const chosen = top[dayOfYear() % top.length];
+      // evocative synonyms).
+      const top = pool.slice().sort((a, b) => b.score - a.score).slice(0, 18);
+      // Skip words shown in the last ~45 days so the day's word is genuinely fresh,
+      // then pick deterministically for the day. If the memory has swallowed this
+      // whole (small) cloud, fall back to the LEAST-recently-shown word so even the
+      // unavoidable repeat lands as far in the past as possible (never blanks).
+      const order = recentWords();                    // oldest → newest
+      const recent = new Set(order);
+      const fresh = top.filter((c) => !recent.has(c.word));
+      let chosen;
+      if (fresh.length) chosen = fresh[dayOfYear() % fresh.length];
+      else chosen = top.slice().sort((a, b) => order.indexOf(a.word) - order.indexOf(b.word))[0];
       // A few kindred words from the same top set for the "≈" line.
       const related = top.filter((c) => c.word !== chosen.word).slice(0, 3).map((c) => c.word);
-      return liveWord(chosen, seed, related);
+      const n = liveWord(chosen, seed, related);
+      rememberWord(chosen.word);
+      lsSet(LS_TODAY, { d: todayKey(), n });
+      return n;
     };
 
     // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.

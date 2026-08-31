@@ -120,13 +120,20 @@ export default {
           radial-gradient(130% 100% at 50% 22%, #1a2652 0%, #0a0f28 50%, #05070f 100%); }
       .apod-ph.stars .ic { opacity:.85; filter:drop-shadow(0 2px 14px rgba(120,247,176,.35)); }
       .apod-ph.stars .t { color:var(--ink-soft); }
-      /* video-day placeholder carries the real title + date + a small caption */
-      .apod-ph.vid .vt { font-family:var(--font-display); font-weight:700; font-size:18px;
-        line-height:1.2; color:var(--ink); max-width:92%;
+      /* video-day placeholder carries the real title + date + a small caption.
+         The big clapperboard icon is dropped here (the "🎬 video" pill below already
+         signals a video), which frees the vertical room so the up-to-2-line title
+         shows in full without the flex column squishing it into the date badge.
+         Title/date/pill never shrink; only the caption clamps. */
+      .apod-ph.vid { gap:12px; padding:20px; overflow:hidden; }
+      .apod-ph.vid .ic { display:none; }
+      .apod-ph.vid .vt { flex:0 0 auto; font-family:var(--font-display); font-weight:700; font-size:17px;
+        line-height:1.26; color:var(--ink); max-width:94%;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .apod-ph.vid .vd { font-family:var(--font-mono); font-size:11px; letter-spacing:.05em;
-        color:var(--ink-soft); }
-      .apod-ph.vid .vc { display:inline-flex; align-items:center; gap:6px; margin-top:4px;
+      .apod-ph.vid .vd { flex:0 0 auto; font-family:var(--font-mono); font-size:11px; letter-spacing:.05em;
+        color:var(--ink-soft); display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;
+        justify-content:center; }
+      .apod-ph.vid .vc { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; margin-top:4px;
         padding:5px 12px; border-radius:999px; background:rgba(8,14,34,.6);
         border:1px solid var(--stroke-strong); font-family:var(--font-mono);
         font-size:10.5px; letter-spacing:.06em; color:var(--ink-soft); }
@@ -159,8 +166,8 @@ export default {
         color:rgba(234,255,244,.84); text-shadow:0 1px 6px rgba(0,0,0,.85);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* the same caption, styled for the video-day placeholder card */
-      .apod-ph.vid .vx { margin-top:2px; max-width:92%; font-size:12.5px; line-height:1.42;
-        color:var(--ink-soft);
+      .apod-ph.vid .vx { flex:0 1 auto; min-height:0; margin-top:2px; max-width:94%; font-size:12.5px;
+        line-height:1.44; color:var(--ink-soft);
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     `);
     body.classList.add('apod');
