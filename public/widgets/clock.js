@@ -1,5 +1,7 @@
 // Clock — the garden's heartbeat. A luminous hero time + date + greeting, with a
-// quiet seasonal marker tucked to the right of the greeting line.
+// quiet seasonal marker tucked to the right of the greeting line, a hushed row of
+// world-city clocks filling the band beneath the date, and a year-progress rail at
+// the foot. Everything is pure offline Intl formatting — no network, no animation.
 // (The Tuesday trash reminder used to live here as a small pill; it was retired
 // in favour of the full-screen #trashalarm takeover wired in app.js, which is the
 // single, unmissable trash-night warning.)
@@ -83,6 +85,21 @@ export default {
         -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:12px; }
       .clk .time .ap { font-size:30px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
       .clk .date { color: var(--ink); font-size:20px; opacity:.92; }
+      /* World clocks — a hushed row of a few far-flung city times, anchored toward
+         the bottom of the card (margin-top:auto) so it fills the breathing room
+         beneath the date. Fully offline & deterministic (pure Intl formatting), so
+         it costs nothing to render; it only repaints when a city's minute rolls over.
+         A tiny ☀/☾ glyph tells day from night there at a glance — a quiet sense of
+         the wider world keeping time alongside home. */
+      .clk .world { margin-top:auto; display:flex; gap:14px; padding-top:9px; flex-wrap:nowrap; min-width:0; }
+      .clk .world .wc { display:flex; align-items:baseline; gap:6px; min-width:0; }
+      .clk .world .wc .lbl { font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.08em;
+        color:var(--ink-faint); flex:0 0 auto; }
+      .clk .world .wc .wt { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-soft); letter-spacing:.01em;
+        white-space:nowrap; }
+      .clk .world .wc .g { font-size:10px; line-height:1; opacity:.7; flex:0 0 auto; }
+      .clk .world .wc .g.day { color:var(--gold); }
+      .clk .world .wc .g.night { color:#9cc0ff; }
       /* Year-progress rail — a hushed ambient reading of how far the calendar year
          has run, pinned to the BOTTOM of the card (margin-top:auto) so it fills the
          breathing room beneath the date rather than leaving an empty band. Distinct
@@ -90,7 +107,10 @@ export default {
          reads the whole year at a glance ("Day 228 · 62%"). Recomputed only when the
          day rolls over, and the fill is a STATIC gradient — free to render, no
          animation. */
-      .clk .year { margin-top:auto; display:flex; flex-direction:column; gap:4px; padding-top:7px; }
+      /* Year-progress rail sits directly beneath the world-clocks row; the world
+         row (above) now owns the flex margin-top:auto that anchors the pair to the
+         card's bottom, so this keeps a small fixed gap instead. */
+      .clk .year { margin-top:0; display:flex; flex-direction:column; gap:4px; padding-top:10px; }
       .clk .year .yr-head { display:flex; align-items:baseline; justify-content:space-between;
         font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; color:var(--ink-faint); }
       .clk .year .yr-head .doy { color:var(--ink-soft); }
@@ -106,6 +126,27 @@ export default {
     const timerow = root.appendChild(ctx.h('div', { class: 'timerow' }));
     const time = timerow.appendChild(ctx.h('div', { class: 'time' }));
     const date = root.appendChild(ctx.h('div', { class: 'date' }));
+    // World clocks — a few far-flung cities keeping time alongside home. Built once;
+    // each tick refreshes only the cells whose minute changed (see below). The list
+    // deliberately skips the home zone (the hero time above already tells it) and
+    // spans a wide longitudinal spread so the row reads as "the world right now".
+    const WORLD = [
+      { lbl: 'NYC', tz: 'America/New_York' },
+      { lbl: 'LDN', tz: 'Europe/London' },
+      { lbl: 'TYO', tz: 'Asia/Tokyo' },
+    ];
+    const world = root.appendChild(ctx.h('div', { class: 'world' }));
+    const worldCells = WORLD.map((c) => {
+      const wt = ctx.h('span', { class: 'wt' });
+      const g = ctx.h('span', { class: 'g' });
+      world.appendChild(ctx.h('div', { class: 'wc', title: c.tz.replace(/_/g, ' ') },
+        ctx.h('span', { class: 'lbl' }, c.lbl), wt, g));
+      return {
+        wt, g, last: '',
+        fmt: new Intl.DateTimeFormat('en-US', { timeZone: c.tz, hour: 'numeric', minute: '2-digit', hour12: true }),
+        hourFmt: new Intl.DateTimeFormat('en-US', { timeZone: c.tz, hour: 'numeric', hour12: false }),
+      };
+    });
     // Year-progress rail, pinned to the bottom of the card (see .clk .year CSS).
     const year = root.appendChild(ctx.h('div', { class: 'year' }));
     const yrHead = year.appendChild(ctx.h('div', { class: 'yr-head' }));
@@ -181,6 +222,24 @@ export default {
             to.textContent = to.dataset.short;
             if (overflow()) to.style.display = 'none';
           }
+        }
+      }
+      // World clocks — each city repaints only when its own minute rolls over
+      // (string compare, no layout thrash). A compact "9:07 AM"→"9:07a" reading with
+      // a tiny day/night glyph (day = 06:00–18:59 local there). Pure Intl, no network.
+      for (const c of worldCells) {
+        const parts = c.fmt.formatToParts(now);
+        const hhmm = parts.filter((p) => p.type !== 'dayPeriod').map((p) => p.value).join('').trim();
+        const ap = (parts.find((p) => p.type === 'dayPeriod')?.value || '').toLowerCase()[0] || '';
+        const label = `${hhmm}${ap}`;
+        const hr = parseInt(c.hourFmt.format(now), 10);
+        const night = !(hr >= 6 && hr < 19);
+        const key = `${label}|${night}`;
+        if (key !== c.last) {
+          c.last = key;
+          c.wt.textContent = label;
+          c.g.textContent = night ? '☾' : '☀';
+          c.g.className = `g ${night ? 'night' : 'day'}`;
         }
       }
       // Year progress — day-of-year and the fraction of the calendar year elapsed,
