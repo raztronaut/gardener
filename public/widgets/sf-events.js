@@ -1,6 +1,10 @@
 // Out in SF — a calm list of upcoming free events around the city, sourced from
 // SF RATS / FunCheap (see /lib/events.js). The full scrollable list lives behind
 // the /events command (and opening this card fullscreen).
+//
+// Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
+// updated each minute (a cheap text-only rebuild of the ≤6 shown rows — no images,
+// no network), so a glance across the room answers "what can we do tonight?".
 import { fetchEvents, TZ, MON } from '/lib/events.js';
 
 export default {
@@ -44,6 +48,12 @@ export default {
          crowd (relative to today's shown picks), so a glance finds the popular plans.
          Stays hidden on a low-interest day; speaks up only when something's buzzing. */
       .won-pill.hot { color:var(--gold); background:rgba(255,217,138,.12); }
+      /* live countdown pill — on events happening TODAY. A future start reads as a
+         calm mint "in 2h 15m"; an event under way reads as a warm gold "● on now"
+         so the eye finds tonight's live plans first. Text-only, ticks each minute. */
+      .won-pill.soon { color:var(--mint); background:rgba(120,247,176,.12); }
+      .won-pill.live { color:var(--gold); background:rgba(255,217,138,.16); font-weight:700; }
+      .won-pill.live .dot { font-size:8px; vertical-align:1px; margin-right:1px; }
       .won-empty { grid-column:1/-1; flex:1; display:flex; align-items:center; justify-content:center; text-align:center;
         color:var(--ink-faint); font-size:13px; padding:0 10px; }
       .won-foot { flex:0 0 auto; text-align:center; font-family:var(--font-mono); font-size:10px;
@@ -77,6 +87,20 @@ export default {
         ctx.h('div', { class: 'm' }, MON[when.getMonth()]));
     };
 
+    // Live countdown for a today-event's start. Future → a calm "in 2h 15m" /
+    // "in 40m"; under way (start passed, but the events lib's 2h grace keeps it in
+    // the list) → a warm "on now". Returns { txt, cls } or null when not applicable.
+    const liveCountdown = (when, allDay, isToday) => {
+      if (!isToday || allDay || !when || isNaN(when)) return null;
+      const mins = Math.round((when.getTime() - Date.now()) / 60000);
+      if (mins >= 1) {
+        if (mins < 60) return { txt: `in ${mins}m`, cls: 'soon' };
+        const h = Math.floor(mins / 60), m = mins % 60;
+        return { txt: m ? `in ${h}h ${m}m` : `in ${h}h`, cls: 'soon' };
+      }
+      return { txt: 'on now', cls: 'live' };
+    };
+
     const list = ctx.h('div', { class: 'won-list' });
     const foot = ctx.h('div', { class: 'won-foot', style: 'display:none' });
     body.replaceChildren(ctx.h('div', { class: 'won' }, list, foot));
@@ -93,14 +117,21 @@ export default {
       list.replaceChildren(...picks.map((e) => {
         const isToday = e.when && Math.round((new Date(dayKeyFmt.format(e.when) + 'T00:00:00') - startOfToday) / dayMs) <= 0;
         const time = (e.when && !e.allDay && !isToday) ? timeFmt.format(e.when).replace(' ', '') : '';
+        // A live "in 2h 15m" / "on now" pill for today's timed events, so tonight's
+        // plans read at a glance (the date column already shows the clock time).
+        const live = liveCountdown(e.when, e.allDay, isToday);
         const interest = Number.isFinite(e.interest) ? e.interest : 0;
         const hot = maxInterest > 0 && interest >= hotFloor;
         return ctx.h('div', { class: 'won-ev' },
           dateCol(e.when, e.allDay),
           ctx.h('div', { class: 'won-main' },
             ctx.h('div', { class: 'won-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
-            (e.place || time || hot) ? ctx.h('div', { class: 'won-meta' },
+            (e.place || time || live || hot) ? ctx.h('div', { class: 'won-meta' },
               e.place ? ctx.h('span', { class: 'won-place' }, `📍 ${e.place}`) : null,
+              live ? ctx.h('span', {
+                class: `won-pill ${live.cls}`,
+                title: live.cls === 'live' ? 'happening now' : `starts ${timeFmt.format(e.when)}`,
+              }, ...(live.cls === 'live' ? [ctx.h('span', { class: 'dot' }, '●'), ' on now'] : [live.txt])) : null,
               time ? ctx.h('span', { class: 'won-pill' }, time) : null,
               hot ? ctx.h('span', {
                 class: 'won-pill hot',
@@ -112,7 +143,10 @@ export default {
     };
 
     // Fetch BEFORE touching the list so a failed refresh keeps the last good render.
-    const refresh = async () => { const evs = await fetchEvents(ctx.fetchJSON); render(evs); };
+    // Keep the last good events so the minute-tick below can re-render the live
+    // "today" countdowns without re-hitting the network.
+    let lastEvents = null;
+    const refresh = async () => { const evs = await fetchEvents(ctx.fetchJSON); lastEvents = evs; render(evs); };
 
     let loadedOnce = false;
     list.replaceChildren(ctx.loading('checking the city…'));
@@ -125,5 +159,10 @@ export default {
 
     // Periodic refresh (drops past events); keep last good on failure.
     ctx.interval(() => { if (loadedOnce) refresh().catch(() => {}); }, 5 * 60 * 1000);
+    // Minute tick — re-render the last good events (fresh `now`) so today's live
+    // countdowns stay accurate between the 5-minute data refreshes. Text-only
+    // rebuild of ≤6 rows with no images/network, so it's cheap on the kiosk. No-op
+    // until the first successful load populates lastEvents.
+    ctx.interval(() => { if (lastEvents) render(lastEvents); }, 60 * 1000);
   },
 };
