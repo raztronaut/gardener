@@ -1,5 +1,6 @@
 // Arcade — a retro-console emulator. The dashboard card is a calm pixel tile
-// ("click to play" + a count of ROMs found); openFull shows a ROM PICKER and
+// (a count of ROMs found + a cabinet marquee naming the DAY'S featured game, a
+// deterministic pick that rolls at midnight); openFull shows a ROM PICKER and
 // then boots EmulatorJS (https://emulatorjs.org) for the selected game.
 //
 // We ship NO ROMs and NO emulator cores. The user drops console files into the
@@ -134,8 +135,17 @@ export default {
       /* the call-to-action, styled like a cabinet marquee prompt */
       .em-cta { position:relative; margin-top:8px; font-family:var(--font-mono); font-size:9.5px;
         font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--mint);
-        text-shadow:0 0 10px rgba(116,247,176,.35); }
+        text-shadow:0 0 10px rgba(116,247,176,.35); max-width:100%;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .em-cta .ar { color:var(--mint-2); }
+      /* featured-game marquee — once the library resolves, the generic prompt
+         becomes a cabinet marquee naming the DAY'S PICK (a deterministic choice
+         that changes gently at midnight), so a glance reveals what's inside and
+         invites a play. Static, no motion; the play caret leads the title, which
+         ellipsizes so a long ROM name never spills past the small tile. */
+      .em-cta.pick { letter-spacing:.14em; }
+      .em-cta.pick .ar { margin-right:5px; }
+      .em-cta.pick .g { color:var(--mint); font-weight:700; }
     `);
     // A pixel game-pad glyph drawn in the mint palette (inline SVG, no assets).
     const glyph = h('div', { class: 'em-glyph', html: `
@@ -167,7 +177,25 @@ export default {
             h('span', { class: 'n' }, String(roms.length)),
             h('span', { class: 'lbl' }, `game${roms.length === 1 ? '' : 's'} ready`))
         : h('div', { class: 'em-empty' }, 'drop ROMs to begin'));
-    } catch { /* offline / no endpoint — keep the neutral hint */ }
+      // Cabinet marquee: name the DAY'S featured game so the tile invites a
+      // specific play, not a generic prompt. The pick is deterministic per
+      // calendar day (stable through the day, rolls at midnight) — no motion,
+      // just a quiet daily rotation through whatever's actually in the library.
+      const named = roms.filter((g) => g && (g.name || g.file));
+      if (named.length) {
+        const now = new Date();
+        const doy = Math.floor(
+          (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+            - Date.UTC(now.getFullYear(), 0, 1)) / 864e5);
+        const g = named[doy % named.length];
+        const title = String(g.name || g.file).replace(/\.[a-z0-9]+$/i, '');
+        cta.className = 'em-cta pick';
+        cta.replaceChildren(
+          h('span', { class: 'ar' }, '▶'),
+          h('span', { class: 'g' }, title));
+        cta.title = `Today's pick: ${title} — click to play (${named.length} game${named.length === 1 ? '' : 's'})`;
+      }
+    } catch { /* offline / no endpoint — keep the neutral hint + prompt */ }
   },
 
   // ---- fullscreen: ROM picker → EmulatorJS -----------------------------------
