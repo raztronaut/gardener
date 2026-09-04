@@ -1,7 +1,8 @@
 // Clock — the garden's heartbeat. A luminous hero time + date + greeting, with a
 // quiet seasonal marker tucked to the right of the greeting line, a hushed row of
-// world-city clocks filling the band beneath the date, and a year-progress rail at
-// the foot. Everything is pure offline Intl formatting — no network, no animation.
+// world-city clocks filling the band beneath the date (each carrying a "+1d"/"−1d"
+// chip when it's already tomorrow / still yesterday there), and a year-progress rail
+// at the foot. Everything is pure offline Intl formatting — no network, no animation.
 // (The Tuesday trash reminder used to live here as a small pill; it was retired
 // in favour of the full-screen #trashalarm takeover wired in app.js, which is the
 // single, unmissable trash-night warning.)
@@ -91,7 +92,7 @@ export default {
          it costs nothing to render; it only repaints when a city's minute rolls over.
          A tiny ☀/☾ glyph tells day from night there at a glance — a quiet sense of
          the wider world keeping time alongside home. */
-      .clk .world { margin-top:auto; display:flex; gap:14px; padding-top:9px; flex-wrap:nowrap; min-width:0; }
+      .clk .world { margin-top:auto; display:flex; gap:13px; padding-top:9px; flex-wrap:nowrap; min-width:0; }
       .clk .world .wc { display:flex; align-items:baseline; gap:6px; min-width:0; }
       .clk .world .wc .lbl { font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.08em;
         color:var(--ink-faint); flex:0 0 auto; }
@@ -100,6 +101,14 @@ export default {
       .clk .world .wc .g { font-size:10px; line-height:1; opacity:.7; flex:0 0 auto; }
       .clk .world .wc .g.day { color:var(--gold); }
       .clk .world .wc .g.night { color:#9cc0ff; }
+      /* day-offset chip — appears beside a city ONLY when its calendar date differs
+         from home's, quietly telling that it's already "+1d" (tomorrow) there, or
+         still "−1d" (yesterday). A hushed mint-2 note that turns the row from three
+         bare times into a real sense of the world running a day ahead/behind; tiny
+         and flex:none, so it never grows the row's height, and hidden entirely on
+         the common same-day case so it adds nothing when there's nothing to say. */
+      .clk .world .wc .dd { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.02em;
+        color:var(--mint-2); flex:0 0 auto; opacity:.9; }
       /* Year-progress rail — a hushed ambient reading of how far the calendar year
          has run, pinned to the BOTTOM of the card (margin-top:auto) so it fills the
          breathing room beneath the date rather than leaving an empty band. Distinct
@@ -139,14 +148,24 @@ export default {
     const worldCells = WORLD.map((c) => {
       const wt = ctx.h('span', { class: 'wt' });
       const g = ctx.h('span', { class: 'g' });
+      const dd = ctx.h('span', { class: 'dd', style: 'display:none' });
       world.appendChild(ctx.h('div', { class: 'wc', title: c.tz.replace(/_/g, ' ') },
-        ctx.h('span', { class: 'lbl' }, c.lbl), wt, g));
+        ctx.h('span', { class: 'lbl' }, c.lbl), wt, g, dd));
       return {
-        wt, g, last: '',
+        wt, g, dd, last: '',
         fmt: new Intl.DateTimeFormat('en-US', { timeZone: c.tz, hour: 'numeric', minute: '2-digit', hour12: true }),
         hourFmt: new Intl.DateTimeFormat('en-US', { timeZone: c.tz, hour: 'numeric', hour12: false }),
+        // City's calendar date (en-CA → "YYYY-MM-DD"), for comparing against home's
+        // date to reveal when a city has crossed midnight ahead of / behind home.
+        dateFmt: new Intl.DateTimeFormat('en-CA', { timeZone: c.tz, year: 'numeric', month: '2-digit', day: '2-digit' }),
       };
     });
+    // Whole-day number for a "YYYY-MM-DD" string (days since epoch, UTC) — lets us
+    // diff two calendar dates as a plain integer without any timezone drift.
+    const dayNum = (ymd) => {
+      const m = /(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
+      return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 864e5) : null;
+    };
     // Year-progress rail, pinned to the bottom of the card (see .clk .year CSS).
     const year = root.appendChild(ctx.h('div', { class: 'year' }));
     const yrHead = year.appendChild(ctx.h('div', { class: 'yr-head' }));
@@ -224,9 +243,12 @@ export default {
           }
         }
       }
-      // World clocks — each city repaints only when its own minute rolls over
-      // (string compare, no layout thrash). A compact "9:07 AM"→"9:07a" reading with
-      // a tiny day/night glyph (day = 06:00–18:59 local there). Pure Intl, no network.
+      // World clocks — each city repaints only when its own minute (or its day
+      // relative to home) rolls over (string compare, no layout thrash). A compact
+      // "9:07 AM"→"9:07a" reading with a tiny day/night glyph (day = 06:00–18:59
+      // local there) and, when the city sits on a DIFFERENT calendar day than home,
+      // a hushed "+1d"/"−1d" chip. Pure Intl, no network.
+      const homeDayNum = dayNum(fmtYMD.format(now));
       for (const c of worldCells) {
         const parts = c.fmt.formatToParts(now);
         const hhmm = parts.filter((p) => p.type !== 'dayPeriod').map((p) => p.value).join('').trim();
@@ -234,12 +256,27 @@ export default {
         const label = `${hhmm}${ap}`;
         const hr = parseInt(c.hourFmt.format(now), 10);
         const night = !(hr >= 6 && hr < 19);
-        const key = `${label}|${night}`;
+        // How far this city's calendar date is from home's (usually 0; +1 when it's
+        // already tomorrow there, −1 when still yesterday). Longitudinal spread means
+        // at most one or two cities ever differ at once, so the row stays uncrowded.
+        const cityDayNum = dayNum(c.dateFmt.format(now));
+        const diff = (cityDayNum != null && homeDayNum != null) ? cityDayNum - homeDayNum : 0;
+        const key = `${label}|${night}|${diff}`;
         if (key !== c.last) {
           c.last = key;
           c.wt.textContent = label;
           c.g.textContent = night ? '☾' : '☀';
           c.g.className = `g ${night ? 'night' : 'day'}`;
+          if (diff === 0) {
+            c.dd.textContent = '';
+            c.dd.style.display = 'none';
+          } else {
+            c.dd.textContent = diff > 0 ? `+${diff}d` : `${diff}d`;
+            c.dd.style.display = '';
+            c.dd.title = diff > 0
+              ? `already ${diff === 1 ? 'tomorrow' : `${diff} days ahead`} there`
+              : `still ${diff === -1 ? 'yesterday' : `${-diff} days behind`} there`;
+          }
         }
       }
       // Year progress — day-of-year and the fraction of the calendar year elapsed,
