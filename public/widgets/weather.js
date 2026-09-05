@@ -218,8 +218,15 @@ export default {
       .wx-fc .fc { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
         background:rgba(255,255,255,.03); border:1px solid var(--stroke); border-radius:12px; padding:7px 4px; }
       .wx-fc .fc .d { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
-        color:var(--ink-faint); }
+        color:var(--ink-faint); display:flex; align-items:baseline; justify-content:center; gap:5px; }
       .wx-fc .fc .d.wknd { color:var(--mint); }
+      /* rain-chance chip — a quiet blue "💧70%" beside a forecast day's weekday when
+         that day is genuinely likely to be wet (≥30%), so a glance answers "will the
+         weekend rain?" — the one planning cue the icon alone can't give. Sits inline
+         on the existing label line, so it adds NO height and can't clip; echoes the
+         hourly timeline's blue rain language. Hidden on dry days, keeping the strip
+         calm. */
+      .wx-fc .fc .d .pp { color:#9cc0ff; font-weight:700; letter-spacing:.02em; }
       .wx-fc .fc img { display:block; width:26px; height:26px; }
       .wx-fc .fc .r { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
       .wx-fc .fc .r .hi { font-family:var(--font-display); font-size:15px; font-weight:600; line-height:1; color:var(--ink); }
@@ -284,7 +291,7 @@ export default {
     try {
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,pressure_msl,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,pressure_msl,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration`
+        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,pressure_msl,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration,precipitation_probability_max`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
         + `&timezone=${encodeURIComponent(tz)}&forecast_days=4`;
 
@@ -412,7 +419,9 @@ export default {
           const dhi = d.daily.temperature_2m_max?.[i];
           const dlo = d.daily.temperature_2m_min?.[i];
           if (iso == null || code == null || !Number.isFinite(dhi) || !Number.isFinite(dlo)) continue;
-          fc.push({ iso, code, hi: Math.round(dhi), lo: Math.round(dlo) });
+          const ppRaw = d.daily.precipitation_probability_max?.[i];
+          const pp = Number.isFinite(ppRaw) ? Math.round(ppRaw) : null;
+          fc.push({ iso, code, hi: Math.round(dhi), lo: Math.round(dlo), pp });
         }
 
         // Sample the next ~14h every 2 hours for a linear timeline.
@@ -623,11 +632,17 @@ export default {
             const [flabel, fslug] = WMO(f.code);
             const dHi = Number.isFinite(hi) ? f.hi - hi : 0;
             const hiTint = dHi >= 4 ? 'var(--gold)' : dHi <= -4 ? '#9cc0ff' : 'var(--ink)';
+            // Rain-chance chip — only when the day is genuinely likely to be wet, so
+            // the strip stays calm on dry days and speaks up when there's a plan to
+            // make. Inline on the weekday line → adds no height, can't clip.
+            const wet = Number.isFinite(f.pp) && f.pp >= 30;
             return ctx.h('div', {
               class: 'fc',
-              title: `${wd == null ? '' : WD_FULL[wd] + ' · '}${flabel} · H ${f.hi}° L ${f.lo}°`,
+              title: `${wd == null ? '' : WD_FULL[wd] + ' · '}${flabel} · H ${f.hi}° L ${f.lo}°`
+                + (Number.isFinite(f.pp) ? ` · ${f.pp}% rain` : ''),
             },
-              ctx.h('div', { class: `d${wknd ? ' wknd' : ''}` }, wd == null ? '—' : WD_SHORT[wd]),
+              ctx.h('div', { class: `d${wknd ? ' wknd' : ''}` }, wd == null ? '—' : WD_SHORT[wd],
+                wet ? ctx.h('span', { class: 'pp' }, `💧${f.pp}%`) : null),
               wxIcon(fslug, 26),
               ctx.h('div', { class: 'r' },
                 ctx.h('span', { class: 'hi', style: { color: hiTint } }, `${f.hi}°`),
