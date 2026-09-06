@@ -115,6 +115,33 @@ const visBand = (m) => m == null ? null
   : m < 8000 ? { label: 'Haze', foggy: true }
   : { label: 'Clear', foggy: false };
 
+// SF's marine layer is the city's daily character — it rolls in off the Pacific
+// in the evening and burns back in the late morning. We already fetch the hourly
+// visibility series, so we can turn the CURRENT visibility reading into a small
+// forward-looking note: when it's foggy now, roughly when the fog is expected to
+// LIFT; when it's clear now, roughly when fog is expected to ROLL IN. Scans the
+// next ~12h for the first crossing, with hysteresis (a lower "lift" bar than the
+// "roll-in" bar) so a reading hovering near the threshold doesn't flap. Returns
+// { kind:'clears'|'rolls', hour } or null when nothing notable changes ahead.
+const FOG_IN_M = 4000;    // ~2.5 mi — below this the air has genuinely closed in
+const FOG_LIFT_M = 8000;  // ~5 mi — above this the marine layer has clearly lifted
+function fogOutlook(hourly, startIdx) {
+  const vis = hourly && hourly.visibility;
+  const times = hourly && hourly.time;
+  if (!Array.isArray(vis) || !Array.isArray(times)) return null;
+  const now = vis[startIdx];
+  if (!Number.isFinite(now)) return null;
+  const foggyNow = now < FOG_IN_M;
+  const end = Math.min(startIdx + 13, vis.length);
+  for (let j = startIdx + 1; j < end; j++) {
+    const v = vis[j];
+    if (!Number.isFinite(v)) continue;
+    if (foggyNow && v >= FOG_LIFT_M) return { kind: 'clears', hour: new Date(times[j]).getHours() };
+    if (!foggyNow && now >= FOG_LIFT_M && v < FOG_IN_M) return { kind: 'rolls', hour: new Date(times[j]).getHours() };
+  }
+  return null;
+}
+
 // Weekday for a plain local ISO date ("2026-08-30") — computed in UTC from the
 // date parts so it's independent of the host clock's zone (these are date-only
 // labels for the multi-day outlook strip). Returns 0=Sun … 6=Sat, or null.
@@ -168,6 +195,10 @@ export default {
       .wx-sky .vis { color:var(--ink-faint); display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap; }
       .wx-sky .vis.foggy { color:#9cc0ff; }
       .wx-sky .vis.foggy b { color:var(--ink); font-weight:600; }
+      /* marine-layer outlook — a hushed cool-blue sub-clause on the visibility
+         reading ("· lifts 11a" / "· fog 6p"). Quieter than the reading it trails,
+         so it reads as a gentle forecast, not a second number. */
+      .wx-sky .vis .vfc { color:#7f9bd6; font-weight:600; letter-spacing:.01em; }
       .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
       .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .wx-sky .uv b { color:var(--ink); font-weight:600; }
@@ -396,6 +427,11 @@ export default {
         // rolls in. Always present so the sky line reads consistently.
         const visM = Number.isFinite(d.hourly.visibility?.[hNow]) ? d.hourly.visibility[hNow] : null;
         const vis = visBand(visM);
+        // Forward-looking marine-layer note (SF's signature weather): when the fog
+        // is expected to lift, or roll in, over the next ~12h — read from the same
+        // hourly visibility series, so it costs no extra request and adds no height
+        // (it's a hushed sub-clause tucked inside the visibility reading below).
+        const fog = fogOutlook(d.hourly, hNow);
 
         // Barometric pressure + its 3-hour tendency. The current reading comes from
         // the `current` block; the trend compares it against the hourly series three
@@ -570,10 +606,16 @@ export default {
               ctx.h('span', { class: 'nextsun' })),
             vis ? ctx.h('span', {
               class: `vis${vis.foggy ? ' foggy' : ''}`,
-              title: `Visibility ~${fmtVis(visM)} · ${vis.label}`,
+              title: `Visibility ~${fmtVis(visM)} · ${vis.label}`
+                + (fog ? ` · fog ${fog.kind === 'clears' ? 'lifts' : 'rolls in'} around ${hr12(fog.hour)}` : ''),
             }, vis.foggy ? '🌫 ' : '👁 ',
               vis.foggy ? ctx.h('b', {}, vis.label) : null,
-              vis.foggy ? ` · ${fmtVis(visM)}` : fmtVis(visM)) : null,
+              vis.foggy ? ` · ${fmtVis(visM)}` : fmtVis(visM),
+              // Marine-layer outlook — a hushed clause naming when the fog lifts
+              // (foggy now) or rolls in (clear now). Inside the nowrap .vis atom, so
+              // it wraps as one unit and never splits mid-phrase.
+              fog ? ctx.h('span', { class: 'vfc' },
+                fog.kind === 'clears' ? ` · lifts ${hr12(fog.hour)}` : ` · fog ${hr12(fog.hour)}`) : null) : null,
             ctx.h('span', {
               class: 'uv',
               title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
