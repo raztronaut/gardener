@@ -11,19 +11,20 @@ export default {
   id: 'sf-events',
   title: 'Out in SF',
   icon: '🎉',
-  size: 'hero',
+  size: 'wide',
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .won { display:flex; flex-direction:column; gap:14px; height:100%; }
-      /* full-width hero card → a 2-column grid of events so the row fills the width
-         instead of leaving a wide empty gutter on the right. */
-      .won-list { flex:1; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-auto-rows:1fr;
-        gap:12px 28px; min-height:0; }
-      .won-ev { display:flex; gap:12px; align-items:flex-start;
-        padding-bottom:12px; border-bottom:1px solid var(--stroke); min-width:0; min-height:0; }
-      /* drop the divider under the bottom row (last two cells) */
-      .won-ev:nth-last-child(-n+2) { border-bottom:none; }
+      .won { display:flex; flex-direction:column; gap:10px; height:100%; }
+      /* full-width single-row strip → three upcoming events side by side, so the
+         bottom band reads as a calm "what's on tonight" concierge line beside the
+         transit board above it. Vertical rules separate the columns. */
+      .won-list { flex:1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:0 26px; min-height:0; }
+      .won-ev { display:flex; gap:12px; align-items:center;
+        padding-right:26px; border-right:1px solid var(--stroke); min-width:0; min-height:0; }
+      /* drop the rule after the last column */
+      .won-ev:last-child { border-right:none; padding-right:0; }
       .won-date { flex:0 0 auto; width:54px; text-align:center; line-height:1; padding-top:2px; }
       /* weekday cap above the day number — lets a glance tell a weekend from a
          weeknight; weekend days are accented in mint since they're likelier plans. */
@@ -107,7 +108,7 @@ export default {
 
     const render = (evs) => {
       const all = evs || [];
-      const picks = all.slice(0, 6);
+      const picks = all.slice(0, 3);
       if (!picks.length) { foot.style.display = 'none'; list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now')); return; }
       // How busy is the busiest shown event? The interest star is surfaced only for
       // events near that peak (and above a small floor), so the flag reads as "one

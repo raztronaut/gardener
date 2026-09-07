@@ -101,6 +101,20 @@ async function main() {
       const venue = cleanPlace('R&amp;R Lounge, San Francisco, CA');
       check('events feed decodes entities in venue names', venue === 'R&R Lounge', `got: ${venue}`);
     } catch (e) { bad('events entity decode', e.message); }
+    // Transit (BART) board: its data host must stay allowlisted or the widget can
+    // never reach live/scheduled departures, and its feed parsers must normalise
+    // BART's raw destination strings + the "Leaving" estimate to sane board labels.
+    try {
+      const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
+      check('transit: api.bart.gov is allowlisted', allow.includes('api.bart.gov'), 'add api.bart.gov to proxy-allowlist.json');
+      const { shortDest, schedDest, estMinutes } = await import(join(PUBLIC, 'widgets', 'transit.js'));
+      check('transit: shortens long destinations', shortDest('Berryessa/North San Jose') === 'Berryessa',
+        `got ${shortDest('Berryessa/North San Jose')}`);
+      check('transit: scheduled head-station → final leg', schedDest('SF / OAK Airport / Berryessa') === 'Berryessa',
+        `got ${schedDest('SF / OAK Airport / Berryessa')}`);
+      check('transit: "Leaving" estimate reads as 0 min', estMinutes('Leaving') === 0 && estMinutes('7') === 7,
+        `got ${estMinutes('Leaving')},${estMinutes('7')}`);
+    } catch (e) { bad('transit board guards', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
     // from 5 PM onwards. Guard against it silently drifting later again (regression 2026-07-29).
