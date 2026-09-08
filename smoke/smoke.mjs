@@ -107,13 +107,20 @@ async function main() {
     try {
       const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
       check('transit: api.bart.gov is allowlisted', allow.includes('api.bart.gov'), 'add api.bart.gov to proxy-allowlist.json');
-      const { shortDest, schedDest, estMinutes } = await import(join(PUBLIC, 'widgets', 'transit.js'));
+      const { shortDest, schedDest, estMinutes, parseBsa } = await import(join(PUBLIC, 'widgets', 'transit.js'));
       check('transit: shortens long destinations', shortDest('Berryessa/North San Jose') === 'Berryessa',
         `got ${shortDest('Berryessa/North San Jose')}`);
       check('transit: scheduled head-station → final leg', schedDest('SF / OAK Airport / Berryessa') === 'Berryessa',
         `got ${schedDest('SF / OAK Airport / Berryessa')}`);
       check('transit: "Leaving" estimate reads as 0 min', estMinutes('Leaving') === 0 && estMinutes('7') === 7,
         `got ${estMinutes('Leaving')},${estMinutes('7')}`);
+      // Service advisory: the "No delays reported." sentinel must read as CLEAR (so the
+      // board stays calm), while a real advisory surfaces its text for the header clause.
+      const bsaClear = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'No delays reported.' } }] } });
+      const bsaAlert = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'Major delay on the Yellow line.' } }] } });
+      check('transit: clear BSA reads as no advisory', bsaClear.clear === true, `got ${JSON.stringify(bsaClear)}`);
+      check('transit: real BSA surfaces advisory text',
+        bsaAlert.clear === false && /Yellow line/.test(bsaAlert.text || ''), `got ${JSON.stringify(bsaAlert)}`);
     } catch (e) { bad('transit board guards', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
@@ -278,7 +285,20 @@ async function dumpDom(url) {
     `--user-data-dir=${join(ROOT, 'data', '.chrome-profile')}`,
     '--virtual-time-budget=8000', '--dump-dom', url,
   ];
-  const { stdout } = await pExecFile(CHROMIUM, args, { timeout: 45000, maxBuffer: 16 * 1024 * 1024 });
+  // The dump snapshots the DOM when the virtual-time budget elapses. app.js publishes
+  // its readiness markers (data-gardener-ready) synchronously, right after the local
+  // state/manifest/import fetches and BEFORE awaiting any widget's external data — but
+  // on a cold/slow boot the snapshot can very occasionally land in the sliver before
+  // those markers appear. That's a race in the CAPTURE, not a real boot failure, so
+  // re-dump a few times until the markers show up. If boot genuinely never readies,
+  // the last attempt still lacks the marker and the real assertions fail honestly —
+  // this only heals the transient early-snapshot, it does not mask a broken boot.
+  let stdout = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    ({ stdout } = await pExecFile(CHROMIUM, args, { timeout: 45000, maxBuffer: 16 * 1024 * 1024 }));
+    if (/data-gardener-ready="true"/.test(stdout)) break;
+    if (attempt < 3) await sleep(500);
+  }
   return stdout;
 }
 

@@ -20,6 +20,11 @@ const STATION_NAME = 'Powell St.';
 const TZ = 'America/Los_Angeles';
 const ETD = `https://api.bart.gov/api/etd.aspx?cmd=etd&orig=${STATION}&key=${KEY}&json=y`;
 const SCHED = `https://api.bart.gov/api/sched.aspx?cmd=stnsched&orig=${STATION}&key=${KEY}&json=y`;
+// System-wide service advisories (delays, disruptions). Keyless, same host. On a
+// clear day BART returns a single "No delays reported." entry; a real problem
+// carries the advisory text — which is exactly what a rider glancing at the board
+// wants to know before they know when the next train is.
+const BSA = `https://api.bart.gov/api/bsa.aspx?cmd=bsa&key=${KEY}&json=y`;
 
 // Route number → BART's own line hex, for colouring the scheduled-departures
 // fallback (the live ETD feed already carries hexcolor per estimate). Route
@@ -72,9 +77,26 @@ const estMinutes = (m) => (String(m).toLowerCase() === 'leaving' ? 0 : parseInt(
 // normalise so callers can always map over it.
 const asArray = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
 
+// Parse BART's Service Advisory feed into { clear } on a quiet day or
+// { clear:false, text } when there's a genuine advisory. BART's XML→JSON puts the
+// message inside description as a CDATA object ({ '#cdata-section': '…' }); a clear
+// system reports the sentinel "No delays reported.", which we treat as clear so the
+// board stays calm and only speaks up when something's actually wrong.
+const bsaText = (b) => {
+  const d = b && b.description;
+  const t = d && typeof d === 'object' ? (d['#cdata-section'] ?? d['#text'] ?? '') : (d ?? '');
+  return String(t).replace(/\s+/g, ' ').trim();
+};
+function parseBsa(data) {
+  const list = asArray(data && data.root && data.root.bsa);
+  const real = list.map(bsaText)
+    .filter((t) => t && !/no delays?\s+reported/i.test(t));
+  return real.length ? { clear: false, text: real.join(' · ') } : { clear: true };
+}
+
 // Exposed for smoke: the destination normalisers + the "Leaving"→0 rule are the
 // widget's core parsing invariants against BART's raw feed shape.
-export { shortDest, schedDest, estMinutes, ROUTE_HEX };
+export { shortDest, schedDest, estMinutes, ROUTE_HEX, parseBsa };
 
 export default {
   id: 'transit',
@@ -96,6 +118,14 @@ export default {
       .bart-head .upd { margin-left:auto; font-family:var(--font-mono); font-size:10px;
         letter-spacing:.06em; color:var(--ink-faint); white-space:nowrap; }
       .bart-head .upd.sched { color:var(--mint-2); }
+      /* service advisory — a hushed gold ⚠ clause that only appears when BART reports
+         a real delay/disruption. It fills the middle of the header and ellipsises, so
+         a long advisory never pushes the "updated" stamp off the right edge (and,
+         being flex:1, it leaves no free space for the stamp's auto-margin, keeping the
+         stamp pinned right). Clear days render nothing here — the header stays calm. */
+      .bart-head .adv { flex:1 1 auto; min-width:0; text-align:right; align-self:baseline;
+        font-family:var(--font-mono); font-size:10px; letter-spacing:.03em; color:var(--gold);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
       /* departures — a row of destination columns filling the full width. Each is a
          quiet glass tile with a line-coloured top rule, the destination, and the
@@ -147,9 +177,19 @@ export default {
     };
     const tickUpd = () => { if (updEl && !updEl.classList.contains('sched')) updEl.textContent = fmtAgo(); };
 
+    // Latest parsed service advisory ({clear} / {clear:false,text}); refreshed
+    // best-effort each cycle and kept between cycles so a flaky BSA fetch never
+    // blanks a known advisory (or spuriously raises one).
+    let lastAdv = null;
+    const advChip = () => {
+      if (!lastAdv || lastAdv.clear) return null;
+      return h('span', { class: 'adv', title: `BART service advisory: ${lastAdv.text}` }, `⚠ ${lastAdv.text}`);
+    };
+
     const headEl = (status, sched) => h('div', { class: 'bart-head' },
       h('span', { class: 'st' }, STATION_NAME),
       h('span', { class: 'sub' }, 'BART departures'),
+      advChip(),
       h('span', { class: `upd${sched ? ' sched' : ''}` }, status));
 
     // Build one departure tile. `mins` is a list of upcoming waits in minutes (live)
@@ -246,8 +286,13 @@ export default {
 
     // One refresh: try live; if nothing is running, fall back to the timetable.
     const refresh = async () => {
+      // Service advisory in parallel — best-effort, never blocks or breaks the board:
+      // it updates lastAdv (kept from the prior cycle on failure) and is capped so a
+      // slow BSA response can't hold up the departures once the ETD feed is in.
+      const bsaP = ctx.fetchJSON(BSA).then((b) => { lastAdv = parseBsa(b); }).catch(() => {});
       const live = await ctx.fetchJSON(ETD);
       lastUpdate = new Date();
+      await Promise.race([bsaP, new Promise((r) => setTimeout(r, 1200))]);
       if (renderLive(live) > 0) return;
       // No live trains (overnight / closed) — show the next scheduled departures.
       const sched = await ctx.fetchJSON(SCHED);
