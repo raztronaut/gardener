@@ -68,7 +68,7 @@ export default {
   async mount(root, ctx) {
     const tz = ctx.config?.tz || 'America/Los_Angeles';
     ctx.style(`
-      .clk { display:flex; flex-direction:column; gap:4px; padding:8px 10px 4px; }
+      .clk { display:flex; flex-direction:column; gap:3px; padding:6px 10px 4px; }
       .clk .topline { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:28px; }
       .clk .greet { color: var(--ink-soft); font-size:17px; letter-spacing:.04em;
         flex:1 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -82,7 +82,7 @@ export default {
       .clk .season .to { color:var(--mint); }
       .clk .timerow { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
       .clk .time { font-family: var(--font-display); font-weight:600; letter-spacing:-.01em;
-        font-size: 82px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
+        font-size: 78px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
         -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:12px; }
       .clk .time .ap { font-size:30px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
       .clk .date { color: var(--ink); font-size:20px; opacity:.92; }
@@ -92,7 +92,7 @@ export default {
          it costs nothing to render; it only repaints when a city's minute rolls over.
          A tiny ☀/☾ glyph tells day from night there at a glance — a quiet sense of
          the wider world keeping time alongside home. */
-      .clk .world { margin-top:auto; display:flex; gap:13px; padding-top:9px; flex-wrap:nowrap; min-width:0; }
+      .clk .world { margin-top:auto; display:flex; gap:13px; padding-top:6px; flex-wrap:nowrap; min-width:0; }
       .clk .world .wc { display:flex; align-items:baseline; gap:6px; min-width:0; }
       .clk .world .wc .lbl { font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.08em;
         color:var(--ink-faint); flex:0 0 auto; }
@@ -119,7 +119,7 @@ export default {
       /* Year-progress rail sits directly beneath the world-clocks row; the world
          row (above) now owns the flex margin-top:auto that anchors the pair to the
          card's bottom, so this keeps a small fixed gap instead. */
-      .clk .year { margin-top:0; display:flex; flex-direction:column; gap:4px; padding-top:10px; }
+      .clk .year { margin-top:0; display:flex; flex-direction:column; gap:4px; padding-top:7px; }
       .clk .year .yr-head { display:flex; align-items:baseline; justify-content:space-between;
         font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; color:var(--ink-faint); }
       .clk .year .yr-head .doy { color:var(--ink-soft); }
@@ -291,10 +291,14 @@ export default {
         lastY = yKey;
         const frac = doy / totalDays;
         const pct = Math.round(frac * 100);
-        doyEl.textContent = `Day ${doy} of ${yy}`;
+        // The year is already spelled out on the date line above, so "of 2026" here
+        // was redundant. Trade it for a warmer, glanceable "days left in the year" —
+        // a gentle sense of the calendar winding down. On Dec 31 it reads "last day".
+        const daysLeft = totalDays - doy;
+        doyEl.textContent = daysLeft > 0 ? `Day ${doy} · ${daysLeft} left` : `Day ${doy} · last day`;
         pctEl.textContent = `${pct}%`;
         yrFill.style.width = `${(frac * 100).toFixed(1)}%`;
-        year.title = `Day ${doy} of ${totalDays} · ${pct}% through ${yy}`;
+        year.title = `Day ${doy} of ${totalDays} · ${daysLeft} left · ${pct}% through ${yy}`;
       }
     };
     ctx.interval(tick, 10000);
