@@ -107,7 +107,7 @@ async function main() {
     try {
       const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
       check('transit: api.bart.gov is allowlisted', allow.includes('api.bart.gov'), 'add api.bart.gov to proxy-allowlist.json');
-      const { shortDest, schedDest, estMinutes, parseBsa } = await import(join(PUBLIC, 'widgets', 'transit.js'));
+      const { shortDest, schedDest, estMinutes, parseBsa, platformInfo } = await import(join(PUBLIC, 'widgets', 'transit.js'));
       check('transit: shortens long destinations', shortDest('Berryessa/North San Jose') === 'Berryessa',
         `got ${shortDest('Berryessa/North San Jose')}`);
       check('transit: scheduled head-station → final leg', schedDest('SF / OAK Airport / Berryessa') === 'Berryessa',
@@ -121,6 +121,15 @@ async function main() {
       check('transit: clear BSA reads as no advisory', bsaClear.clear === true, `got ${JSON.stringify(bsaClear)}`);
       check('transit: real BSA surfaces advisory text',
         bsaAlert.clear === false && /Yellow line/.test(bsaAlert.text || ''), `got ${JSON.stringify(bsaAlert)}`);
+      // Platform pill: a live estimate with a numeric platform surfaces a "Plat N"
+      // board tag (direction in the tooltip); a platform-less estimate returns null
+      // so the pill hides on the scheduled fallback.
+      const platS = platformInfo({ platform: '2', direction: 'South' });
+      check('transit: platform pill reads platform + direction',
+        platS && platS.tag === 'Plat 2' && /Southbound/.test(platS.title), `got ${JSON.stringify(platS)}`);
+      check('transit: platform pill hides when absent',
+        platformInfo({ direction: 'North' }) === null && platformInfo({ platform: '' }) === null,
+        'expected null with no numeric platform');
     } catch (e) { bad('transit board guards', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen

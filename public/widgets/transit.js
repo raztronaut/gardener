@@ -73,6 +73,20 @@ const schedDest = (h) => {
 // A live estimate's "minutes" is "Leaving" or a number. Normalise to a sortable
 // number (Leaving → 0).
 const estMinutes = (m) => (String(m).toLowerCase() === 'leaving' ? 0 : parseInt(m, 10));
+
+// BART's per-train platform + compass direction → a compact board tag. A real
+// departure board shows the PLATFORM so a rider knows where to stand; the ETD feed
+// carries a platform number and a "North"/"South" direction on each estimate, so we
+// surface the platform as a hushed "PLAT 2" pill and keep the direction for the
+// tooltip. Returns { tag, title } or null when the feed doesn't carry a usable
+// platform (e.g. the scheduled-timetable fallback), so the pill simply hides.
+const DIR_WORD = { n: 'Northbound', s: 'Southbound', e: 'Eastbound', w: 'Westbound' };
+const platformInfo = (est) => {
+  const plat = est && est.platform != null ? String(est.platform).trim() : '';
+  if (!/^\d+$/.test(plat)) return null;
+  const dir = DIR_WORD[String((est && est.direction) || '').trim().toLowerCase()[0]] || '';
+  return { tag: `Plat ${plat}`, title: dir ? `${dir} · Platform ${plat}` : `Platform ${plat}` };
+};
 // BART's XML→JSON conversion yields a single object where an array is expected;
 // normalise so callers can always map over it.
 const asArray = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
@@ -96,7 +110,7 @@ function parseBsa(data) {
 
 // Exposed for smoke: the destination normalisers + the "Leaving"→0 rule are the
 // widget's core parsing invariants against BART's raw feed shape.
-export { shortDest, schedDest, estMinutes, ROUTE_HEX, parseBsa };
+export { shortDest, schedDest, estMinutes, ROUTE_HEX, parseBsa, platformInfo };
 
 export default {
   id: 'transit',
@@ -139,6 +153,15 @@ export default {
         background:var(--bart-c,var(--mint)); box-shadow:0 0 6px var(--bart-c,var(--mint)); }
       .bart-dep .dest .nm { font-size:13.5px; font-weight:600; color:var(--ink); letter-spacing:.01em;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      /* platform pill — pinned to the right of the destination row like a real
+         departure board ("PLAT 2"), so a glance tells a rider which platform to
+         wait on. Hushed and flex:none, right-aligned via margin-left:auto; sits on
+         the existing dest line so it adds no height and can't clip. Hidden on the
+         scheduled-timetable fallback, which carries no live platform. */
+      .bart-dep .dest .plat { flex:0 0 auto; margin-left:auto; font-family:var(--font-mono);
+        font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+        color:var(--ink-faint); background:rgba(255,255,255,.05); border:1px solid var(--stroke);
+        border-radius:5px; padding:1.5px 5px; line-height:1.2; }
       .bart-dep .times { display:flex; align-items:baseline; gap:7px; flex-wrap:nowrap; white-space:nowrap; }
       .bart-dep .times .m0 { font-family:var(--font-display); font-weight:700; font-size:25px;
         line-height:.9; color:var(--bart-c,var(--mint)); }
@@ -195,9 +218,12 @@ export default {
     // Build one departure tile. `mins` is a list of upcoming waits in minutes (live)
     // or `clock` is a "7:55a" scheduled time (fallback).
     const depTile = (d) => {
+      // Platform pill (right-aligned on the dest row) — live board only; the
+      // scheduled fallback carries no platform, so d.plat is null there.
+      const platPill = d.plat ? h('span', { class: 'plat', title: d.plat.title }, d.plat.tag) : null;
       if (d.clock) {
         return h('div', { class: 'bart-dep', style: { '--bart-c': d.hex }, title: d.title },
-          h('div', { class: 'dest' }, h('span', { class: 'dot' }), h('span', { class: 'nm' }, d.dest)),
+          h('div', { class: 'dest' }, h('span', { class: 'dot' }), h('span', { class: 'nm' }, d.dest), platPill),
           h('div', { class: 'times' }, h('span', { class: 'm0 clock' }, d.clock),
             d.more ? h('span', { class: 'more' }, d.more) : null));
       }
@@ -205,7 +231,7 @@ export default {
       const nowish = m0 <= 0;
       const rest = d.mins.slice(1, 3);
       return h('div', { class: 'bart-dep', style: { '--bart-c': d.hex }, title: d.title },
-        h('div', { class: 'dest' }, h('span', { class: 'dot' }), h('span', { class: 'nm' }, d.dest)),
+        h('div', { class: 'dest' }, h('span', { class: 'dot' }), h('span', { class: 'nm' }, d.dest), platPill),
         h('div', { class: 'times' },
           h('span', { class: `m0${nowish ? ' now' : ''}` }, nowish ? 'Now' : String(m0)),
           nowish ? null : h('span', { class: 'u' }, 'min'),
@@ -236,7 +262,7 @@ export default {
       const etds = station ? asArray(station.etd) : [];
       const deps = etds.map((e) => {
         const ests = asArray(e.estimate)
-          .map((x) => ({ n: estMinutes(x.minutes), hex: x.hexcolor, dir: x.direction }))
+          .map((x) => ({ n: estMinutes(x.minutes), hex: x.hexcolor, dir: x.direction, platform: x.platform }))
           .filter((x) => Number.isFinite(x.n))
           .sort((a, b) => a.n - b.n);
         if (!ests.length) return null;
@@ -244,6 +270,7 @@ export default {
           dest: shortDest(e.destination),
           hex: ests[0].hex || '#74f7b0',
           mins: ests.map((x) => x.n),
+          plat: platformInfo(ests[0]),
           title: `${e.destination}${ests[0].dir ? ` · ${ests[0].dir}bound` : ''} · ${ests.slice(0, 3).map((x) => (x.n <= 0 ? 'now' : `${x.n} min`)).join(', ')}`,
         };
       }).filter(Boolean).sort((a, b) => a.mins[0] - b.mins[0]).slice(0, 5);
