@@ -87,6 +87,22 @@ async function main() {
       check('HN discussion marker stays quiet on ordinary stories',
         quiet.every((v) => v === 0), `got ${quiet.join(',')}`);
     } catch (e) { bad('HN discussion marker', e.message); }
+    // APOD archival catalogue number: a whole-day count from the first Astronomy
+    // Picture of the Day (1995-06-16 = № 1), inclusive, computed in UTC. The epoch
+    // + inclusive semantics are the invariant behind the museum-placard chip; a
+    // pre-launch or unparseable date must hide the placard (null).
+    try {
+      const { catalogNumber } = await import(join(PUBLIC, 'widgets', 'apod.js'));
+      check('APOD catalogue: first picture is № 1', catalogNumber('1995-06-16') === 1,
+        `got ${catalogNumber('1995-06-16')}`);
+      check('APOD catalogue: counts days inclusively', catalogNumber('1995-06-17') === 2,
+        `got ${catalogNumber('1995-06-17')}`);
+      check('APOD catalogue: a fixed recent date computes exactly',
+        catalogNumber('2026-09-10') === 11410, `got ${catalogNumber('2026-09-10')}`);
+      check('APOD catalogue: pre-launch / bad dates hide the placard',
+        catalogNumber('1995-06-15') === null && catalogNumber('') === null,
+        `got ${catalogNumber('1995-06-15')},${catalogNumber('')}`);
+    } catch (e) { bad('APOD catalogue number', e.message); }
     // SF events feed carries scraped HTML entities (&#8220;curly quotes&#8221;, &amp;,
     // &#39;, &eacute;…) that render as PLAIN TEXT on the wall — a literal "&#8221;"
     // must never leak onto the hero card. Exercise the shared cleanName() decoder.

@@ -72,6 +72,22 @@ function freshnessTag(iso, tz) {
   return { text: `${days} DAYS AGO`, stale: true };
 }
 
+// Archival catalogue number — a museum-placard touch on the wall's one "art" piece.
+// NASA has published an Astronomy Picture of the Day essentially every day since
+// 1995-06-16, so the whole-day count from that first picture to THIS one is a
+// faithful sense of how deep the archive runs ("№ 11,410" ≈ 31 years of daily
+// images). Computed in UTC from the date parts (no timezone drift); the epoch day
+// itself is № 1, and any pre-launch / unparseable date returns null so the placard
+// simply hides. Exported for smoke — the epoch + inclusive count are the invariant.
+const APOD_EPOCH_UTC = Date.UTC(1995, 5, 16); // 1995-06-16, the first APOD
+export function catalogNumber(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  if (!m) return null;
+  const t = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const n = Math.floor((t - APOD_EPOCH_UTC) / 864e5) + 1;
+  return n >= 1 ? n : null;
+}
+
 export default {
   id: 'apod',
   title: 'Astronomy Photo',
@@ -137,6 +153,18 @@ export default {
         padding:5px 12px; border-radius:999px; background:rgba(8,14,34,.6);
         border:1px solid var(--stroke-strong); font-family:var(--font-mono);
         font-size:10.5px; letter-spacing:.06em; color:var(--ink-soft); }
+      /* archival catalogue placard — a hushed mono chip in the photo's top corner,
+         like the little catalogue tag beside a curated museum print, naming how deep
+         into NASA's 30-year daily archive this picture sits. Absolutely positioned in
+         the photo's empty upper band (the caption scrim lives in the lower half), so
+         it adds no height and can't clip; static, no animation. Its own dark, bordered
+         pill + text-shadow keep it legible over any image, bright or dark. */
+      .apod-cat { position:absolute; top:12px; right:13px; z-index:2; pointer-events:none;
+        font-family:var(--font-mono); font-size:10px; letter-spacing:.11em; line-height:1;
+        color:rgba(234,255,244,.64); background:rgba(5,8,16,.44);
+        border:1px solid rgba(180,214,202,.18); border-radius:999px; padding:3.5px 9px;
+        text-shadow:0 1px 5px rgba(0,0,0,.85); }
+      .apod-cat .no { color:var(--mint-2); font-weight:700; margin-right:2px; }
       /* bottom scrim + caption overlaid on the photo — absolutely positioned so it
          can never push the card taller than its fixed 9:16 slot. */
       .apod-scrim { position:absolute; left:0; right:0; bottom:0; height:52%; pointer-events:none;
@@ -216,7 +244,16 @@ export default {
       descEl.textContent = blurb;
       descEl.title = blurb;
       descEl.style.display = blurb ? '' : 'none';
-      body.replaceChildren(img, scrim, cap);
+      // Archival catalogue placard (top corner) — how deep into NASA's daily archive
+      // this picture sits. Hidden when the date is missing/unparseable. Filtered out
+      // of replaceChildren when null (a bare null would coerce to a "null" text node).
+      const cat = catalogNumber(d.date);
+      const catEl = cat ? h('div', {
+        class: 'apod-cat',
+        title: `№ ${cat.toLocaleString('en-US')} — day ${cat.toLocaleString('en-US')} of NASA's `
+          + 'Astronomy Picture of the Day, which began June 16, 1995',
+      }, h('span', { class: 'no' }, '№'), cat.toLocaleString('en-US')) : null;
+      body.replaceChildren(...[img, scrim, catEl, cap].filter(Boolean));
       // one-shot fade-in (next frame so the transition takes)
       requestAnimationFrame(() => img.classList.add('in'));
     };
