@@ -202,6 +202,9 @@ export default {
       .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
       .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .wx-sky .uv b { color:var(--ink); font-weight:600; }
+      /* climbing-UV cue — "· ↑6 1p" trailing the current reading, tinted to the
+         peak's own band so a glance reads how strong the sun is about to get. */
+      .wx-sky .uv .uvpk { font-weight:600; letter-spacing:.01em; }
       /* barometric pressure — a quiet clause reading the barometer in inHg with a
          3-hour tendency (a cool-blue ↓ falling / mint ↑ rising / faint → steady),
          echoing the warm/cool trend language used elsewhere on the card. One line,
@@ -420,6 +423,26 @@ export default {
         const uvPeakRaw = d.daily.uv_index_max?.[0];
         const uvPeak = Number.isFinite(uvPeakRaw) ? Math.round(uvPeakRaw) : null;
         const [uvLabel, uvColor] = uvBand(uvNow);
+        // Is the sun still climbing? Scan today's REMAINING hours for the UV peak
+        // the day is heading toward, so a morning glance answers "how strong will
+        // the sun get, and when?" — a genuinely useful sunscreen cue the bare "UV 2"
+        // can't give. Reuses the hourly uv_index already fetched (no extra request).
+        // Surfaced only in daylight when the peak is a real step above now (≥ now+2)
+        // and at least Moderate, so it falls quiet once the sun has passed its height.
+        // hNow indexes today (the hourly series starts at local midnight), so the
+        // slice hNow..23 is exactly the hours left in the day.
+        let uvAhead = null;
+        if (cur.is_day !== 0 && Array.isArray(d.hourly.uv_index)) {
+          let pv = -Infinity, pj = -1;
+          for (let j = hNow; j <= Math.min(23, d.hourly.uv_index.length - 1); j++) {
+            const v = d.hourly.uv_index[j];
+            if (Number.isFinite(v) && v > pv) { pv = v; pj = j; }
+          }
+          const pval = Number.isFinite(pv) ? Math.round(pv) : null;
+          if (pval != null && pj >= 0 && uvNow != null && pval >= uvNow + 2 && pval >= 3) {
+            uvAhead = { val: pval, hour: new Date(d.hourly.time[pj]).getHours() };
+          }
+        }
 
         // Visibility / fog — read the current hour's visibility (metres). SF's
         // marine layer makes this a genuinely local reading: it sits calm and faint
@@ -618,9 +641,18 @@ export default {
                 fog.kind === 'clears' ? ` · lifts ${hr12(fog.hour)}` : ` · fog ${hr12(fog.hour)}`) : null) : null,
             ctx.h('span', {
               class: 'uv',
-              title: uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
+              title: uvAhead
+                ? `UV index now ${uvNow ?? '—'} · climbs to ${uvAhead.val} by ${hr12(uvAhead.hour)} (peak ${uvPeak} today)`
+                : uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
             }, ctx.h('span', { class: 'dot', style: { background: uvColor, boxShadow: `0 0 6px ${uvColor}` } }),
-              'UV ', ctx.h('b', {}, `${uvNow ?? '—'}`), ` ${uvLabel}`),
+              'UV ', ctx.h('b', {}, `${uvNow ?? '—'}`), ` ${uvLabel}`,
+              // Climbing-UV cue — a hushed "↑6 1p" tinted to the peak's own band,
+              // trailing the current reading inside this nowrap atom (so it wraps as
+              // one unit and adds no height beyond the line's existing wrap).
+              uvAhead ? ctx.h('span', {
+                class: 'uvpk',
+                style: { color: uvBand(uvAhead.val)[1] },
+              }, ` · ↑${uvAhead.val} ${hr12(uvAhead.hour)}`) : null),
             Number.isFinite(pNow) ? ctx.h('span', {
               class: 'baro',
               title: `Barometric pressure — ${inHg(pNow)} inHg (${Math.round(pNow)} hPa)`
