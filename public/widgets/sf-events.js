@@ -55,6 +55,13 @@ export default {
       .won-pill.soon { color:var(--mint); background:rgba(120,247,176,.12); }
       .won-pill.live { color:var(--gold); background:rgba(255,217,138,.16); font-weight:700; }
       .won-pill.live .dot { font-size:8px; vertical-align:1px; margin-right:1px; }
+      /* "how soon" pill — a hushed neutral countdown on UPCOMING (not-today) events
+         ("tomorrow" / "in 5 days" / "in 2 wks"), so a glance answers how far off a
+         plan is without parsing the date column — the same grounds-a-date-in-lived-
+         time idiom the clock, weather and HN feed already use. Quiet and un-tinted so
+         it never competes with today's mint/gold live pill; sits on the existing meta
+         line, so it adds no height and can't clip. */
+      .won-pill.upc { color:var(--ink-soft); background:rgba(255,255,255,.05); }
       .won-empty { grid-column:1/-1; flex:1; display:flex; align-items:center; justify-content:center; text-align:center;
         color:var(--ink-faint); font-size:13px; padding:0 10px; }
       .won-foot { flex:0 0 auto; text-align:center; font-family:var(--font-mono); font-size:10px;
@@ -102,6 +109,21 @@ export default {
       return { txt: 'on now', cls: 'live' };
     };
 
+    // A compact "how soon" phrase for an UPCOMING (not-today) event, grounding the
+    // date column in lived time at a glance ("tomorrow" / "in 5 days" / "in 2 wks").
+    // Whole-day diff read in SF time, so it rolls over cleanly at local midnight.
+    // Returns the label string or null (today / past / undated), so the pill simply
+    // hides when there's nothing to say.
+    const relWhen = (when, isToday) => {
+      if (!when || isNaN(when) || isToday) return null;
+      const days = Math.round((new Date(dayKeyFmt.format(when) + 'T00:00:00') - startOfToday) / dayMs);
+      if (days <= 0) return null;
+      if (days === 1) return 'tomorrow';
+      if (days < 7) return `in ${days} days`;
+      const wk = Math.round(days / 7);
+      return wk <= 1 ? 'next week' : `in ${wk} wks`;
+    };
+
     const list = ctx.h('div', { class: 'won-list' });
     const foot = ctx.h('div', { class: 'won-foot', style: 'display:none' });
     body.replaceChildren(ctx.h('div', { class: 'won' }, list, foot));
@@ -121,18 +143,25 @@ export default {
         // A live "in 2h 15m" / "on now" pill for today's timed events, so tonight's
         // plans read at a glance (the date column already shows the clock time).
         const live = liveCountdown(e.when, e.allDay, isToday);
+        // "how soon" cue for upcoming (not-today) events — shown only when there's no
+        // live today-countdown to defer to, so the two never both appear on one row.
+        const rel = !live ? relWhen(e.when, isToday) : null;
         const interest = Number.isFinite(e.interest) ? e.interest : 0;
         const hot = maxInterest > 0 && interest >= hotFloor;
         return ctx.h('div', { class: 'won-ev' },
           dateCol(e.when, e.allDay),
           ctx.h('div', { class: 'won-main' },
             ctx.h('div', { class: 'won-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
-            (e.place || time || live || hot) ? ctx.h('div', { class: 'won-meta' },
+            (e.place || time || live || rel || hot) ? ctx.h('div', { class: 'won-meta' },
               e.place ? ctx.h('span', { class: 'won-place' }, `📍 ${e.place}`) : null,
               live ? ctx.h('span', {
                 class: `won-pill ${live.cls}`,
                 title: live.cls === 'live' ? 'happening now' : `starts ${timeFmt.format(e.when)}`,
               }, ...(live.cls === 'live' ? [ctx.h('span', { class: 'dot' }, '●'), ' on now'] : [live.txt])) : null,
+              rel ? ctx.h('span', {
+                class: 'won-pill upc',
+                title: e.when ? `starts ${e.when.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TZ })}` : '',
+              }, rel) : null,
               time ? ctx.h('span', { class: 'won-pill' }, time) : null,
               hot ? ctx.h('span', {
                 class: 'won-pill hot',
