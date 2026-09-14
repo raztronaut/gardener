@@ -123,7 +123,7 @@ async function main() {
     try {
       const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
       check('transit: api.bart.gov is allowlisted', allow.includes('api.bart.gov'), 'add api.bart.gov to proxy-allowlist.json');
-      const { shortDest, schedDest, estMinutes, parseBsa, platformInfo } = await import(join(PUBLIC, 'widgets', 'transit.js'));
+      const { shortDest, schedDest, estMinutes, parseBsa, platformInfo, carLength } = await import(join(PUBLIC, 'widgets', 'transit.js'));
       check('transit: shortens long destinations', shortDest('Berryessa/North San Jose') === 'Berryessa',
         `got ${shortDest('Berryessa/North San Jose')}`);
       check('transit: scheduled head-station → final leg', schedDest('SF / OAK Airport / Berryessa') === 'Berryessa',
@@ -146,6 +146,14 @@ async function main() {
       check('transit: platform pill hides when absent',
         platformInfo({ direction: 'North' }) === null && platformInfo({ platform: '' }) === null,
         'expected null with no numeric platform');
+      // Car-count tag: a live estimate with a sane `length` surfaces an "N-car" tag;
+      // an absent/garbled/out-of-range length returns null so the tag hides (e.g. on
+      // the scheduled fallback).
+      const cars8 = carLength({ length: '8' });
+      check('transit: car-count tag reads "N-car"', cars8 && cars8.tag === '8-car', `got ${JSON.stringify(cars8)}`);
+      check('transit: car-count tag hides on bad/absent length',
+        carLength({}) === null && carLength({ length: '0' }) === null && carLength({ length: '99' }) === null,
+        'expected null with no sane length');
     } catch (e) { bad('transit board guards', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
