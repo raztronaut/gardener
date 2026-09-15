@@ -103,6 +103,20 @@ function debateRate(item) {
 }
 export { debateRate };
 
+// Board-rank movement across refreshes — a gentle "living front page" cue. Compares
+// a story's CURRENT position on the shown board against where it sat on the PREVIOUS
+// refresh. Only RISERS are surfaced: a story climbing the front page is the
+// interesting, positive signal on an ambient wall, while a story that merely held or
+// slipped gets no marker, keeping the feed calm. A story that wasn't on the board
+// last time reads as a fresh arrival ('new'). `prevRank` is the story's 0-based index
+// last refresh, or null/undefined if it wasn't shown then. Returns
+// { kind:'new' } | { kind:'up', delta } | null.
+export function rankMovement(prevRank, curRank) {
+  if (prevRank == null) return { kind: 'new' };
+  if (Number.isFinite(prevRank) && prevRank > curRank) return { kind: 'up', delta: prevRank - curRank };
+  return null;
+}
+
 export default {
   id: 'hacker-news',
   title: 'Hacker News',
@@ -123,9 +137,22 @@ export default {
         border-radius:2px; background:rgba(255,255,255,.06); overflow:hidden; }
       .hn-fill { position:absolute; left:0; right:0; bottom:0; border-radius:2px;
         background:linear-gradient(to top, var(--mint-2), var(--gold)); }
-      .hn-rank { font-family:var(--font-display); font-size:23px; font-weight:700;
-        line-height:1; color:var(--mint); min-width:24px; text-align:center; margin-top:1px;
-        filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
+      /* rank column — the big mint number, with room beneath it for a hushed
+         movement cue so the meta line stays uncrowded. */
+      .hn-rank { display:flex; flex-direction:column; align-items:center; gap:3px;
+        min-width:28px; margin-top:1px; }
+      .hn-rank .n { font-family:var(--font-display); font-size:23px; font-weight:700;
+        line-height:1; color:var(--mint); filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
+      /* movement cue — a story CLIMBING the shown front page since the last refresh
+         wears a quiet gold "▲2"; a fresh arrival wears a small mint "new" chip. Held
+         or slipped stories show nothing, so the column stays calm. Tiny + static, so
+         it adds no height worth clipping. */
+      .hn-move { font-family:var(--font-mono); font-size:9px; font-weight:700; line-height:1;
+        letter-spacing:.02em; white-space:nowrap; }
+      .hn-move.up { color:var(--gold); }
+      .hn-move.new { color:var(--mint-2); border:1px solid rgba(67,230,198,.4);
+        border-radius:999px; padding:1.5px 4px; letter-spacing:.08em; text-transform:uppercase;
+        font-size:8px; }
       .hn-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
       .hn-title { font-size:14.5px; line-height:1.2; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -164,6 +191,12 @@ export default {
     `);
     body.appendChild(ctx.loading('reading the front page…'));
 
+    // Previous board (story id → shown rank) from the last SUCCESSFUL render, so
+    // each refresh can tell which stories climbed the front page. null until the
+    // first paint, so the opening board shows no movement cues (there's no baseline
+    // to compare against yet — markers only begin from the second refresh on).
+    let prevRanks = null;
+
     // Fetch + render. Builds the rows BEFORE touching the DOM and only replaces on
     // success — so a flaky fetch or an empty response keeps the last good front page
     // intact rather than blanking it. Throws on failure so callers can retry.
@@ -180,6 +213,9 @@ export default {
       // The day's busiest score among the shown stories, used to scale each
       // popularity bar. Floor at 1 so a quiet front page never divides by zero.
       const topScore = Math.max(1, ...stories.map((s) => (s && Number.isFinite(s.score) ? s.score : 0)));
+      // Board-rank movement vs the previous refresh (see prevRanks). Only computed
+      // once we have a baseline, so the opening board is calm.
+      const prev = prevRanks;
       const rows = stories
         .map((s, i) => {
           if (!s || !s.title) return null;
@@ -196,12 +232,21 @@ export default {
           // Self-posts (Ask/Show HN, and link-less jobs) always resolve to the
           // HN domain — redundant once the badge is shown, so drop it there.
           const showDomain = !(badge && !s.url);
+          // Movement on the shown board since last refresh — risers + fresh arrivals
+          // only (see rankMovement). Skipped entirely on the first paint (no baseline).
+          const move = prev ? rankMovement(prev.get(s.id), i) : null;
           return ctx.h('div', { class: 'hn-item' },
             ctx.h('div', {
               class: 'hn-track',
               title: `${score} points · ${Math.round((score / topScore) * 100)}% of today's top story`,
             }, ctx.h('div', { class: 'hn-fill', style: { height: `${pct}%` } })),
-            ctx.h('div', { class: 'hn-rank' }, String(i + 1)),
+            ctx.h('div', { class: 'hn-rank' },
+              ctx.h('div', { class: 'n' }, String(i + 1)),
+              move && move.kind === 'up'
+                ? ctx.h('div', { class: 'hn-move up', title: `climbed ${move.delta} spot${move.delta === 1 ? '' : 's'} on the front page` }, `▲${move.delta}`)
+                : move && move.kind === 'new'
+                  ? ctx.h('div', { class: 'hn-move new', title: 'new to the front page' }, 'new')
+                  : null),
             ctx.h('div', { class: 'hn-body' },
               ctx.h('div', { class: 'hn-title' }, s.title),
               ctx.h('div', { class: 'hn-meta' },
@@ -220,6 +265,8 @@ export default {
 
       if (rows.length === 0) throw new Error('no renderable stories');
       body.replaceChildren(ctx.h('div', { class: 'hn' }, ...rows));
+      // Remember this board's ranks so the NEXT refresh can show what climbed.
+      prevRanks = new Map(stories.map((s, i) => [s.id, i]));
     };
 
     // Initial load: a few attempts with short backoff so one slow/aborted response

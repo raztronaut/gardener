@@ -87,6 +87,24 @@ async function main() {
       check('HN discussion marker stays quiet on ordinary stories',
         quiet.every((v) => v === 0), `got ${quiet.join(',')}`);
     } catch (e) { bad('HN discussion marker', e.message); }
+    // Board-rank movement — the "living front page" cue must surface only RISERS
+    // (a story climbing the shown board) and fresh ARRIVALS, and stay silent for a
+    // story that held its place or slipped, so the feed stays calm.
+    try {
+      const { rankMovement } = await import(join(PUBLIC, 'widgets', 'hacker-news.js'));
+      const up = rankMovement(3, 1);      // was #4, now #2 → climbed 2
+      check('HN rank movement flags a riser',
+        up && up.kind === 'up' && up.delta === 2, `got ${JSON.stringify(up)}`);
+      const fresh = rankMovement(null, 0); // not on the board last time
+      check('HN rank movement flags a fresh arrival',
+        fresh && fresh.kind === 'new', `got ${JSON.stringify(fresh)}`);
+      const quietMoves = [
+        rankMovement(0, 0),   // held its spot
+        rankMovement(0, 2),   // slipped down
+      ];
+      check('HN rank movement stays quiet on held/slipped stories',
+        quietMoves.every((v) => v === null), `got ${JSON.stringify(quietMoves)}`);
+    } catch (e) { bad('HN rank movement', e.message); }
     // APOD archival catalogue number: a whole-day count from the first Astronomy
     // Picture of the Day (1995-06-16 = № 1), inclusive, computed in UTC. The epoch
     // + inclusive semantics are the invariant behind the museum-placard chip; a
