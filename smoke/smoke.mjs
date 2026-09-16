@@ -121,6 +121,20 @@ async function main() {
         catalogNumber('1995-06-15') === null && catalogNumber('') === null,
         `got ${catalogNumber('1995-06-15')},${catalogNumber('')}`);
     } catch (e) { bad('APOD catalogue number', e.message); }
+    // Daily almanac "On This Day" round-anniversary marker: a historical moment
+    // falling exactly a multiple of 25 years ago to the day (25th/50th/100th…) is
+    // flagged; ordinary and this-year moments are not. The "multiple of 25, ≥ 25"
+    // rule is the invariant behind the quiet gold ✦ occasion marker.
+    try {
+      const { milestoneOf } = await import(join(PUBLIC, 'widgets', 'daily.js'));
+      check('almanac milestone: 25/50/100 years ago are flagged',
+        milestoneOf(2001, 2026)?.years === 25 && milestoneOf(1976, 2026)?.years === 50
+        && milestoneOf(1926, 2026)?.years === 100, 'expected 25/50/100');
+      check('almanac milestone: off-round + this-year + bad years are quiet',
+        milestoneOf(2000, 2026) === null && milestoneOf(2026, 2026) === null
+        && milestoneOf(2030, 2026) === null && milestoneOf(NaN, 2026) === null,
+        'expected null for non-milestone years');
+    } catch (e) { bad('almanac milestone marker', e.message); }
     // SF events feed carries scraped HTML entities (&#8220;curly quotes&#8221;, &amp;,
     // &#39;, &eacute;…) that render as PLAIN TEXT on the wall — a literal "&#8221;"
     // must never leak onto the hero card. Exercise the shared cleanName() decoder.

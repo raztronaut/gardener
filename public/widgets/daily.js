@@ -697,6 +697,19 @@ const relYears = (y, nowY = new Date().getFullYear()) => {
   if (n <= 0) return 'this year';
   return `${n.toLocaleString()} ${n === 1 ? 'yr' : 'yrs'} ago`;
 };
+// A "round anniversary" of a historical year — exactly a multiple of 25 years ago
+// to the day (the 25th, 50th, 100th, 150th…). On an ambient almanac this turns an
+// ordinary date into a quiet occasion. It fires RARELY (only when a rotating
+// moment happens to land on a milestone), so the section stays calm and speaks up
+// only when there's a genuine anniversary to mark. Returns { years } or null
+// (this-year / non-round); the BC off-by-one is immaterial for a wall. Exported
+// for smoke — the "multiple of 25, ≥ 25" rule is the invariant.
+export function milestoneOf(year, nowY = new Date().getFullYear()) {
+  if (!Number.isFinite(year)) return null;
+  const n = nowY - year;
+  if (n >= 25 && n % 25 === 0) return { years: n };
+  return null;
+}
 
 export default {
   id: 'daily',
@@ -784,6 +797,11 @@ export default {
          moment reads as both dated and grounded in lived time at a glance. */
       .dly-fact .ago { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);
         margin-right:8px; letter-spacing:.02em; white-space:nowrap; }
+      /* round-anniversary marker — a moment falling exactly a multiple of 25 years
+         ago to the day turns its "how long ago" clause warm gold with a ✦, so the
+         almanac quietly marks the occasion. Inline on the existing meta line (adds
+         no height, can't clip); fires rarely, keeping the section calm. */
+      .dly-fact .ago.ms { color:var(--gold); font-weight:600; }
       /* kind tag — a quiet "born"/"died" caption that leads a birthday or memorial
          entry, so the rotating history reads unambiguously (a life, not an event).
          Plain events carry no tag; the "On This Day" label already implies them. */
@@ -1078,16 +1096,24 @@ export default {
       const { kind, year, text } = otdEvents[((otdIdx % n) + n) % n];
       otdLbl.textContent = 'On This Day';
       const ago = relYears(year);
+      // Round anniversary (exactly a multiple of 25 years ago to the day): the
+      // "how long ago" clause turns a warm gold with a ✦, so the almanac quietly
+      // marks the occasion. Fires rarely; inline on the existing line, so it adds
+      // no height and can't clip.
+      const ms = milestoneOf(year);
       const kids = [];
       if (kind === 'born') kids.push(h('span', { class: 'kind born' }, 'born'));
       else if (kind === 'died') kids.push(h('span', { class: 'kind died' }, 'died'));
       kids.push(
         h('span', { class: 'yr' }, fmtYear(year)),
-        h('span', { class: 'ago' }, ago),
+        h('span', {
+          class: `ago${ms ? ' ms' : ''}`,
+          title: ms ? `A round anniversary — ${ms.years} years ago to the day` : '',
+        }, ms ? `✦ ${ago}` : ago),
         text);
       factEl.replaceChildren(...kids);
       const lead = kind === 'born' ? 'Born ' : kind === 'died' ? 'Died ' : '';
-      factEl.title = `${lead}${fmtYear(year)} (${ago}) — ${text}`;
+      factEl.title = `${lead}${fmtYear(year)} (${ago}${ms ? ` · ${ms.years}th anniversary` : ''}) — ${text}`;
       // Position indicator: which moment of today's M we're showing. Only shown
       // when there's more than one moment to rotate through; the rail is tinted to
       // the current entry's kind so the caption echoes the moment above it.
