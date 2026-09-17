@@ -17,6 +17,20 @@ const SEASONS = [
   { name: 'Summer', icon: '☀️', m: 6, d: 21 },
   { name: 'Autumn', icon: '🍂', m: 9, d: 22 },
 ];
+// The four turns of the year, in calendar order, each with an accent tint — used
+// to notch the year-progress rail so the abstract "N% through the year" reads as a
+// legible seasonal map (you can see where the solstices/equinoxes fall and where
+// today sits between them). Colours echo the garden's palette: mint spring, gold
+// summer, warm autumn, cool-blue winter. Static, offline, zero perf cost.
+const SEASON_BOUNDS = [
+  { name: 'Spring', icon: '🌱', m: 3, d: 20, color: '#74f7b0' },
+  { name: 'Summer', icon: '☀️', m: 6, d: 21, color: '#f7d774' },
+  { name: 'Autumn', icon: '🍂', m: 9, d: 22, color: '#f7a374' },
+  { name: 'Winter', icon: '❄️', m: 12, d: 21, color: '#9cc0ff' },
+];
+// Day-of-year (1-based) for a month/day in year yy — matched to the rail's own
+// doy math so a tick lands exactly where the fill's edge would on that date.
+const doyOf = (yy, m, d) => Math.floor((Date.UTC(yy, m - 1, d) - Date.UTC(yy, 0, 1)) / 864e5) + 1;
 // A warm, day-of-week-aware greeting. The base is the time of day, but weekends
 // and Fridays get their own gentle phrasing so the wall feels a little more like
 // home ("Happy Saturday" on a slow morning, not a flat "Good afternoon"). Fully
@@ -124,10 +138,18 @@ export default {
         font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; color:var(--ink-faint); }
       .clk .year .yr-head .doy { color:var(--ink-soft); }
       .clk .year .yr-head .pct { color:var(--mint); font-weight:600; letter-spacing:.02em; }
-      .clk .year .yr-rail { position:relative; height:4px; border-radius:3px;
+      .clk .year .yr-rail { position:relative; height:7px; border-radius:4px;
         background:rgba(255,255,255,.07); overflow:hidden; }
-      .clk .year .yr-rail .yr-fill { position:absolute; left:0; top:0; bottom:0; border-radius:3px;
+      .clk .year .yr-rail .yr-fill { position:absolute; left:0; top:0; bottom:0; border-radius:4px;
         background:linear-gradient(90deg, var(--mint-2), var(--mint)); }
+      /* season-turn ticks — a thin notch at each solstice/equinox, tinted to the
+         season it begins, so the year rail reads as a seasonal map at a glance. Sits
+         ABOVE the fill (rendered after it) with a soft dark edge so it stays legible
+         over both the bright mint fill and the dark track. Static, no animation;
+         confined within the rail so it can never add height or clip. */
+      .clk .year .yr-rail .yr-tick { position:absolute; top:0; bottom:0; width:2px; margin-left:-1px;
+        border-radius:2px; background:rgba(255,255,255,.6);
+        box-shadow:0 0 0 .5px rgba(4,10,8,.6), 0 0 3px rgba(4,10,8,.5); }
     `);
     const topline = root.appendChild(ctx.h('div', { class: 'topline' }));
     const greet = topline.appendChild(ctx.h('div', { class: 'greet' }));
@@ -188,7 +210,23 @@ export default {
     // changes — i.e. ~once a minute, not 60×. Repainting the 96px gradient-clipped
     // time text every second pegs this Jetson's software renderer. The 10s tick is
     // cheap (string compare, no repaint) and flips the minute within ~10s of :00.
-    let lastT = '', lastD = '', lastG = '', lastS = '', lastY = '';
+    let lastT = '', lastD = '', lastG = '', lastS = '', lastY = '', lastTickYear = 0;
+    // Paint the season-turn ticks onto the year rail (once per year). Each notch is
+    // pinned at its solstice/equinox by the SAME doy math the fill uses, so "now"
+    // reads correctly against the turns of the year. Rebuilt only when the display
+    // year rolls over — cheap and static.
+    const paintSeasonTicks = (yy, totalDays) => {
+      yrRail.querySelectorAll('.yr-tick').forEach((n) => n.remove());
+      for (const s of SEASON_BOUNDS) {
+        const frac = doyOf(yy, s.m, s.d) / totalDays;
+        yrRail.appendChild(ctx.h('div', {
+          class: 'yr-tick',
+          style: { left: `${(frac * 100).toFixed(2)}%`, background: s.color },
+          title: `${s.icon} ${s.name} begins ${new Date(Date.UTC(yy, s.m - 1, s.d))
+            .toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })}`,
+        }));
+      }
+    };
     const tick = () => {
       const now = new Date();
       const parts = fmtTime.formatToParts(now);
@@ -286,6 +324,9 @@ export default {
       const isLeap = (yy % 4 === 0 && yy % 100 !== 0) || yy % 400 === 0;
       const totalDays = isLeap ? 366 : 365;
       const doy = Math.floor((Date.UTC(yy, mm - 1, dd) - Date.UTC(yy, 0, 1)) / 864e5) + 1;
+      // Season ticks depend only on the year — (re)paint them when it changes (and
+      // on the first tick), before the fill/label update below.
+      if (yy !== lastTickYear) { lastTickYear = yy; paintSeasonTicks(yy, totalDays); }
       const yKey = `${yy}-${doy}`;
       if (yKey !== lastY) {
         lastY = yKey;
