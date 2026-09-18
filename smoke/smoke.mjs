@@ -155,7 +155,7 @@ async function main() {
     try {
       const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
       check('transit: api.bart.gov is allowlisted', allow.includes('api.bart.gov'), 'add api.bart.gov to proxy-allowlist.json');
-      const { shortDest, schedDest, estMinutes, parseBsa, platformInfo, carLength } = await import(join(PUBLIC, 'widgets', 'transit.js'));
+      const { shortDest, schedDest, estMinutes, parseBsa, platformInfo, carLength, compactAmPm } = await import(join(PUBLIC, 'widgets', 'transit.js'));
       check('transit: shortens long destinations', shortDest('Berryessa/North San Jose') === 'Berryessa',
         `got ${shortDest('Berryessa/North San Jose')}`);
       check('transit: scheduled head-station → final leg', schedDest('SF / OAK Airport / Berryessa') === 'Berryessa',
@@ -165,8 +165,12 @@ async function main() {
       // Service advisory: the "No delays reported." sentinel must read as CLEAR (so the
       // board stays calm), while a real advisory surfaces its text for the header clause.
       const bsaClear = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'No delays reported.' } }] } });
+      // BART's live feed also returns "No advisories issued." on a clear day — it must
+      // read as CLEAR too, not surface as a spurious ⚠ advisory (regression 2026-09-18).
+      const bsaClear2 = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'No advisories issued.' } }] } });
       const bsaAlert = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'Major delay on the Yellow line.' } }] } });
-      check('transit: clear BSA reads as no advisory', bsaClear.clear === true, `got ${JSON.stringify(bsaClear)}`);
+      check('transit: clear BSA reads as no advisory', bsaClear.clear === true && bsaClear2.clear === true,
+        `got ${JSON.stringify(bsaClear)} / ${JSON.stringify(bsaClear2)}`);
       check('transit: real BSA surfaces advisory text',
         bsaAlert.clear === false && /Yellow line/.test(bsaAlert.text || ''), `got ${JSON.stringify(bsaAlert)}`);
       // Platform pill: a live estimate with a numeric platform surfaces a "Plat N"
@@ -186,6 +190,11 @@ async function main() {
       check('transit: car-count tag hides on bad/absent length',
         carLength({}) === null && carLength({ length: '0' }) === null && carLength({ length: '99' }) === null,
         'expected null with no sane length');
+      // Departure clock line: "6:12 AM" → the compact "6:12a" the board reads in
+      // (the relative "N min" countdown is grounded in an absolute wall-clock time).
+      check('transit: departure clock compacts am/pm',
+        compactAmPm('6:12 AM') === '6:12a' && compactAmPm('10:05 PM') === '10:05p',
+        `got ${compactAmPm('6:12 AM')},${compactAmPm('10:05 PM')}`);
     } catch (e) { bad('transit board guards', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen

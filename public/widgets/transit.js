@@ -98,6 +98,17 @@ const carLength = (est) => {
   if (!Number.isFinite(n) || n <= 0 || n > 20) return null;
   return { tag: `${n}-car`, title: `${n}-car train` };
 };
+// A live estimate's relative "N min" wait, grounded in the wall-clock time a rider
+// can actually plan around. Real departure boards pair the countdown with the
+// clock time ("8 min · dep 6:12a"), the same relative-grounded-in-absolute idiom
+// the rest of the garden uses (the clock's world times, HN's ages, the events'
+// countdowns). "6:12 AM" → the compact "6:12a" the board reads in.
+const compactAmPm = (s) => String(s).replace(/\s*(AM|PM)/i, (_m, ap) => ap[0].toLowerCase()).replace(/\s+/g, '');
+const _depClockFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+// Absolute departure clock time for a "minutes from now" estimate, read fresh each
+// call (so it stays honest between the board's 60s refreshes) in the station's tz.
+const depClock = (mins) => compactAmPm(_depClockFmt.format(new Date(Date.now() + Math.max(0, Number(mins) || 0) * 60000)));
+
 // BART's XML→JSON conversion yields a single object where an array is expected;
 // normalise so callers can always map over it.
 const asArray = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
@@ -112,16 +123,21 @@ const bsaText = (b) => {
   const t = d && typeof d === 'object' ? (d['#cdata-section'] ?? d['#text'] ?? '') : (d ?? '');
   return String(t).replace(/\s+/g, ' ').trim();
 };
+// A clear system reports one of BART's "all clear" sentinels — historically
+// "No delays reported.", but the live feed also returns "No advisories issued."
+// Both (and kindred "no advisory/advisories …" phrasings) must read as CLEAR so
+// the header stays calm; only a genuine advisory raises the gold ⚠ clause.
+const isClearBsa = (t) => /\bno\s+(delays?\s+reported|advisor(?:y|ies))/i.test(t);
 function parseBsa(data) {
   const list = asArray(data && data.root && data.root.bsa);
   const real = list.map(bsaText)
-    .filter((t) => t && !/no delays?\s+reported/i.test(t));
+    .filter((t) => t && !isClearBsa(t));
   return real.length ? { clear: false, text: real.join(' · ') } : { clear: true };
 }
 
 // Exposed for smoke: the destination normalisers + the "Leaving"→0 rule are the
 // widget's core parsing invariants against BART's raw feed shape.
-export { shortDest, schedDest, estMinutes, ROUTE_HEX, parseBsa, platformInfo, carLength };
+export { shortDest, schedDest, estMinutes, ROUTE_HEX, parseBsa, platformInfo, carLength, compactAmPm };
 
 export default {
   id: 'transit',
@@ -190,6 +206,19 @@ export default {
       .bart-dep .times .cars { flex:0 0 auto; margin-left:auto; padding-left:8px;
         font-family:var(--font-mono); font-size:9.5px; font-weight:600; letter-spacing:.04em;
         color:var(--ink-faint); white-space:nowrap; }
+      /* absolute departure clock time(s) — a hushed mono line beneath the "N min"
+         countdown, grounding it in the wall-clock time a rider can plan around
+         ("dep 6:12a · 6:39a"). Sits in the tile's breathing room, so it adds no
+         clip risk; ellipsises on a narrow tile rather than wrapping. Live board
+         only — the scheduled fallback already shows clock time as its headline. */
+      .bart-dep .when { display:flex; align-items:baseline; gap:5px; min-width:0;
+        font-family:var(--font-mono); font-size:10.5px; letter-spacing:.03em;
+        color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .bart-dep .when .lead { color:var(--ink-faint); opacity:.7; letter-spacing:.08em;
+        text-transform:uppercase; font-size:9px; flex:0 0 auto; }
+      .bart-dep .when .w0 { color:var(--ink-soft); font-weight:600; flex:0 0 auto; }
+      .bart-dep .when .wn { color:var(--ink-faint); min-width:0; overflow:hidden; text-overflow:ellipsis; }
+      .bart-dep .when .wsep { color:var(--ink-faint); opacity:.4; flex:0 0 auto; }
 
       /* reconnecting state — a calm line legend, so the board never reads as blank. */
       .bart-rest { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -251,6 +280,19 @@ export default {
       const rest = d.mins.slice(1, 3);
       // Car-count tag for the next train (live board only), pinned right on the times row.
       const carsTag = d.cars ? h('span', { class: 'cars', title: d.cars.title }, d.cars.tag) : null;
+      // Absolute departure clock times for the next up-to-two trains — grounds the
+      // relative "N min · +…" countdown above in a wall-clock time a rider can plan
+      // around. First is emphasised; a second (when there is one) trails hushed. The
+      // line ellipsises on a narrow tile rather than wrapping, so it can't clip.
+      const whenMins = d.mins.slice(0, 2);
+      const whenLine = h('div', {
+        class: 'when',
+        title: `next departures at ${d.mins.slice(0, 3).map((n) => depClock(n)).join(', ')}`,
+      },
+        h('span', { class: 'lead' }, 'dep'),
+        h('span', { class: 'w0' }, depClock(whenMins[0])),
+        whenMins[1] != null ? h('span', { class: 'wsep' }, '·') : null,
+        whenMins[1] != null ? h('span', { class: 'wn' }, depClock(whenMins[1])) : null);
       return h('div', { class: 'bart-dep', style: { '--bart-c': d.hex }, title: d.title },
         h('div', { class: 'dest' }, h('span', { class: 'dot' }), h('span', { class: 'nm' }, d.dest), platPill),
         h('div', { class: 'times' },
@@ -260,7 +302,8 @@ export default {
             class: 'more',
             title: `then ${rest.map((n) => (n <= 0 ? 'now' : `${n} min`)).join(', ')}`,
           }, `+${rest.map((n) => (n <= 0 ? 'now' : n)).join(', ')}`) : null,
-          carsTag));
+          carsTag),
+        whenLine);
     };
 
     // "07:55 AM" (BART schedule clock string, station-local) → minutes past midnight.
