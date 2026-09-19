@@ -55,6 +55,12 @@ every day, including quiet no-feedback days.
 - On quiet (no-feedback) days, prefer DEEPENING existing widgets over inventing new ones.
   Only add a brand-new widget if it's clearly something the humans would welcome and it
   does not duplicate or resurrect anything on the banned list.
+- No year-progress BAR on the Time card — the humans disliked the percentage bar/rail that
+  sat behind the "Day N" year reading. Keep the year reading as a quiet TEXT line only
+  ("Day 262 · 103 left … 72%"); do not re-add a rail/fill/gauge behind it. (Removed 2026-09-19.)
+- Keep the BART departure board glanceable, not dense — the humans found it too busy after
+  detail kept accreting. Prefer a clean two-line tile (destination + platform, then the big
+  "N min" countdown with next trains). Don't pile extra per-train pills/lines back on. (2026-09-19.)
 
 ## How to maintain this file (you may append, never weaken)
 - When a feedback note expresses a STANDING preference — anything phrased as "never",
