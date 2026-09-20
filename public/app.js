@@ -535,7 +535,7 @@ async function showEvents() {
   let evs = [];
   try {
     const lib = await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`);
-    evs = await lib.fetchEvents(fetchJSON, { limit: 80 });
+    evs = await lib.fetchEvents(fetchJSON); // shared default window — see lib/events.js
   } catch {
     return openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'Events are unavailable right now — try again shortly.')));
   }

@@ -149,6 +149,57 @@ async function main() {
       const venue = cleanPlace('R&amp;R Lounge, San Francisco, CA');
       check('events feed decodes entities in venue names', venue === 'R&R Lounge', `got: ${venue}`);
     } catch (e) { bad('events entity decode', e.message); }
+    // SF events ORDERING. The upstream API can only sort by a row's scrape
+    // timestamp, which has nothing to do with when the event happens (the real
+    // calendar day lives in the title, "10/3/26: …"). Trusting that order put
+    // plans WEEKS away at the head of a card whose whole job is "what's on
+    // tonight", so fetchEvents must sort locally. Guard the three invariants with
+    // a deliberately scrambled fixture; a fake fetchJSON keeps this offline.
+    try {
+      const { fetchEvents, localeRank, dedupKey } = await import(join(PUBLIC, 'lib', 'events.js'));
+      const sfDate = (n) => new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles', year: '2-digit', month: 'numeric', day: 'numeric',
+      }).format(new Date(Date.now() + n * 864e5)); // "9/20/26"
+      const row = (n, name) => ({ title: `${sfDate(n)}: ${name} - FREE`, available_from: '2026-01-01T12:00:00Z', location_address: '' });
+      // Payload order is intentionally NOT chronological — mimicking the real feed.
+      const fixture = [
+        row(10, 'Faraway Fest (Oakland)'),
+        row(0, 'Berkeley Old Time Music Festival in the Park'),
+        row(3, 'Westbrae Pumpkin Patch 2026 in North Berkeley'),
+        row(1, "Tomorrow Thing (SF)"),
+        row(0, "SF's Chinatown Autumn Moon Festival"),
+        row(2, 'Golden Gate Park Sunday Roller Disco Party (SF)'),
+        row(1, 'Westbrae Pumpkin Patch 2026 in North Berkeley'),
+        row(2, 'Golden Gate Park The Whales Tail Beer Garden (SF)'),
+      ];
+      const evs = await fetchEvents(async () => fixture);
+      const names = evs.map((e) => e.name);
+      let mono = true;
+      for (let i = 1; i < evs.length; i++) if (evs[i - 1].when > evs[i].when) mono = false;
+      check('events: sorted by real event date, not scrape order', mono, `got ${JSON.stringify(names)}`);
+      check('events: soonest event leads the list', names[0] === "SF's Chinatown Autumn Moon Festival",
+        `got ${names[0]}`);
+      // Same-day ties break toward San Francisco — the card is headlined "Out in SF".
+      check('events: same-day ties prefer San Francisco',
+        names.indexOf("SF's Chinatown Autumn Moon Festival") < names.indexOf('Berkeley Old Time Music Festival in the Park'),
+        `got ${JSON.stringify(names.slice(0, 2))}`);
+      check('events: localeRank reads SF vs East Bay',
+        localeRank({ name: 'Party (SF)' }) === 0 && localeRank({ name: 'Party (Oakland)' }) === 2
+        && localeRank({ name: 'Mystery Party' }) === 1, 'locality classifier wrong');
+      // A recurring series collapses to ONE row — and must keep its SOONEST date.
+      const patches = evs.filter((e) => /Westbrae/.test(e.name));
+      check('events: recurring series keeps its soonest occurrence',
+        patches.length === 1 && patches[0].dayKey === evs.find((e) => e.name === 'Tomorrow Thing (SF)').dayKey,
+        `kept ${patches.length} at ${patches[0] && patches[0].dayKey}`);
+      // …while genuinely different events that merely share an opening phrase must
+      // BOTH survive (a 12-char dedupe key used to silently eat one of them).
+      check('events: distinct events sharing a name prefix both survive',
+        names.some((n) => /Roller Disco/.test(n)) && names.some((n) => /Whales Tail/.test(n)),
+        `got ${JSON.stringify(names)}`);
+      check('events: dedupe key is long enough to separate them',
+        dedupKey('Golden Gate Park Sunday Roller Disco Party') !== dedupKey('Golden Gate Park The Whales Tail Beer Garden'),
+        'dedupe prefix too short');
+    } catch (e) { bad('events ordering', e.message); }
     // Transit (BART) board: its data host must stay allowlisted or the widget can
     // never reach live/scheduled departures, and its feed parsers must normalise
     // BART's raw destination strings + the "Leaving" estimate to sane board labels.

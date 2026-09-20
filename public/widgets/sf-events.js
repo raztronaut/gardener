@@ -66,6 +66,20 @@ export default {
         color:var(--ink-faint); font-size:13px; padding:0 10px; }
       .won-foot { flex:0 0 auto; text-align:center; font-family:var(--font-mono); font-size:10px;
         letter-spacing:.08em; color:var(--ink-faint); padding-top:2px; }
+
+      /* Shared day heading. Now that the city's listings actually arrive in
+         chronological order, all three picks usually fall on the SAME day — and
+         three identical "Today" blocks were three wasted inches of a card whose
+         titles were being clamped to "SF's Chinatown "Autumn Moon…". Say the day
+         ONCE here, hand the whole column width back to the event names, and let
+         them breathe over three lines. A hairline rule carries the eye across. */
+      .won-hd { flex:0 0 auto; display:flex; align-items:center; gap:10px;
+        font-family:var(--font-mono); font-size:10.5px; letter-spacing:.14em;
+        color:var(--ink-faint); }
+      .won-hd .tdy { color:var(--mint); font-weight:700; }
+      .won-hd .rule { flex:1; height:1px; background:var(--stroke); }
+      /* day-less rows: the name owns the full column and may run to three lines. */
+      .won-list.oneday .won-name { -webkit-line-clamp:3; font-size:18px; }
     `);
 
     const startOfToday = (() => { const n = new Date(); n.setHours(0, 0, 0, 0); return n; })();
@@ -124,14 +138,41 @@ export default {
       return wk <= 1 ? 'next week' : `in ${wk} wks`;
     };
 
+    // The shared day heading shown when every pick falls on one day: a mint
+    // "TODAY" (or "TOMORROW") followed by the written date, then a hairline rule.
+    const dayHead = (when) => {
+      const diff = Math.round((new Date(dayKeyFmt.format(when) + 'T00:00:00') - startOfToday) / dayMs);
+      const wd = wdayFmt.format(when).toUpperCase();
+      const dm = `${wd} ${when.getDate()} ${MON[when.getMonth()]}`;
+      const cap = diff <= 0 ? 'TODAY' : (diff === 1 ? 'TOMORROW' : null);
+      return [cap, cap ? dm : dm];
+    };
+
+    const head = ctx.h('div', { class: 'won-hd', style: 'display:none' });
     const list = ctx.h('div', { class: 'won-list' });
     const foot = ctx.h('div', { class: 'won-foot', style: 'display:none' });
-    body.replaceChildren(ctx.h('div', { class: 'won' }, list, foot));
+    body.replaceChildren(ctx.h('div', { class: 'won' }, head, list, foot));
 
     const render = (evs) => {
       const all = evs || [];
       const picks = all.slice(0, 3);
-      if (!picks.length) { foot.style.display = 'none'; list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now')); return; }
+      if (!picks.length) { foot.style.display = 'none'; head.style.display = 'none'; list.classList.remove('oneday'); list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now')); return; }
+
+      // Do all the picks share a single day? Then the per-row date column is pure
+      // repetition — hoist it into one heading and drop the columns.
+      const keys = picks.map((e) => (e.when && !isNaN(e.when) ? dayKeyFmt.format(e.when) : null));
+      const oneDay = !!keys[0] && keys.every((k) => k === keys[0]);
+      list.classList.toggle('oneday', oneDay);
+      if (oneDay) {
+        const [cap, dm] = dayHead(picks[0].when);
+        head.replaceChildren(
+          cap ? ctx.h('span', { class: 'tdy' }, cap) : null,
+          ctx.h('span', {}, dm),
+          ctx.h('span', { class: 'rule' }));
+        head.style.display = '';
+      } else {
+        head.style.display = 'none';
+      }
       // How busy is the busiest shown event? The interest star is surfaced only for
       // events near that peak (and above a small floor), so the flag reads as "one
       // of the popular ones" — quiet when nothing's buzzing, informative when it is.
@@ -139,7 +180,9 @@ export default {
       const hotFloor = Math.max(8, Math.round(maxInterest * 0.5));
       list.replaceChildren(...picks.map((e) => {
         const isToday = e.when && Math.round((new Date(dayKeyFmt.format(e.when) + 'T00:00:00') - startOfToday) / dayMs) <= 0;
-        const time = (e.when && !e.allDay && !isToday) ? timeFmt.format(e.when).replace(' ', '') : '';
+        // With the date column hoisted into the shared heading, a timed event has
+        // nowhere else to show its clock time — so surface it on the meta line.
+        const time = (e.when && !e.allDay && (oneDay || !isToday)) ? timeFmt.format(e.when).replace(' ', '') : '';
         // A live "in 2h 15m" / "on now" pill for today's timed events, so tonight's
         // plans read at a glance (the date column already shows the clock time).
         const live = liveCountdown(e.when, e.allDay, isToday);
@@ -149,7 +192,7 @@ export default {
         const interest = Number.isFinite(e.interest) ? e.interest : 0;
         const hot = maxInterest > 0 && interest >= hotFloor;
         return ctx.h('div', { class: 'won-ev' },
-          dateCol(e.when, e.allDay),
+          oneDay ? null : dateCol(e.when, e.allDay),
           ctx.h('div', { class: 'won-main' },
             ctx.h('div', { class: 'won-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
             (e.place || time || live || rel || hot) ? ctx.h('div', { class: 'won-meta' },

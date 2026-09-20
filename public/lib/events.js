@@ -5,7 +5,8 @@
 // Source: SF RATS (sfrats.com) — "a working field guide to free events around the
 // Bay Area." Supabase-backed; its anon PostgREST endpoint is keyless (the anon key
 // ships in the site's own JS bundle) and CORS-open. We fetch the "Events" category
-// upcoming-only, soonest-first, through the SSRF-safe proxy.
+// through the SSRF-safe proxy and order it OURSELVES: the API can only sort by the
+// row's scrape timestamp, which is not the event's date (see fetchEvents).
 
 export const SUPA = 'https://uflkltmvzvhziysheccd.supabase.co/rest/v1/items';
 // Public anon key, role "anon" — published in sfrats.com's client bundle. Not a secret.
@@ -100,9 +101,59 @@ export function isPast(ev, now = new Date()) {
   return ev.when.getTime() < now.getTime() - PAST_GRACE_MS;
 }
 
-// Fetch + clean + dedupe + prune-past, soonest first. `fetchJSON` is the widget/app
-// proxy fetcher. Returns [{ name, when:Date|null, place, emoji, raw }].
-export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
+// Collapse near-duplicate listings (the same series re-published for several
+// dates, or a title whose punctuation drifted between scrapes) onto one key.
+// The prefix must be LONG: at 12 characters it was silently eating genuinely
+// different events that merely shared an opening phrase — "Golden Gate Park
+// Sunday Roller Disco Party" vs "Golden Gate Park 'The Whale's Tail' Beer
+// Garden", or Oakland's "Town Biz" vs "POC" comedy nights. 28 characters still
+// merges the true duplicates (an em-dash swapped for a colon) while keeping
+// distinct events distinct. Exported for smoke.
+export function dedupKey(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 28);
+}
+
+// Which side of the Bay is this? The scraped titles tag their city in plain text
+// ("… (Alameda)", "Oakland's Free …", "SF's Chinatown …"), and location_address is
+// usually blank, so the title is what we have to read. Returns a sort rank:
+// 0 = San Francisco, 1 = unstated, 2 = elsewhere in the Bay. An explicit SF signal
+// always wins, which also keeps SF's own Richmond district from being mistaken for
+// the city of Richmond. Exported for smoke.
+const SF_RE = /\bsan francisco\b|\bsf'?s?\b|\(sf\)|golden gate park|\bpresidio\b|\bthe embarcadero\b|\bchinatown\b|dolores park|\bthe castro\b|north beach|fisherman'?s wharf|\bsoma\b|\bnob hill\b|\bhaight\b|union square|\bthe mission\b/i;
+const OTHER_RE = /\b(oakland|berkeley|alameda|albany|emeryville|piedmont|el cerrito|richmond|san leandro|hayward|fremont|union city|milpitas|san jose|santa clara|sunnyvale|mountain view|palo alto|redwood city|san mateo|burlingame|daly city|pacifica|half moon bay|concord|walnut creek|pleasant hill|martinez|benicia|vallejo|napa|santa rosa|petaluma|novato|san rafael|sausalito|marin|livermore|pleasanton|dublin|danville|orinda|lafayette|moraga|antioch)\b/i;
+export function localeRank(ev) {
+  const hay = `${(ev && ev.name) || ''} ${(ev && ev.placeFull) || ''}`;
+  if (SF_RE.test(hay)) return 0;
+  if (OTHER_RE.test(hay)) return 2;
+  return 1;
+}
+
+// Chronological comparator over the RESOLVED event instant. Undated ("Soon") rows
+// sink to the end rather than masquerading as imminent. Exported for smoke.
+//
+// Ties break toward San Francisco. This matters more than it sounds: every all-day
+// listing for a given day is anchored to the same SF-noon instant, so a whole day's
+// events tie exactly — and a card headlined "Out in SF" was opening with Alameda and
+// Berkeley purely by scrape order while Flower Piano and the Autumn Moon Festival sat
+// further down. Strictly a tiebreak: timed events keep their true chronological order.
+export function byWhen(a, b) {
+  const ta = a && a.when && !isNaN(a.when) ? a.when.getTime() : Infinity;
+  const tb = b && b.when && !isNaN(b.when) ? b.when.getTime() : Infinity;
+  if (ta !== tb) return ta < tb ? -1 : 1; // never Infinity - Infinity (NaN)
+  return localeRank(a) - localeRank(b);
+}
+
+// Fetch + clean + prune-past + SORT + dedupe, soonest first. `fetchJSON` is the
+// widget/app proxy fetcher. Returns [{ name, when:Date|null, place, emoji, raw }].
+//
+// `limit` is deliberately generous: the server-side `order=available_from.asc` is
+// ordering by the row's SCRAPE/publish timestamp, which bears no relation to when
+// the event actually happens (see the sort below). A small limit therefore lops off
+// an ARBITRARY slice of dates — at 60 rows the head of the list was routinely a
+// handful of events weeks out while tonight's plans sat past the cut. Fetching a
+// wider window (~75KB, every 5 min) and sorting locally is what makes "soonest
+// first" true.
+export async function fetchEvents(fetchJSON, { limit = 150 } = {}) {
   const params = new URLSearchParams({
     select: 'id,title,location_address,available_from,available_until,description,url,interest_count,emoji',
     category: 'eq.Events',
@@ -115,7 +166,6 @@ export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
   if (!Array.isArray(rows)) throw new Error('bad events payload');
 
   const now = new Date();
-  const dedupKey = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
   const seen = new Set();
   const out = [];
   for (const r of rows) {
@@ -148,10 +198,28 @@ export async function fetchEvents(fetchJSON, { limit = 60 } = {}) {
       interest: Number(r.interest_count) || 0,
     };
     if (isPast(ev, now)) continue; // prune events already over
-    const key = dedupKey(name);
-    if (seen.has(key)) continue;
-    seen.add(key);
     out.push(ev);
   }
-  return out;
+
+  // SORT BY THE REAL EVENT DATE. The source's `available_from` is the row's
+  // scrape/publish instant, NOT the event's day — scraped rows carry their true
+  // calendar day in the TITLE ("10/3/26: …") and only a placeholder timestamp in
+  // available_from. So the server's `order=available_from.asc` hands back an
+  // essentially arbitrary jumble of dates, and every consumer here (the wall card
+  // takes the first 3; the /events panel lists them in order) was trusting it.
+  // The visible symptom: a card headlined "Out in SF" showing plans 2, 3 and 9
+  // WEEKS away while a dozen things were happening in the city that same day.
+  out.sort(byWhen);
+
+  // Dedupe AFTER sorting, so a recurring series (e.g. a pumpkin patch listed for
+  // four separate weekends) keeps its SOONEST occurrence rather than whichever
+  // one the scraper happened to publish first.
+  const picked = [];
+  for (const ev of out) {
+    const key = dedupKey(ev.name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push(ev);
+  }
+  return picked;
 }
