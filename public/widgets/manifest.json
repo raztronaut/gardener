@@ -54,6 +54,12 @@
       "file": "sf-events.js",
       "enabled": true,
       "order": 9
+    },
+    {
+      "id": "quakes",
+      "file": "quakes.js",
+      "enabled": true,
+      "order": 10
     }
   ]
 }

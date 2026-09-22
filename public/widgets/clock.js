@@ -57,7 +57,11 @@ function seasonInfo(y, m, d) {
   // nears). Split at the halfway point so every day wears a natural adjective.
   const frac = (todayUTC - startUTC) / (nextUTC - startUTC);
   const phase = frac < 0.5 ? 'Early' : 'Late';
-  return { name: s.name, icon: s.icon, day, toNext, phase, nextName: next.name, nextIcon: next.icon };
+  // Which astronomical event opened this season — an equinox for spring/autumn,
+  // a solstice for summer/winter. Named so the four turning days of the year can
+  // announce themselves properly instead of reading as a flat "Early Autumn".
+  const turn = (s.name === 'Spring' || s.name === 'Autumn') ? 'equinox' : 'solstice';
+  return { name: s.name, icon: s.icon, day, toNext, phase, turn, nextName: next.name, nextIcon: next.icon };
 }
 
 export default {
@@ -81,6 +85,8 @@ export default {
       .clk .season b { color:var(--ink-soft); font-weight:600; letter-spacing:.02em; }
       /* countdown to the next turn of the year — a quiet mint clause */
       .clk .season .to { color:var(--mint); }
+      /* the four turning days (an equinox / a solstice) warm to gold for the day */
+      .clk .season.turning b, .clk .season.turning .to { color:var(--gold); }
       .clk .timerow { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
       .clk .time { font-family: var(--font-display); font-weight:600; letter-spacing:-.01em;
         font-size: 78px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
@@ -204,12 +210,22 @@ export default {
         // like home than a numeric "day N", and a mint countdown to the next turn
         // of the year keeps the change gently anticipated — the nearer it is, the
         // more the small number speaks for itself.
-        const toLabel = `${s.toNext}d to ${s.nextName.toLowerCase()} ${s.nextIcon}`;
-        const toShort = `${s.toNext}d ${s.nextIcon}`; // compact fallback when the row is tight
-        season.title = `${s.phase} ${s.name} · day ${s.day} · ${toLabel}`;
+        // Four days a year the season doesn't just "continue" — it TURNS. On day
+        // one, the marker drops the Early/Late phrasing and simply announces it
+        // ("Autumn begins today · the equinox"), warmed to gold so the eye catches
+        // the once-a-quarter moment. Every other day reads as before.
+        const turning = s.day === 1;
+        const toLabel = turning
+          ? `the ${s.turn}`
+          : `${s.toNext}d to ${s.nextName.toLowerCase()} ${s.nextIcon}`;
+        const toShort = turning ? s.turn : `${s.toNext}d ${s.nextIcon}`; // compact fallback when the row is tight
+        season.classList.toggle('turning', turning);
+        season.title = turning
+          ? `${s.name} begins today — the ${s.turn}`
+          : `${s.phase} ${s.name} · day ${s.day} · ${toLabel}`;
         season.replaceChildren(
           ctx.h('span', { class: 'ic' }, s.icon),
-          ctx.h('b', {}, `${s.phase} ${s.name}`),
+          ctx.h('b', {}, turning ? `${s.name} begins today` : `${s.phase} ${s.name}`),
           ctx.h('span', { class: 'to', 'data-full': `· ${toLabel}`, 'data-short': `· ${toShort}` }, `· ${toLabel}`));
         toplineDirty = true;
       }
