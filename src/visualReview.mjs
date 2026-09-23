@@ -31,6 +31,7 @@ export async function reviewScreenshot(pngPath) {
   const msg = await client.messages.create({
     model: config.model,
     max_tokens: 1500,
+    output_config: { effort: config.effort },
     messages: [{
       role: 'user',
       content: [

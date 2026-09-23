@@ -79,6 +79,7 @@ async function runAgent({ prompt, timeoutMs, transcriptPath, label }) {
       options: {
         cwd: paths.ROOT,
         model: config.model,
+        effort: config.effort,
         systemPrompt: buildSystemPrompt(),
         permissionMode: 'bypassPermissions',
         allowedTools: ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Agent', 'TodoWrite'],

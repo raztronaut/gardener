@@ -37,7 +37,10 @@ const num = (v, d) => (v === undefined || v === '' || isNaN(+v) ? d : +v);
 
 export const config = {
   apiKey: E.ANTHROPIC_API_KEY || '',
-  model: E.GARDENER_MODEL || 'claude-opus-4-8',
+  model: E.GARDENER_MODEL || 'claude-opus-5-5',
+  // Reasoning effort for the model (low|medium|high|xhigh|max). Opus 5.5 supports
+  // all levels; 'medium' balances quality against the daily tending's token cost.
+  effort: E.GARDENER_EFFORT || 'medium',
   tz: E.GARDENER_TZ || 'America/Los_Angeles',
   lat: num(E.GARDENER_LAT, 37.7577),
   lon: num(E.GARDENER_LON, -122.4727),
