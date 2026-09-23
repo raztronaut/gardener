@@ -2,11 +2,11 @@
 // SF RATS / FunCheap (see /lib/events.js). The full scrollable list lives behind
 // the /events command (and opening this card fullscreen).
 //
-// The card is TALL (half width, two rows) so a glance always shows the whole
-// day: ONE featured pick gets room to breathe over two lines with its venue and a
-// live countdown, and the rest of TODAY's lineup follows as one-liners led by
-// their start time (as many as fit — overflow rows are trimmed, never clipped).
-// With nothing left today it falls back to the next upcoming events.
+// The card is TALL (half width, two rows) and reads like a day agenda: every
+// event today in time order — a fixed time column (or ALL DAY), the full event
+// name over up to two lines, and its venue beneath. As many as fit are shown;
+// overflow rows are trimmed, never clipped. With nothing left today it falls
+// back to the next upcoming events.
 //
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
@@ -33,49 +33,22 @@ export default {
       .won-hd .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
       .won-hd .all { opacity:.8; }
 
-      .won-list { flex:1; display:flex; flex-direction:column; gap:9px; min-height:0; overflow:hidden; }
-      .won-also .pl { flex:0 1 auto; min-width:0; max-width:38%; font-size:11px; color:var(--ink-faint);
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .won-list { flex:1 1 0; display:flex; flex-direction:column; gap:9px; min-height:0; overflow:hidden; }
 
-      /* The featured pick — the one plan the card is actually recommending. */
-      .won-feat { flex:0 0 auto; min-width:0; }
-      .won-name { font-size:15.5px; font-weight:600; line-height:1.2; color:var(--ink);
+      /* Agenda rows — the readable day view: a fixed time column, then the full
+         event name over up to two lines with its venue beneath. */
+      .won-ag { flex:0 0 auto; display:grid; grid-template-columns:62px 1fr; column-gap:12px; min-width:0;
+        padding-bottom:9px; border-bottom:1px solid var(--stroke); }
+      .won-ag:last-child { border-bottom:none; }
+      .won-ag .tm { font-family:var(--font-mono); font-size:12px; font-weight:600; color:var(--ink);
+        letter-spacing:.02em; padding-top:2px; white-space:nowrap; }
+      .won-ag .tm.all { font-size:10px; color:var(--ink-faint); letter-spacing:.08em; }
+      .won-ag .tm .lv { display:block; margin-top:4px; font-size:9.5px; font-weight:700; color:var(--gold); letter-spacing:.04em; }
+      .won-ag .tm .lv.soon { color:var(--mint); font-weight:600; }
+      .won-ag .nm { font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink); min-width:0;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .won-meta { margin-top:4px; display:flex; align-items:center; gap:7px;
-        min-width:0; white-space:nowrap; overflow:hidden; }
-      .won-place { font-size:11.5px; color:var(--ink-soft); overflow:hidden;
-        text-overflow:ellipsis; white-space:nowrap; min-width:0; }
-      .won-pill { flex:0 0 auto; font-family:var(--font-mono); font-size:9.5px;
-        letter-spacing:.04em; font-weight:600; color:var(--mint);
-        background:rgba(120,247,176,.12); border:1px solid var(--stroke);
-        border-radius:999px; padding:2px 8px; white-space:nowrap; }
-      /* interest pill — a quiet gold star + count on the event drawing the biggest
-         crowd (relative to today's shown picks), so a glance finds the popular plan.
-         Stays hidden on a low-interest day; speaks up only when something's buzzing. */
-      .won-pill.hot { color:var(--gold); background:rgba(255,217,138,.12); }
-      /* live countdown pill — on events happening TODAY. A future start reads as a
-         calm mint "in 2h 15m"; an event under way reads as a warm gold "● on now"
-         so the eye finds tonight's live plans first. Text-only, ticks each minute. */
-      .won-pill.soon { color:var(--mint); background:rgba(120,247,176,.12); }
-      .won-pill.live { color:var(--gold); background:rgba(255,217,138,.16); font-weight:700; }
-      .won-pill.live .dot { font-size:7px; vertical-align:1px; margin-right:1px; }
-      /* "how soon" pill — a hushed neutral countdown on an UPCOMING (not-today) pick
-         ("tomorrow" / "in 5 days" / "in 2 wks"), so a glance answers how far off a
-         plan is without parsing the date — the same grounds-a-date-in-lived-time
-         idiom the clock, weather and HN feed already use. Quiet and un-tinted so it
-         never competes with today's mint/gold live pill. */
-      .won-pill.upc { color:var(--ink-soft); background:rgba(255,255,255,.05); }
-
-      /* The two quieter picks — one line each, led by a mono start-time token so
-         the evening reads in order. Titles ellipsize rather than clamp: at this
-         width a wrapped second line would cost the row below it. */
-      .won-also { flex:0 0 auto; display:flex; align-items:baseline; gap:9px; min-width:0; }
-      .won-when { flex:0 0 46px; font-family:var(--font-mono); font-size:9.5px;
-        letter-spacing:.04em; color:var(--ink-faint); text-align:right; }
-      .won-when.now { color:var(--mint); font-weight:600; }
-      .won-also .t { flex:1; min-width:0; font-size:13.5px; line-height:1.25;
-        color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
+      .won-ag .pl { margin-top:3px; font-size:11.5px; color:var(--ink-faint); white-space:nowrap;
+        overflow:hidden; text-overflow:ellipsis; }
       .won-empty { flex:1; display:flex; align-items:center; justify-content:center;
         text-align:center; color:var(--ink-faint); font-size:13px; padding:0 10px; }
     `);
@@ -94,12 +67,6 @@ export default {
       ? Math.round((new Date(dayKeyFmt.format(when) + 'T00:00:00') - startOfToday) / dayMs)
       : null);
 
-    // Compact clock label for the wall: "7:00 PM" → "7p", "7:30 PM" → "7:30p".
-    const shortTime = (when) => timeFmt.format(when)
-      .replace(/:00\s/, ' ')
-      .replace(/\s?AM$/, 'a').replace(/\s?PM$/, 'p')
-      .replace(/\s+/g, '');
-
     // Live countdown for a today-event's start. Future → a calm "in 2h 15m" /
     // "in 40m"; under way (start passed, but the events lib's 2h grace keeps it in
     // the list) → a warm "on now". Returns { txt, cls } or null when not applicable.
@@ -114,44 +81,6 @@ export default {
       return { txt: 'on now', cls: 'live' };
     };
 
-    // A compact "how soon" phrase for an UPCOMING (not-today) event, grounding the
-    // date in lived time at a glance ("tomorrow" / "in 5 days" / "in 2 wks").
-    // Returns the label string or null (today / past / undated), so the pill simply
-    // hides when there's nothing to say.
-    const relWhen = (when, isToday) => {
-      if (!when || isNaN(when) || isToday) return null;
-      const days = dayOffset(when);
-      if (days == null || days <= 0) return null;
-      if (days === 1) return 'tomorrow';
-      if (days < 7) return `in ${days} days`;
-      const wk = Math.round(days / 7);
-      return wk <= 1 ? 'next week' : `in ${wk} wks`;
-    };
-
-    // The heading: a mint "TODAY" / "TOMORROW" (or bare date) for the featured
-    // pick's day, then the written date, then the size of the full listing.
-    const dayHead = (when) => {
-      const diff = dayOffset(when);
-      if (diff == null) return ['SOON', ''];
-      const wd = wdayFmt.format(when).toUpperCase();
-      const dm = `${wd} ${when.getDate()} ${MON[when.getMonth()]}`;
-      return [diff <= 0 ? 'TODAY' : (diff === 1 ? 'TOMORROW' : null), dm];
-    };
-
-    // The one-line token leading a quieter pick: its start time when it has one,
-    // its day when that differs from the heading's, else a hushed bullet.
-    const alsoToken = (e, headDay) => {
-      const off = dayOffset(e.when);
-      if (off != null && off !== headDay) {
-        if (off === 1) return { txt: 'TMRW', now: false };
-        if (off > 1) return { txt: `${e.when.getDate()} ${MON[e.when.getMonth()]}`, now: false };
-      }
-      if (e.when && !e.allDay && !isNaN(e.when)) {
-        return { txt: shortTime(e.when), now: off != null && off <= 0 };
-      }
-      return { txt: '·', now: false };
-    };
-
     const head = ctx.h('div', { class: 'won-hd', style: 'display:none' });
     const list = ctx.h('div', { class: 'won-list' });
     body.replaceChildren(ctx.h('div', { class: 'won' }, head, list));
@@ -159,63 +88,46 @@ export default {
     const render = (evs) => {
       const all = evs || [];
       const todayEvs = all.filter((e) => { const o = dayOffset(e.when); return o != null && o <= 0; });
-      const picks = todayEvs.length ? todayEvs.slice(0, 12) : all.slice(0, 10);
+      const showingToday = todayEvs.length > 0;
+      const picks = (showingToday ? todayEvs : all.slice(0, 10)).slice();
       if (!picks.length) {
         head.style.display = 'none';
         list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now'));
         return;
       }
+      // Chronological: all-day / undated first, then by start time.
+      const timed = (e) => e.when && !e.allDay && !isNaN(e.when);
+      picks.sort((x, y) => (timed(x) ? x.when.getTime() : 0) - (timed(y) ? y.when.getTime() : 0));
 
-      const feat = picks[0];
-      const [cap, dm] = dayHead(feat.when);
+      const first = picks[0];
+      const cap = showingToday ? 'TODAY' : (dayOffset(first.when) === 1 ? 'TOMORROW' : 'COMING UP');
+      const dm = first.when && !isNaN(first.when) ? `${wdayFmt.format(first.when).toUpperCase()} ${first.when.getDate()} ${MON[first.when.getMonth()]}` : '';
       head.replaceChildren(
-        cap ? ctx.h('span', { class: 'tdy' }, cap) : null,
+        ctx.h('span', { class: 'tdy' }, cap),
         dm ? ctx.h('span', {}, dm) : null,
         ctx.h('span', { class: 'rule' }),
-        ctx.h('span', { class: 'all' }, todayEvs.length ? `${todayEvs.length} TODAY · ${all.length} FREE` : `${all.length} FREE`));
+        ctx.h('span', { class: 'all' }, `${picks.length} EVENT${picks.length === 1 ? '' : 'S'}`));
       head.style.display = '';
 
-      // How busy is the busiest shown event? The interest star is surfaced only for
-      // the featured pick and only when it's near that peak, so the flag reads as
-      // "this is one of the popular ones" rather than decorating every row.
-      const maxInterest = Math.max(0, ...picks.map((e) => (Number.isFinite(e.interest) ? e.interest : 0)));
-      const featInterest = Number.isFinite(feat.interest) ? feat.interest : 0;
-
-      const isToday = (e) => { const o = dayOffset(e.when); return o != null && o <= 0; };
-      const featToday = isToday(feat);
-      const live = liveCountdown(feat.when, feat.allDay, featToday);
-      const rel = !live ? relWhen(feat.when, featToday) : null;
-      const time = (feat.when && !feat.allDay && !isNaN(feat.when)) ? shortTime(feat.when) : '';
-      const hot = maxInterest >= 8 && featInterest >= Math.max(8, maxInterest * 0.5);
-
-      const metaKids = [
-        feat.place ? ctx.h('span', { class: 'won-place' }, `📍 ${feat.place}`) : null,
-        live ? ctx.h('span', {
-          class: `won-pill ${live.cls}`,
-          title: live.cls === 'live' ? 'happening now' : `starts ${timeFmt.format(feat.when)}`,
-        }, ...(live.cls === 'live' ? [ctx.h('span', { class: 'dot' }, '●'), ' on now'] : [live.txt])) : null,
-        rel ? ctx.h('span', {
-          class: 'won-pill upc',
-          title: feat.when ? `starts ${feat.when.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: TZ })}` : '',
-        }, rel) : null,
-        time ? ctx.h('span', { class: 'won-pill' }, time) : null,
-        hot ? ctx.h('span', { class: 'won-pill hot', title: `${featInterest} people interested` }, `★ ${featInterest}`) : null,
-      ].filter(Boolean);
-
-      const headDay = dayOffset(feat.when);
-      const also = picks.slice(1).map((e) => {
-        const tok = alsoToken(e, headDay);
-        return ctx.h('div', { class: 'won-also' },
-          ctx.h('div', { class: `won-when${tok.now ? ' now' : ''}` }, tok.txt),
-          ctx.h('div', { class: 't', title: e.name }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
-          e.place ? ctx.h('div', { class: 'pl' }, e.place) : null);
-      });
-
-      list.replaceChildren(
-        ctx.h('div', { class: 'won-feat' },
-          ctx.h('div', { class: 'won-name', title: feat.name }, `${feat.emoji ? feat.emoji + ' ' : ''}${feat.name}`),
-          metaKids.length ? ctx.h('div', { class: 'won-meta' }, ...metaKids) : null),
-        ...also);
+      list.replaceChildren(...picks.map((e) => {
+        const isT = (() => { const o = dayOffset(e.when); return o != null && o <= 0; })();
+        const live = liveCountdown(e.when, e.allDay, isT);
+        let tm;
+        if (timed(e)) {
+          const clock = timeFmt.format(e.when).replace(':00', '');
+          const dayTag = !isT && showingToday === false && dayOffset(e.when) > 1
+            ? `${e.when.getDate()} ${MON[e.when.getMonth()]}` : null;
+          tm = ctx.h('div', { class: 'tm' }, dayTag || clock,
+            live ? ctx.h('span', { class: `lv${live.cls === 'soon' ? ' soon' : ''}` }, live.cls === 'live' ? '● ON NOW' : live.txt) : null);
+        } else {
+          tm = ctx.h('div', { class: 'tm all' }, 'ALL DAY');
+        }
+        return ctx.h('div', { class: 'won-ag', title: e.name },
+          tm,
+          ctx.h('div', { style: 'min-width:0' },
+            ctx.h('div', { class: 'nm' }, e.name),
+            e.place ? ctx.h('div', { class: 'pl' }, e.place) : null));
+      }));
       // Fit: drop trailing rows until the list no longer overflows the card.
       const fit = () => { while (list.children.length > 1 && list.scrollHeight > list.clientHeight + 1) list.lastChild.remove(); };
       fit(); requestAnimationFrame(fit);

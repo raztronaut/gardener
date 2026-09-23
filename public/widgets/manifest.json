@@ -44,14 +44,14 @@
       "order": 8
     },
     {
-      "id": "sf-events",
-      "file": "sf-events.js",
+      "id": "gardyn",
+      "file": "gardyn.js",
       "enabled": true,
       "order": 9
     },
     {
-      "id": "gardyn",
-      "file": "gardyn.js",
+      "id": "sf-events",
+      "file": "sf-events.js",
       "enabled": true,
       "order": 10
     }

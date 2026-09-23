@@ -25,7 +25,9 @@ const KINDS = {
   green: { label: 'Greens', color: '#1fa874' },
 };
 
-// sp = sprout window (days), m = first bloom / harvest window (days), pos = pods.
+// sp = sprout window (days), m = first bloom / first-cut window (days), pos = pods.
+// Leafy greens: Gardyn says most are ready to harvest in 3–5 weeks (first outer-leaf
+// cut at ~4 in), so their window starts at day 21 and runs to full size.
 export const PLANTS = [
   { n: 'White Petunia', k: 'flower', sp: [7, 12], m: [30, 40], pos: ['R5'], ht: '1 ft, trails',
     note: 'Not edible. If it has sprouted but shows no true leaves 14 days later, add plant food. Trails as it grows; deadhead spent blooms.' },
@@ -37,15 +39,15 @@ export const PLANTS = [
     note: 'Feathery magenta, orange and yellow plumes. Watch for aphids.' },
   { n: 'Purple Snapdragon', k: 'flower', sp: [7, 20], m: [80, 115], pos: ['R4'], ht: '8–10 in',
     note: 'Blooms in several waves — deadhead to keep them coming. Cut at 45° above a leaf node, leaving a third of the plant.' },
-  { n: 'Bull’s Blood Beet', k: 'green', sp: [5, 10], m: [35, 35], pos: ['R7'], ht: '1 ft',
+  { n: 'Bull’s Blood Beet', k: 'green', sp: [5, 10], m: [21, 35], pos: ['R7'], ht: '1 ft',
     note: 'Deep-red leaves; harvest for 4–5 weeks.' },
-  { n: 'Yellow Swiss Chard', k: 'green', sp: [7, 21], m: [32, 60], pos: ['L4'], ht: '1 ft',
+  { n: 'Yellow Swiss Chard', k: 'green', sp: [7, 21], m: [28, 60], pos: ['L4'], ht: '1 ft',
     note: 'Harvest the outer leaves once they reach 3 in.' },
-  { n: 'Breen', k: 'green', sp: [7, 21], m: [45, 45], pos: ['L6'], ht: 'under 1 ft',
+  { n: 'Breen', k: 'green', sp: [7, 21], m: [21, 45], pos: ['L6'], ht: 'under 1 ft',
     note: 'Harvest outer leaves at 4 in; productive for 3–5 weeks.' },
-  { n: 'Butterhead', k: 'green', sp: [7, 21], m: [45, 45], pos: ['R3'], ht: 'under 1 ft',
+  { n: 'Butterhead', k: 'green', sp: [7, 21], m: [21, 45], pos: ['R3'], ht: 'under 1 ft',
     note: 'Harvest outer leaves at 4 in; prefers 60–70°F.' },
-  { n: 'Green Salanova', k: 'green', sp: [7, 14], m: [55, 55], pos: ['L2'], ht: 'under 1 ft',
+  { n: 'Green Salanova', k: 'green', sp: [7, 14], m: [21, 55], pos: ['L2'], ht: 'under 1 ft',
     note: 'Harvest outer leaves at 4 in.' },
   { n: 'Red Sorrel', k: 'herb', sp: [7, 14], m: [60, 75], pos: ['L1'], ht: 'under 1 ft',
     note: 'Lemony red-veined leaves; harvest for 3–4 weeks. Watch for thrips.' },
@@ -133,99 +135,98 @@ const MONTHS = (() => {
 })();
 
 const STYLE = `
-  .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:7px; }
-  .gd-top { flex:0 0 auto; display:flex; align-items:flex-end; gap:12px; }
-  .gd-day { font-family:var(--font-display); font-weight:700; font-size:34px; line-height:.85; color:var(--ink); }
-  .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.06em; margin-right:4px; }
-  .gd-stage { display:flex; flex-direction:column; gap:3px; min-width:0; }
-  .gd-stage .st { font-size:15px; font-weight:700; color:var(--mint); line-height:1; }
-  .gd-stage .kit { font-family:var(--font-mono); font-size:9.5px; letter-spacing:.08em; color:var(--ink-faint);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gd-light { margin-left:auto; flex:0 0 auto; font-family:var(--font-mono); font-size:10px; letter-spacing:.06em;
-    color:var(--ink-soft); border:1px solid var(--stroke); border-radius:999px; padding:3px 9px; }
-  .gd-next { flex:0 0 auto; display:flex; align-items:baseline; gap:8px; min-width:0;
-    font-size:12.5px; color:var(--ink-soft); line-height:1.25; }
-  .gd-next .k { flex:0 0 auto; font-family:var(--font-mono); font-size:9.5px; letter-spacing:.1em; color:var(--gold); }
-  .gd-next .v { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .gd-next .v b { color:var(--ink); font-weight:600; }
+  .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:12px; }
+  .gd-top { flex:0 0 auto; display:flex; align-items:baseline; gap:12px; }
+  .gd-day { font-family:var(--font-display); font-weight:700; font-size:44px; line-height:.85; color:var(--ink); }
+  .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.08em; margin-right:5px; }
+  .gd-st { font-size:16px; font-weight:700; color:var(--mint); }
+  .gd-light { margin-left:auto; font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); }
+  .gd-next { flex:0 0 auto; font-size:13px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gd-next b { color:var(--gold); font-weight:600; }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
-  .gd-row, .gd-axis { display:grid; grid-template-columns: 124px 1fr 56px; align-items:center; column-gap:9px; }
-  .gd-axis { height:14px; flex:0 0 auto; }
+  .gd-row, .gd-axis { display:grid; grid-template-columns: 104px 1fr 36px; align-items:center; column-gap:10px; }
+  .gd-axis { height:12px; flex:0 0 auto; }
   .gd-axis .ticks { position:relative; height:100%; }
   .gd-axis .tk { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font-mono);
     font-size:8.5px; letter-spacing:.08em; color:var(--ink-faint); }
-  .gd-axis .hd { font-family:var(--font-mono); font-size:8.5px; letter-spacing:.1em; color:var(--ink-faint); text-align:right; }
-  .gd-grp { flex:0 0 auto; display:flex; align-items:center; gap:7px; margin:3px 0 0;
-    font-family:var(--font-mono); font-size:9px; letter-spacing:.14em; color:var(--ink-faint); }
-  .gd-grp i { width:7px; height:7px; border-radius:50%; display:inline-block; }
-  .gd-grp .sep { opacity:.5; }
   .gd-rows { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-evenly; }
-  .gd-row { flex:0 0 auto; height:12.5px; }
-  .gd-row .nm { font-size:11.5px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gd-row.fl .nm { font-size:12px; color:var(--ink); font-weight:600; }
+  .gd-row { flex:0 0 auto; height:18px; }
+  .gd-row .nm { font-size:13px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gd-row.grp .nm { color:var(--ink-soft); }
   .gd-row .tr { position:relative; height:100%; }
   .gd-row .tr::before { content:''; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--stroke); }
-  .gd-row .sp { position:absolute; top:50%; height:4px; margin-top:-2px; border-radius:2px; opacity:.38; }
-  .gd-row .mw { position:absolute; top:50%; height:7px; margin-top:-3.5px; border-radius:4px; min-width:5px; }
-  .gd-row .now { position:absolute; top:-2px; bottom:-2px; width:1.5px; margin-left:-.75px; background:var(--gold); opacity:.9; }
-  .gd-row .rt { font-family:var(--font-mono); font-size:10.5px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
+  .gd-row .sp { position:absolute; top:50%; height:4px; margin-top:-2px; border-radius:2px; opacity:.35; }
+  .gd-row .mw { position:absolute; top:50%; height:8px; margin-top:-4px; border-radius:4px; min-width:6px; }
+  .gd-row.grp .mw { opacity:.5; }
+  .gd-row .now { position:absolute; top:-3px; bottom:-3px; width:1.5px; margin-left:-.75px; background:var(--gold); }
+  .gd-row .rt { font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
   .gd-row.ready .rt { color:var(--mint); font-weight:600; }
+  .gd-row .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:1px; }
 `;
 
+const tip = (p) => `${p.n}${p.pos.length > 1 ? ' ×2' : ''} · pod ${p.pos.join(' & ')} · sprouts ${rangeTxt(p.sp)} · `
+  + `${p.k === 'flower' ? 'first blooms' : 'first cut'} ${rangeTxt(p.m)}`;
+const bar = (h, cls, a, b, c) => h('div', { class: cls, style: { left: pct(a), width: `calc(${pct(b)} - ${pct(a)})`, background: c } });
+
+// One plant = one row (sprout window faint, first bloom / cut window solid).
 function row(h, p, day) {
   const c = KINDS[p.k].color;
   const st = plantStatus(p, day);
-  const title = `${p.n}${p.pos.length > 1 ? ' ×2' : ''} · pod ${p.pos.join(' & ')} · sprouts ${rangeTxt(p.sp)} · `
-    + `${p.k === 'flower' ? 'first blooms' : 'first harvest'} ${rangeTxt(p.m)}`;
-  return h('div', { class: `gd-row${p.k === 'flower' ? ' fl' : ''}${st.phase === 'ready' || st.phase === 'ongoing' ? ' ready' : ''}`, title },
-    h('div', { class: 'nm' }, p.n + (p.pos.length > 1 ? ' ×2' : '')),
+  const ready = st.phase === 'ready' || st.phase === 'ongoing';
+  return h('div', { class: `gd-row${ready ? ' ready' : ''}`, title: tip(p) },
+    h('div', { class: 'nm' }, h('span', { class: 'dot', style: { background: c } }), p.n + (p.pos.length > 1 ? ' ×2' : '')),
     h('div', { class: 'tr' },
-      h('div', { class: 'sp', style: { left: pct(p.sp[0]), width: `calc(${pct(p.sp[1])} - ${pct(p.sp[0])})`, background: c } }),
-      h('div', { class: 'mw', style: { left: pct(p.m[0]), width: `calc(${pct(p.m[1])} - ${pct(p.m[0])})`, background: c } }),
+      bar(h, 'sp', p.sp[0], p.sp[1], c),
+      bar(h, 'mw', p.m[0], p.m[1], c),
       day >= 0 && day <= AXIS_DAYS ? h('div', { class: 'now', style: { left: pct(day) } }) : null),
-    h('div', { class: 'rt' }, st.label));
+    h('div', { class: 'rt' }, ready ? (p.k === 'flower' ? 'bloom' : 'ready') : `${p.m[0] - day}d`));
 }
 
-function careLine(h, day) {
+// A whole kind collapsed into one row: every member's window drawn as a
+// translucent segment on the same track (overlaps read darker).
+function groupRow(h, kind, plants, day) {
+  const c = KINDS[kind].color;
+  const first = Math.min(...plants.map((p) => p.m[0]));
+  const ready = plants.some((p) => day >= p.m[0]);
+  return h('div', { class: `gd-row grp${ready ? ' ready' : ''}`, title: plants.map(tip).join('\n') },
+    h('div', { class: 'nm' }, h('span', { class: 'dot', style: { background: c } }), `${KINDS[kind].label} ×${plants.length}`),
+    h('div', { class: 'tr' },
+      ...plants.map((p) => bar(h, 'mw', p.m[0], p.m[1], c)),
+      day >= 0 && day <= AXIS_DAYS ? h('div', { class: 'now', style: { left: pct(day) } }) : null),
+    h('div', { class: 'rt' }, ready ? 'ready' : `${first - day}d`));
+}
+
+function nextText(day) {
   const { active, upcoming } = nextCare(day);
-  if (active.length) {
-    const a = active[0];
-    return h('div', { class: 'gd-next', title: a.s },
-      h('span', { class: 'k' }, 'NOW'),
-      h('span', { class: 'v' }, h('b', {}, a.t), ` · through ${fmtShort(a.to)}`));
-  }
+  if (active.length) return { k: 'Now', t: active[0].t, when: `until ${fmtShort(active[0].to)}`, s: active[0].s };
   const n = upcoming[0];
-  if (!n) return null;
-  const inD = n.d - day;
-  return h('div', { class: 'gd-next', title: n.s },
-    h('span', { class: 'k' }, 'NEXT'),
-    h('span', { class: 'v' }, h('b', {}, n.t), ` · ${fmtShort(n.d)}${inD > 0 ? ` (in ${inD}d)` : ' (today)'}`));
+  return n ? { k: 'Next', t: n.t, when: fmtShort(n.d), s: n.s } : null;
+}
+
+function chart(h, day, detailed) {
+  const flowers = PLANTS.filter((p) => p.k === 'flower').sort((a, b) => a.m[0] - b.m[0]);
+  const rest = (k) => PLANTS.filter((p) => p.k === k).sort((a, b) => a.m[0] - b.m[0]);
+  const rows = detailed
+    ? [...flowers, ...rest('herb'), ...rest('green')].map((p) => row(h, p, day))
+    : [...flowers.map((p) => row(h, p, day)), groupRow(h, 'green', rest('green'), day), groupRow(h, 'herb', rest('herb'), day)];
+  return h('div', { class: 'gd-chart' },
+    h('div', { class: 'gd-axis' }, h('div', {}),
+      h('div', { class: 'ticks' }, ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t))),
+      h('div', {})),
+    h('div', { class: 'gd-rows' }, ...rows));
 }
 
 function build(h, body, tz) {
   const day = todayIndex(tz);
-  const flowers = PLANTS.filter((p) => p.k === 'flower').sort((a, b) => a.m[0] - b.m[0]);
-  const others = PLANTS.filter((p) => p.k !== 'flower').sort((a, b) => a.m[0] - b.m[0]);
-  const dot = (k) => h('i', { style: { background: KINDS[k].color } });
+  const nx = nextText(day);
   body.replaceChildren(h('div', { class: 'gd' },
     h('div', { class: 'gd-top' },
       h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
-      h('div', { class: 'gd-stage' },
-        h('div', { class: 'st' }, gardenStage(day)),
-        h('div', { class: 'kit' }, `${KIT.toUpperCase()} · SINCE ${fmtShort(0).toUpperCase()}`)),
-      h('div', { class: 'gd-light', title: 'Gardyn recommends 14–16 h at full brightness' }, `${LIGHT_HOURS}h light`)),
-    careLine(h, day),
-    h('div', { class: 'gd-chart' },
-      h('div', { class: 'gd-axis' },
-        h('div', {}),
-        h('div', { class: 'ticks' }, ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t))),
-        h('div', { class: 'hd' }, 'READY IN')),
-      h('div', { class: 'gd-rows' },
-        h('div', { class: 'gd-grp' }, dot('flower'), 'FLOWERS'),
-        ...flowers.map((p) => row(h, p, day)),
-        h('div', { class: 'gd-grp' }, dot('herb'), 'HERBS', h('span', { class: 'sep' }, '·'), dot('green'), 'GREENS'),
-        ...others.map((p) => row(h, p, day))))));
+      h('div', { class: 'gd-st' }, gardenStage(day)),
+      h('div', { class: 'gd-light', title: 'Gardyn recommends 14–16 h at full brightness' }, `${LIGHT_HOURS}h ☀`)),
+    nx ? h('div', { class: 'gd-next', title: nx.s }, h('b', {}, `${nx.k} · `), `${nx.t}, ${nx.when}`) : null,
+    chart(h, day, false)));
 }
 
 export default {
@@ -295,18 +296,14 @@ export default {
         h('div', { class: 'dt' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
         h('div', {}, h('div', { class: 't' }, c.t), h('div', { class: 's' }, c.s)));
     });
-    const chart = h('div', { class: 'gf-chart gd-chart' });
-    const tmp = h('div');
-    build(h, tmp, tz);
-    const rowsEl = tmp.querySelector('.gd-chart');
-    if (rowsEl) chart.replaceChildren(...rowsEl.childNodes);
+    const chartEl = chart(h, day, true);
     body.replaceChildren(h('div', { class: 'gf' },
       h('div', { class: 'gf-hero' },
         h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
         h('div', {},
           h('div', { class: 'st' }, gardenStage(day)),
           h('div', { class: 'sub' }, `${DEVICE} · ${KIT} kit · 16 pods · planted ${fmtShort(0)} · ${LIGHT_HOURS} h light/day (Gardyn recommends 14–16 h)`))),
-      h('div', {}, h('h3', {}, 'TRAJECTORY · SPROUT WINDOW (FAINT) → FIRST BLOOM / HARVEST (SOLID)'), chart),
+      h('div', { class: 'gf-chart' }, h('h3', {}, 'TRAJECTORY · SPROUT WINDOW (FAINT) → FIRST BLOOM / FIRST CUT (SOLID)'), chartEl),
       h('div', { class: 'gf-grid' },
         h('div', {}, h('h3', {}, 'POD LAYOUT · TOP → BOTTOM'), h('div', { class: 'gf-pods' }, ...pods)),
         h('div', {}, h('h3', {}, 'CARE CALENDAR'), h('div', { class: 'gf-cal' }, ...cal))),
