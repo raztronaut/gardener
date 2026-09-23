@@ -205,11 +205,15 @@ function nextText(day) {
 }
 
 function chart(h, day, detailed) {
-  const flowers = PLANTS.filter((p) => p.k === 'flower').sort((a, b) => a.m[0] - b.m[0]);
-  const rest = (k) => PLANTS.filter((p) => p.k === k).sort((a, b) => a.m[0] - b.m[0]);
+  // Ranked by how soon each plant (or group) reaches its first harvest / bloom.
+  const soon = (a, b) => a.m[0] - b.m[0] || a.m[1] - b.m[1];
+  const of = (k) => PLANTS.filter((p) => p.k === k).sort(soon);
+  const first = (ps) => ({ m: [Math.min(...ps.map((p) => p.m[0])), Math.min(...ps.map((p) => p.m[1]))] });
   const rows = detailed
-    ? [...flowers, ...rest('herb'), ...rest('green')].map((p) => row(h, p, day))
-    : [...flowers.map((p) => row(h, p, day)), groupRow(h, 'green', rest('green'), day), groupRow(h, 'herb', rest('herb'), day)];
+    ? [...PLANTS].sort(soon).map((p) => row(h, p, day))
+    : [...of('flower').map((p) => ({ ...p, el: () => row(h, p, day) })),
+      ...['green', 'herb'].map((k) => ({ ...first(of(k)), el: () => groupRow(h, k, of(k), day) }))]
+      .sort(soon).map((r) => r.el());
   return h('div', { class: 'gd-chart' },
     h('div', { class: 'gd-axis' }, h('div', {}),
       h('div', { class: 'ticks' }, ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t))),
