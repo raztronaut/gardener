@@ -2,11 +2,11 @@
 // SF RATS / FunCheap (see /lib/events.js). The full scrollable list lives behind
 // the /events command (and opening this card fullscreen).
 //
-// The card is now HALF width (it shares the bottom band with the Seismic card),
-// so the old three-equal-columns strip has become a hierarchy: ONE featured pick
-// gets room to breathe over two lines with its venue and a live countdown, and
-// two quieter one-liners sit beneath it, each led by its start time. The day and
-// the size of the full listing are said ONCE in the heading.
+// The card is TALL (half width, two rows) so a glance always shows the whole
+// day: ONE featured pick gets room to breathe over two lines with its venue and a
+// live countdown, and the rest of TODAY's lineup follows as one-liners led by
+// their start time (as many as fit — overflow rows are trimmed, never clipped).
+// With nothing left today it falls back to the next upcoming events.
 //
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
@@ -17,7 +17,7 @@ export default {
   id: 'sf-events',
   title: 'Out in SF',
   icon: '🎉',
-  size: 'md',
+  size: 'tall',
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
@@ -33,7 +33,9 @@ export default {
       .won-hd .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
       .won-hd .all { opacity:.8; }
 
-      .won-list { flex:1; display:flex; flex-direction:column; gap:7px; min-height:0; }
+      .won-list { flex:1; display:flex; flex-direction:column; gap:9px; min-height:0; overflow:hidden; }
+      .won-also .pl { flex:0 1 auto; min-width:0; max-width:38%; font-size:11px; color:var(--ink-faint);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
       /* The featured pick — the one plan the card is actually recommending. */
       .won-feat { flex:0 0 auto; min-width:0; }
@@ -68,10 +70,10 @@ export default {
          the evening reads in order. Titles ellipsize rather than clamp: at this
          width a wrapped second line would cost the row below it. */
       .won-also { flex:0 0 auto; display:flex; align-items:baseline; gap:9px; min-width:0; }
-      .won-when { flex:0 0 42px; font-family:var(--font-mono); font-size:9.5px;
+      .won-when { flex:0 0 46px; font-family:var(--font-mono); font-size:9.5px;
         letter-spacing:.04em; color:var(--ink-faint); text-align:right; }
       .won-when.now { color:var(--mint); font-weight:600; }
-      .won-also .t { flex:1; min-width:0; font-size:12.5px; line-height:1.25;
+      .won-also .t { flex:1; min-width:0; font-size:13.5px; line-height:1.25;
         color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
       .won-empty { flex:1; display:flex; align-items:center; justify-content:center;
@@ -156,7 +158,8 @@ export default {
 
     const render = (evs) => {
       const all = evs || [];
-      const picks = all.slice(0, 3);
+      const todayEvs = all.filter((e) => { const o = dayOffset(e.when); return o != null && o <= 0; });
+      const picks = todayEvs.length ? todayEvs.slice(0, 12) : all.slice(0, 10);
       if (!picks.length) {
         head.style.display = 'none';
         list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now'));
@@ -169,7 +172,7 @@ export default {
         cap ? ctx.h('span', { class: 'tdy' }, cap) : null,
         dm ? ctx.h('span', {}, dm) : null,
         ctx.h('span', { class: 'rule' }),
-        ctx.h('span', { class: 'all' }, all.length > 1 ? `${all.length} FREE` : '1 FREE'));
+        ctx.h('span', { class: 'all' }, todayEvs.length ? `${todayEvs.length} TODAY · ${all.length} FREE` : `${all.length} FREE`));
       head.style.display = '';
 
       // How busy is the busiest shown event? The interest star is surfaced only for
@@ -204,7 +207,8 @@ export default {
         const tok = alsoToken(e, headDay);
         return ctx.h('div', { class: 'won-also' },
           ctx.h('div', { class: `won-when${tok.now ? ' now' : ''}` }, tok.txt),
-          ctx.h('div', { class: 't', title: e.name }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`));
+          ctx.h('div', { class: 't', title: e.name }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
+          e.place ? ctx.h('div', { class: 'pl' }, e.place) : null);
       });
 
       list.replaceChildren(
@@ -212,6 +216,9 @@ export default {
           ctx.h('div', { class: 'won-name', title: feat.name }, `${feat.emoji ? feat.emoji + ' ' : ''}${feat.name}`),
           metaKids.length ? ctx.h('div', { class: 'won-meta' }, ...metaKids) : null),
         ...also);
+      // Fit: drop trailing rows until the list no longer overflows the card.
+      const fit = () => { while (list.children.length > 1 && list.scrollHeight > list.clientHeight + 1) list.lastChild.remove(); };
+      fit(); requestAnimationFrame(fit);
     };
 
     // Fetch BEFORE touching the list so a failed refresh keeps the last good render.

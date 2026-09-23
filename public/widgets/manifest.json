@@ -1,5 +1,5 @@
 {
-  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest. NOTE: GARDEN_RULES.md lists widgets the humans have permanently banned — never re-add them.",
+  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest. NOTE: GARDEN_RULES.md lists widgets the humans have permanently banned \u2014 never re-add them.",
   "widgets": [
     {
       "id": "clock",
@@ -18,12 +18,6 @@
       "file": "air-quality.js",
       "enabled": true,
       "order": 3
-    },
-    {
-      "id": "transit",
-      "file": "transit.js",
-      "enabled": true,
-      "order": 4
     },
     {
       "id": "weather",
@@ -56,8 +50,8 @@
       "order": 9
     },
     {
-      "id": "quakes",
-      "file": "quakes.js",
+      "id": "gardyn",
+      "file": "gardyn.js",
       "enabled": true,
       "order": 10
     }

@@ -35,13 +35,19 @@ every day, including quiet no-feedback days.
   gardener-blink-live services in any form. The humans asked to remove the Blink camera and stop the
   system connecting to it. (Removed 2026-07-28.)
 
+- **BART / transit departure board** — do not add a BART, Muni, transit, or train/bus departure
+  widget (public/widgets/transit.js) in any form. The humans asked to remove it. (Removed 2026-09-23.)
+- **Seismic / earthquakes** — do not add an earthquake, seismic, or USGS quake widget
+  (public/widgets/quakes.js) in any form. The humans asked to remove it. (Removed 2026-09-23.)
+
 ## Standing behaviours the humans asked for (keep these working)
 - **Full-screen reminders are Enter/Esc-dismissible** — the trash, street-sweeping car, and plant
   reminders must always be dismissible by pressing Enter or Esc (not just the on-screen button).
   (Requested 2026-07-26.)
-- **Weekly plant-watering reminder** — a friendly full-screen GREEN reminder to water the plants,
-  once a week starting 2026-07-31 (#plantalarm in index.html + wirePlantAlarm in app.js). The FIRST
-  occurrence shows Gui's personal note; later weeks show the short nudge. Keep it weekly. (Requested 2026-07-26.)
+- **Fortnightly plant-watering reminder** — a friendly full-screen GREEN "time to water the plants"
+  reminder EVERY TWO WEEKS (anchored 2026-07-31; #plantalarm in index.html + wirePlantAlarm in app.js).
+  Generic wording only — no personal note, no names ("Max"). Do not make it weekly again.
+  (Requested 2026-07-26; changed to fortnightly + generic 2026-09-23.)
 - **Tuesday curb-trash takeover must be big, red, flashing, and start at 5 PM** — every Tuesday the
   trash goes to the curb for very-early-Wednesday pickup, so the full-screen flashing-red TAKEOVER
   (#trashalarm) must fire from 17:00 (5 PM) onwards until acknowledged — unmissable, not just the
@@ -58,9 +64,7 @@ every day, including quiet no-feedback days.
 - No year-progress BAR on the Time card — the humans disliked the percentage bar/rail that
   sat behind the "Day N" year reading. Keep the year reading as a quiet TEXT line only
   ("Day 262 · 103 left … 72%"); do not re-add a rail/fill/gauge behind it. (Removed 2026-09-19.)
-- Keep the BART departure board glanceable, not dense — the humans found it too busy after
-  detail kept accreting. Prefer a clean two-line tile (destination + platform, then the big
-  "N min" countdown with next trains). Don't pile extra per-train pills/lines back on. (2026-09-19.)
+- (Superseded 2026-09-23: the BART board was removed entirely — see Banned widgets.)
 
 ## How to maintain this file (you may append, never weaken)
 - When a feedback note expresses a STANDING preference — anything phrased as "never",

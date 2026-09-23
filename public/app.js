@@ -796,59 +796,38 @@ function wireStreetAlarm() {
   setInterval(refreshStreetAlarm, 30000);
 }
 
-// ---- weekly plant-watering reminder ----------------------------------------
-// A friendly full-screen GREEN nudge to water the plants, once a week, starting on
-// PLANT_START. The FIRST occurrence carries a personal note (from Gui); every later
-// week is the short "please water the plants" nudge. Shows all day on a watering day
-// until acknowledged (button or Enter/Esc), then re-arms the following week. Ack is
-// stamped with that occurrence's date in localStorage. (?planttest=1 / ?planttest=note
-// force it on for QA.) Hidden in screenshot mode so QA captures the dashboard.
+// ---- fortnightly plant-watering reminder -----------------------------------
+// A friendly full-screen GREEN nudge to water the house plants, every two weeks,
+// anchored to PLANT_START. Shows all day on a watering day until acknowledged
+// (button or Enter/Esc), then re-arms two weeks later. Ack is stamped with that
+// occurrence's date in localStorage. (?planttest=1 forces it on for QA.) Hidden in
+// screenshot mode so QA captures the dashboard.
 const PLANT_ACK = 'garden.plantWaterAck';
-const PLANT_START = '2026-07-31'; // first reminder — 5 days after the 2026-07-26 tending
-const PLANT_NOTE = `hey, this is gui from the past. i hope you are doing well buddy. so here's the thing man — since talbs isn't here i need you to water these plants. just give them enough water so they don't die. there's 4 plants here in the living room that need water. maybe some in the back, idk, check it out. give them good water every week but don't overwater them. this will show up again next week to remind you — press esc or enter to dismiss it. thanks buddy, i hope you and jennifer are enjoying the place alone 😉`;
+const PLANT_START = '2026-07-31'; // anchor date for the fortnightly cadence
+const PLANT_EVERY_DAYS = 14;
 // Local YYYY-MM-DD in the garden's timezone.
 function plantDayKey(now) {
   const tz = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
-// Which weekly occurrence is today (0 = first, 1 = second, …), or null if today
-// isn't a watering day. Anchored to PLANT_START, every 7 days at local midnight.
-function plantWeekIndex(now) {
-  const today = plantDayKey(now);
+// True if today is a watering day (every PLANT_EVERY_DAYS from PLANT_START, local).
+function isPlantDay(now) {
   const startMs = Date.parse(PLANT_START + 'T00:00:00Z');
-  const todayMs = Date.parse(today + 'T00:00:00Z');
-  if (!Number.isFinite(startMs) || !Number.isFinite(todayMs)) return null;
+  const todayMs = Date.parse(plantDayKey(now) + 'T00:00:00Z');
+  if (!Number.isFinite(startMs) || !Number.isFinite(todayMs)) return false;
   const days = Math.round((todayMs - startMs) / 864e5);
-  if (days < 0 || days % 7 !== 0) return null;
-  return days / 7;
+  return days >= 0 && days % PLANT_EVERY_DAYS === 0;
 }
 function refreshPlantAlarm() {
   const el = document.getElementById('plantalarm');
   if (!el) return;
   const test = qs.get('planttest');
   const now = new Date();
-  const idx = test != null ? (test === 'note' ? 0 : 1) : plantWeekIndex(now);
-  const key = test != null ? 'test' : (idx == null ? null : plantDayKey(now));
+  const key = test != null ? 'test' : (isPlantDay(now) ? plantDayKey(now) : null);
   let acked = false;
   try { acked = !!key && localStorage.getItem(PLANT_ACK) === key; } catch { /* ignore */ }
   const show = key != null && !acked && !SCREENSHOT;
   el._key = key;
-  // First occurrence → the personal note; later weeks → the short nudge.
-  const textEl = document.getElementById('plantText');
-  const subEl = document.getElementById('plantSub');
-  if (show && textEl && subEl) {
-    if (idx === 0) {
-      textEl.classList.add('note');
-      subEl.classList.add('note');
-      textEl.innerHTML = 'MAX — HEY,<br>IT’S&nbsp;GUI 🌱';
-      subEl.textContent = PLANT_NOTE;
-    } else {
-      textEl.classList.remove('note');
-      subEl.classList.remove('note');
-      textEl.innerHTML = 'MAX — PLEASE<br>WATER&nbsp;THE&nbsp;PLANTS';
-      subEl.textContent = 'There are 4 plants in the living room (maybe some in back too). Give them a good drink — enough that they don’t dry out, but don’t overwater.';
-    }
-  }
   el.classList.toggle('on', show);
   el.setAttribute('aria-hidden', show ? 'false' : 'true');
 }

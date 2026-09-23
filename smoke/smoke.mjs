@@ -200,40 +200,29 @@ async function main() {
         dedupKey('Golden Gate Park Sunday Roller Disco Party') !== dedupKey('Golden Gate Park The Whales Tail Beer Garden'),
         'dedupe prefix too short');
     } catch (e) { bad('events ordering', e.message); }
-    // Transit (BART) board: its data host must stay allowlisted or the widget can
-    // never reach live/scheduled departures, and its feed parsers must normalise
-    // BART's raw destination strings + the "Leaving" estimate to sane board labels.
+    // Gardyn plant tracker: all 16 pods of the Budding Florist kit are mapped to a
+    // unique layout position, and the trajectory logic reads sensibly at key days.
     try {
-      const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
-      check('transit: api.bart.gov is allowlisted', allow.includes('api.bart.gov'), 'add api.bart.gov to proxy-allowlist.json');
-      const { shortDest, schedDest, estMinutes, parseBsa, platformInfo } = await import(join(PUBLIC, 'widgets', 'transit.js'));
-      check('transit: shortens long destinations', shortDest('Berryessa/North San Jose') === 'Berryessa',
-        `got ${shortDest('Berryessa/North San Jose')}`);
-      check('transit: scheduled head-station → final leg', schedDest('SF / OAK Airport / Berryessa') === 'Berryessa',
-        `got ${schedDest('SF / OAK Airport / Berryessa')}`);
-      check('transit: "Leaving" estimate reads as 0 min', estMinutes('Leaving') === 0 && estMinutes('7') === 7,
-        `got ${estMinutes('Leaving')},${estMinutes('7')}`);
-      // Service advisory: the "No delays reported." sentinel must read as CLEAR (so the
-      // board stays calm), while a real advisory surfaces its text for the header clause.
-      const bsaClear = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'No delays reported.' } }] } });
-      // BART's live feed also returns "No advisories issued." on a clear day — it must
-      // read as CLEAR too, not surface as a spurious ⚠ advisory (regression 2026-09-18).
-      const bsaClear2 = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'No advisories issued.' } }] } });
-      const bsaAlert = parseBsa({ root: { bsa: [{ description: { '#cdata-section': 'Major delay on the Yellow line.' } }] } });
-      check('transit: clear BSA reads as no advisory', bsaClear.clear === true && bsaClear2.clear === true,
-        `got ${JSON.stringify(bsaClear)} / ${JSON.stringify(bsaClear2)}`);
-      check('transit: real BSA surfaces advisory text',
-        bsaAlert.clear === false && /Yellow line/.test(bsaAlert.text || ''), `got ${JSON.stringify(bsaAlert)}`);
-      // Platform pill: a live estimate with a numeric platform surfaces a "Plat N"
-      // board tag (direction in the tooltip); a platform-less estimate returns null
-      // so the pill hides on the scheduled fallback.
-      const platS = platformInfo({ platform: '2', direction: 'South' });
-      check('transit: platform pill reads platform + direction',
-        platS && platS.tag === 'Plat 2' && /Southbound/.test(platS.title), `got ${JSON.stringify(platS)}`);
-      check('transit: platform pill hides when absent',
-        platformInfo({ direction: 'North' }) === null && platformInfo({ platform: '' }) === null,
-        'expected null with no numeric platform');
-    } catch (e) { bad('transit board guards', e.message); }
+      const g = await import(join(PUBLIC, 'widgets', 'gardyn.js'));
+      const pods = g.PLANTS.flatMap((p) => p.pos);
+      check('gardyn: 16 pods, each position used once', pods.length === 16 && new Set(pods).size === 16,
+        `got ${pods.length} pods / ${new Set(pods).size} unique`);
+      const pet = g.PLANTS.find((p) => /Petunia/.test(p.n));
+      check('gardyn: petunia germinating on day 4, blooming on day 35',
+        g.plantStatus(pet, 4).phase === 'seed' && g.plantStatus(pet, 35).phase === 'ready',
+        `got ${g.plantStatus(pet, 4).phase} / ${g.plantStatus(pet, 35).phase}`);
+      check('gardyn: sprout dose is the active care step on day 10',
+        g.nextCare(10).active.some((c) => /Sprout dose/.test(c.t)), 'expected Sprout dose active');
+      check('gardyn: stages progress', g.gardenStage(3) === 'Germinating' && g.gardenStage(90) === 'Blooming',
+        `got ${g.gardenStage(3)} / ${g.gardenStage(90)}`);
+    } catch (e) { bad('gardyn tracker', e.message); }
+    // The plant-watering reminder is fortnightly (every 14 days) with generic wording —
+    // the humans asked for it to stop being weekly and to drop the personal note.
+    try {
+      const appSrc = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
+      check('plant reminder: fortnightly cadence', /PLANT_EVERY_DAYS\s*=\s*14\b/.test(appSrc), 'PLANT_EVERY_DAYS must be 14');
+      check('plant reminder: no personal note', !/PLANT_NOTE/.test(appSrc), 'PLANT_NOTE should be gone');
+    } catch (e) { bad('plant reminder guards', e.message); }
     // The Tuesday curb-trash takeover must fire early enough to be unmissable before
     // Wednesday's early-morning pickup — the humans asked for the big flashing red screen
     // from 5 PM onwards. Guard against it silently drifting later again (regression 2026-07-29).
