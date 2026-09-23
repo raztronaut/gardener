@@ -78,7 +78,10 @@
 
   --font: "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-display: "The Garden", "Space Grotesk", "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+  /* Two-family system: The Garden (titles, headlines, big numbers) + Inter
+     (everything else). The old mono token now resolves to Inter so labels and
+     data match the body text instead of clashing with The Garden. */
+  --font-mono: "Inter", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

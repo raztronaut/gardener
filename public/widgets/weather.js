@@ -175,7 +175,7 @@ export default {
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
       .wx-temp .c { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--ink-soft); line-height:1; }
       .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px; min-width:0; }
-      .wx-meta .cond { font-size:18px; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .wx-meta .cond { font-family:var(--font-display); font-size:22px; font-weight:400; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .wx-meta .range { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); letter-spacing:.02em; }
       /* sunrise/sunset + tomorrow on their own compact line below — full width,
          so nothing is dropped when the header row narrows. */

@@ -70,6 +70,10 @@ every day, including quiet no-feedback days.
   numbers — i.e. `--font-display` in styles.css. Body text stays Inter (`--font`); the
   humans tried The Garden as body copy and didn't like it. Don't swap titles back to
   Space Grotesk/mono, and don't make The Garden the body font.
+  The dashboard is a TWO-FAMILY system — The Garden + Inter, nothing else (2026-09-23,
+  "harmonize the fonts"). `--font-mono` deliberately resolves to Inter; do not bring
+  back JetBrains Mono, serifs, or any third face in widgets. Use regular weight for
+  The Garden (it has one weight; synthesized bold looks muddy except small labels).
 
 ## How to maintain this file (you may append, never weaken)
 - When a feedback note expresses a STANDING preference — anything phrased as "never",

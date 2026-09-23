@@ -831,7 +831,7 @@ export default {
          and mint-tinted quotation marks give the day's quote its own presence, so
          it reads distinctly from the word/fact sections above rather than as one
          more label-plus-text block. Purely decorative — static, adds no height. */
-      .dly-quote { font-family:var(--font-display); font-style:italic; font-size:15px; line-height:1.32;
+      .dly-quote { font-family:var(--font-display); font-style:normal; font-size:17px; line-height:1.32;
         color:var(--ink); min-height:0; padding-left:13px;
         border-left:2px solid rgba(120,247,176,.32);
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
