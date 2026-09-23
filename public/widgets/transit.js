@@ -149,11 +149,16 @@ export default {
       /* departures — a row of destination columns filling the full width. Each is a
          quiet glass tile with a line-coloured top rule, the destination, and the
          next arrival(s). flex:1 so they share the width evenly. Static, no motion. */
-      .bart-deps { flex:1; display:flex; gap:11px; min-height:0; }
+      .bart-deps { flex:1; display:flex; gap:10px; min-height:0; }
       .bart-dep { flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:3px;
         background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
-        border-top:3px solid var(--bart-c,var(--mint)); padding:7px 11px; justify-content:center; }
-      .bart-dep .dest { display:flex; align-items:center; gap:7px; min-width:0; }
+        border-top:3px solid var(--bart-c,var(--mint)); padding:7px 8px; justify-content:center; }
+      /* The destination is the one thing a rider MUST be able to read from across
+         the room, so the tile's horizontal budget is spent on the name first: the
+         gaps, padding and platform pill are all kept lean enough that every BART
+         terminus served by this station ("Daly City", "Berryessa", "Pittsburg")
+         renders in full at five columns instead of ellipsising to "Daly …". */
+      .bart-dep .dest { display:flex; align-items:center; gap:6px; min-width:0; }
       .bart-dep .dest .dot { width:8px; height:8px; border-radius:50%; flex:none;
         background:var(--bart-c,var(--mint)); box-shadow:0 0 6px var(--bart-c,var(--mint)); }
       .bart-dep .dest .nm { font-size:13.5px; font-weight:600; color:var(--ink); letter-spacing:.01em;
@@ -164,9 +169,9 @@ export default {
          the existing dest line so it adds no height and can't clip. Hidden on the
          scheduled-timetable fallback, which carries no live platform. */
       .bart-dep .dest .plat { flex:0 0 auto; margin-left:auto; font-family:var(--font-mono);
-        font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+        font-size:9px; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
         color:var(--ink-faint); background:rgba(255,255,255,.05); border:1px solid var(--stroke);
-        border-radius:5px; padding:1.5px 5px; line-height:1.2; }
+        border-radius:5px; padding:1.5px 4px; line-height:1.2; }
       .bart-dep .times { display:flex; align-items:baseline; gap:7px; flex-wrap:nowrap; white-space:nowrap; }
       .bart-dep .times .m0 { font-family:var(--font-display); font-weight:700; font-size:25px;
         line-height:.9; color:var(--bart-c,var(--mint)); }

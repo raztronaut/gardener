@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0}iframe{width:900px;height:1600px;border:0}</style></head>
+<body><iframe id="f" src="/?screenshot=1"></iframe><pre id="out">pending</pre>
+<script>
+setTimeout(() => {
+  try {
+    const d = document.getElementById('f').contentDocument;
+    const g = d.getElementById('garden');
+    const rows = [];
+    for (const el of g.children) {
+      const r = el.getBoundingClientRect();
+      const t = (el.querySelector('.card-title')?.textContent || el.dataset.widget || el.className || '?').trim().replace(/\s+/g,' ').slice(0,20);
+      rows.push(`${t} | y${Math.round(r.y)} w${Math.round(r.width)} h${Math.round(r.height)} b${Math.round(r.bottom)} clip${Math.round(el.scrollHeight-el.clientHeight)}`);
+    }
+    rows.push('--- bart dest fit ---');
+    for (const dest of d.querySelectorAll('.bart-dep .dest')) {
+      const nm = dest.querySelector('.nm'), plat = dest.querySelector('.plat');
+      const used = [...dest.children].reduce((s, c) => s + c.getBoundingClientRect().width, 0) + 6 * (dest.children.length - 1);
+      rows.push(`"${nm.textContent}" nm${nm.clientWidth}/${nm.scrollWidth} plat${plat ? Math.round(plat.getBoundingClientRect().width) : 0} destW${Math.round(dest.getBoundingClientRect().width)} used${Math.round(used)} slack${Math.round(dest.getBoundingClientRect().width - used)} ${nm.scrollWidth > nm.clientWidth + 1 ? 'TRUNCATED' : 'ok'}`);
+    }
+    rows.push('--- wx sky rows ---');
+    const sky = d.querySelector('.wx-sky');
+    if (sky) { rows.push(`skyH ${sky.getBoundingClientRect().height}`);
+      for (const c of sky.children) { const r=c.getBoundingClientRect(); rows.push(` ${c.className} y${Math.round(r.y)} x${Math.round(r.x)} w${Math.round(r.width)} :: ${c.textContent.slice(0,40)}`); } }
+    const gr = g.getBoundingClientRect();
+    rows.push(`GARDEN y${Math.round(gr.y)} h${Math.round(gr.height)} scroll${g.scrollHeight} client${g.clientHeight}`);
+    document.getElementById('out').textContent = rows.join('\n');
+  } catch (e) { document.getElementById('out').textContent = 'ERR ' + e.message; }
+}, 7000);
+</script></body></html>
