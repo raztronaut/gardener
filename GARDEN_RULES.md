@@ -65,6 +65,10 @@ every day, including quiet no-feedback days.
   sat behind the "Day N" year reading. Keep the year reading as a quiet TEXT line only
   ("Day 262 · 103 left … 72%"); do not re-add a rail/fill/gauge behind it. (Removed 2026-09-19.)
 - (Superseded 2026-09-23: the BART board was removed entirely — see Banned widgets.)
+- **The house typeface is "The Garden"** (public/assets/fonts/thegarden-regular.woff2,
+  supplied by the humans 2026-09-23). It is `--font` and `--font-display` in styles.css.
+  Widgets must use those tokens (JetBrains Mono stays for small labels/data) — never
+  swap the dashboard back to Inter / Space Grotesk or introduce another text face.
 
 ## How to maintain this file (you may append, never weaken)
 - When a feedback note expresses a STANDING preference — anything phrased as "never",

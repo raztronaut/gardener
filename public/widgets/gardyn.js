@@ -244,72 +244,142 @@ export default {
     ctx.interval(() => build(h, body, tz), 60 * 60 * 1000);
   },
 
-  // Fullscreen: pod layout, the full care calendar, and per-plant notes.
+  // Fullscreen: headline milestones, the full trajectory, the pod tower and
+  // what's coming up. Deliberately light on text — details live in tooltips.
   openFull(body, ctx) {
     const { h } = ctx;
     const tz = (ctx.config && ctx.config.tz) || 'America/Los_Angeles';
     const day = todayIndex(tz);
-    ctx.style(STYLE + `
-      .gf { height:100%; overflow:auto; padding:6px 30px 40px; display:flex; flex-direction:column; gap:22px; }
-      .gf h3 { font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; color:var(--ink-faint); font-weight:400; margin-bottom:10px; }
-      .gf-hero { display:flex; align-items:flex-end; gap:18px; }
-      .gf-hero .gd-day { font-size:64px; }
-      .gf-hero .st { font-size:22px; font-weight:700; color:var(--mint); }
-      .gf-hero .sub { font-size:13px; color:var(--ink-soft); margin-top:4px; }
-      .gf-chart .gd-row { height:22px; }
-      .gf-chart .gd-row .nm { font-size:14px; }
-      .gf-chart .gd-row.fl .nm { font-size:15px; }
-      .gf-chart .gd-row, .gf-chart .gd-axis { grid-template-columns: 170px 1fr 70px; }
-      .gf-chart .gd-row .rt { font-size:13px; }
-      .gf-grid { display:grid; grid-template-columns:1fr 1fr; gap:22px; }
-      .gf-pods { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-      .gf-pod { display:flex; align-items:center; gap:9px; padding:7px 10px; border:1px solid var(--stroke);
-        border-radius:10px; font-size:13px; color:var(--ink); }
-      .gf-pod .ps { font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); width:20px; }
-      .gf-pod i { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
-      .gf-cal { display:flex; flex-direction:column; gap:8px; }
-      .gf-ev { display:grid; grid-template-columns:78px 1fr; gap:10px; font-size:13px; line-height:1.35; }
-      .gf-ev .dt { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); padding-top:2px; }
-      .gf-ev .t { color:var(--ink); font-weight:600; }
-      .gf-ev .s { color:var(--ink-soft); }
-      .gf-ev.done { opacity:.4; }
-      .gf-ev.now .dt, .gf-ev.now .t { color:var(--gold); }
-      .gf-notes { display:grid; grid-template-columns:1fr 1fr; gap:10px 22px; }
-      .gf-note { font-size:13px; line-height:1.4; color:var(--ink-soft); }
-      .gf-note b { color:var(--ink); }
-      .gf-src { font-size:11px; color:var(--ink-faint); }
-    `);
+    ctx.style(STYLE + FULL_STYLE);
+
+    // Milestone tiles: when each kind first pays off, plus the next care step.
+    const firstOf = (k) => Math.min(...PLANTS.filter((p) => p.k === k).map((p) => p.m[0]));
+    const tile = (label, d, color, verb) => {
+      const left = d - day;
+      return h('div', { class: 'gx-tile', style: { '--c': color } },
+        h('div', { class: 'l' }, label),
+        h('div', { class: 'v' }, left > 0 ? String(left) : '✓', left > 0 ? h('small', {}, left === 1 ? 'day' : 'days') : null),
+        h('div', { class: 's' }, left > 0 ? `${verb} ${fmtShort(d)}` : 'now'));
+    };
+    const nx = nextText(day);
+    const tiles = h('div', { class: 'gx-tiles' },
+      tile('First harvest', firstOf('green'), KINDS.green.color, 'greens ·'),
+      tile('First bloom', firstOf('flower'), KINDS.flower.color, 'petunias ·'),
+      tile('Herbs ready', firstOf('herb'), KINDS.herb.color, 'from'),
+      nx ? h('div', { class: 'gx-tile care', title: nx.s },
+        h('div', { class: 'l' }, nx.k === 'Now' ? 'Do now' : 'Next care'),
+        h('div', { class: 'v t' }, nx.t),
+        h('div', { class: 's' }, nx.when)) : null);
+
+    // Chart, with a labelled "today" marker above the rows.
+    const chartEl = chart(h, day, true);
+    if (day >= 0 && day <= AXIS_DAYS) {
+      chartEl.querySelector('.gd-axis .ticks')
+        .append(h('span', { class: 'tk today', style: { left: pct(day) } }, 'TODAY'));
+    }
+
+    // The tower: Studio 2 pods, two columns top → bottom, as the device stands.
     const byPos = {};
     for (const p of PLANTS) for (const ps of p.pos) byPos[ps] = p;
-    const pods = [];
-    for (let i = 1; i <= 8; i++) for (const side of ['L', 'R']) {
-      const p = byPos[side + i];
-      pods.push(h('div', { class: 'gf-pod' },
-        h('span', { class: 'ps' }, side + i),
+    const col = (side) => h('div', { class: 'gx-col' }, ...Array.from({ length: 8 }, (_, i) => {
+      const p = byPos[side + (i + 1)];
+      return h('div', { class: 'gx-pod', title: `${p.n} — ${p.note}` },
         h('i', { style: { background: KINDS[p.k].color } }),
-        h('span', {}, p.n)));
-    }
-    const cal = [...CARE, ...recurring().filter((c) => c.d <= 63)].sort((a, b) => a.d - b.d).map((c) => {
-      const end = c.to != null ? c.to : c.d;
-      const cls = end < day ? 'done' : (day >= c.d && day <= end ? 'now' : '');
-      return h('div', { class: `gf-ev ${cls}` },
-        h('div', { class: 'dt' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
-        h('div', {}, h('div', { class: 't' }, c.t), h('div', { class: 's' }, c.s)));
+        h('span', { class: 'n' }, p.n),
+        h('span', { class: 'ps' }, side + (i + 1)));
+    }));
+
+    // Coming up: the next one-off care steps; the routine collapses to one line.
+    const soon = CARE.filter((c) => (c.to != null ? c.to : c.d) >= day).slice(0, 5).map((c) => {
+      const now = day >= c.d && day <= (c.to != null ? c.to : c.d);
+      return h('div', { class: `gx-ev${now ? ' now' : ''}`, title: c.s },
+        h('div', { class: 'dt' }, fmtShort(c.d)),
+        h('div', { class: 't' }, c.t),
+        h('div', { class: 'in' }, now ? 'now' : `${c.d - day}d`));
     });
-    const chartEl = chart(h, day, true);
-    body.replaceChildren(h('div', { class: 'gf' },
-      h('div', { class: 'gf-hero' },
+    const nextRefresh = recurring().find((c) => c.d >= day && c.t === 'Tank refresh');
+
+    body.replaceChildren(h('div', { class: 'gx' },
+      h('div', { class: 'gx-hero' },
         h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
-        h('div', {},
+        h('div', { class: 'gx-id' },
           h('div', { class: 'st' }, gardenStage(day)),
-          h('div', { class: 'sub' }, `${DEVICE} · ${KIT} kit · 16 pods · planted ${fmtShort(0)} · ${LIGHT_HOURS} h light/day (Gardyn recommends 14–16 h)`))),
-      h('div', { class: 'gf-chart' }, h('h3', {}, 'TRAJECTORY · SPROUT WINDOW (FAINT) → FIRST BLOOM / FIRST CUT (SOLID)'), chartEl),
-      h('div', { class: 'gf-grid' },
-        h('div', {}, h('h3', {}, 'POD LAYOUT · TOP → BOTTOM'), h('div', { class: 'gf-pods' }, ...pods)),
-        h('div', {}, h('h3', {}, 'CARE CALENDAR'), h('div', { class: 'gf-cal' }, ...cal))),
-      h('div', {}, h('h3', {}, 'PLANT NOTES'),
-        h('div', { class: 'gf-notes' }, ...PLANTS.map((p) => h('div', { class: 'gf-note' },
-          h('b', {}, p.n), ` — ${p.k === 'flower' ? 'blooms' : 'harvest'} ${rangeTxt(p.m)}; ${p.ht}. ${p.note}`)))),
-      h('div', { class: 'gf-src' }, 'Timings are Gardyn’s published ranges (help.mygardyn.com) counted from the planting date — estimates, not sensor readings.')));
+          h('div', { class: 'sub' }, `${DEVICE} · ${KIT} · planted ${fmtShort(0)} · ${LIGHT_HOURS}h light`))),
+      tiles,
+      h('section', { class: 'gx-sec gf-chart' },
+        h('div', { class: 'gx-h' }, h('span', {}, 'Trajectory'),
+          h('span', { class: 'key' }, h('i', { class: 'k1' }), 'sprouting', h('i', { class: 'k2' }), 'bloom / harvest')),
+        chartEl),
+      h('div', { class: 'gx-bottom' },
+        h('section', { class: 'gx-sec' },
+          h('div', { class: 'gx-h' }, h('span', {}, 'The tower'), h('span', { class: 'key' }, 'top → bottom')),
+          h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R'))),
+        h('section', { class: 'gx-sec' },
+          h('div', { class: 'gx-h' }, h('span', {}, 'Coming up')),
+          h('div', { class: 'gx-evs' }, ...soon),
+          h('div', { class: 'gx-routine' },
+            h('div', {}, h('b', {}, 'Every week'), ' top off to 4 gal + plant food'),
+            nextRefresh ? h('div', {}, h('b', {}, 'Every 4 weeks'), ` tank refresh · next ${fmtShort(nextRefresh.d)}`) : null))),
+      h('div', { class: 'gf-src' }, 'Gardyn’s published ranges from planting day — estimates, not sensor readings.')));
   },
 };
+
+const FULL_STYLE = `
+  .panel-card:has(.gx) { background: linear-gradient(180deg, rgba(120,247,176,.06), transparent 160px), #0c1f19; }
+  .gx { height:100%; overflow:auto; padding:4px 30px 30px; display:flex; flex-direction:column; gap:22px; }
+  .gx-hero { display:flex; align-items:center; gap:22px; }
+  .gx-hero .gd-day { font-size:92px; line-height:.8; }
+  .gx-hero .gd-day small { display:block; font-size:14px; letter-spacing:.14em; margin:0 0 12px 4px; }
+  .gx-id .st { font-family:var(--font-display); font-size:34px; font-weight:700; color:var(--mint); line-height:1; }
+  .gx-id .sub { font-size:15px; color:var(--ink-soft); margin-top:8px; }
+
+  .gx-tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+  .gx-tile { border:1px solid var(--stroke); border-radius:18px; padding:14px 16px 13px;
+    background:linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%);
+    border-top:3px solid var(--c); min-width:0; }
+  .gx-tile.care { --c: var(--gold); }
+  .gx-tile .l { font-family:var(--font-mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); }
+  .gx-tile .v { font-family:var(--font-display); font-size:44px; font-weight:700; color:var(--ink); line-height:1.05; margin-top:6px; }
+  .gx-tile .v small { font-size:15px; font-weight:400; color:var(--ink-soft); margin-left:5px; }
+  .gx-tile .v.t { font-size:22px; line-height:1.1; min-height:48px; display:flex; align-items:flex-end; }
+  .gx-tile .s { font-size:13px; color:var(--ink-soft); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .gx-sec { border:1px solid var(--stroke); border-radius:20px; padding:16px 18px 18px; min-width:0; }
+  .gx-h { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-faint); }
+  .gx-h .key { display:flex; align-items:center; gap:7px; letter-spacing:.08em; text-transform:none; font-size:11px; }
+  .gx-h .key i { display:inline-block; width:16px; border-radius:3px; background:var(--ink-soft); margin-left:8px; }
+  .gx-h .key i.k1 { height:4px; opacity:.4; }
+  .gx-h .key i.k2 { height:8px; }
+
+  .gf-chart .gd-rows { gap:4px; }
+  .gf-chart .gd-row { height:24px; }
+  .gf-chart .gd-row .nm { font-size:16px; }
+  .gf-chart .gd-row, .gf-chart .gd-axis { grid-template-columns: 170px 1fr 52px; }
+  .gf-chart .gd-row .rt { font-size:13px; }
+  .gf-chart .gd-axis { height:16px; margin:16px 0 6px; }
+  .gf-chart .gd-axis .tk { font-size:10px; }
+  .gf-chart .gd-axis .tk.today { top:-17px; color:var(--gold); font-weight:600; }
+
+  .gx-bottom { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .gx-tower { display:grid; grid-template-columns:1fr 2px 1fr; gap:0 12px; }
+  .gx-tower .spine { background:linear-gradient(180deg, transparent, var(--stroke-strong) 8%, var(--stroke-strong) 92%, transparent); border-radius:1px; }
+  .gx-col { display:flex; flex-direction:column; gap:3px; }
+  .gx-col:first-child .gx-pod { flex-direction:row-reverse; text-align:right; }
+  .gx-pod { display:flex; align-items:center; gap:8px; height:28px; min-width:0; }
+  .gx-pod i { width:12px; height:12px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 0 3px rgba(255,255,255,.04); }
+  .gx-pod .n { flex:1; min-width:0; font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gx-pod .ps { font-family:var(--font-mono); font-size:9.5px; color:var(--ink-faint); flex:0 0 auto; }
+
+  .gx-evs { display:flex; flex-direction:column; }
+  .gx-ev { display:grid; grid-template-columns:54px 1fr auto; gap:10px; align-items:baseline;
+    padding:8px 0; border-bottom:1px solid var(--stroke); }
+  .gx-ev:first-child { padding-top:0; }
+  .gx-ev .dt { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); }
+  .gx-ev .t { font-size:16px; color:var(--ink); }
+  .gx-ev .in { font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); }
+  .gx-ev.now .dt, .gx-ev.now .t, .gx-ev.now .in { color:var(--gold); }
+  .gx-routine { margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--ink-soft); }
+  .gx-routine b { color:var(--ink); font-weight:600; margin-right:4px; }
+  .gf-src { font-size:11px; color:var(--ink-faint); }
+`;

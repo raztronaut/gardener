@@ -253,6 +253,8 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
+    // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
+    if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }
 }
 

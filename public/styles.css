@@ -5,6 +5,12 @@
 /* Local fonts (public/assets/fonts — no CDN; the kiosk is offline-first).
    These families were always referenced but never installed: the wall rendered
    OS fallbacks until now. */
+/* The Garden — the dashboard's house face (user-supplied, single Regular weight).
+   Its x-height is small (0.471 vs Inter's 0.546), so size-adjust scales it ~122%
+   to keep every existing font-size reading at the same visual size (a touch larger,
+   since it's also narrower). One weight only → 600/700 are synthesized bold, which
+   keeps the headline hierarchy. */
+@font-face { font-family: 'The Garden'; src: url('/assets/fonts/thegarden-regular.woff2') format('woff2'); font-weight: 400; font-display: swap; size-adjust: 122%; }
 @font-face { font-family: 'Fraunces'; src: url('/assets/fonts/fraunces-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
 @font-face { font-family: 'Instrument Serif'; src: url('/assets/fonts/instrument-serif.woff2') format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Instrument Serif'; src: url('/assets/fonts/instrument-serif-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
@@ -68,8 +74,8 @@
   --gap: 9px;   /* tight inter-card margin (−30% from 13px, per feedback) */
   --pad: 20px;   /* slightly tighter card padding → room for the 7th (household) widget on the locked canvas */
 
-  --font: "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font: "The Garden", "Inter", "SF Pro Display", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-display: "The Garden", "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
 }
 
@@ -90,6 +96,9 @@ html, body {
   background: var(--bg-0);
   color: var(--ink);
   font-family: var(--font);
+  /* The Garden is a hairline-ish face; a faint same-colour stroke gives body text
+     enough weight to read across the room (inherited by every text node). */
+  -webkit-text-stroke: 0.3px currentColor;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   cursor: none; /* native pointer hidden — replaced by the custom green-dot cursor (#cursor) */
@@ -604,3 +613,4 @@ body.screenshot #plantalarm { display: none !important; }
 body.screenshot #feedbackbar { visibility: hidden; }
 body.screenshot #nightveil { opacity: 0 !important; }
 body.screenshot #toast, body.screenshot #panel { display: none; }
+body.screenshot.qa-open #panel.open { display: flex; }
