@@ -65,10 +65,11 @@ every day, including quiet no-feedback days.
   sat behind the "Day N" year reading. Keep the year reading as a quiet TEXT line only
   ("Day 262 · 103 left … 72%"); do not re-add a rail/fill/gauge behind it. (Removed 2026-09-19.)
 - (Superseded 2026-09-23: the BART board was removed entirely — see Banned widgets.)
-- **The house typeface is "The Garden"** (public/assets/fonts/thegarden-regular.woff2,
-  supplied by the humans 2026-09-23). It is `--font` and `--font-display` in styles.css.
-  Widgets must use those tokens (JetBrains Mono stays for small labels/data) — never
-  swap the dashboard back to Inter / Space Grotesk or introduce another text face.
+- **"The Garden" is the TITLE typeface** (public/assets/fonts/thegarden-regular.woff2,
+  supplied by the humans 2026-09-23): brand ("GardenOS"), card titles, headlines and big
+  numbers — i.e. `--font-display` in styles.css. Body text stays Inter (`--font`); the
+  humans tried The Garden as body copy and didn't like it. Don't swap titles back to
+  Space Grotesk/mono, and don't make The Garden the body font.
 
 ## How to maintain this file (you may append, never weaken)
 - When a feedback note expresses a STANDING preference — anything phrased as "never",
