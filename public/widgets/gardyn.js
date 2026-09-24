@@ -1,6 +1,7 @@
 // Gardyn — growth trajectory for the Gardyn Studio 2 "Budding Florist" kit
-// (16 pods: 15 varieties, Stock Flower planted twice), started 2026-09-19 under a
-// 14 h/day light schedule, placed per Gardyn's official Studio layout.
+// (16 pods: 15 varieties, Stock Flower planted twice), sown 2026-09-20 and placed
+// per Gardyn's official Studio layout. Lights: 14 h/day Sep 20–22, 16 h/day from
+// Sep 23 (see LIGHT_SCHEDULE — growth windows are scaled by actual light hours).
 //
 // The card is a compact timeline: one row per plant on a shared 0–120 day axis,
 // showing the expected SPROUT window (faint) and the first BLOOM / HARVEST window
@@ -12,8 +13,15 @@
 // All timings are Gardyn's own published ranges (help.mygardyn.com plant pages +
 // care-cycle guides); they're estimates from the planting date, not sensor reads.
 
-const START = '2026-09-19';          // planting day = day 0
-const LIGHT_HOURS = 14;              // Gardyn recommends 14–16 h at full brightness
+const START = '2026-09-20';          // sow day = day 0
+// Daily light hours, by the day they took effect (Gardyn recommends 14–16 h).
+const LIGHT_SCHEDULE = [{ from: '2026-09-20', h: 14 }, { from: '2026-09-23', h: 16 }];
+const LIGHT_HOURS = LIGHT_SCHEDULE[LIGHT_SCHEDULE.length - 1].h; // current schedule
+// Gardyn's published ranges don't say which schedule they assume, so treat them as
+// the middle of its recommended 14–16 h. Growth after sprouting scales with light
+// (daily light integral ∝ hours): a 16 h day = 16/15 of a baseline day. Germination
+// is driven by water + warmth, so sprout windows are NOT scaled.
+const BASE_HOURS = 15;
 const AXIS_DAYS = 120;               // shared timeline span (snapdragon tops out ~115)
 const KIT = 'Budding Florist';
 const DEVICE = 'Gardyn Studio 2';
@@ -63,22 +71,31 @@ export const PLANTS = [
 
 // Care calendar (days from planting). Recurring items are expanded below.
 const CARE = [
-  { d: 7, to: 14, t: 'Sprout dose', s: 'Once most pods sprout: remove unsprouted cubes, then add ¾ tsp plant food mixed in 1 gal to the tank (¼ tsp/gal).' },
-  { d: 14, to: 21, t: 'Thin the sprouts', s: 'Cut extras at the base (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. yCovers can go on after.' },
-  { d: 21, t: 'Feed at ½ tsp / gal', s: 'Once true leaves or ½ in roots appear, mix top-offs at ½ tsp plant food per gallon.' },
-  { d: 22, t: 'Replacement check', s: 'Any pod still unsprouted today qualifies for Gardyn’s replacement guarantee.' },
-  { d: 30, t: 'Petunias start blooming', s: 'First flowers of the kit. Deadhead spent blooms to keep them coming.' },
-  { d: 60, t: 'Feed at 1 tsp / gal', s: 'Plants are maturing and blooming — strengthen top-offs to 1 tsp per gallon. Check roots every 2–4 weeks.' },
-  { d: 65, t: 'Stock & sunflower blooms', s: 'Expect the first stock spikes and sunflowers (day 65–80). Keep the room under ~75°F for stock.' },
-  { d: 80, t: 'Snapdragons open', s: 'Snapdragon blooms arrive between day 80 and 115, in waves.' },
-  { d: 180, t: 'Refresh the garden', s: 'Most Gardyn plants last ~6 months — swap tired yCubes for new ones.' },
+  { d: 7, to: 14, t: 'Sprout dose', how: '¾ tsp plant food + 1 gal water → tank',
+    s: 'Once most pods sprout: remove unsprouted cubes, then mix ¾ tsp Gardyn plant food into 1 gal of water and add it to the 2 gal starting tank (¼ tsp/gal). Water only until then.' },
+  { d: 14, to: 21, t: 'Thin the sprouts', how: 'snip extras: keep 1 (greens), 3 (others)',
+    s: 'Cut extras at the base (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. yCovers can go on after.' },
+  { d: 21, g: true, t: 'Feed at ½ tsp / gal', how: 'top-offs: ½ tsp plant food per gal',
+    s: 'Once true leaves or ½ in roots appear, mix top-offs at ½ tsp plant food per gallon.' },
+  { d: 22, t: 'Replacement check', how: 'no sprout yet → free replacement pod',
+    s: 'Any pod still unsprouted today qualifies for Gardyn’s replacement guarantee.' },
+  { d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
+    s: 'First flowers of the kit. Deadhead spent blooms to keep them coming.' },
+  { d: 60, g: true, t: 'Feed at 1 tsp / gal', how: 'top-offs: 1 tsp plant food per gal',
+    s: 'Plants are maturing and blooming — strengthen top-offs to 1 tsp per gallon. Check roots every 2–4 weeks.' },
+  { d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
+    s: 'Expect the first stock spikes and sunflowers. Keep the room under ~75°F for stock.' },
+  { d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node; blooms come in waves',
+    s: 'Snapdragon blooms arrive in waves.' },
+  { d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
+    s: 'Most Gardyn plants last ~6 months — swap tired yCubes for new ones.' },
 ];
 const recurring = () => {
   const out = [];
   for (let d = 7; d <= 180; d += 7) {
     out.push(d % 28 === 0
-      ? { d, t: 'Tank refresh', s: 'Drain, clean with baking soda, refill with fed water + HydroBoost.', rec: true }
-      : { d, t: 'Weekly top-off', s: 'Top off to 4 gal with fed water + HydroBoost; keep the tank at least half full.', rec: true });
+      ? { d, t: 'Tank refresh', how: 'drain, rinse with baking soda, refill with fed water', s: 'Drain, clean with baking soda, refill with fed water + HydroBoost.', rec: true }
+      : { d, t: 'Weekly top-off', how: 'fill to 4 gal with water + plant food + HydroBoost', s: 'Top off to 4 gal with fed water + HydroBoost; keep the tank at least half full.', rec: true });
   }
   return out;
 };
@@ -91,6 +108,23 @@ function todayIndex(tz) {
 }
 const dateOf = (d) => new Date(startMs + d * DAY);
 const fmtShort = (d) => dateOf(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+// Light-scaled clock: baseline (15 h) days accumulated by the end of calendar day c.
+const hoursOn = (c) => {
+  let h = LIGHT_SCHEDULE[0].h;
+  for (const s of LIGHT_SCHEDULE) if (Math.round((Date.parse(s.from + 'T00:00:00Z') - startMs) / DAY) <= c) h = s.h;
+  return h;
+};
+// Calendar day on which a baseline-day milestone b is reached.
+export function calDay(b) {
+  let c = 0, eff = 0;
+  for (;;) {
+    const r = hoursOn(c) / BASE_HOURS;
+    if (eff + r >= b || c > 400) return Math.round(c + (b - eff) / r);
+    eff += r; c++;
+  }
+}
+for (const p of PLANTS) { p.base = p.m; p.m = p.m.map(calDay); }
+for (const c of CARE) if (c.g) { c.d = calDay(c.d); if (c.to != null) c.to = calDay(c.to); }
 const rangeTxt = ([a, b]) => (a === b ? `day ${a} (${fmtShort(a)})` : `day ${a}–${b} (${fmtShort(a)} – ${fmtShort(b)})`);
 
 // Where one plant is on its trajectory, given today's day index.
@@ -141,7 +175,9 @@ const STYLE = `
   .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.08em; margin-right:5px; }
   .gd-st { font-family:var(--font-display); font-size:20px; font-weight:400; color:var(--mint); }
   .gd-light { margin-left:auto; font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); }
-  .gd-next { flex:0 0 auto; font-size:13px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gd-next { flex:0 0 auto; font-size:13px; color:var(--ink); }
+  .gd-next > div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gd-next .how { font-size:12px; color:var(--ink-soft); margin-top:2px; }
   .gd-next b { color:var(--gold); font-weight:600; }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
@@ -199,9 +235,9 @@ function groupRow(h, kind, plants, day) {
 
 function nextText(day) {
   const { active, upcoming } = nextCare(day);
-  if (active.length) return { k: 'Now', t: active[0].t, when: `until ${fmtShort(active[0].to)}`, s: active[0].s };
+  if (active.length) return { k: 'Now', t: active[0].t, when: `until ${fmtShort(active[0].to)}`, how: active[0].how, s: active[0].s };
   const n = upcoming[0];
-  return n ? { k: 'Next', t: n.t, when: fmtShort(n.d), s: n.s } : null;
+  return n ? { k: 'Next', t: n.t, when: fmtShort(n.d), how: n.how, s: n.s } : null;
 }
 
 function chart(h, day, detailed) {
@@ -228,8 +264,10 @@ function build(h, body, tz) {
     h('div', { class: 'gd-top' },
       h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
       h('div', { class: 'gd-st' }, gardenStage(day)),
-      h('div', { class: 'gd-light', title: 'Gardyn recommends 14–16 h at full brightness' }, `${LIGHT_HOURS}h ☀`)),
-    nx ? h('div', { class: 'gd-next', title: nx.s }, h('b', {}, `${nx.k} · `), `${nx.t}, ${nx.when}`) : null,
+      h('div', { class: 'gd-light', title: 'Lights 14 h/day Sep 20–22, 16 h/day since Sep 23 (Gardyn recommends 14–16 h)' }, `${LIGHT_HOURS}h ☀`)),
+    nx ? h('div', { class: 'gd-next', title: nx.s },
+      h('div', {}, h('b', {}, `${nx.k} · `), `${nx.t}, ${nx.when}`),
+      nx.how ? h('div', { class: 'how' }, nx.how) : null) : null,
     chart(h, day, false)));
 }
 
@@ -273,7 +311,7 @@ export default {
       nx ? h('div', { class: 'gx-tile care', title: nx.s },
         h('div', { class: 'l' }, nx.k === 'Now' ? 'Do now' : 'Next care'),
         h('div', { class: 'v t' }, nx.t),
-        h('div', { class: 's' }, nx.when)) : null);
+        h('div', { class: 's', style: { whiteSpace: 'normal' } }, `${nx.when} · ${nx.how || ''}`)) : null);
 
     // Chart, with a labelled "today" marker above the rows.
     const chartEl = chart(h, day, true);
@@ -289,7 +327,7 @@ export default {
       const p = byPos[side + (i + 1)];
       return h('div', { class: 'gx-pod', title: `${p.n} — ${p.note}` },
         h('i', { style: { background: KINDS[p.k].color } }),
-        h('span', { class: 'n' }, p.n),
+        h('span', { class: 'n' }, p.n.replace(/^(Purple|Yellow) (?=Snapdragon|Swiss)/, '')),
         h('span', { class: 'ps' }, side + (i + 1)));
     }));
 
@@ -298,7 +336,7 @@ export default {
       const now = day >= c.d && day <= (c.to != null ? c.to : c.d);
       return h('div', { class: `gx-ev${now ? ' now' : ''}`, title: c.s },
         h('div', { class: 'dt' }, fmtShort(c.d)),
-        h('div', { class: 't' }, c.t),
+        h('div', {}, h('div', { class: 't' }, c.t), c.how ? h('div', { class: 'how' }, c.how) : null),
         h('div', { class: 'in' }, now ? 'now' : `${c.d - day}d`));
     });
     const nextRefresh = recurring().find((c) => c.d >= day && c.t === 'Tank refresh');
@@ -308,7 +346,7 @@ export default {
         h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
         h('div', { class: 'gx-id' },
           h('div', { class: 'st' }, gardenStage(day)),
-          h('div', { class: 'sub' }, `${DEVICE} · ${KIT} · planted ${fmtShort(0)} · ${LIGHT_HOURS}h light`))),
+          h('div', { class: 'sub' }, `${DEVICE} · ${KIT} · sown ${fmtShort(0)} · ${LIGHT_HOURS}h light since Sep 23`))),
       tiles,
       h('section', { class: 'gx-sec gf-chart' },
         h('div', { class: 'gx-h' }, h('span', {}, 'Trajectory'),
@@ -324,7 +362,7 @@ export default {
           h('div', { class: 'gx-routine' },
             h('div', {}, h('b', {}, 'Every week'), ' top off to 4 gal + plant food'),
             nextRefresh ? h('div', {}, h('b', {}, 'Every 4 weeks'), ` tank refresh · next ${fmtShort(nextRefresh.d)}`) : null))),
-      h('div', { class: 'gf-src' }, 'Gardyn’s published ranges from planting day — estimates, not sensor readings.')));
+      h('div', { class: 'gf-src' }, 'Gardyn’s published ranges from sow day, scaled by your light hours (14 h → 16 h on Sep 23) — estimates, not sensor readings.')));
   },
 };
 
@@ -365,15 +403,15 @@ const FULL_STYLE = `
   .gf-chart .gd-axis .tk { font-size:10px; }
   .gf-chart .gd-axis .tk.today { top:-17px; color:var(--gold); font-weight:600; }
 
-  .gx-bottom { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:12px; }
+  .gx-bottom { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:12px; }
   .gx-tower { display:grid; grid-template-columns:minmax(0,1fr) 2px minmax(0,1fr); gap:0 10px; }
   .gx-tower .spine { background:linear-gradient(180deg, transparent, var(--stroke-strong) 8%, var(--stroke-strong) 92%, transparent); border-radius:1px; }
   .gx-col { display:flex; flex-direction:column; gap:3px; }
   .gx-col:first-child .gx-pod { flex-direction:row-reverse; text-align:right; }
-  .gx-pod { display:flex; align-items:center; gap:8px; height:28px; min-width:0; }
+  .gx-pod { display:flex; align-items:center; gap:7px; height:34px; min-width:0; }
   .gx-pod i { width:12px; height:12px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 0 3px rgba(255,255,255,.04); }
   .gx-pod .n { flex:1; min-width:0; font-size:13px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gx-pod .ps { font-family:var(--font-mono); font-size:9.5px; color:var(--ink-faint); flex:0 0 auto; }
+  .gx-pod .ps { font-family:var(--font-mono); font-size:10px; width:16px; color:var(--ink-faint); flex:0 0 auto; }
 
   .gx-evs { display:flex; flex-direction:column; }
   .gx-ev { display:grid; grid-template-columns:54px 1fr auto; gap:10px; align-items:baseline;
@@ -381,6 +419,7 @@ const FULL_STYLE = `
   .gx-ev:first-child { padding-top:0; }
   .gx-ev .dt { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); }
   .gx-ev .t { font-size:16px; color:var(--ink); }
+  .gx-ev .how { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
   .gx-ev .in { font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); }
   .gx-ev.now .dt, .gx-ev.now .t, .gx-ev.now .in { color:var(--gold); }
   .gx-routine { margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--ink-soft); }

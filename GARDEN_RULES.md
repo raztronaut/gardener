@@ -67,13 +67,14 @@ every day, including quiet no-feedback days.
 - (Superseded 2026-09-23: the BART board was removed entirely — see Banned widgets.)
 - **"The Garden" is the TITLE typeface** (public/assets/fonts/thegarden-regular.woff2,
   supplied by the humans 2026-09-23): brand ("GardenOS"), card titles, headlines and big
-  numbers — i.e. `--font-display` in styles.css. Body text stays Inter (`--font`); the
+  numbers — i.e. `--font-display` in styles.css. Body text is NOT The Garden (`--font`); the
   humans tried The Garden as body copy and didn't like it. Don't swap titles back to
   Space Grotesk/mono, and don't make The Garden the body font.
-  The dashboard is a TWO-FAMILY system — The Garden + Inter, nothing else (2026-09-23,
-  "harmonize the fonts"). `--font-mono` deliberately resolves to Inter; do not bring
-  back JetBrains Mono, serifs, or any third face in widgets. Use regular weight for
-  The Garden (it has one weight; synthesized bold looks muddy except small labels).
+  The dashboard is a TWO-FAMILY system — The Garden + Barlow Semi Condensed (2026-09-23,
+  "harmonize the fonts"; Inter felt off next to The Garden and is now only a glyph
+  fallback). `--font` and `--font-mono` both resolve to Barlow Semi Condensed; do not
+  bring back Inter/JetBrains Mono as visible faces, serifs, or any third face in widgets.
+  Use regular weight for The Garden (one weight; synthesized bold looks muddy).
 
 ## How to maintain this file (you may append, never weaken)
 - When a feedback note expresses a STANDING preference — anything phrased as "never",

@@ -215,6 +215,10 @@ async function main() {
         g.nextCare(10).active.some((c) => /Sprout dose/.test(c.t)), 'expected Sprout dose active');
       check('gardyn: stages progress', g.gardenStage(3) === 'Germinating' && g.gardenStage(90) === 'Blooming',
         `got ${g.gardenStage(3)} / ${g.gardenStage(90)}`);
+      // Sown Sep 20 at 14 h, 16 h from Sep 23 (day 3): a 30-baseline-day milestone
+      // (15 h) lands ~1 day early; an 80-day one ~5 days early.
+      check('gardyn: light-scaled timeline (14 h → 16 h)', g.calDay(30) === 29 && g.calDay(80) === 75 && g.calDay(0) === 0,
+        `calDay(30)=${g.calDay(30)} calDay(80)=${g.calDay(80)}`);
     } catch (e) { bad('gardyn tracker', e.message); }
     // The plant-watering reminder is fortnightly (every 14 days) with generic wording —
     // the humans asked for it to stop being weekly and to drop the personal note.
