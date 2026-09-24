@@ -233,7 +233,7 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
   /* Tucked toward the corner but with breathing room (was 12%-deep — too tight).
      Left also clears the 26px corner-radius clip. */
   top: calc(var(--pad) * .45); left: 19px;
-  font-family: var(--font-display); font-size: 14px; font-weight: 400;
+  font-family: var(--font-display); font-size: 14px; font-weight: 700;
   letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
 .card .card-body { flex: 1; min-height: 0; }
 
@@ -253,7 +253,7 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 #feedbackInput { flex: 1; background: transparent; border: none; outline: none;
   color: var(--ink); font-size: 15px; font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
 #feedbackInput::placeholder { color: var(--ink-faint); }
-#feedbackSend { border: none; cursor: pointer; color: #042018; font-weight: 700; font-size: 15px;
+#feedbackSend { border: none; cursor: pointer; color: #042018; font-family: var(--font-display); font-weight: 700; font-size: 15px; line-height: 1;
   padding: 11px 22px; border-radius: 999px; letter-spacing: .02em;
   background: linear-gradient(120deg, var(--mint), var(--mint-2));
   box-shadow: 0 6px 18px rgba(67,230,198,.35); transition: transform .15s ease, filter .15s ease; }
@@ -618,6 +618,7 @@ body.screenshot #plantalarm { display: none !important; }
 
 /* ---------- screenshot mode (clean QA capture) ---------- */
 body.screenshot #feedbackbar { visibility: hidden; }
+body.screenshot.qa-bar #feedbackbar { visibility: visible; }
 body.screenshot #nightveil { opacity: 0 !important; }
 body.screenshot #toast, body.screenshot #panel { display: none; }
 body.screenshot.qa-open #panel.open { display: flex; }

@@ -171,7 +171,10 @@ export default {
       @media (prefers-reduced-motion: reduce) { .wx-emoji { animation:none; } }
       .wx-icon { display:block; }
       .wx-temp { display:flex; align-items:baseline; gap:8px; flex:none; }
+      /* padding/margin pair: background-clip:text only paints inside the box, so give the
+         (size-adjusted) glyphs room below the tight line box without shifting layout. */
       .wx-temp .f { font-family:var(--font-display); font-size:42px; font-weight:600; line-height:.85;
+        padding:.06em 0 .16em; margin:-.06em 0 -.16em;
         background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
       .wx-temp .c { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--ink-soft); line-height:1; }
       .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px; min-width:0; }

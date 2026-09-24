@@ -1756,6 +1756,7 @@ setInterval(() => { wireCornerQr().catch(() => {}); }, 60000);
 window.addEventListener('scroll', () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); }, { passive: true });
 
 if (SCREENSHOT) document.body.classList.add('screenshot');
+if (SCREENSHOT && qs.has('bar')) document.body.classList.add('qa-bar'); // QA: show the note bar in captures
 wireFeedback();
 wireEditing(); // right-click hand-pruning of titles/labels
 if (!SCREENSHOT) wirePad(); // controller bridge (skip in QA captures)
