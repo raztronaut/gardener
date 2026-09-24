@@ -193,7 +193,7 @@ html, body {
   border-radius: var(--radius);
   /* extra top padding reserves headroom for the absolute corner title so card
      content can never slide up underneath it (it's out of flow) */
-  padding: calc(var(--pad) + 15px) var(--pad) var(--pad);
+  padding: calc(var(--pad) + 24px) var(--pad) var(--pad);
   overflow: hidden; display: flex; flex-direction: column; gap: 12px;
   /* Gentle staggered wake-up: each card eases in just after the previous one.
      --enter-index is set per-card by the runtime in mount order. */
@@ -228,8 +228,8 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
   /* Tucked toward the corner but with breathing room (was 12%-deep — too tight).
      Left also clears the 26px corner-radius clip. */
   top: calc(var(--pad) * .45); left: 19px;
-  font-family: var(--font-display); font-size: 16px; font-weight: 400;
-  letter-spacing: .01em; color: var(--ink-soft); }
+  font-family: var(--font-display); font-size: 14px; font-weight: 400;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
 .card .card-body { flex: 1; min-height: 0; }
 
 .widget-error { color: var(--rose); font-size: 13px; opacity: .85; display:flex; gap:8px; align-items:center; }
