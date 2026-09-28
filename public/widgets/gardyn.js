@@ -71,10 +71,13 @@ export const PLANTS = [
 
 // Care calendar (days from planting). Recurring items are expanded below.
 const CARE = [
-  { d: 7, to: 14, t: 'Sprout dose', how: '¾ tsp plant food + 1 gal water → tank',
-    s: 'Once most pods sprout: remove unsprouted cubes, then mix ¾ tsp Gardyn plant food into 1 gal of water and add it to the 2 gal starting tank (¼ tsp/gal). Water only until then.' },
-  { d: 14, to: 21, t: 'Thin the sprouts', how: 'snip extras: keep 1 (greens), 3 (others)',
-    s: 'Cut extras at the base (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. yCovers can go on after.' },
+  // Dose rule is ¼ tsp per gallon for EVERY gallon in the tank. Gardyn's Studio figure
+  // (¾ tsp) assumes a 2 gal start; this tank started with 3 gal, so 3 + 1 = 4 gal → 1 tsp
+  // (one level white Gardyn spoon, which is 1 tsp).
+  { d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
+    s: 'Once most pods have sprouted: mix 1 tsp (the white Gardyn spoon, level) of plant food into 1 gal of warm water, shake, pour it all into the tank. Rule: ¼ tsp per gallon in the tank — 3 gal start + this 1 gal = 4 gal. Water only until then.' },
+  { d: 14, to: 21, t: 'Thin (mini harvest)', how: 'snip extras: keep 1 (greens), 3 (others) · eat them',
+    s: '5–7 days after the sprout dose. Cut extras at the base with clean scissors (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. Green, lettuce and herb thinnings are edible — that’s the “mini harvest”.' },
   { d: 21, g: true, t: 'Feed at ½ tsp / gal', how: 'top-offs: ½ tsp plant food per gal',
     s: 'Once true leaves or ½ in roots appear, mix top-offs at ½ tsp plant food per gallon.' },
   { d: 22, t: 'Replacement check', how: 'no sprout yet → free replacement pod',
