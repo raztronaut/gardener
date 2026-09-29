@@ -1,8 +1,8 @@
 [Unit]
-Description=The Gardener — dim the screen to 50% at 21:00 (PT)
+Description=The Gardener — evening fade: step the screen down every 10 min, 20:00–21:50 (PT)
 
 [Timer]
-OnCalendar=*-*-* 21:00:00
+OnCalendar=*-*-* 20,21:00/10:00
 Persistent=false
 AccuracySec=30sec
 

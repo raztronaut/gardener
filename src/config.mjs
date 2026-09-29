@@ -59,12 +59,13 @@ export const config = {
   height: num(E.GARDENER_HEIGHT, 1600),
   chromium: E.GARDENER_CHROMIUM || '/snap/bin/chromium',
   // Night window (local PT hours): screen sleeps at NIGHT_START, wakes at DAY_START.
-  nightStartHour: num(E.GARDENER_NIGHT_START, 0), // 00:00
+  nightStartHour: num(E.GARDENER_NIGHT_START, 22), // 22:00 (was midnight; changed 2026-09-28)
   dayStartHour: num(E.GARDENER_DAY_START, 7), // 07:00
-  // Evening dim window: from EVENING_START until NIGHT_START the panel runs at
-  // half brightness (the 9PM "wind-down"). Day = 100%, evening = 50%, night = 0%.
-  eveningStartHour: num(E.GARDENER_EVENING_START, 21), // 21:00
-  eveningBrightness: num(E.GARDENER_EVENING_BRIGHTNESS, 0.5),
+  // Evening wind-down: from EVENING_START the panel fades GRADUALLY from 100% to
+  // EVENING_BRIGHTNESS, reaching it as NIGHT_START arrives (then it switches off).
+  // 8PM → 10PM by default; the evening timer re-applies the level every 10 min.
+  eveningStartHour: num(E.GARDENER_EVENING_START, 20), // 20:00
+  eveningBrightness: num(E.GARDENER_EVENING_BRIGHTNESS, 0.3), // floor of the fade
   iterateHour: num(E.GARDENER_ITERATE_HOUR, 6), // 06:00
 };
 
@@ -111,6 +112,23 @@ export function isNightNow(date = new Date()) {
   const h = ptHour(date);
   const { nightStartHour: a, dayStartHour: b } = config;
   return a <= b ? h >= a && h < b : h >= a || h < b; // handles wrap-around
+}
+
+// Fractional hours (e.g. 20.5 = 8:30pm) now in the configured timezone.
+export function ptHours(date = new Date()) {
+  const [h, m] = new Intl.DateTimeFormat('en-US', { timeZone: config.tz, hour: '2-digit', minute: '2-digit', hour12: false })
+    .format(date).split(':').map((x) => parseInt(x, 10));
+  return (h % 24) + m / 60;
+}
+
+// Evening fade level: 1 at EVENING_START, falling linearly to EVENING_BRIGHTNESS at
+// NIGHT_START (clamped). Rounded to 2 decimals for xrandr.
+export function eveningLevel(date = new Date()) {
+  const { eveningStartHour: e, nightStartHour: n, eveningBrightness: floor } = config;
+  if (!isEveningNow(date)) return isNightNow(date) ? 0 : 1;
+  const span = ((n - e) + 24) % 24 || 24;
+  const t = Math.min(1, Math.max(0, (((ptHours(date) - e) + 24) % 24) / span));
+  return Math.round((1 - t * (1 - floor)) * 100) / 100;
 }
 
 // True during the evening dim window: from eveningStartHour until night begins
