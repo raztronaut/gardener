@@ -69,39 +69,37 @@ export const PLANTS = [
     note: 'Slow to sprout. Add plant food 10 days after sprouting; harvest stalks at 6 in+.' },
 ];
 
-// Care calendar (days from planting). Recurring items are expanded below.
+// What the humans have actually done. Recorded from the wall (✓ Done buttons in the
+// fullscreen view → POST /api/gardyn/log, persisted server-side); this is only the
+// fallback when the server log can't be read. tasks: id → ISO date; water: [{date, kind}].
+export const DEFAULT_LOG = {
+  tasks: { sprout: '2026-09-28' }, // sprout dose: 1 tsp (white spoon) in 1 gal → tank (3 + 1 = 4 gal)
+  water: [],
+};
+
+// One-off care tasks (days from sowing). Watering + feeding is NOT here — it's the
+// weekly water plan below, anchored on the day the sprout dose was given.
 const CARE = [
   // Dose rule is ¼ tsp per gallon for EVERY gallon in the tank. Gardyn's Studio figure
   // (¾ tsp) assumes a 2 gal start; this tank started with 3 gal, so 3 + 1 = 4 gal → 1 tsp
   // (one level white Gardyn spoon, which is 1 tsp).
-  { d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
+  { id: 'sprout', d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
     s: 'Once most pods have sprouted: mix 1 tsp (the white Gardyn spoon, level) of plant food into 1 gal of warm water, shake, pour it all into the tank. Rule: ¼ tsp per gallon in the tank — 3 gal start + this 1 gal = 4 gal. Water only until then.' },
-  { d: 14, to: 21, t: 'Thin (mini harvest)', how: 'snip extras: keep 1 (greens), 3 (others) · eat them',
+  { id: 'thin', after: 'sprout', d: 5, to: 7, t: 'Mini harvest', how: 'thin: snip extras, keep 1–3 per pod',
     s: '5–7 days after the sprout dose. Cut extras at the base with clean scissors (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. Green, lettuce and herb thinnings are edible — that’s the “mini harvest”.' },
-  { d: 21, g: true, t: 'Feed at ½ tsp / gal', how: 'top-offs: ½ tsp plant food per gal',
-    s: 'Once true leaves or ½ in roots appear, mix top-offs at ½ tsp plant food per gallon.' },
-  { d: 22, t: 'Replacement check', how: 'no sprout yet → free replacement pod',
+  { id: 'replace', d: 22, t: 'Replacement check', how: 'any pod with no sprout → claim a free one',
     s: 'Any pod still unsprouted today qualifies for Gardyn’s replacement guarantee.' },
-  { d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
+  { id: 'petunia', d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
     s: 'First flowers of the kit. Deadhead spent blooms to keep them coming.' },
-  { d: 60, g: true, t: 'Feed at 1 tsp / gal', how: 'top-offs: 1 tsp plant food per gal',
-    s: 'Plants are maturing and blooming — strengthen top-offs to 1 tsp per gallon. Check roots every 2–4 weeks.' },
-  { d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
+  { id: 'roots', d: 60, g: true, t: 'Check the roots', how: 'healthy = white; trim any brown mush',
+    s: 'Plants are maturing and blooming — check roots every 2–4 weeks from now.' },
+  { id: 'stock', d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
     s: 'Expect the first stock spikes and sunflowers. Keep the room under ~75°F for stock.' },
-  { d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node; blooms come in waves',
+  { id: 'snap', d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node',
     s: 'Snapdragon blooms arrive in waves.' },
-  { d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
+  { id: 'refresh', d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
     s: 'Most Gardyn plants last ~6 months — swap tired yCubes for new ones.' },
 ];
-const recurring = () => {
-  const out = [];
-  for (let d = 7; d <= 180; d += 7) {
-    out.push(d % 28 === 0
-      ? { d, t: 'Tank refresh', how: 'drain, rinse with baking soda, refill with fed water', s: 'Drain, clean with baking soda, refill with fed water + HydroBoost.', rec: true }
-      : { d, t: 'Weekly top-off', how: 'fill to 4 gal with water + plant food + HydroBoost', s: 'Top off to 4 gal with fed water + HydroBoost; keep the tank at least half full.', rec: true });
-  }
-  return out;
-};
 
 const DAY = 864e5;
 const startMs = Date.parse(START + 'T00:00:00Z');
@@ -128,6 +126,68 @@ export function calDay(b) {
 }
 for (const p of PLANTS) { p.base = p.m; p.m = p.m.map(calDay); }
 for (const c of CARE) if (c.g) { c.d = calDay(c.d); if (c.to != null) c.to = calDay(c.to); }
+const dayOfIso = (iso) => Math.round((Date.parse(iso + 'T00:00:00Z') - startMs) / DAY);
+const endOf = (c) => (c.to != null ? c.to : c.d);
+
+// Tasks resolved against the log: done dates attached, and relative tasks
+// (thinning) counted from when the step they follow was actually done.
+function tasks(log = DEFAULT_LOG) {
+  const done = (log && log.tasks) || {};
+  const out = CARE.map((c) => ({ ...c, done: done[c.id] ? dayOfIso(done[c.id]) : null }));
+  for (const c of out) if (c.after) {
+    const prev = out.find((x) => x.id === c.after);
+    const base = prev.done != null ? prev.done : endOf(prev);
+    c.d += base; if (c.to != null) c.to += base;
+  }
+  return out;
+}
+
+// Feeding strength follows growth (Gardyn): ¼ tsp/gal from the sprout dose, ½ once
+// true leaves / ½ in roots show, 1 tsp once plants mature and bloom.
+const TRUE_LEAVES = calDay(21), MATURE = calDay(60);
+const perGalOn = (d) => (d < TRUE_LEAVES ? 0.25 : d < MATURE ? 0.5 : 1);
+const tsp = (x) => ({ 0.25: '¼', 0.5: '½', 0.75: '¾' }[x] || String(x));
+const fmtDay = (d) => dateOf(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+// The water plan: the next waterings, every 7 days after the LAST watering you
+// recorded (or the sprout dose). A slot ≥ 25 days after the last tank refresh (or
+// the first fill on day 0) is a full refresh instead of a top-off. Unrecorded past
+// slots stay at the front, shown as overdue, until you mark them done.
+export function waterPlan(fromDay, n = 6, log = DEFAULT_LOG) {
+  const ts = tasks(log);
+  const sprout = ts.find((c) => c.id === 'sprout');
+  if (sprout.done == null) {
+    return [{ d: Math.max(fromDay, sprout.d), kind: 'dose', t: sprout.t, amt: sprout.how, s: sprout.s }];
+  }
+  const water = ((log && log.water) || []).map((w) => ({ d: dayOfIso(w.date), kind: w.kind }));
+  let anchor = Math.max(sprout.done, ...water.map((w) => w.d));
+  let lastRefresh = Math.max(0, ...water.filter((w) => w.kind === 'refresh').map((w) => w.d));
+  const out = [];
+  for (let k = 1; out.length < n && k < 80; k++) {
+    const d = anchor + 7 * k;
+    const g = perGalOn(d);
+    if (d - lastRefresh >= 25) {
+      lastRefresh = d;
+      out.push({ d, kind: 'refresh', t: 'Tank refresh', amt: `drain, clean, refill 4 gal + ${tsp(g * 4)} tsp food`,
+        s: `Drain the tank, wipe it with baking soda, rinse, refill to 4 gal and mix in ${tsp(g * 4)} tsp plant food (${tsp(g)} tsp per gallon).` });
+    } else {
+      out.push({ d, kind: 'top', t: 'Top off to 4 gal', amt: `${tsp(g)} tsp food per gal added`,
+        s: `Check the app’s water tile. For every gallon you add to get back to 4 gal, mix ${tsp(g)} tsp plant food into it first. The water already in the tank keeps its food.` });
+    }
+  }
+  return out;
+}
+
+// The next one-off task still to do (not done, window not over).
+export function nextTask(day, log = DEFAULT_LOG) {
+  return tasks(log).filter((c) => c.done == null && endOf(c) >= day).sort((a, b) => a.d - b.d)[0] || null;
+}
+// Everything recorded as done, newest last: tasks + waterings.
+export function doneLog(log = DEFAULT_LOG) {
+  const t = tasks(log).filter((c) => c.done != null).map((c) => ({ id: c.id, t: c.t, d: c.done }));
+  const w = ((log && log.water) || []).map((x) => ({ id: 'water', date: x.date, t: x.kind === 'refresh' ? 'Tank refresh' : x.kind === 'dose' ? 'Sprout dose' : 'Top-off', d: dayOfIso(x.date) }));
+  return [...t, ...w].sort((a, b) => a.d - b.d);
+}
 const rangeTxt = ([a, b]) => (a === b ? `day ${a} (${fmtShort(a)})` : `day ${a}–${b} (${fmtShort(a)} – ${fmtShort(b)})`);
 
 // Where one plant is on its trajectory, given today's day index.
@@ -151,12 +211,10 @@ export function gardenStage(day) {
   return 'Past prime';
 }
 
-// The next care actions: whatever is active now, then the next upcoming item.
-export function nextCare(day) {
-  const all = [...CARE, ...recurring()].sort((a, b) => a.d - b.d);
-  const active = all.filter((c) => !c.rec && c.to != null && day >= c.d && day <= c.to);
-  const upcoming = all.filter((c) => c.d > day || (c.d === day && !active.includes(c)));
-  return { active, upcoming };
+// Compat: active = tasks in their window today; upcoming = later tasks.
+export function nextCare(day, log = DEFAULT_LOG) {
+  const todo = tasks(log).filter((c) => c.done == null).sort((a, b) => a.d - b.d);
+  return { active: todo.filter((c) => c.to != null && day >= c.d && day <= c.to), upcoming: todo.filter((c) => c.d > day) };
 }
 
 const pct = (d) => `${(Math.max(0, Math.min(AXIS_DAYS, d)) / AXIS_DAYS) * 100}%`;
@@ -172,16 +230,23 @@ const MONTHS = (() => {
 })();
 
 const STYLE = `
-  .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:12px; }
+  .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:9px; }
   .gd-top { flex:0 0 auto; display:flex; align-items:baseline; gap:12px; }
   .gd-day { font-family:var(--font-display); font-weight:700; font-size:44px; line-height:.85; color:var(--ink); }
   .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.08em; margin-right:5px; }
   .gd-st { font-family:var(--font-display); font-size:20px; font-weight:400; color:var(--mint); }
   .gd-light { margin-left:auto; font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); }
-  .gd-next { flex:0 0 auto; font-size:13px; color:var(--ink); }
-  .gd-next > div { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gd-next .how { font-size:12px; color:var(--ink-soft); margin-top:2px; }
-  .gd-next b { color:var(--gold); font-weight:600; }
+  .gp { flex:0 0 auto; display:flex; flex-direction:column; gap:7px; }
+  .gp-item { border-left:2px solid var(--c); padding-left:9px; min-width:0; }
+  .gp-item.water { --c:#5fb6ff; }
+  .gp-item.task { --c:var(--gold); }
+  .gp-when { display:flex; align-items:baseline; gap:7px; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+  .gp-when .k { font-size:10px; font-weight:600; letter-spacing:.12em; color:var(--c); }
+  .gp-when b { color:var(--ink); font-weight:600; }
+  .gp-when .in { margin-left:auto; color:var(--c); font-weight:600; }
+  .gp-what { font-size:13.5px; color:var(--ink); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gp-what .sub { color:var(--ink-soft); }
+  .gp-done { font-size:11.5px; color:var(--mint); opacity:.85; }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
   .gd-row, .gd-axis { display:grid; grid-template-columns: 104px 1fr 36px; align-items:center; column-gap:10px; }
@@ -236,11 +301,22 @@ function groupRow(h, kind, plants, day) {
     h('div', { class: 'rt' }, ready ? 'ready' : `${first - day}d`));
 }
 
-function nextText(day) {
-  const { active, upcoming } = nextCare(day);
-  if (active.length) return { k: 'Now', t: active[0].t, when: `until ${fmtShort(active[0].to)}`, how: active[0].how, s: active[0].s };
-  const n = upcoming[0];
-  return n ? { k: 'Next', t: n.t, when: fmtShort(n.d), how: n.how, s: n.s } : null;
+// "in 3 days" / "today" / "tomorrow" / "overdue 2d".
+const inDays = (d, day) => (d === day ? 'today' : d === day + 1 ? 'tomorrow' : d > day ? `in ${d - day} days` : `${day - d}d overdue`);
+
+// The two answers the wall must always give: when's the next water (and how much
+// food), and what's the next task. Plus the last thing that was done.
+function planBlock(h, day, log) {
+  const w = waterPlan(day, 1, log)[0];
+  const t = nextTask(day, log);
+  const item = (cls, label, d, badge, what, sub, title) => h('div', { class: `gp-item ${cls}`, title },
+    h('div', { class: 'gp-when' }, h('span', { class: 'k' }, label), h('b', {}, fmtDay(d)), h('span', { class: 'in' }, badge)),
+    h('div', { class: 'gp-what' }, what, sub ? h('span', { class: 'sub' }, ` · ${sub}`) : null));
+  const last = doneLog(log).slice(-1)[0];
+  return h('div', { class: 'gp' },
+    w ? item('water', 'WATER', w.d, inDays(w.d, day), w.t, w.amt, w.s) : null,
+    t ? item('task', 'TASK', t.d, day >= t.d ? `now · until ${fmtShort(endOf(t))}` : inDays(t.d, day), t.t, t.how, t.s) : null,
+    last ? h('div', { class: 'gp-done' }, `✓ ${last.t} done ${fmtShort(last.d)}`) : null);
 }
 
 function chart(h, day, detailed) {
@@ -260,17 +336,28 @@ function chart(h, day, detailed) {
     h('div', { class: 'gd-rows' }, ...rows));
 }
 
-function build(h, body, tz) {
+// The care log lives on the wall server (so ✓ Done survives reloads). Shared by the
+// tile and the fullscreen view; any change notifies both.
+let LOG = DEFAULT_LOG;
+async function loadLog() {
+  try { const r = await fetch('/api/gardyn', { cache: 'no-store' }); if (r.ok) LOG = (await r.json()).log || LOG; } catch { /* keep last */ }
+  return LOG;
+}
+async function record(body) {
+  const r = await fetch('/api/gardyn/log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`log ${r.status}`);
+  LOG = (await r.json()).log;
+  window.dispatchEvent(new Event('gardyn:log'));
+}
+
+function build(h, body, tz, log = LOG) {
   const day = todayIndex(tz);
-  const nx = nextText(day);
   body.replaceChildren(h('div', { class: 'gd' },
     h('div', { class: 'gd-top' },
       h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
       h('div', { class: 'gd-st' }, gardenStage(day)),
       h('div', { class: 'gd-light', title: 'Lights 14 h/day Sep 20–22, 16 h/day since Sep 23 (Gardyn recommends 14–16 h)' }, `${LIGHT_HOURS}h ☀`)),
-    nx ? h('div', { class: 'gd-next', title: nx.s },
-      h('div', {}, h('b', {}, `${nx.k} · `), `${nx.t}, ${nx.when}`),
-      nx.how ? h('div', { class: 'how' }, nx.how) : null) : null,
+    planBlock(h, day, log),
     chart(h, day, false)));
 }
 
@@ -285,17 +372,40 @@ export default {
     const tz = (ctx.config && ctx.config.tz) || 'America/Los_Angeles';
     ctx.style(STYLE);
     build(h, body, tz);
-    // The day only changes at midnight — an hourly rebuild is plenty (text + divs only).
-    ctx.interval(() => build(h, body, tz), 60 * 60 * 1000);
+    loadLog().then(() => build(h, body, tz));
+    const onLog = () => { if (body.isConnected) build(h, body, tz); else window.removeEventListener('gardyn:log', onLog); };
+    window.addEventListener('gardyn:log', onLog);
+    // The day only changes at midnight — an hourly refresh is plenty (text + divs only).
+    ctx.interval(() => loadLog().then(() => build(h, body, tz)), 60 * 60 * 1000);
   },
 
   // Fullscreen: headline milestones, the full trajectory, the pod tower and
   // what's coming up. Deliberately light on text — details live in tooltips.
-  openFull(body, ctx) {
+  async openFull(body, ctx) {
     const { h } = ctx;
     const tz = (ctx.config && ctx.config.tz) || 'America/Los_Angeles';
-    const day = todayIndex(tz);
     ctx.style(STYLE + FULL_STYLE);
+    await loadLog();
+    const render = () => renderFull(h, body, todayIndex(tz), LOG);
+    render();
+    const onLog = () => { if (body.isConnected) render(); else window.removeEventListener('gardyn:log', onLog); };
+    window.addEventListener('gardyn:log', onLog);
+  },
+};
+
+// ✓ Done / undo button: records to the server, then both views re-render.
+function actBtn(h, label, payload, cls = '') {
+  const b = h('button', { class: `gx-btn ${cls}`, type: 'button' }, label);
+  b.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    b.disabled = true; b.textContent = '…';
+    try { await record(payload); } catch { b.disabled = false; b.textContent = 'retry'; }
+  });
+  return b;
+}
+
+function renderFull(h, body, day, log) {
+  {
 
     // Milestone tiles: when each kind first pays off, plus the next care step.
     const firstOf = (k) => Math.min(...PLANTS.filter((p) => p.k === k).map((p) => p.m[0]));
@@ -306,15 +416,16 @@ export default {
         h('div', { class: 'v' }, left > 0 ? String(left) : '✓', left > 0 ? h('small', {}, left === 1 ? 'day' : 'days') : null),
         h('div', { class: 's' }, left > 0 ? `${verb} ${fmtShort(d)}` : 'now'));
     };
-    const nx = nextText(day);
+    const plan = waterPlan(day, 4, log);
+    const w0 = plan[0];
     const tiles = h('div', { class: 'gx-tiles' },
       tile('First harvest', firstOf('green'), KINDS.green.color, 'greens ·'),
       tile('First bloom', firstOf('flower'), KINDS.flower.color, 'petunias ·'),
       tile('Herbs ready', firstOf('herb'), KINDS.herb.color, 'from'),
-      nx ? h('div', { class: 'gx-tile care', title: nx.s },
-        h('div', { class: 'l' }, nx.k === 'Now' ? 'Do now' : 'Next care'),
-        h('div', { class: 'v t' }, nx.t),
-        h('div', { class: 's', style: { whiteSpace: 'normal' } }, `${nx.when} · ${nx.how || ''}`)) : null);
+      w0 ? h('div', { class: 'gx-tile care', title: w0.s },
+        h('div', { class: 'l' }, 'Next water'),
+        h('div', { class: 'v' }, w0.d > day ? String(w0.d - day) : 'Today', w0.d > day ? h('small', {}, w0.d - day === 1 ? 'day' : 'days') : null),
+        h('div', { class: 's' }, `${fmtDay(w0.d)} · ${w0.kind === 'refresh' ? 'tank refresh' : 'top off'}`)) : null);
 
     // Chart, with a labelled "today" marker above the rows.
     const chartEl = chart(h, day, true);
@@ -334,15 +445,27 @@ export default {
         h('span', { class: 'ps' }, side + (i + 1)));
     }));
 
-    // Coming up: the next one-off care steps; the routine collapses to one line.
-    const soon = CARE.filter((c) => (c.to != null ? c.to : c.d) >= day).slice(0, 5).map((c) => {
-      const now = day >= c.d && day <= (c.to != null ? c.to : c.d);
+    // Water & food: the next waterings, each with its exact food amount.
+    // Only the NEXT watering can be marked done (it re-anchors the rest).
+    const waterRows = plan.map((w, i) => h('div', { class: `gx-ev ${w.kind}${i === 0 ? ' next' : ''}`, title: w.s },
+      h('div', { class: 'dt' }, fmtDay(w.d)),
+      h('div', {}, h('div', { class: 't' }, w.t), h('div', { class: 'how' }, w.amt)),
+      i === 0 ? h('div', { class: 'act' }, h('div', { class: 'in' }, inDays(w.d, day)),
+        actBtn(h, '✓ Done', w.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: w.kind, action: 'done' }))
+        : h('div', { class: 'in' }, inDays(w.d, day))));
+    // Tasks: the next one-off steps, then what's already done.
+    const taskRows = tasks(log).filter((c) => c.done == null && endOf(c) >= day).sort((a, b) => a.d - b.d).slice(0, 4).map((c) => {
+      const now = day >= c.d && day <= endOf(c);
       return h('div', { class: `gx-ev${now ? ' now' : ''}`, title: c.s },
-        h('div', { class: 'dt' }, fmtShort(c.d)),
+        h('div', { class: 'dt' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
         h('div', {}, h('div', { class: 't' }, c.t), c.how ? h('div', { class: 'how' }, c.how) : null),
-        h('div', { class: 'in' }, now ? 'now' : `${c.d - day}d`));
+        // Done only once a task is due or close (no ticking off things weeks away).
+        c.d - day <= 3 ? h('div', { class: 'act' }, h('div', { class: 'in' }, now ? 'now' : inDays(c.d, day)),
+          actBtn(h, '✓ Done', { id: c.id, action: 'done' })) : h('div', { class: 'in' }, inDays(c.d, day)));
     });
-    const nextRefresh = recurring().find((c) => c.d >= day && c.t === 'Tank refresh');
+    const doneRows = doneLog(log).slice(-4).map((c) => h('div', { class: 'gx-ev done' },
+      h('div', { class: 'dt' }, fmtShort(c.d)), h('div', {}, h('div', { class: 't' }, `✓ ${c.t}`)),
+      actBtn(h, 'undo', c.id === 'water' ? { id: 'water', date: c.date, action: 'undo' } : { id: c.id, action: 'undo' }, 'ghost')));
 
     body.replaceChildren(h('div', { class: 'gx' },
       h('div', { class: 'gx-hero' },
@@ -356,18 +479,21 @@ export default {
           h('span', { class: 'key' }, h('i', { class: 'k1' }), 'sprouting', h('i', { class: 'k2' }), 'bloom / harvest')),
         chartEl),
       h('div', { class: 'gx-bottom' },
-        h('section', { class: 'gx-sec' },
-          h('div', { class: 'gx-h' }, h('span', {}, 'The tower'), h('span', { class: 'key' }, 'top → bottom')),
-          h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R'))),
-        h('section', { class: 'gx-sec' },
-          h('div', { class: 'gx-h' }, h('span', {}, 'Coming up')),
-          h('div', { class: 'gx-evs' }, ...soon),
+        h('section', { class: 'gx-sec water' },
+          h('div', { class: 'gx-h' }, h('span', {}, 'Water & food'), h('span', { class: 'key' }, 'weekly')),
+          h('div', { class: 'gx-evs' }, ...waterRows),
           h('div', { class: 'gx-routine' },
-            h('div', {}, h('b', {}, 'Every week'), ' top off to 4 gal + plant food'),
-            nextRefresh ? h('div', {}, h('b', {}, 'Every 4 weeks'), ` tank refresh · next ${fmtShort(nextRefresh.d)}`) : null))),
+            h('div', {}, h('b', {}, 'Food goes in the water'), ' — mix it into each gallon before it goes in.'),
+            h('div', {}, `¼ tsp/gal now · ½ from ${fmtShort(TRUE_LEAVES)} · 1 tsp from ${fmtShort(MATURE)}. White spoon = 1 tsp.`))),
+        h('section', { class: 'gx-sec' },
+          h('div', { class: 'gx-h' }, h('span', {}, 'Tasks')),
+          h('div', { class: 'gx-evs' }, ...taskRows, ...doneRows))),
+      h('section', { class: 'gx-sec' },
+        h('div', { class: 'gx-h' }, h('span', {}, 'The tower'), h('span', { class: 'key' }, 'top → bottom')),
+        h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R'))),
       h('div', { class: 'gf-src' }, 'Gardyn’s published ranges from sow day, scaled by your light hours (14 h → 16 h on Sep 23) — estimates, not sensor readings.')));
-  },
-};
+  }
+}
 
 const FULL_STYLE = `
   .panel-card:has(.gx) { background: linear-gradient(180deg, rgba(120,247,176,.06), transparent 160px), #0c1f19; }
@@ -382,7 +508,7 @@ const FULL_STYLE = `
   .gx-tile { border:1px solid var(--stroke); border-radius:18px; padding:14px 16px 13px;
     background:linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%);
     border-top:3px solid var(--c); min-width:0; }
-  .gx-tile.care { --c: var(--gold); }
+  .gx-tile.care { --c: #5fb6ff; }
   .gx-tile .l { font-family:var(--font-mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); }
   .gx-tile .v { font-family:var(--font-display); font-size:44px; font-weight:700; color:var(--ink); line-height:1.05; margin-top:6px; }
   .gx-tile .v small { font-size:15px; font-weight:400; color:var(--ink-soft); margin-left:5px; }
@@ -407,7 +533,7 @@ const FULL_STYLE = `
   .gf-chart .gd-axis .tk.today { top:-17px; color:var(--gold); font-weight:600; }
 
   .gx-bottom { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:12px; }
-  .gx-tower { display:grid; grid-template-columns:minmax(0,1fr) 2px minmax(0,1fr); gap:0 10px; }
+  .gx-tower { display:grid; grid-template-columns:minmax(0,1fr) 2px minmax(0,1fr); gap:0 10px; max-width:520px; margin:0 auto; }
   .gx-tower .spine { background:linear-gradient(180deg, transparent, var(--stroke-strong) 8%, var(--stroke-strong) 92%, transparent); border-radius:1px; }
   .gx-col { display:flex; flex-direction:column; gap:3px; }
   .gx-col:first-child .gx-pod { flex-direction:row-reverse; text-align:right; }
@@ -420,11 +546,23 @@ const FULL_STYLE = `
   .gx-ev { display:grid; grid-template-columns:54px 1fr auto; gap:10px; align-items:baseline;
     padding:8px 0; border-bottom:1px solid var(--stroke); }
   .gx-ev:first-child { padding-top:0; }
-  .gx-ev .dt { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); }
+  .gx-ev .dt { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); white-space:nowrap; }
+  .gx-sec.water .gx-ev { grid-template-columns:72px 1fr auto; }
   .gx-ev .t { font-size:16px; color:var(--ink); }
   .gx-ev .how { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
   .gx-ev .in { font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); }
   .gx-ev.now .dt, .gx-ev.now .t, .gx-ev.now .in { color:var(--gold); }
+  .gx-sec.water .gx-h > span:first-child { color:#5fb6ff; }
+  .gx-ev.next .dt, .gx-ev.next .t, .gx-ev.next .in { color:#5fb6ff; }
+  .gx-ev.refresh .t::after { content:' ↻'; color:var(--ink-faint); }
+  .gx-ev.done .t { color:var(--mint); }
+  .gx-ev .act { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .gx-btn { font-family:var(--font); font-size:13px; font-weight:600; color:#042018; background:var(--mint);
+    border:none; border-radius:999px; padding:6px 13px; cursor:pointer; white-space:nowrap; }
+  .gx-sec.water .gx-btn { background:#5fb6ff; }
+  .gx-btn.ghost { background:transparent; color:var(--ink-soft); border:1px solid var(--stroke); padding:4px 11px; font-weight:400; }
+  .gx-btn:disabled { opacity:.6; }
+  .gx-ev.done { opacity:.7; }
   .gx-routine { margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--ink-soft); }
   .gx-routine b { color:var(--ink); font-weight:600; margin-right:4px; }
   .gf-src { font-size:11px; color:var(--ink-faint); }

@@ -211,8 +211,15 @@ async function main() {
       check('gardyn: petunia germinating on day 4, blooming on day 35',
         g.plantStatus(pet, 4).phase === 'seed' && g.plantStatus(pet, 35).phase === 'ready',
         `got ${g.plantStatus(pet, 4).phase} / ${g.plantStatus(pet, 35).phase}`);
-      check('gardyn: sprout dose is the active care step on day 10',
-        g.nextCare(10).active.some((c) => /Sprout dose/.test(c.t)), 'expected Sprout dose active');
+      // Sprout dose was given Sep 28 (day 8): weekly waterings anchor on it, with the
+      // food strength stepping up as plants grow; thinning follows 5–7 days after.
+      const wp = g.waterPlan(10, 3);
+      check('gardyn: water plan anchors on the sprout dose (top-off day 15, ¼ tsp/gal)',
+        wp[0].d === 15 && wp[0].kind === 'top' && /¼ tsp/.test(wp[0].amt) && wp[2].kind === 'refresh',
+        `got ${JSON.stringify(wp.map((w) => [w.d, w.kind, w.amt]))}`);
+      check('gardyn: next task after the sprout dose is thinning (day 13–15)',
+        g.nextTask(10)?.id === 'thin' && g.nextTask(10).d === 13 && g.doneLog().some((c) => c.t === 'Sprout dose'),
+        `got ${JSON.stringify(g.nextTask(10))}`);
       check('gardyn: stages progress', g.gardenStage(3) === 'Germinating' && g.gardenStage(90) === 'Blooming',
         `got ${g.gardenStage(3)} / ${g.gardenStage(90)}`);
       // Sown Sep 20 at 14 h, 16 h from Sep 23 (day 3): a 30-baseline-day milestone
@@ -283,6 +290,17 @@ async function main() {
     } catch (e) { bad('pad action relay', e.message); }
 
     // path traversal must be blocked
+    // Care log API (✓ Done buttons): record a top-off, see it, undo it; junk is refused.
+    try {
+      const post = (b) => fetch(`${BASE}/api/gardyn/log`, { method: 'POST', body: JSON.stringify(b) });
+      const r1 = await (await post({ id: 'water', kind: 'top', action: 'done', date: '2026-10-05' })).json();
+      const r2 = await (await fetch(`${BASE}/api/gardyn`)).json();
+      const r3 = await (await post({ id: 'water', action: 'undo', date: '2026-10-05' })).json();
+      const junk = await post({ id: '../etc', action: 'done' });
+      check('gardyn: care log records, persists and undoes',
+        r1.ok && r2.log.water.some((w) => w.date === '2026-10-05') && !r3.log.water.length && r2.log.tasks.sprout === '2026-09-28' && junk.status === 400,
+        JSON.stringify({ r1, r2, r3, junk: junk.status }));
+    } catch (e) { bad('gardyn care log', e.message); }
     try { const r = await fetch(`${BASE}/../package.json`); check('blocks path traversal', r.status === 403 || r.status === 404); }
     catch { ok('blocks path traversal'); }
 

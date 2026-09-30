@@ -267,6 +267,16 @@ async function serveEmuFrame(req, res, u) {
   res.end(doc);
 }
 
+// Gardyn care log: { tasks: {id: 'YYYY-MM-DD'}, water: [{date, kind}] }. Seeded with
+// the sprout dose the humans gave on 2026-09-28 (before the buttons existed).
+const GARDYN_TASKS = new Set(['sprout', 'thin', 'replace', 'petunia', 'roots', 'stock', 'snap', 'refresh']);
+function gardynLog() {
+  try {
+    const v = JSON.parse(getKV('gardyn_log', '') || 'null');
+    if (v && typeof v === 'object' && v.tasks && Array.isArray(v.water)) return v;
+  } catch { /* fall through to the seed */ }
+  return { tasks: { sprout: '2026-09-28' }, water: [] };
+}
 function json(res, code, obj) { send(res, code, 'application/json; charset=utf-8', JSON.stringify(obj)); }
 
 async function readBody(req, limit = 64 * 1024) {
@@ -494,6 +504,26 @@ const server = http.createServer(async (req, res) => {
       let on = false; try { on = !!JSON.parse(raw).on; } catch { return json(res, 400, { error: 'bad json' }); }
       setNight(on);
       return json(res, 200, { ok: true, night: on });
+    }
+    // ---- Gardyn care log (✓ Done buttons in the Gardyn fullscreen). Localhost-only
+    // wall server, so only the wall writes it. Stored as one JSON value in kv.
+    if (req.method === 'GET' && p === '/api/gardyn') return json(res, 200, { log: gardynLog() });
+    if (req.method === 'POST' && p === '/api/gardyn/log') {
+      let b; try { b = JSON.parse(await readBody(req, 4096)); } catch { return json(res, 400, { error: 'bad json' }); }
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: config.tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(b?.date || '') ? b.date : today;
+      const log = gardynLog();
+      if (b?.id === 'water') {
+        if (b.action === 'done' && ['top', 'refresh'].includes(b.kind)) log.water = [...log.water, { date, kind: b.kind }].slice(-200);
+        else if (b.action === 'undo') { const i = log.water.map((w) => w.date).lastIndexOf(date); if (i >= 0) log.water.splice(i, 1); }
+        else return json(res, 400, { error: 'bad water action' });
+      } else if (GARDYN_TASKS.has(b?.id)) {
+        if (b.action === 'done') log.tasks[b.id] = date;
+        else if (b.action === 'undo') delete log.tasks[b.id];
+        else return json(res, 400, { error: 'bad action' });
+      } else return json(res, 400, { error: 'unknown id' });
+      setKV('gardyn_log', JSON.stringify(log));
+      return json(res, 200, { ok: true, log });
     }
     // ---- hand edits ("pruning"): persist a right-click text override.
     // Localhost-only server — only the wall itself can write these.
