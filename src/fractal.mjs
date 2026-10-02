@@ -165,10 +165,8 @@ function renderRows(seed, w, h, y0, y1) {
       // background: the wall's deep green, a soft vertical glow and vignette
       const vy = py / h, vx = px / w;
       const vig = 1 - 0.55 * ((vx - 0.5) ** 2 + (vy - 0.5) ** 2) * 2;
-      // Transparent background (the art floats on the card). Near-miss rays become
-      // a soft halo: palette colour with partial alpha.
-      const glow = Math.min(1, steps / STEPS) ** 3;
-      let cr = pal.b[0] * 0.9, cg = pal.b[1] * 0.9, cb = pal.b[2] * 0.9, alpha = glow * 0.35;
+      // Fully transparent background — no halo, no haze: only the fractal itself.
+      let cr = 0, cg = 0, cb = 0, alpha = 0;
       if (hit) {
         const trap = tr[0];
         // normal by central differences
@@ -198,7 +196,7 @@ function renderRows(seed, w, h, y0, y1) {
         let sb = bb * L + pal.c[2] * fill * ao + spec * 0.8 * ao + rim * pal.c[2] * 0.45 * ao;
         // depth fog toward the background
         const fog = Math.min(1, Math.max(0, (t - (MAXD - 4) * 0.55) / (MAXD * 0.6)));
-        cr = sr; cg = sg; cb = sb; alpha = 1 - fog * 0.85; // distance fades out, not to a colour
+        cr = sr; cg = sg; cb = sb; alpha = 1 - fog * 0.6; // distance fades out, not to a colour
       }
       // tone map + gamma
       const o = ((py - y0) * w + px) * 4;

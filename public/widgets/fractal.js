@@ -39,7 +39,7 @@ export default {
   title: 'Fractal',
   icon: '❋',
   size: 'tall',
-  chrome: true,
+  chrome: false, // bare: no card frame/glass/title — the art sits on the wall itself
 
   async mount(body, ctx) {
     const { h } = ctx;
