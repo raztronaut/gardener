@@ -10,6 +10,7 @@ explicitly asks for it (e.g. "actually, bring tides back"). Until then, honour i
 every day, including quiet no-feedback days.
 
 ## Banned widgets — NEVER add or re-add these (the humans removed them on purpose)
+- **Astronomy Photo (NASA APOD)** — replaced by the Fractal card (3D fractal art regenerated every 3 h). Removed 2026-10-01.
 - **tides** — do not add a tides / tide-chart / marine / NOAA-currents widget in any
   form. The humans have removed it repeatedly and do not want it. (Removed 2026-06-20.)
 - **sun-moon** — do not add a "Sun & Moon" widget (sunrise/sunset + golden/blue hour +

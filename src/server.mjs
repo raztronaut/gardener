@@ -18,6 +18,7 @@ import { recover } from './recover.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
 import { agentModel } from './models.mjs';
+import { ensureFractal, SLOT_MS } from './fractal.mjs';
 
 const START = Date.now();
 
@@ -509,6 +510,16 @@ const server = http.createServer(async (req, res) => {
     }
     // ---- Gardyn care log (✓ Done buttons in the Gardyn fullscreen). Localhost-only
     // wall server, so only the wall writes it. Stored as one JSON value in kv.
+    // ---- Fractal art (widget "Fractal"): current 3-hour slot's raymarched still.
+    if (req.method === 'GET' && p === '/api/fractal') {
+      let meta = null; try { meta = JSON.parse(readFileSync(join(FRACTAL_DIR, 'fractal.json'), 'utf8')); } catch { /* not rendered yet */ }
+      return json(res, 200, { meta, now: Date.now(), slotMs: SLOT_MS });
+    }
+    if (req.method === 'GET' && p === '/api/fractal.png') {
+      let png; try { png = readFileSync(join(FRACTAL_DIR, 'fractal.png')); } catch { kickFractal(); return json(res, 503, { error: 'rendering' }); }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': png.length, 'Cache-Control': 'public, max-age=600' });
+      return res.end(png);
+    }
     if (req.method === 'GET' && p === '/api/gardyn') return json(res, 200, { log: gardynLog() });
     if (req.method === 'POST' && p === '/api/gardyn/log') {
       let b; try { b = JSON.parse(await readBody(req, 4096)); } catch { return json(res, 400, { error: 'bad json' }); }
@@ -677,6 +688,17 @@ server.on('error', (e) => {
 // Never let an unexpected throw take the dashboard down.
 process.on('uncaughtException', (e) => log(`uncaughtException: ${e.stack || e}`));
 process.on('unhandledRejection', (e) => log(`unhandledRejection: ${e}`));
+
+// Fractal scheduler: keep the current slot rendered (worker threads, ~20 s every
+// 3 h). Disabled for the smoke server (GARDENER_FRACTAL=0) to keep tests light.
+const FRACTAL_DIR = join(paths.DATA, 'fractal');
+function kickFractal() {
+  if (process.env.GARDENER_FRACTAL === '0') return;
+  ensureFractal(FRACTAL_DIR).then((m) => { if (m?.renderMs) log(`fractal: rendered slot ${m.slot} "${m.name}" in ${m.renderMs}ms`); })
+    .catch((e) => log(`fractal: render failed: ${e.message}`));
+}
+setTimeout(kickFractal, 5000);
+setInterval(kickFractal, 5 * 60 * 1000);
 
 server.listen(config.port, config.host, () => {
   const line = `The Gardener server listening on http://${config.host}:${config.port}  (ui v${getUiVersion()}, night=${getNight()})`;

@@ -1,0 +1,81 @@
+// Fractal — a raymarched 3D fractal still that regenerates every 3 hours.
+// The backend renders it (src/fractal.mjs, worker threads — the kiosk has no GPU)
+// and serves GET /api/fractal (meta) + /api/fractal.png. The card shows the image
+// full-bleed with its name and when the next one grows. Each 3-hour slot picks a
+// family (Mandelbulb, Mandelbox, quaternion Julia, Menger sponge), camera, light
+// and a palette from the wall's own colours. Replaced the Astronomy Photo card.
+
+const fmtLeft = (ms) => {
+  const m = Math.max(0, Math.round(ms / 60000));
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+};
+
+const STYLE = `
+  .frc { position:relative; width:100%; height:100%; min-height:0; border-radius:16px; overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 45%, #12352b 0%, #081712 70%); }
+  .frc img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
+    opacity:0; transition:opacity .9s ease; }
+  .frc img.in { opacity:1; }
+  .frc .cap { position:absolute; left:0; right:0; bottom:0; padding:28px 16px 13px;
+    background:linear-gradient(to top, rgba(4,12,9,.82), transparent);
+    display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+  .frc .nm { font-family:var(--font-display); font-size:20px; color:var(--ink); line-height:1.1; }
+  .frc .nx { font-size:13px; color:var(--ink-soft); white-space:nowrap; }
+  .frc .wait { position:absolute; inset:0; display:grid; place-items:center; color:var(--ink-faint); font-size:14px; }
+  .frf { height:100%; display:flex; flex-direction:column; gap:14px; padding:4px 30px 30px; }
+  .frf img { width:100%; border-radius:20px; display:block; }
+  .frf .row { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .frf .nm { font-family:var(--font-display); font-size:30px; color:var(--ink); }
+  .frf .meta { font-size:14px; color:var(--ink-soft); }
+`;
+
+async function getMeta() {
+  const r = await fetch('/api/fractal', { cache: 'no-store' });
+  if (!r.ok) throw new Error(`fractal ${r.status}`);
+  return r.json();
+}
+
+export default {
+  id: 'fractal',
+  title: 'Fractal',
+  icon: '❋',
+  size: 'tall',
+  chrome: true,
+
+  async mount(body, ctx) {
+    const { h } = ctx;
+    ctx.style(STYLE);
+    const img = h('img', { alt: '' });
+    const nm = h('div', { class: 'nm' }, '');
+    const nx = h('div', { class: 'nx' }, '');
+    const wait = h('div', { class: 'wait' }, 'growing a new fractal…');
+    body.replaceChildren(h('div', { class: 'frc' }, wait, img, h('div', { class: 'cap' }, nm, nx)));
+    img.addEventListener('load', () => { img.classList.add('in'); wait.remove(); });
+    let slot = null, nextAt = 0;
+    const refresh = async () => {
+      try {
+        const { meta, now } = await getMeta();
+        if (!meta) { nm.textContent = ''; nx.textContent = ''; return; }
+        nextAt = meta.nextAt + (Date.now() - now); // align to the server clock
+        if (meta.slot !== slot) { slot = meta.slot; img.src = `/api/fractal.png?s=${slot}`; }
+        nm.textContent = meta.name;
+        nx.textContent = `new in ${fmtLeft(nextAt - Date.now())}`;
+      } catch { /* keep the last picture */ }
+    };
+    await refresh();
+    ctx.interval(refresh, 60 * 1000);
+  },
+
+  async openFull(body, ctx) {
+    const { h } = ctx;
+    ctx.style(STYLE);
+    let meta = null; try { ({ meta } = await getMeta()); } catch { /* none */ }
+    if (!meta) { body.replaceChildren(h('div', { class: 'frf' }, h('div', { class: 'meta' }, 'growing a new fractal…'))); return; }
+    const made = new Date(meta.generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    body.replaceChildren(h('div', { class: 'frf' },
+      h('img', { src: `/api/fractal.png?s=${meta.slot}`, alt: meta.name }),
+      h('div', { class: 'row' },
+        h('div', { class: 'nm' }, meta.name),
+        h('div', { class: 'meta' }, `${meta.palette} palette · grown ${made} · next in ${fmtLeft(meta.nextAt - Date.now())}`))));
+  },
+};

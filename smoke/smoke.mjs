@@ -105,22 +105,18 @@ async function main() {
       check('HN rank movement stays quiet on held/slipped stories',
         quietMoves.every((v) => v === null), `got ${JSON.stringify(quietMoves)}`);
     } catch (e) { bad('HN rank movement', e.message); }
-    // APOD archival catalogue number: a whole-day count from the first Astronomy
-    // Picture of the Day (1995-06-16 = № 1), inclusive, computed in UTC. The epoch
-    // + inclusive semantics are the invariant behind the museum-placard chip; a
-    // pre-launch or unparseable date must hide the placard (null).
+    // Fractal art (replaced APOD): deterministic per 3-hour slot, cycles through the
+    // families, and the tiny PNG encoder emits a valid signature + IHDR.
     try {
-      const { catalogNumber } = await import(join(PUBLIC, 'widgets', 'apod.js'));
-      check('APOD catalogue: first picture is № 1', catalogNumber('1995-06-16') === 1,
-        `got ${catalogNumber('1995-06-16')}`);
-      check('APOD catalogue: counts days inclusively', catalogNumber('1995-06-17') === 2,
-        `got ${catalogNumber('1995-06-17')}`);
-      check('APOD catalogue: a fixed recent date computes exactly',
-        catalogNumber('2026-09-10') === 11410, `got ${catalogNumber('2026-09-10')}`);
-      check('APOD catalogue: pre-launch / bad dates hide the placard',
-        catalogNumber('1995-06-15') === null && catalogNumber('') === null,
-        `got ${catalogNumber('1995-06-15')},${catalogNumber('')}`);
-    } catch (e) { bad('APOD catalogue number', e.message); }
+      const fr = await import(join(ROOT, 'src', 'fractal.mjs'));
+      const fams = new Set(Array.from({ length: 5 }, (_, k) => fr.sceneInfo(1000 + k).family));
+      check('fractal: same slot → same scene', JSON.stringify(fr.sceneInfo(4242)) === JSON.stringify(fr.sceneInfo(4242)));
+      check('fractal: slots cycle the families', ['bulb', 'julia', 'box', 'menger'].every((f) => fams.has(f)), [...fams].join(','));
+      check('fractal: slot is 3 hours', fr.SLOT_MS === 3 * 3600 * 1000 && fr.slotOf(fr.SLOT_MS * 7 + 5) === 7);
+      const png = fr.encodePNG(2, 1, new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 255]));
+      check('fractal: PNG encoder writes a valid header',
+        png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && png.readUInt32BE(16) === 2 && png.readUInt32BE(20) === 1);
+    } catch (e) { bad('fractal renderer', e.message); }
     // Daily almanac "On This Day" round-anniversary marker: a historical moment
     // falling exactly a multiple of 25 years ago to the day (25th/50th/100th…) is
     // flagged; ordinary and this-year moments are not. The "multiple of 25, ≥ 25"
@@ -251,7 +247,7 @@ async function main() {
     // 3) Boot the server with an isolated DB + port.
     console.log('\n[3] server boot');
     server = spawn(process.execPath, [join(ROOT, 'src', 'server.mjs')], {
-      env: { ...process.env, GARDENER_PORT: String(PORT), GARDENER_DATA: tmpData, GARDENER_HOST: '127.0.0.1' },
+      env: { ...process.env, GARDENER_PORT: String(PORT), GARDENER_DATA: tmpData, GARDENER_HOST: '127.0.0.1', GARDENER_FRACTAL: '0' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let serverErr = '';
@@ -295,6 +291,12 @@ async function main() {
     } catch (e) { bad('pad action relay', e.message); }
 
     // path traversal must be blocked
+    // Fractal API answers even before the first render (smoke disables rendering).
+    try {
+      const fm = await (await fetch(`${BASE}/api/fractal`)).json();
+      const fp = await fetch(`${BASE}/api/fractal.png`);
+      check('fractal: /api/fractal meta endpoint + png placeholder', 'meta' in fm && fm.slotMs === 3 * 3600 * 1000 && (fp.status === 503 || fp.ok), JSON.stringify({ fm, png: fp.status }));
+    } catch (e) { bad('fractal API', e.message); }
     // Care log API (✓ Done buttons): record a top-off, see it, undo it; junk is refused.
     try {
       const post = (b) => fetch(`${BASE}/api/gardyn/log`, { method: 'POST', body: JSON.stringify(b) });

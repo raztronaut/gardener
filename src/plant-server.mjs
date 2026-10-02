@@ -52,6 +52,7 @@ const WALL_EXACT = new Set([
   '/app.js', '/styles.css',
   '/api/state', '/api/version', '/api/iterations', '/api/proxy',
   '/api/house/status', '/api/pad/stream',
+  '/api/fractal', '/api/fractal.png', '/api/gardyn', // read-only GETs for the Fractal + Gardyn widgets
 ]);
 function wallPathAllowed(p) {
   if (WALL_EXACT.has(p)) return true;

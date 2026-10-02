@@ -39,8 +39,8 @@
       "order": 7
     },
     {
-      "id": "apod",
-      "file": "apod.js",
+      "id": "fractal",
+      "file": "fractal.js",
       "enabled": true,
       "order": 8
     },

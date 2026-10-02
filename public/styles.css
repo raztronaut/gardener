@@ -158,9 +158,7 @@ html, body {
   font-family: var(--font); font-size: 13px; letter-spacing: .2px;
   color: var(--mint); opacity: .85; white-space: nowrap; }
 .brand .bloom:active { opacity: 1; }
-.brand .agentmodel { font-size: 13px; color: var(--ink-faint); white-space: nowrap; }
-/* One-liner under the wordmark: what GardenOS is, in the garden metaphor. */
-.brand .tagline { margin-top: 4px; font-size: 13px; color: var(--ink-soft); opacity: .85; }
+.brand .agentmodel { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
 
 /* ---------- widget grid ---------- */
 #garden {
