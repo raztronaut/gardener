@@ -276,15 +276,15 @@ export default {
       .wx-plot { position:relative; height:40px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-pt { position:absolute; transform:translate(-50%,-50%); width:0; height:0; }
-      .wx-pt .dot { position:absolute; left:-4px; top:-4px; width:9px; height:9px; border-radius:50%;
-        background:var(--mint); box-shadow:0 0 8px rgba(116,247,176,.7); }
+      .wx-pt .dot { position:absolute; left:-4px; top:-4px; width:8px; height:8px; border-radius:50%;
+        background:var(--mint); box-shadow:0 0 0 2px #10261f; }
       .wx-pt .tv { position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
         font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; }
       /* Warmest / coolest hour ahead — the curve's own peak and trough, tinted so
          the day's temperature arc reads at a glance across the room. Colour + a
          caret in the label carry the meaning; no extra height, no animation. */
-      .wx-pt .dot.hi { background:var(--gold); box-shadow:0 0 10px rgba(255,217,138,.85); }
-      .wx-pt .dot.lo { background:#9cc0ff; box-shadow:0 0 10px rgba(156,192,255,.85); }
+      .wx-pt .dot.hi { background:var(--gold); box-shadow:0 0 0 2px #10261f, 0 0 10px rgba(255,217,138,.55); }
+      .wx-pt .dot.lo { background:#9cc0ff; box-shadow:0 0 0 2px #10261f, 0 0 10px rgba(156,192,255,.55); }
       .wx-pt .tv.hi { color:var(--gold); }
       .wx-pt .tv.lo { color:#9cc0ff; }
       .wx-pt .tv .cr { font-size:10px; margin-right:1px; vertical-align:1px; }
@@ -499,8 +499,17 @@ export default {
           const pop = Number.isFinite(popRaw) ? popRaw : null;
           pts.push({ t, code: d.hourly.weather_code[j], hr, pop, first: i === 0, isDay: d.hourly.is_day?.[j] });
         }
+        // The CURVE uses every hour across the same window (unrounded), so it bends
+        // smoothly through the real hourly shape instead of zig-zagging between the
+        // 2-hour labelled samples. Labelled dots sit on it at their own hours.
+        const HOURS = (pts.length - 1) * STEP;
+        const fine = [];
+        for (let k = 0; k <= HOURS; k++) {
+          const v = d.hourly.temperature_2m[idx + k];
+          if (Number.isFinite(v)) fine.push({ k, v });
+        }
         const temps = pts.map((p) => p.t);
-        const tMin = Math.min(...temps), tMax = Math.max(...temps);
+        const tMin = Math.min(...temps, ...fine.map((f) => f.v)), tMax = Math.max(...temps, ...fine.map((f) => f.v));
         const span = (tMax - tMin) || 1;
         // The warmest and coolest sampled hours ahead — the curve's peak/trough.
         // Only flagged when there's a real spread (≥3°F) so a flat day stays calm;
@@ -513,8 +522,33 @@ export default {
         const yOf = (t) => 80 - ((t - tMin) / span) * 52; // 28%..80%
         const xOf = (i) => (N === 1 ? 50 : (i / (pts.length - 1)) * 100);
 
-        const linePts = pts.map((p, i) => `${xOf(i)},${yOf(p.t)}`).join(' ');
-        const areaPts = `0,100 ${linePts} 100,100`;
+        const xOfHour = (k) => (HOURS ? (k / HOURS) * 100 : 50);
+        const rawAt = (i) => { const f = fine.find((q) => q.k === i * STEP); return f ? f.v : pts[i].t; };
+        // Monotone cubic (Fritsch–Carlson) through the hourly points: smooth, but never
+        // overshoots the data (no fake peaks/dips between hours).
+        const smooth = (P) => {
+          const n = P.length;
+          if (n < 2) return P.length ? `M${P[0][0]},${P[0][1]}` : '';
+          const dx = [], m = [];
+          for (let i = 0; i < n - 1; i++) { dx[i] = P[i + 1][0] - P[i][0]; m[i] = (P[i + 1][1] - P[i][1]) / (dx[i] || 1); }
+          const t = [m[0]];
+          for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+          t[n - 1] = m[n - 2];
+          for (let i = 0; i < n - 1; i++) {
+            if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+            const a = t[i] / m[i], b = t[i + 1] / m[i], h2 = a * a + b * b;
+            if (h2 > 9) { const k3 = 3 / Math.sqrt(h2); t[i] = k3 * a * m[i]; t[i + 1] = k3 * b * m[i]; }
+          }
+          let dStr = `M${P[0][0].toFixed(2)},${P[0][1].toFixed(2)}`;
+          for (let i = 0; i < n - 1; i++) {
+            const c = dx[i] / 3;
+            dStr += ` C${(P[i][0] + c).toFixed(2)},${(P[i][1] + t[i] * c).toFixed(2)} ${(P[i + 1][0] - c).toFixed(2)},${(P[i + 1][1] - t[i + 1] * c).toFixed(2)} ${P[i + 1][0].toFixed(2)},${P[i + 1][1].toFixed(2)}`;
+          }
+          return dStr;
+        };
+        const curvePts = (fine.length >= 2 ? fine.map((f) => [xOfHour(f.k), yOf(f.v)]) : pts.map((p, i) => [xOf(i), yOf(p.t)]));
+        const linePath = smooth(curvePts);
+        const areaPath = `${linePath} L${curvePts[curvePts.length - 1][0].toFixed(2)},100 L${curvePts[0][0].toFixed(2)},100 Z`;
 
         // Night shading — a static, cool wash behind the hours that fall after
         // sunset / before sunrise, so the evening reads at a glance on the temp
@@ -555,18 +589,26 @@ export default {
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <defs>
               <linearGradient id="wxfill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="rgba(116,247,176,.28)"/>
+                <stop offset="0" stop-color="rgba(116,247,176,.24)"/>
+                <stop offset=".7" stop-color="rgba(116,247,176,.05)"/>
                 <stop offset="1" stop-color="rgba(116,247,176,0)"/>
               </linearGradient>
+              <linearGradient id="wxline" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#b9ffd6"/>
+                <stop offset="1" stop-color="var(--mint)"/>
+              </linearGradient>
               <linearGradient id="wxnight" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="rgba(84,102,170,.26)"/>
-                <stop offset="1" stop-color="rgba(60,74,130,.10)"/>
+                <stop offset="0" stop-color="rgba(84,102,170,0)"/>
+                <stop offset=".45" stop-color="rgba(84,102,170,.20)"/>
+                <stop offset="1" stop-color="rgba(60,74,130,.06)"/>
               </linearGradient>
             </defs>
             ${nightRects}
-            <polygon points="${areaPts}" fill="url(#wxfill)"/>
+            <path d="${areaPath}" fill="url(#wxfill)"/>
             ${edgeLines}
-            <polyline points="${linePts}" fill="none" stroke="var(--mint)" stroke-width="2"
+            <path d="${linePath}" fill="none" stroke="rgba(116,247,176,.22)" stroke-width="7"
+              stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+            <path d="${linePath}" fill="none" stroke="url(#wxline)" stroke-width="2.4"
               stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
           </svg>`;
 
@@ -579,7 +621,7 @@ export default {
           const title = isHi ? `Warmest ahead · ${p.t}°F at ${when}`
             : isLo ? `Coolest ahead · ${p.t}°F at ${when}` : '';
           return ctx.h('div', {
-            class: 'wx-pt', style: { left: `${xOf(i)}%`, top: `${yOf(p.t)}%` }, title,
+            class: 'wx-pt', style: { left: `${xOf(i)}%`, top: `${yOf(rawAt(i))}%` }, title,
           },
             ctx.h('div', { class: `tv${kind}` },
               (isHi || isLo) ? ctx.h('span', { class: 'cr' }, isHi ? '▲' : '▼') : null,
