@@ -165,12 +165,10 @@ function renderRows(seed, w, h, y0, y1) {
       // background: the wall's deep green, a soft vertical glow and vignette
       const vy = py / h, vx = px / w;
       const vig = 1 - 0.55 * ((vx - 0.5) ** 2 + (vy - 0.5) ** 2) * 2;
-      const rad = Math.max(0, 1 - Math.hypot(vx - 0.5, (vy - 0.5) * h / w) * 1.6);
-      let cr = (0.006 + 0.010 * (1 - vy)) * vig + pal.a[0] * rad * 0.35, cg = (0.016 + 0.020 * (1 - vy)) * vig + pal.a[1] * rad * 0.35,
-        cb = (0.014 + 0.016 * (1 - vy)) * vig + pal.a[2] * rad * 0.35;
-      // glow from near-misses (iteration count) gives a soft halo around edges
+      // Transparent background (the art floats on the card). Near-miss rays become
+      // a soft halo: palette colour with partial alpha.
       const glow = Math.min(1, steps / STEPS) ** 3;
-      cr += glow * pal.b[0] * 0.22; cg += glow * pal.b[1] * 0.22; cb += glow * pal.b[2] * 0.22;
+      let cr = pal.b[0] * 0.9, cg = pal.b[1] * 0.9, cb = pal.b[2] * 0.9, alpha = glow * 0.35;
       if (hit) {
         const trap = tr[0];
         // normal by central differences
@@ -200,12 +198,12 @@ function renderRows(seed, w, h, y0, y1) {
         let sb = bb * L + pal.c[2] * fill * ao + spec * 0.8 * ao + rim * pal.c[2] * 0.45 * ao;
         // depth fog toward the background
         const fog = Math.min(1, Math.max(0, (t - (MAXD - 4) * 0.55) / (MAXD * 0.6)));
-        cr = mix(sr, cr, fog); cg = mix(sg, cg, fog); cb = mix(sb, cb, fog);
+        cr = sr; cg = sg; cb = sb; alpha = 1 - fog * 0.85; // distance fades out, not to a colour
       }
       // tone map + gamma
       const o = ((py - y0) * w + px) * 4;
       out[o] = 255 * aces(cr * 1.4); out[o + 1] = 255 * aces(cg * 1.4); out[o + 2] = 255 * aces(cb * 1.4);
-      out[o + 3] = 255;
+      out[o + 3] = 255 * alpha;
     }
   }
   return out;
@@ -245,10 +243,16 @@ export async function renderSlot(seed, { w: ow = W, h: oh = H, threads = 4, ss =
   for (const p of parts) big.set(new Uint8ClampedArray(p.buf), p.y0 * w * 4);
   if (ss === 1) return encodePNG(w, h, big);
   const rgba = new Uint8ClampedArray(ow * oh * 4), n = ss * ss;
-  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) for (let c = 0; c < 4; c++) {
-    let acc = 0;
-    for (let j = 0; j < ss; j++) for (let i = 0; i < ss; i++) acc += big[((y * ss + j) * w + (x * ss + i)) * 4 + c];
-    rgba[(y * ow + x) * 4 + c] = acc / n;
+  // Premultiplied average, then un-premultiply (no dark fringes at transparent edges).
+  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
+    let r = 0, g = 0, b = 0, a = 0;
+    for (let j = 0; j < ss; j++) for (let i = 0; i < ss; i++) {
+      const k = ((y * ss + j) * w + (x * ss + i)) * 4, al = big[k + 3];
+      r += big[k] * al; g += big[k + 1] * al; b += big[k + 2] * al; a += al;
+    }
+    const o = (y * ow + x) * 4;
+    if (a > 0) { rgba[o] = r / a; rgba[o + 1] = g / a; rgba[o + 2] = b / a; }
+    rgba[o + 3] = a / n;
   }
   return encodePNG(ow, oh, rgba);
 }

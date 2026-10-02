@@ -11,9 +11,8 @@ const fmtLeft = (ms) => {
 };
 
 const STYLE = `
-  .frc { position:relative; width:100%; height:100%; min-height:0; border-radius:16px; overflow:hidden;
-    background:radial-gradient(120% 90% at 50% 45%, #12352b 0%, #081712 70%); }
-  .frc img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
+  .frc { position:relative; width:100%; height:100%; min-height:0; overflow:hidden; }
+  .frc img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
     opacity:0; transition:opacity .9s ease; }
   .frc img.in { opacity:1; }
   .frc .cap { position:absolute; left:0; right:0; bottom:0; padding:28px 16px 13px;
