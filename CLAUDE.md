@@ -40,8 +40,10 @@ chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.f
 - `npm run day | night | display-sync` — display energy control.
 
 ## Arcade — retro-console emulator widget
-`public/widgets/emulator.js` (replaced the old Mario widget). The card is a calm
-pixel game-pad tile + a count of ROMs found; `openFull` shows a ROM **picker**
+`public/widgets/emulator.js` (replaced the old Mario widget). **Off-grid since
+2026-10-01:** it is `enabled:false` in the manifest (no wall tile) and opens only
+via the controller chord **L1 + R1 + L2 + R2** held together (`src/pad.mjs` sends
+`arcade` → `openArcade()` in `app.js`, which imports the module on demand). `openFull` shows a ROM **picker**
 (navigable by mouse and controller) then boots **EmulatorJS** (loaded at runtime
 from `cdn.emulatorjs.org/stable/data/` — cores are large, never vendored) for the
 chosen game. The card stays light (no EmulatorJS, no animation) so the headless

@@ -77,11 +77,27 @@ function setHeld(key, dir) {
 
 let rawLogged = 0;
 const zoomDown = new Set(); // which of the zoom-pair buttons are currently held
+// Secret Arcade chord: L1 + R1 + L2 + R2 held together opens the Arcade (the
+// emulator isn't on the wall grid — it only appears on this chord).
+const ARCADE_CHORD = [6, 7, 8, 9];
+const shoulders = new Set();
+let chordFired = false;
 function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
   if (rawLogged < 300) { rawLogged++; log(`raw ${t === 1 ? 'button' : 'axis'} #${number} = ${value}`); }
   if (t === 1) { // button: value 1=down 0=up
+    if (ARCADE_CHORD.includes(number)) {
+      if (value === 1) shoulders.add(number); else { shoulders.delete(number); if (!shoulders.size) chordFired = false; }
+      if (!chordFired && ARCADE_CHORD.every((b) => shoulders.has(b))) { chordFired = true; send('zoomreset').then(() => send('arcade')); return; }
+      // While the chord is being assembled (2+ shoulders down), swallow L2 (back) and
+      // R2 (map peek) so it doesn't close panels / flash the map. L1/R1 keep their own
+      // zoom chord (L1+R1 = reset to 100%), so the net zoom effect is a reset.
+      if ((number === 8 || number === 9) && (chordFired || shoulders.size >= 2)) {
+        if (value === 0 && number === 9) send('padmapend');
+        return;
+      }
+    }
     const peek = (MAP.peeks || {})[number];
     if (peek) { send(value === 1 ? peek.down : peek.up); return; } // both edges
     const zoom = (MAP.zoomPair || {})[number];

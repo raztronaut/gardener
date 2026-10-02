@@ -68,11 +68,14 @@ export default {
   id: 'clock',
   title: 'Time',
   icon: '🕰',
-  size: 'md', // half width — shares the top row with the Arcade + Air squares
+  size: 'md', // half width — shares the top row with Air
   chrome: false,
   async mount(root, ctx) {
     const tz = ctx.config?.tz || 'America/Los_Angeles';
     ctx.style(`
+      /* Cards are overflow:hidden, so the height-locked grid may squeeze them below their
+         content; pin the clock to its content so the other rows give way instead. */
+      .card[data-wid="clock"] { min-height:max-content; }
       .clk { display:flex; flex-direction:column; gap:3px; padding:6px 10px 4px; }
       .clk .topline { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:28px; }
       .clk .greet { color: var(--ink-soft); font-size:17px; letter-spacing:.04em;

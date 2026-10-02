@@ -1187,6 +1187,17 @@ function openFocusedWidget() {
   openWidgetPanel(card.dataset.wid);
   return true;
 }
+// The Arcade (emulator) lives off-grid: load its module on first use, then open
+// its fullscreen picker like any widget.
+async function openArcade() {
+  if (!WIDGET_MODS.emulator) {
+    try {
+      const mod = await import(`/widgets/emulator.js?v=${window.__GARDEN_VERSION}`);
+      WIDGET_MODS.emulator = mod.default || mod;
+    } catch (e) { markError('import', `emulator.js: ${e.message}`); toast('Arcade failed to load'); return; }
+  }
+  openWidgetPanel('emulator');
+}
 function openWidgetPanel(id) {
   if (id === 'hacker-news') return showHackerNews();
   if (id === 'sf-events') return showEvents();
@@ -1463,6 +1474,11 @@ function wirePad() {
         if (panelOpen()) { closePanel(); break; }
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showHackerNews();
+        break;
+      case 'arcade': // L1+R1+L2+R2 chord — the Arcade isn't on the grid; open it on demand
+        if (pal) { hidePalette(); if (input) input.value = ''; }
+        padMapPeek = false;
+        openArcade();
         break;
       case 'padmap': // R2 down — peek the controller map instantly
         if (pal) { hidePalette(); if (input) input.value = ''; }

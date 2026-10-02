@@ -119,7 +119,7 @@ export default {
   id: 'air-quality',
   title: 'Air',
   icon: '🌬',
-  size: 'sq',
+  size: 'md', // half width — shares the top row with the clock (Arcade moved off-grid 2026-10-01)
   chrome: true,
   async mount(body, ctx) {
     const { h } = ctx;

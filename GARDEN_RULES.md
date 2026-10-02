@@ -55,6 +55,9 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **The Arcade has no tile on the wall** (2026-10-01). It opens only when the controller
+  chord L1 + R1 + L2 + R2 is held (pad.mjs → `arcade` → openArcade()). Keep emulator.js
+  and the chord working, but never put the Arcade card back on the grid.
 - Do NOT re-introduce ANY widget the humans have asked to remove. Removal is permanent
   unless a later note explicitly says to bring it back. When you remove a widget because
   of feedback, ADD it to the "Banned widgets" list above in the same tending.

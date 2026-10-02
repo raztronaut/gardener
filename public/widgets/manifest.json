@@ -1,5 +1,5 @@
 {
-  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest. NOTE: GARDEN_RULES.md lists widgets the humans have permanently banned \u2014 never re-add them.",
+  "_comment": "Widget registry for The Gardener. The agent edits this to add/enable/order widgets. Each entry: {id, file, enabled, order}. Files live beside this manifest. NOTE: GARDEN_RULES.md lists widgets the humans have permanently banned — never re-add them.",
   "widgets": [
     {
       "id": "clock",
@@ -10,8 +10,9 @@
     {
       "id": "emulator",
       "file": "emulator.js",
-      "enabled": true,
-      "order": 2
+      "enabled": false,
+      "order": 2,
+      "_note": "Off-grid: opened by the controller chord L1+R1+L2+R2 (app.js openArcade). Keep the file."
     },
     {
       "id": "air-quality",
