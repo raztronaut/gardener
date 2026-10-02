@@ -83,23 +83,47 @@ const CARE = [
   // Dose rule is ¼ tsp per gallon for EVERY gallon in the tank. Gardyn's Studio figure
   // (¾ tsp) assumes a 2 gal start; this tank started with 3 gal, so 3 + 1 = 4 gal → 1 tsp
   // (one level white Gardyn spoon, which is 1 tsp).
-  { id: 'sprout', d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
+  { id: 'sprout', ic: 'spoon', short: 'Sprout dose', d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
     s: 'Once most pods have sprouted: mix 1 tsp (the white Gardyn spoon, level) of plant food into 1 gal of warm water, shake, pour it all into the tank. Rule: ¼ tsp per gallon in the tank — 3 gal start + this 1 gal = 4 gal. Water only until then.' },
-  { id: 'thin', after: 'sprout', d: 5, to: 7, t: 'Mini harvest', how: 'thin: snip extras, keep 1–3 per pod',
+  { id: 'thin', ic: 'scissors', short: 'Thin sprouts', after: 'sprout', d: 5, to: 7, t: 'Mini harvest', how: 'thin: snip extras, keep 1–3 per pod',
     s: '5–7 days after the sprout dose. Cut extras at the base with clean scissors (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. Green, lettuce and herb thinnings are edible — that’s the “mini harvest”.' },
-  { id: 'replace', d: 22, t: 'Replacement check', how: 'any pod with no sprout → claim a free one',
+  { id: 'replace', ic: 'search', short: 'Check pods', d: 22, t: 'Replacement check', how: 'any pod with no sprout → claim a free one',
     s: 'Any pod still unsprouted today qualifies for Gardyn’s replacement guarantee.' },
-  { id: 'petunia', d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
+  { id: 'petunia', ic: 'flower', short: 'Petunias bloom', d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
     s: 'First flowers of the kit. Deadhead spent blooms to keep them coming.' },
-  { id: 'roots', d: 60, g: true, t: 'Check the roots', how: 'healthy = white; trim any brown mush',
+  { id: 'roots', ic: 'roots', short: 'Check roots', d: 60, g: true, t: 'Check the roots', how: 'healthy = white; trim any brown mush',
     s: 'Plants are maturing and blooming — check roots every 2–4 weeks from now.' },
-  { id: 'stock', d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
+  { id: 'stock', ic: 'flower', short: 'Stock blooms', d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
     s: 'Expect the first stock spikes and sunflowers. Keep the room under ~75°F for stock.' },
-  { id: 'snap', d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node',
+  { id: 'snap', ic: 'flower', short: 'Snapdragons', d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node',
     s: 'Snapdragon blooms arrive in waves.' },
-  { id: 'refresh', d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
+  { id: 'refresh', ic: 'sprout', short: 'Replant', d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
     s: 'Most Gardyn plants last ~6 months — swap tired yCubes for new ones.' },
 ];
+
+// Line icons (24px grid, round 1.8 stroke, currentColor) — the wall's icon style.
+const ICON = {
+  drop: '<path d="M12 3.6c3.1 4 6 7.1 6 10.4a6 6 0 0 1-12 0c0-3.3 2.9-6.4 6-10.4z"/>',
+  refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+  scissors: '<circle cx="6.5" cy="7" r="2.6"/><circle cx="6.5" cy="17" r="2.6"/><path d="M8.8 8.4 19.5 17.5M8.8 15.6 19.5 6.5"/>',
+  leaf: '<path d="M5 19.5C5 11 10 5 19.5 4.5 19.5 14 14 19 5.5 19"/><path d="M5 19.5c3-4.5 6-7.5 10-10"/>',
+  flower: '<circle cx="12" cy="12" r="2.2"/><path d="M12 9.8C9.6 7.6 10.2 4 12 3.5c1.8.5 2.4 4.1 0 6.3zM12 14.2c2.4 2.2 1.8 5.8 0 6.3-1.8-.5-2.4-4.1 0-6.3zM9.8 12C7.6 14.4 4 13.8 3.5 12 4 10.2 7.6 9.6 9.8 12zM14.2 12c2.2-2.4 5.8-1.8 6.3 0-.5 1.8-4.1 2.4-6.3 0z"/>',
+  sprig: '<path d="M12 21V9"/><path d="M12 14c-4.2 0-6.2-2.3-6.2-5.4 3.3 0 6.2 1.6 6.2 5.4zM12 11c4.2 0 6.2-2.3 6.2-5.4-3.3 0-6.2 1.6-6.2 5.4z"/>',
+  spoon: '<ellipse cx="12" cy="7" rx="3.6" ry="4.4"/><path d="M12 11.4V21"/>',
+  search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.6-4.6"/>',
+  roots: '<path d="M12 3v8"/><path d="M12 11c-1.5 2.5-4.5 3.8-6.5 8M12 11c1.5 2.5 4.5 3.8 6.5 8M12 11v9"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
+  sprout: '<path d="M12 21v-8"/><path d="M12 13c0-4-3-6-7-6 0 4 3 6 7 6zM12 13c0-3 2.5-5 6-5 0 3-2.5 5-6 5z"/>',
+};
+function icon(name, cls = '') {
+  const el = document.createElement('span');
+  el.className = `ic ${cls}`.trim();
+  el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name] || ''}</svg>`;
+  return el;
+}
+const KIND_ICON = { flower: 'flower', green: 'leaf', herb: 'sprig' };
+const WATER_ICON = { top: 'drop', refresh: 'refresh', dose: 'spoon' };
 
 const DAY = 864e5;
 const startMs = Date.parse(START + 'T00:00:00Z');
@@ -168,10 +192,10 @@ export function waterPlan(fromDay, n = 6, log = DEFAULT_LOG) {
     const g = perGalOn(d);
     if (d - lastRefresh >= 25) {
       lastRefresh = d;
-      out.push({ d, kind: 'refresh', t: 'Tank refresh', amt: `drain, clean, refill 4 gal + ${tsp(g * 4)} tsp food`,
+      out.push({ d, kind: 'refresh', t: 'Tank refresh', amt: `refill · ${tsp(g * 4)} tsp food`,
         s: `Drain the tank, wipe it with baking soda, rinse, refill to 4 gal and mix in ${tsp(g * 4)} tsp plant food (${tsp(g)} tsp per gallon).` });
     } else {
-      out.push({ d, kind: 'top', t: 'Top off to 4 gal', amt: `${tsp(g)} tsp food per gal added`,
+      out.push({ d, kind: 'top', t: 'Top off to 4 gal', amt: `${tsp(g)} tsp / gal`,
         s: `Check the app’s water tile. For every gallon you add to get back to 4 gal, mix ${tsp(g)} tsp plant food into it first. The water already in the tank keeps its food.` });
     }
   }
@@ -236,17 +260,17 @@ const STYLE = `
   .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.08em; margin-right:5px; }
   .gd-st { font-family:var(--font-display); font-size:20px; font-weight:400; color:var(--mint); }
   .gd-light { margin-left:auto; font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); }
-  .gp { flex:0 0 auto; display:flex; flex-direction:column; gap:7px; }
-  .gp-item { border-left:2px solid var(--c); padding-left:9px; min-width:0; }
-  .gp-item.water { --c:#5fb6ff; }
-  .gp-item.task { --c:var(--gold); }
-  .gp-when { display:flex; align-items:baseline; gap:7px; font-size:12px; color:var(--ink-soft); white-space:nowrap; }
-  .gp-when .k { font-size:10px; font-weight:600; letter-spacing:.12em; color:var(--c); }
-  .gp-when b { color:var(--ink); font-weight:600; }
-  .gp-when .in { margin-left:auto; color:var(--c); font-weight:600; }
-  .gp-what { font-size:13.5px; color:var(--ink); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gp-what .sub { color:var(--ink-soft); }
-  .gp-done { font-size:11.5px; color:var(--mint); opacity:.85; }
+  .gp { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .gp-cell { display:flex; align-items:center; gap:9px; min-width:0; padding:8px 10px;
+    border-radius:14px; background:rgba(255,255,255,.04); }
+  .gp-cell.water { --c:#5fb6ff; }
+  .gp-cell.task { --c:var(--gold); }
+  .gp-ic { width:30px; height:30px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
+    color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); font-size:17px; }
+  .gp-tx { flex:1; min-width:0; }
+  .gp-d { font-size:11.5px; color:var(--ink-soft); white-space:nowrap; }
+  .gp-m { font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gp-in { flex:0 0 auto; font-family:var(--font-display); font-size:17px; color:var(--c); }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
   .gd-row, .gd-axis { display:grid; grid-template-columns: 104px 1fr 36px; align-items:center; column-gap:10px; }
@@ -266,9 +290,13 @@ const STYLE = `
   .gd-row .now { position:absolute; top:-3px; bottom:-3px; width:1.5px; margin-left:-.75px; background:var(--gold); }
   .gd-row .rt { font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
   .gd-row.ready .rt { color:var(--mint); font-weight:600; }
-  .gd-row .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:1px; }
+  .ic { display:inline-flex; width:1em; height:1em; flex:0 0 auto; }
+  .ic svg { width:100%; height:100%; }
+  .gd-row .nm { display:flex; align-items:center; gap:6px; }
+  .gd-row .ic.kind { font-size:13px; }
 `;
 
+const kindIcon = (k) => { const e = icon(KIND_ICON[k], 'kind'); e.style.color = KINDS[k].color; return e; };
 const tip = (p) => `${p.n}${p.pos.length > 1 ? ' ×2' : ''} · pod ${p.pos.join(' & ')} · sprouts ${rangeTxt(p.sp)} · `
   + `${p.k === 'flower' ? 'first blooms' : 'first cut'} ${rangeTxt(p.m)}`;
 const bar = (h, cls, a, b, c) => h('div', { class: cls, style: { left: pct(a), width: `calc(${pct(b)} - ${pct(a)})`, background: c } });
@@ -279,7 +307,7 @@ function row(h, p, day) {
   const st = plantStatus(p, day);
   const ready = st.phase === 'ready' || st.phase === 'ongoing';
   return h('div', { class: `gd-row${ready ? ' ready' : ''}`, title: tip(p) },
-    h('div', { class: 'nm' }, h('span', { class: 'dot', style: { background: c } }), p.n + (p.pos.length > 1 ? ' ×2' : '')),
+    h('div', { class: 'nm' }, kindIcon(p.k), p.n + (p.pos.length > 1 ? ' ×2' : '')),
     h('div', { class: 'tr' },
       bar(h, 'sp', p.sp[0], p.sp[1], c),
       bar(h, 'mw', p.m[0], p.m[1], c),
@@ -294,7 +322,7 @@ function groupRow(h, kind, plants, day) {
   const first = Math.min(...plants.map((p) => p.m[0]));
   const ready = plants.some((p) => day >= p.m[0]);
   return h('div', { class: `gd-row grp${ready ? ' ready' : ''}`, title: plants.map(tip).join('\n') },
-    h('div', { class: 'nm' }, h('span', { class: 'dot', style: { background: c } }), `${KINDS[kind].label} ×${plants.length}`),
+    h('div', { class: 'nm' }, kindIcon(kind), `${KINDS[kind].label} ×${plants.length}`),
     h('div', { class: 'tr' },
       ...plants.map((p) => bar(h, 'mw', p.m[0], p.m[1], c)),
       day >= 0 && day <= AXIS_DAYS ? h('div', { class: 'now', style: { left: pct(day) } }) : null),
@@ -304,19 +332,20 @@ function groupRow(h, kind, plants, day) {
 // "in 3 days" / "today" / "tomorrow" / "overdue 2d".
 const inDays = (d, day) => (d === day ? 'today' : d === day + 1 ? 'tomorrow' : d > day ? `in ${d - day} days` : `${day - d}d overdue`);
 
-// The two answers the wall must always give: when's the next water (and how much
-// food), and what's the next task. Plus the last thing that was done.
+// The two answers the wall must always give, side by side: the next watering
+// (with its food amount) and the next task. Icons carry the meaning; details are
+// in the tooltips.
+const daysTxt = (d, day) => (d === day ? 'today' : d < day ? `${day - d}d late` : `${d - day}d`);
 function planBlock(h, day, log) {
   const w = waterPlan(day, 1, log)[0];
   const t = nextTask(day, log);
-  const item = (cls, label, d, badge, what, sub, title) => h('div', { class: `gp-item ${cls}`, title },
-    h('div', { class: 'gp-when' }, h('span', { class: 'k' }, label), h('b', {}, fmtDay(d)), h('span', { class: 'in' }, badge)),
-    h('div', { class: 'gp-what' }, what, sub ? h('span', { class: 'sub' }, ` · ${sub}`) : null));
-  const last = doneLog(log).slice(-1)[0];
+  const cell = (cls, ic, d, main, badge, title) => h('div', { class: `gp-cell ${cls}`, title },
+    h('div', { class: 'gp-ic' }, icon(ic)),
+    h('div', { class: 'gp-tx' }, h('div', { class: 'gp-d' }, fmtDay(d)), h('div', { class: 'gp-m' }, main)),
+    h('div', { class: 'gp-in' }, badge));
   return h('div', { class: 'gp' },
-    w ? item('water', 'WATER', w.d, inDays(w.d, day), w.t, w.amt, w.s) : null,
-    t ? item('task', 'TASK', t.d, day >= t.d ? `now · until ${fmtShort(endOf(t))}` : inDays(t.d, day), t.t, t.how, t.s) : null,
-    last ? h('div', { class: 'gp-done' }, `✓ ${last.t} done ${fmtShort(last.d)}`) : null);
+    w ? cell('water', WATER_ICON[w.kind], w.d, w.amt, daysTxt(w.d, day), `${w.t} — ${w.s}`) : null,
+    t ? cell('task', t.ic, t.d, t.short, day >= t.d ? 'now' : daysTxt(t.d, day), `${t.t} — ${t.s}`) : null);
 }
 
 function chart(h, day, detailed) {
@@ -394,12 +423,12 @@ export default {
 };
 
 // ✓ Done / undo button: records to the server, then both views re-render.
-function actBtn(h, label, payload, cls = '') {
-  const b = h('button', { class: `gx-btn ${cls}`, type: 'button' }, label);
+function actBtn(h, label, payload, cls = '', title = 'Mark done') {
+  const b = h('button', { class: `gx-btn ${cls}`, type: 'button', title, 'aria-label': title }, label);
   b.addEventListener('click', async (e) => {
     e.stopPropagation();
-    b.disabled = true; b.textContent = '…';
-    try { await record(payload); } catch { b.disabled = false; b.textContent = 'retry'; }
+    b.disabled = true;
+    try { await record(payload); } catch { b.disabled = false; b.classList.add('err'); }
   });
   return b;
 }
@@ -409,23 +438,20 @@ function renderFull(h, body, day, log) {
 
     // Milestone tiles: when each kind first pays off, plus the next care step.
     const firstOf = (k) => Math.min(...PLANTS.filter((p) => p.k === k).map((p) => p.m[0]));
-    const tile = (label, d, color, verb) => {
+    const tile = (ic, title, d, color, what) => {
       const left = d - day;
-      return h('div', { class: 'gx-tile', style: { '--c': color } },
-        h('div', { class: 'l' }, label),
-        h('div', { class: 'v' }, left > 0 ? String(left) : '✓', left > 0 ? h('small', {}, left === 1 ? 'day' : 'days') : null),
-        h('div', { class: 's' }, left > 0 ? `${verb} ${fmtShort(d)}` : 'now'));
+      return h('div', { class: 'gx-tile', style: { '--c': color }, title },
+        h('div', { class: 'l' }, icon(ic)),
+        h('div', { class: 'v' }, left > 0 ? String(left) : '✓', left > 0 ? h('small', {}, 'd') : null),
+        h('div', { class: 's' }, left > 0 ? `${what} · ${fmtShort(d)}` : `${what} · now`));
     };
     const plan = waterPlan(day, 4, log);
     const w0 = plan[0];
     const tiles = h('div', { class: 'gx-tiles' },
-      tile('First harvest', firstOf('green'), KINDS.green.color, 'greens ·'),
-      tile('First bloom', firstOf('flower'), KINDS.flower.color, 'petunias ·'),
-      tile('Herbs ready', firstOf('herb'), KINDS.herb.color, 'from'),
-      w0 ? h('div', { class: 'gx-tile care', title: w0.s },
-        h('div', { class: 'l' }, 'Next water'),
-        h('div', { class: 'v' }, w0.d > day ? String(w0.d - day) : 'Today', w0.d > day ? h('small', {}, w0.d - day === 1 ? 'day' : 'days') : null),
-        h('div', { class: 's' }, `${fmtDay(w0.d)} · ${w0.kind === 'refresh' ? 'tank refresh' : 'top off'}`)) : null);
+      tile('leaf', 'First harvest (greens)', firstOf('green'), KINDS.green.color, 'greens'),
+      tile('flower', 'First bloom (petunias)', firstOf('flower'), KINDS.flower.color, 'petunias'),
+      tile('sprig', 'Herbs ready', firstOf('herb'), KINDS.herb.color, 'herbs'),
+      w0 ? tile(WATER_ICON[w0.kind], `Next watering — ${w0.s}`, w0.d, '#5fb6ff', w0.kind === 'refresh' ? 'refresh' : 'top off') : null);
 
     // Chart, with a labelled "today" marker above the rows.
     const chartEl = chart(h, day, true);
@@ -440,32 +466,34 @@ function renderFull(h, body, day, log) {
     const col = (side) => h('div', { class: 'gx-col' }, ...Array.from({ length: 8 }, (_, i) => {
       const p = byPos[side + (i + 1)];
       return h('div', { class: 'gx-pod', title: `${p.n} — ${p.note}` },
-        h('i', { style: { background: KINDS[p.k].color } }),
+        kindIcon(p.k),
         h('span', { class: 'n' }, p.n.replace(/^(Purple|Yellow) (?=Snapdragon|Swiss)/, '')),
         h('span', { class: 'ps' }, side + (i + 1)));
     }));
 
     // Water & food: the next waterings, each with its exact food amount.
     // Only the NEXT watering can be marked done (it re-anchors the rest).
-    const waterRows = plan.map((w, i) => h('div', { class: `gx-ev ${w.kind}${i === 0 ? ' next' : ''}`, title: w.s },
-      h('div', { class: 'dt' }, fmtDay(w.d)),
-      h('div', {}, h('div', { class: 't' }, w.t), h('div', { class: 'how' }, w.amt)),
-      i === 0 ? h('div', { class: 'act' }, h('div', { class: 'in' }, inDays(w.d, day)),
-        actBtn(h, '✓ Done', w.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: w.kind, action: 'done' }))
-        : h('div', { class: 'in' }, inDays(w.d, day))));
+    const waterRows = plan.map((w, i) => h('div', { class: `gx-row ${w.kind}${i === 0 ? ' next' : ''}`, title: `${w.t} — ${w.s}` },
+      h('div', { class: 'ri' }, icon(WATER_ICON[w.kind])),
+      h('div', { class: 'rt' }, h('div', { class: 'd' }, fmtDay(w.d)), h('div', { class: 'm' }, w.amt)),
+      h('div', { class: 'rn' }, daysTxt(w.d, day)),
+      i === 0 ? actBtn(h, icon('check'), w.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: w.kind, action: 'done' }) : h('div', { class: 'gx-btn-sp' })));
     // Tasks: the next one-off steps, then what's already done.
     const taskRows = tasks(log).filter((c) => c.done == null && endOf(c) >= day).sort((a, b) => a.d - b.d).slice(0, 4).map((c) => {
       const now = day >= c.d && day <= endOf(c);
-      return h('div', { class: `gx-ev${now ? ' now' : ''}`, title: c.s },
-        h('div', { class: 'dt' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
-        h('div', {}, h('div', { class: 't' }, c.t), c.how ? h('div', { class: 'how' }, c.how) : null),
+      return h('div', { class: `gx-row task${now ? ' now' : ''}`, title: `${c.t} — ${c.how}. ${c.s}` },
+        h('div', { class: 'ri' }, icon(c.ic)),
+        h('div', { class: 'rt' }, h('div', { class: 'd' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
+          h('div', { class: 'm' }, c.short)),
+        h('div', { class: 'rn' }, now ? 'now' : daysTxt(c.d, day)),
         // Done only once a task is due or close (no ticking off things weeks away).
-        c.d - day <= 3 ? h('div', { class: 'act' }, h('div', { class: 'in' }, now ? 'now' : inDays(c.d, day)),
-          actBtn(h, '✓ Done', { id: c.id, action: 'done' })) : h('div', { class: 'in' }, inDays(c.d, day)));
+        c.d - day <= 3 ? actBtn(h, icon('check'), { id: c.id, action: 'done' }) : h('div', { class: 'gx-btn-sp' }));
     });
-    const doneRows = doneLog(log).slice(-4).map((c) => h('div', { class: 'gx-ev done' },
-      h('div', { class: 'dt' }, fmtShort(c.d)), h('div', {}, h('div', { class: 't' }, `✓ ${c.t}`)),
-      actBtn(h, 'undo', c.id === 'water' ? { id: 'water', date: c.date, action: 'undo' } : { id: c.id, action: 'undo' }, 'ghost')));
+    const doneRows = doneLog(log).slice(-3).map((c) => h('div', { class: 'gx-row done', title: `Done ${fmtShort(c.d)}` },
+      h('div', { class: 'ri' }, icon('check')),
+      h('div', { class: 'rt' }, h('div', { class: 'd' }, fmtShort(c.d)), h('div', { class: 'm' }, c.t)),
+      h('div', { class: 'rn' }, ''),
+      actBtn(h, icon('refresh'), c.id === 'water' ? { id: 'water', date: c.date, action: 'undo' } : { id: c.id, action: 'undo' }, 'ghost', 'Undo')));
 
     body.replaceChildren(h('div', { class: 'gx' },
       h('div', { class: 'gx-hero' },
@@ -480,11 +508,15 @@ function renderFull(h, body, day, log) {
         chartEl),
       h('div', { class: 'gx-bottom' },
         h('section', { class: 'gx-sec water' },
-          h('div', { class: 'gx-h' }, h('span', {}, 'Water & food'), h('span', { class: 'key' }, 'weekly')),
+          h('div', { class: 'gx-h' }, h('span', {}, 'Water & food')),
           h('div', { class: 'gx-evs' }, ...waterRows),
-          h('div', { class: 'gx-routine' },
-            h('div', {}, h('b', {}, 'Food goes in the water'), ' — mix it into each gallon before it goes in.'),
-            h('div', {}, `¼ tsp/gal now · ½ from ${fmtShort(TRUE_LEAVES)} · 1 tsp from ${fmtShort(MATURE)}. White spoon = 1 tsp.`))),
+          // Feed strength ramp as three chips + the spoon key; the "mix food into the
+          // water first" rule lives in each row's tooltip.
+          h('div', { class: 'gx-ramp', title: 'Food always goes in the water: mix it into each gallon before pouring. The white Gardyn spoon is 1 tsp.' },
+            h('span', { class: 'chip on' }, icon('spoon'), '¼'),
+            h('span', { class: 'chip' }, '½ ', h('small', {}, fmtShort(TRUE_LEAVES))),
+            h('span', { class: 'chip' }, '1 ', h('small', {}, fmtShort(MATURE))),
+            h('span', { class: 'per' }, 'tsp / gal'))),
         h('section', { class: 'gx-sec' },
           h('div', { class: 'gx-h' }, h('span', {}, 'Tasks')),
           h('div', { class: 'gx-evs' }, ...taskRows, ...doneRows))),
@@ -506,10 +538,9 @@ const FULL_STYLE = `
 
   .gx-tiles { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
   .gx-tile { border:1px solid var(--stroke); border-radius:18px; padding:14px 16px 13px;
-    background:linear-gradient(180deg, color-mix(in srgb, var(--c) 14%, transparent), transparent 70%);
-    border-top:3px solid var(--c); min-width:0; }
+        min-width:0; }
   .gx-tile.care { --c: #5fb6ff; }
-  .gx-tile .l { font-family:var(--font-mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); }
+  .gx-tile .l { font-size:22px; color:var(--c); display:flex; }
   .gx-tile .v { font-family:var(--font-display); font-size:44px; font-weight:700; color:var(--ink); line-height:1.05; margin-top:6px; }
   .gx-tile .v small { font-size:15px; font-weight:400; color:var(--ink-soft); margin-left:5px; }
   .gx-tile .v.t { font-size:22px; line-height:1.1; min-height:48px; display:flex; align-items:flex-end; }
@@ -566,4 +597,28 @@ const FULL_STYLE = `
   .gx-routine { margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--ink-soft); }
   .gx-routine b { color:var(--ink); font-weight:600; margin-right:4px; }
   .gf-src { font-size:11px; color:var(--ink-faint); }
+  /* icon rows (water / tasks / done) */
+  .gx-row { display:grid; grid-template-columns:34px 1fr auto 34px; gap:10px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--stroke); }
+  .gx-row .ri { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-size:17px;
+    color:var(--c, var(--ink-soft)); background:color-mix(in srgb, var(--c, #fff) 13%, transparent); }
+  .gx-row.top, .gx-row.refresh, .gx-row.dose { --c:#5fb6ff; }
+  .gx-row.task { --c:var(--gold); }
+  .gx-row.done { --c:var(--mint); opacity:.7; }
+  .gx-row:not(.next):not(.now):not(.done) .ri { opacity:.6; }
+  .gx-row .d { font-size:12px; color:var(--ink-soft); }
+  .gx-row .m { font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gx-row .rn { font-family:var(--font-display); font-size:18px; color:var(--ink-soft); }
+  .gx-row.next .rn, .gx-row.now .rn { color:var(--c); }
+  .gx-btn { width:34px; height:34px; padding:0; display:grid; place-items:center; font-size:17px; border-radius:50%; }
+  .gx-btn.err { background:var(--rose); }
+  .gx-btn.ghost { padding:0; font-size:15px; }
+  .gx-btn-sp { width:34px; }
+  .gx-ramp { display:flex; align-items:center; gap:6px; margin-top:14px; font-size:15px; color:var(--ink-soft); }
+  .gx-ramp .chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px;
+    background:rgba(255,255,255,.05); color:var(--ink-soft); }
+  .gx-ramp .chip.on { background:color-mix(in srgb, #5fb6ff 18%, transparent); color:#5fb6ff; }
+  .gx-ramp .chip small { font-size:11px; color:var(--ink-faint); }
+  .gx-ramp .per { margin-left:4px; font-size:12px; color:var(--ink-faint); }
+  .gx-pod .ic.kind { font-size:13px; }
 `;

@@ -294,9 +294,9 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 #cmdpal[hidden] { display: none; }
 @keyframes palUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .cp-row { display: flex; align-items: baseline; gap: 12px; padding: 11px 18px;
-  border-left: 3px solid transparent; cursor: pointer; }
+  cursor: pointer; }
 .cp-row + .cp-row { border-top: 1px solid var(--stroke); }
-.cp-row.sel { background: rgba(116,247,176,.08); border-left-color: var(--mint); }
+.cp-row.sel { background: rgba(116,247,176,.10); }
 .cp-ic { font-size: 15px; flex: none; }
 .cp-cmd { font-family: var(--font-mono); font-size: 15px; color: var(--mint); flex: none; min-width: 118px; }
 .cp-alias { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); flex: none; }

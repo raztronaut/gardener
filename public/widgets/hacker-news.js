@@ -127,13 +127,15 @@ export default {
     ctx.style(`
       .hn { display:flex; flex-direction:column; gap:7px; height:100%; }
       .hn-item { position:relative; display:flex; gap:12px; align-items:flex-start; flex:1; min-height:0;
-        padding:7px 12px 7px 20px; background:rgba(255,255,255,.04);
+        padding:7px 12px 7px 12px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; }
       /* relative-popularity accent — a quiet vertical "equalizer" bar down the left
          edge whose FILL height (and, via the gradient, its colour) encodes this
          story's score against today's top story. Adds no vertical height, so it
          never risks clipping; static, no animation. */
-      .hn-track { position:absolute; left:8px; top:10px; bottom:10px; width:3px;
+      /* (2026-10-01: hidden — the humans dislike accent bars on card edges; the ▲ score
+         already carries popularity.) */
+      .hn-track { display:none; position:absolute; left:8px; top:10px; bottom:10px; width:3px;
         border-radius:2px; background:rgba(255,255,255,.06); overflow:hidden; }
       .hn-fill { position:absolute; left:0; right:0; bottom:0; border-radius:2px;
         background:linear-gradient(to top, var(--mint-2), var(--gold)); }

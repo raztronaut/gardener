@@ -55,6 +55,9 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **No accent bars on card/row edges** (2026-10-01: "very vibecoded"). No coloured
+  border-left / border-top stripes, side "equalizer" bars or edge highlights to mark
+  items. Use an icon, colour on the text/number itself, or spacing instead.
 - **The Arcade has no tile on the wall** (2026-10-01). It opens only when the controller
   chord L1 + R1 + L2 + R2 is held (pad.mjs → `arcade` → openArcade()). Keep emulator.js
   and the chord working, but never put the Arcade card back on the grid.
