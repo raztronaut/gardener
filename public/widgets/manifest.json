@@ -39,8 +39,8 @@
       "order": 7
     },
     {
-      "id": "fractal",
-      "file": "fractal.js",
+      "id": "sf-events",
+      "file": "sf-events.js",
       "enabled": true,
       "order": 8
     },
@@ -51,8 +51,8 @@
       "order": 9
     },
     {
-      "id": "sf-events",
-      "file": "sf-events.js",
+      "id": "fractal",
+      "file": "fractal.js",
       "enabled": true,
       "order": 10
     }
