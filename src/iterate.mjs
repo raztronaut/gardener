@@ -22,6 +22,7 @@ import { buildSystemPrompt, buildUserPrompt } from './systemPrompt.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { captureUrl } from './screenshot.mjs';
 import { reviewScreenshot } from './visualReview.mjs';
+import { resolveLatestOpus } from './models.mjs';
 
 const pExecFile = promisify(execFile);
 const REVIEW_PORT = 8795;
@@ -190,6 +191,11 @@ async function main() {
   const transcript = join(iterDir, 'transcript.jsonl');
 
   log(`=== iteration #${iterId} (${trigger}) base=${baseCommit?.slice(0, 8)} feedback=${feedbackItems.length} ===`);
+  // Always tend with the newest Opus (the humans' standing order). Mutates the
+  // shared config so the vision review uses the same model.
+  const latest = await resolveLatestOpus();
+  config.model = latest.id;
+  log(`agent model: ${latest.name} (${latest.id}), effort ${config.effort}`);
 
   const history = recentIterations(5).filter((it) => it.id !== iterId)
     .map((it) => `#${it.id} ${it.status}: ${(it.summary || it.error || '').slice(0, 160)}`).join('\n');
@@ -210,6 +216,11 @@ async function main() {
     // buries the user's requests (this happened: a 529-throttled run ate 4 items).
     agentOk = run.success && !/(API Error|Overloaded|rate.?limit|\b429\b|\b529\b|aborted|timed out)/i.test(finalSummary || '');
     log(`tend complete (turns=${run.turns}, success=${run.success}, agentOk=${agentOk}); summary: ${finalSummary.slice(0, 200)}`);
+    // The agent never actually ran (e.g. "API Error: 400 … does not support this
+    // model"): fail loudly instead of committing a no-op and calling it a success.
+    if (!agentOk && (run.turns <= 1 || /^\s*API Error/i.test(finalSummary)) && !git.isDirty()) {
+      throw new Error(`agent did not run: ${(finalSummary || 'no output').slice(0, 300)}`);
+    }
 
     // 2) Verify + bounded self-heal on smoke failures
     updateIteration(iterId, { status: 'testing' });

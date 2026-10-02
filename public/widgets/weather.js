@@ -277,7 +277,7 @@ export default {
       .wx-meta .cond { font-size:24px; }
       .wx-meta .range { font-family:var(--font); font-size:13px; letter-spacing:0; color:var(--ink-soft); }
       .wx-sky { font-family:var(--font); font-size:13px; letter-spacing:0; gap:4px 16px; color:var(--ink-soft); }
-      .wx-sky .day, .wx-sky .baro, .wx-sky .vis:not(.foggy) { display:none; }
+      .wx-sky .day, .wx-sky .baro, .wx-sky .uv, .wx-sky .vis:not(.foggy) { display:none; }
       .wx-stats { gap:0; }
       .wx-stat { background:none; border:none; border-radius:0; padding:0; gap:3px; }
       .wx-stat .k { font-size:12.5px; letter-spacing:.04em; text-transform:none; color:var(--ink-faint); }
@@ -294,7 +294,16 @@ export default {
       .wx-tl { border-top:none; padding-top:4px; }
       .wx-plot { height:58px; }
       .wx-axis .hr .t, .wx-axis .hr .p, .wx-pt .tv { font-family:var(--font); }
-      .wx-pt .tv { font-weight:400; font-size:14px; }
+      /* Graph v3: just the curve. Temps live in one aligned row under it with the
+         icons + times; only now / warmest / coolest get a dot. */
+      .wx-pt .tv { display:none; }
+      .wx-pt:not(.now):not(.hi):not(.lo) .dot { display:none; }
+      .wx-pt.now .dot { background:#fff; }
+      .wx-plot { height:46px; margin:0 6px; }
+      .wx-axis { margin-top:8px; }
+      .wx-axis .hr { gap:4px; }
+      .wx-axis .hr .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
+      .wx-axis .hr:first-child .tt { color:#fff; }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
@@ -630,9 +639,7 @@ export default {
                 <stop offset="1" stop-color="rgba(60,74,130,.06)"/>
               </linearGradient>
             </defs>
-            ${nightRects}
             <path d="${areaPath}" fill="url(#wxfill)"/>
-            ${edgeLines}
             <path d="${linePath}" fill="none" stroke="rgba(116,247,176,.22)" stroke-width="7"
               stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
             <path d="${linePath}" fill="none" stroke="url(#wxline)" stroke-width="2.4"
@@ -648,7 +655,7 @@ export default {
           const title = isHi ? `Warmest ahead · ${p.t}°F at ${when}`
             : isLo ? `Coolest ahead · ${p.t}°F at ${when}` : '';
           return ctx.h('div', {
-            class: 'wx-pt', style: { left: `${xOf(i)}%`, top: `${yOf(rawAt(i))}%` }, title,
+            class: `wx-pt${i === 0 ? ' now' : ''}${kind}`, style: { left: `${xOf(i)}%`, top: `${yOf(rawAt(i))}%` }, title,
           },
             ctx.h('div', { class: `tv${kind}` },
               (isHi || isLo) ? ctx.h('span', { class: 'cr' }, isHi ? '▲' : '▼') : null,
@@ -663,6 +670,7 @@ export default {
           // line stays in the layout but invisible, so the row never shifts.
           const wet = p.pop != null && p.pop >= 25;
           return ctx.h('div', { class: 'hr' },
+            ctx.h('div', { class: 'tt' }, `${p.t}°`),
             ctx.h('div', { class: 'e' }, wxIcon(slug, 22)),
             ctx.h('div', { class: 't' }, label),
             ctx.h('div', { class: `p${wet ? '' : ' dry'}` }, wet ? `💧${p.pop}%` : '0'));
@@ -673,7 +681,9 @@ export default {
         // Sunrise / sunset glyphs above the plot's crossing lines — hushed, static,
         // and clip-safe (they live in the empty upper band). Tooltip carries the
         // exact clock time so a tap/hover names the moment precisely.
-        sunMarks.forEach((s) => plot.appendChild(ctx.h('div', {
+        // (Sun-crossing glyphs + night band dropped in the 2026-10-01 clean-up — the
+        // hour icons already show night; the plot is now just the curve.)
+        [].forEach((s) => plot.appendChild(ctx.h('div', {
           class: `wx-sun ${s.type === 'rise' ? 'rise' : 'set'}`,
           style: { left: `${s.x}%` },
           title: s.type === 'rise' ? `Sunrise · ${sunrise}` : `Sunset · ${sunset}`,
@@ -705,7 +715,7 @@ export default {
                 + (fog ? ` · fog ${fog.kind === 'clears' ? 'lifts' : 'rolls in'} around ${hr12(fog.hour)}` : ''),
             }, vis.foggy ? '🌫 ' : '👁 ',
               vis.foggy ? ctx.h('b', {}, vis.label) : null,
-              vis.foggy ? ` · ${fmtVis(visM)}` : fmtVis(visM),
+              vis.foggy ? '' : fmtVis(visM), // fog: just name it (the distance read as noise)
               // Marine-layer outlook — a hushed clause naming when the fog lifts
               // (foggy now) or rolls in (clear now). Inside the nowrap .vis atom, so
               // it wraps as one unit and never splits mid-phrase.
@@ -757,21 +767,13 @@ export default {
               }, `${hum}%`,
                 comfort ? ctx.h('span', { class: 'wx-wu' },
                   ctx.h('span', { class: 'wx-dew', style: { color: comfort.color } }, ` · ${comfort.word}`)) : null)),
-            ctx.h('div', { class: 'wx-stat' },
-              ctx.h('div', { class: 'k' }, 'Wind'),
-              ctx.h('div', {
-                class: 'v',
-                title: `${windCard ? `From the ${windCard} · ` : ''}${wind} mph`
-                  + (gust != null ? ` · gusting to ${gust} mph` : ''),
-              },
-                windCard ? ctx.h('span', {
-                  class: 'wx-wdir',
-                  style: { transform: `rotate(${windDir + 180}deg)` },
-                }, '↑') : null,
-                `${wind}`,
-                ctx.h('span', { class: 'wx-wu' },
-                  windCard ? ` mph ${windCard}` : ' mph',
-                  gusty ? ctx.h('span', { class: 'wx-gust' }, ` · g${gust}`) : null)))),
+            // (Wind removed 2026-10-01 at the humans' request — UV takes its slot.)
+            ctx.h('div', { class: 'wx-stat', title: uvAhead
+                ? `UV index now ${uvNow ?? '—'} · climbs to ${uvAhead.val} by ${hr12(uvAhead.hour)} (peak ${uvPeak} today)`
+                : uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index' },
+              ctx.h('div', { class: 'k' }, 'UV'),
+              ctx.h('div', { class: 'v' }, `${uvNow ?? '—'}`,
+                ctx.h('span', { class: 'wx-wu', style: { color: uvColor } }, ` · ${uvLabel}`)))),
           fc.length ? ctx.h('div', { class: 'wx-fc' }, ...fc.map((f) => {
             const wd = weekdayIdx(f.iso);
             const wknd = wd === 0 || wd === 6;

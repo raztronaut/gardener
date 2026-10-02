@@ -17,6 +17,7 @@ import {
 import { recover } from './recover.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
+import { agentModel } from './models.mjs';
 
 const START = Date.now();
 
@@ -425,6 +426,7 @@ function stateObject() {
     pendingFeedback: countPendingFeedback(),
     edits: getEdits(), // hand-pruned text overrides (right-click editing)
     iteration: (latestCommitted() || {}).id ?? 0, // the "growth number" shown on the header
+    agentModel: agentModel().name, // "Opus 5.5" — the newest Opus, resolved each tending
     lastIteration: it ? {
       id: it.id, status: it.status, trigger: it.trigger,
       finished_at: it.finished_at, summary: it.summary,

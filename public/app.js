@@ -224,7 +224,7 @@ async function boot() {
   if (sub) sub.textContent = window.__GARDEN_EDITS.subtitle ?? (state.location || sub.textContent);
   const brand = document.querySelector('[data-editable="brand"]');
   if (brand && window.__GARDEN_EDITS.brand) brand.textContent = window.__GARDEN_EDITS.brand;
-  setIterBadge(state.iteration);
+  setIterBadge(state.iteration, state.agentModel);
   // A refresh/reload RESETS zoom to 100% (per request) — don't restore a stale
   // controller zoom. Clears the persisted level so it can't get stuck.
   try { localStorage.removeItem('garden.zoomlvl'); setZoomLevel(0); } catch { /* ignore */ }
@@ -286,11 +286,13 @@ function checkOverflow() {
 function setNight(on) { document.body.classList.toggle('night', !!on && !SCREENSHOT); }
 
 // ---- growth bloom beside the wordmark (the tending count) -------------------
-function setIterBadge(n) {
+function setIterBadge(n, model) {
   const b = document.getElementById('iterBadge');
   if (!b) return;
   const c = Number(n) || 0;
   b.textContent = `❀ ${c} tending${c === 1 ? '' : 's'}`;
+  const m = document.getElementById('agentModel');
+  if (m && model) { m.textContent = `agent model: ${model}`; m.hidden = false; }
 }
 
 // ---- backend polling: reload on version change, react to night --------------
@@ -300,7 +302,7 @@ function startPolling() {
     try {
       const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
       setNight(!!s.night);
-      setIterBadge(s.iteration);
+      setIterBadge(s.iteration, s.agentModel);
       checkOverflow();
       if (typeof s.version === 'number') {
         if (baseline == null) baseline = s.version;            // adopt baseline, no reload
