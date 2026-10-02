@@ -1,27 +1,22 @@
-// Weather — current conditions + sunrise/sunset + length of day (with a quiet
-// day-over-day trend as the seasons turn) + a visibility/fog reading (SF's marine
-// layer is a daily character of the city) + a wind reading that names its gusts
-// when the air is genuinely gusty (SF's afternoon westerlies routinely gust well
-// above their sustained speed) + a barometric-pressure reading (inHg) with its
-// 3-hour rising/falling tendency — the honest "which way is the weather leaning"
-// signal + tomorrow's outlook carrying a
-// glanceable warmer/cooler-than-today cue + a linear hourly temperature timeline
-// whose after-dark hours are gently shaded so the evening reads at a glance,
-// via keyless Open-Meteo (proxy). Temperature shown in °F and °C.
-// [label, icon-slug] — slugs map to self-hosted animated Meteocons SVGs in
-// public/assets/weather/ (clouds drift, the sun slowly radiates; transparent).
-// Clear & partly-cloudy skies also have calm, static star-lit night faces that are
-// used after dark (see nightSlug + Open-Meteo's is_day flag).
+// Weather — a calm, clearly-sectioned read of the sky via keyless Open-Meteo (proxy).
+// 2026-10-01 rewrite after "too dense and confusing" feedback: one idea per row,
+// every section labelled, and BOTH °F and °C on the current reading AND on the
+// forecast days (the humans asked for tomorrow's prediction in Celsius too).
+//   1. Now        — icon, °F / °C, condition, today's high/low
+//   2. Sun        — plain-words sunrise / sunset (this line predates and is separate
+//                   from the banned Sun & Moon widget — it stays)
+//   3. Stats      — Feels like · Humidity · UV
+//   4. Next days  — Tomorrow + the two days after: icon, high & low in °F and °C
+//   5. Hourly     — a smooth temperature curve with temps / icons / times beneath
+// Icons are self-hosted Meteocons SVGs in public/assets/weather/.
+
 const WMO = (c) => c === 0 ? ['Clear', 'clear-day'] : (c <= 2) ? ['Partly cloudy', 'partly-cloudy-day'] : c === 3 ? ['Overcast', 'overcast']
   : (c >= 45 && c <= 48) ? ['Fog', 'fog'] : (c >= 51 && c <= 57) ? ['Drizzle', 'drizzle']
   : (c >= 61 && c <= 67) ? ['Rain', 'rain'] : (c >= 71 && c <= 77) ? ['Snow', 'snow']
   : (c >= 80 && c <= 82) ? ['Showers', 'rain'] : (c >= 85 && c <= 86) ? ['Snow', 'snow']
   : (c >= 95) ? ['Storm', 'thunderstorms'] : ['—', 'thermometer'];
 
-// Day/night-aware icon: a radiating sun at 10pm looks wrong on an evening wall.
-// Open-Meteo's is_day flag (1 day / 0 night) lets clear & partly-cloudy skies swap
-// to calm star-lit night glyphs; every other condition looks the same after dark,
-// so it keeps its single icon. Unknown/undefined is_day defaults to the day icon.
+// After dark, clear & partly-cloudy skies swap to calm star-lit faces.
 const nightSlug = (slug, isDay) => isDay !== 0 ? slug
   : slug === 'clear-day' ? 'clear-night'
   : slug === 'partly-cloudy-day' ? 'partly-cloudy-night'
@@ -29,128 +24,54 @@ const nightSlug = (slug, isDay) => isDay !== 0 ? slug
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
-// Dew point (°F) → a glanceable "how the air feels" comfort word. Dew point is
-// the honest measure of mugginess (relative humidity alone misleads as the temp
-// swings), so it turns the plain Humidity % into a real comfort read. SF's marine
-// air mostly lands "crisp"/"comfy"; it speaks up in gold/rose only when the air
-// turns genuinely humid. Returns { word, color } or null when we've no dew point.
-const dewComfort = (dewF) => {
-  if (!Number.isFinite(dewF)) return null;
-  if (dewF < 50) return { word: 'crisp', color: 'var(--mint-2)' };
-  if (dewF < 59) return { word: 'comfy', color: 'var(--ink-soft)' };
-  if (dewF < 65) return { word: 'humid', color: 'var(--gold)' };
-  if (dewF < 70) return { word: 'muggy', color: '#f7a374' };
-  return { word: 'sultry', color: '#ff9bb0' };
-};
-
-// Length of day from Open-Meteo's daily daylight_duration (seconds) → "14h 32m".
-const fmtDayLen = (secs) => {
-  const m = Math.round(secs / 60);
-  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
-};
-// Day-over-day change in daylight (today → tomorrow), the seasons quietly turning.
-// After the summer solstice this reads negative (shorter); before it, positive.
-// "1m 12s" — minutes dropped when zero. Sign is carried by the arrow, not the text.
-const fmtDayDelta = (secs) => {
-  const a = Math.abs(Math.round(secs));
-  const m = Math.floor(a / 60), s = a % 60;
-  return m ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`;
-};
-
-// Barometric pressure — sea-level hPa (as Open-Meteo reports it) → inches of
-// mercury, the unit a US barometer is read in ("30.02"). The 3-hour tendency is
-// the honest forecasting signal a wall wants: air that's FALLING is unsettled
-// weather on the way, RISING is fair and settling, STEADY holds. Thresholds use
-// the classic ~1 hPa / 3h "slowly rising/falling" band so the clause stays calm
-// on a flat day and speaks up only when the barometer is genuinely moving.
-const inHg = (hpa) => (hpa * 0.0295300).toFixed(2);
-const baroTendency = (dp) => {
-  if (!Number.isFinite(dp)) return null;
-  if (dp <= -1) return { arrow: '↓', word: 'falling', hint: 'weather may turn unsettled', color: '#9cc0ff' };
-  if (dp >= 1) return { arrow: '↑', word: 'rising', hint: 'fair and settling', color: 'var(--mint)' };
-  return { arrow: '→', word: 'steady', hint: 'settled', color: 'var(--ink-faint)' };
-};
-
-// Meteorological wind direction (degrees the wind blows FROM) → 8-point cardinal.
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-const windCardinal = (deg) => Number.isFinite(deg) ? COMPASS[Math.round(deg / 45) % 8] : null;
-
-// UV index → [label, color]. Standard WHO bands; color-coded so the risk reads
-// at a glance from across the room. Night-time UV is 0 → "Low", which is correct.
+// UV index → [label, colour] (WHO bands).
 const uvBand = (u) => u == null ? ['—', 'var(--ink-faint)']
   : u < 3 ? ['Low', '#74f7b0'] : u < 6 ? ['Moderate', '#f7d774']
   : u < 8 ? ['High', '#f7a374'] : u < 11 ? ['Very high', '#f77474'] : ['Extreme', '#c074f7'];
 
-// "2026-05-31T05:51" (already local to requested tz) -> "5:51a"
+// "2026-05-31T05:51" (already local to the requested tz) → "5:51 am"
 function fmtClock(iso) {
   const m = /T(\d{2}):(\d{2})/.exec(iso || '');
   if (!m) return '—';
-  let h = parseInt(m[1], 10); const min = m[2];
-  const ap = h < 12 ? 'a' : 'p'; h = h % 12; if (h === 0) h = 12;
-  return `${h}:${min}${ap}`;
+  let h = parseInt(m[1], 10);
+  const ap = h < 12 ? 'am' : 'pm'; h = h % 12; if (h === 0) h = 12;
+  return `${h}:${m[2]} ${ap}`;
 }
-// Minutes past local midnight for an Open-Meteo local ISO time ("…T06:12").
-// Both the sun times and "now" are read in the SAME display tz and compared as
-// minutes-past-midnight, so the countdown is immune to the host clock's own zone.
-function minutesOf(iso) {
-  const m = /T(\d{2}):(\d{2})/.exec(iso || '');
-  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
-}
-// "3h 12m" / "48m" — a compact duration from a minute count (minutes dropped at 0).
-const fmtDur = (min) => { const h = Math.floor(min / 60), m = min % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
+// Hour (0–23) from a local ISO time, read from the string (host-tz independent).
+const hourOf = (iso) => { const m = /T(\d{2})/.exec(iso || ''); return m ? parseInt(m[1], 10) : null; };
+const hr12 = (hh) => `${((hh + 11) % 12) + 1}${hh < 12 ? 'a' : 'p'}`;
 
-// Visibility (metres, from Open-Meteo) → a glanceable distance in miles. Sub-mile
-// distances keep a decimal (fog reads as "0.4 mi"); clear air caps at "10+ mi" so
-// the number never balloons past what a person can actually judge across the bay.
-const fmtVis = (m) => {
-  const mi = m / 1609.34;
-  return mi < 1 ? `${mi.toFixed(1)} mi` : mi < 10 ? `${Math.round(mi)} mi` : '10+ mi';
-};
-// Visibility band → { label, foggy }. SF's marine layer earns a cool-blue clause
-// when the air is genuinely hazy/foggy; crystal-clear air stays a calm faint note.
-const visBand = (m) => m == null ? null
-  : m < 400 ? { label: 'Dense fog', foggy: true }
-  : m < 2000 ? { label: 'Fog', foggy: true }
-  : m < 5000 ? { label: 'Mist', foggy: true }
-  : m < 8000 ? { label: 'Haze', foggy: true }
-  : { label: 'Clear', foggy: false };
-
-// SF's marine layer is the city's daily character — it rolls in off the Pacific
-// in the evening and burns back in the late morning. We already fetch the hourly
-// visibility series, so we can turn the CURRENT visibility reading into a small
-// forward-looking note: when it's foggy now, roughly when the fog is expected to
-// LIFT; when it's clear now, roughly when fog is expected to ROLL IN. Scans the
-// next ~12h for the first crossing, with hysteresis (a lower "lift" bar than the
-// "roll-in" bar) so a reading hovering near the threshold doesn't flap. Returns
-// { kind:'clears'|'rolls', hour } or null when nothing notable changes ahead.
-const FOG_IN_M = 4000;    // ~2.5 mi — below this the air has genuinely closed in
-const FOG_LIFT_M = 8000;  // ~5 mi — above this the marine layer has clearly lifted
-function fogOutlook(hourly, startIdx) {
-  const vis = hourly && hourly.visibility;
-  const times = hourly && hourly.time;
-  if (!Array.isArray(vis) || !Array.isArray(times)) return null;
-  const now = vis[startIdx];
-  if (!Number.isFinite(now)) return null;
-  const foggyNow = now < FOG_IN_M;
-  const end = Math.min(startIdx + 13, vis.length);
-  for (let j = startIdx + 1; j < end; j++) {
-    const v = vis[j];
-    if (!Number.isFinite(v)) continue;
-    if (foggyNow && v >= FOG_LIFT_M) return { kind: 'clears', hour: new Date(times[j]).getHours() };
-    if (!foggyNow && now >= FOG_LIFT_M && v < FOG_IN_M) return { kind: 'rolls', hour: new Date(times[j]).getHours() };
-  }
-  return null;
-}
-
-// Weekday for a plain local ISO date ("2026-08-30") — computed in UTC from the
-// date parts so it's independent of the host clock's zone (these are date-only
-// labels for the multi-day outlook strip). Returns 0=Sun … 6=Sat, or null.
-const WD_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Weekday for a plain local ISO date, computed in UTC from the date parts.
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const WD_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const weekdayIdx = (iso) => {
   const m = /(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
   return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay() : null;
 };
+
+// Monotone cubic (Fritsch–Carlson) path: smooth, never overshoots the data.
+function smoothPath(P) {
+  const n = P.length;
+  if (!n) return '';
+  if (n < 2) return `M${P[0][0]},${P[0][1]}`;
+  const dx = [], m = [];
+  for (let i = 0; i < n - 1; i++) { dx[i] = P[i + 1][0] - P[i][0]; m[i] = (P[i + 1][1] - P[i][1]) / (dx[i] || 1); }
+  const t = [m[0]];
+  for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+  t[n - 1] = m[n - 2];
+  for (let i = 0; i < n - 1; i++) {
+    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+    const a = t[i] / m[i], b = t[i + 1] / m[i], h2 = a * a + b * b;
+    if (h2 > 9) { const k = 3 / Math.sqrt(h2); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+  }
+  const f = (v) => v.toFixed(2);
+  let d = `M${f(P[0][0])},${f(P[0][1])}`;
+  for (let i = 0; i < n - 1; i++) {
+    const c = dx[i] / 3;
+    d += ` C${f(P[i][0] + c)},${f(P[i][1] + t[i] * c)} ${f(P[i + 1][0] - c)},${f(P[i + 1][1] - t[i + 1] * c)} ${f(P[i + 1][0])},${f(P[i + 1][1])}`;
+  }
+  return d;
+}
 
 export default {
   id: 'weather',
@@ -160,666 +81,208 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      /* half-width × 2 rows: wasted horizontal space collapsed, every reading kept */
-      .wx { display:flex; flex-direction:column; height:100%; gap:12px; }
-      .wx-top { display:flex; align-items:center; gap:12px; }
-      .wx-emoji { width:58px; height:58px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
-        animation:wxfloat .9s ease-out both; }
-      /* one-shot entrance only — the icon settles into place and the page stops
-         scheduling frames (no perpetual animation on this low-power kiosk). */
-      @keyframes wxfloat { from{transform:translateY(-8px);opacity:0} to{transform:translateY(0);opacity:1} }
-      @media (prefers-reduced-motion: reduce) { .wx-emoji { animation:none; } }
-      .wx-icon { display:block; }
-      .wx-temp { display:flex; align-items:baseline; gap:8px; flex:none; }
-      /* padding/margin pair: background-clip:text only paints inside the box, so give the
-         (size-adjusted) glyphs room below the tight line box without shifting layout. */
-      .wx-temp .f { font-family:var(--font-display); font-size:42px; font-weight:600; line-height:.85;
-        padding:.06em 0 .16em; margin:-.06em 0 -.16em;
-        background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-      .wx-temp .c { font-family:var(--font-display); font-size:22px; font-weight:600; color:var(--ink-soft); line-height:1; }
-      .wx-meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px; min-width:0; }
-      .wx-meta .cond { font-family:var(--font-display); font-size:22px; font-weight:400; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .wx-meta .range { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); letter-spacing:.02em; }
-      /* sunrise/sunset + tomorrow on their own compact line below — full width,
-         so nothing is dropped when the header row narrows. */
-      .wx-sky { display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.02em; }
-      .wx-sky .sun { color:var(--ink-soft); }
-      /* which sun event is next, and how soon — a live mint clause beside the
-         sunrise/sunset times, updated each minute (cheap text-only repaint). It
-         turns a pair of fixed clock times into an at-a-glance "sunset in 3h 12m". */
-      .wx-sky .nextsun { color:var(--mint); white-space:nowrap; }
-      /* length of day — derived from sunrise/sunset; the trend clause is a hushed
-         mono caption so it never competes with the hero readings above. */
-      .wx-sky .day { color:var(--ink-soft); display:inline-flex; align-items:baseline; gap:5px; white-space:nowrap; }
-      .wx-sky .day b { color:var(--ink); font-weight:600; }
-      .wx-sky .day .tr { color:var(--ink-faint); letter-spacing:.01em; }
-      /* visibility / fog — a calm faint note in clear air ("👁 10+ mi"); turns a
-         cool-blue clause naming SF's marine layer when it rolls in ("🌫 Fog · 0.4 mi"). */
-      .wx-sky .vis { color:var(--ink-faint); display:inline-flex; align-items:baseline; gap:4px; white-space:nowrap; }
-      .wx-sky .vis.foggy { color:#9cc0ff; }
-      .wx-sky .vis.foggy b { color:var(--ink); font-weight:600; }
-      /* marine-layer outlook — a hushed cool-blue sub-clause on the visibility
-         reading ("· lifts 11a" / "· fog 6p"). Quieter than the reading it trails,
-         so it reads as a gentle forecast, not a second number. */
-      .wx-sky .vis .vfc { color:#7f9bd6; font-weight:600; letter-spacing:.01em; }
-      .wx-sky .uv { color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; }
-      .wx-sky .uv .dot { width:8px; height:8px; border-radius:50%; flex:none; }
-      .wx-sky .uv b { color:var(--ink); font-weight:600; }
-      /* climbing-UV cue — "· ↑6 1p" trailing the current reading, tinted to the
-         peak's own band so a glance reads how strong the sun is about to get. */
-      .wx-sky .uv .uvpk { font-weight:600; letter-spacing:.01em; }
-      /* barometric pressure — a quiet clause reading the barometer in inHg with a
-         3-hour tendency (a cool-blue ↓ falling / mint ↑ rising / faint → steady),
-         echoing the warm/cool trend language used elsewhere on the card. One line,
-         nowrap, so it never grows the sky line's height beyond a fresh wrap row. */
-      .wx-sky .baro { color:var(--ink-soft); display:inline-flex; align-items:baseline; gap:3px; white-space:nowrap; }
-      .wx-sky .baro b { color:var(--ink); font-weight:600; }
-      .wx-sky .baro .bar { font-weight:700; }
-      .wx-sky .baro .bw { color:var(--ink-faint); letter-spacing:.01em; }
-      .wx-stats { display:flex; gap:8px; }
-      .wx-stat { flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
-        padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
-      .wx-stat .k { font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap; }
-      .wx-stat .v { font-family:var(--font-display); font-size:15.5px; font-weight:600; color:var(--ink); line-height:1.05;
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:baseline; gap:3px; }
-      /* wind arrow — points the way the wind blows; static rotation, no animation */
-      .wx-stat .wx-wdir { display:inline-block; font-size:14px; line-height:1; color:var(--mint);
-        transform-origin:center; flex:none; }
-      .wx-stat .wx-wu { font-size:12.5px; font-weight:600; color:var(--ink-faint); letter-spacing:.02em;
-        overflow:hidden; text-overflow:ellipsis; }
-      /* gust clause — a quiet "· g27" appended to the wind unit when the air is
-         genuinely gusty (gust ≥ sustained + 3 mph). Mint-2 ties it to the wind
-         arrow's colour family; adds no height, so it can't clip. */
-      .wx-stat .wx-wu .wx-gust { color:var(--mint-2); font-weight:700; }
-      /* dew-point comfort word — a quiet "· crisp / · muggy" appended to the
-         humidity %, tinted by how the air feels (mint crisp → rose sultry). Turns
-         a bare number into a comfort cue, matching the Feels-like caret and Wind's
-         gust clause. Adds no height, so it can't clip. */
-      .wx-stat .wx-wu .wx-dew { font-weight:700; }
-      /* feels-like comfort caret — when the apparent temperature diverges from the
-         real air by ≥3°F (SF's wind chill routinely bites), a compact tinted caret
-         names it: gold ▲ warmer / cool-blue ▼ cooler, the SAME language the hourly
-         timeline and tomorrow's outlook use, so it reads instantly. Replaces the
-         redundant °C on that tile only (the hero temp already carries °C), so it
-         adds no width and can't clip. Calm days keep the plain °F · °C reading. */
-      .wx-stat .wx-feeltr { font-size:13px; font-weight:700; letter-spacing:.01em; white-space:nowrap; }
-      .wx-stat .wx-feeltr .cr { font-size:11.5px; vertical-align:1px; margin-right:1px; }
+      .wx { display:flex; flex-direction:column; height:100%; gap:10px; }
+      .wx-sec { font-size:12.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
 
-      /* 3-day outlook strip — fills the calm band between the stat tiles and the
-         hourly timeline with a glanceable few-days-ahead forecast (icon + hi/lo),
-         replacing the old single-line "Tomorrow:" clause with a richer, visual read.
-         Weekend caps are tinted mint; a day markedly warmer/cooler than today tints
-         its high gold/blue, echoing the timeline's warm/cool language. Static SVG
-         icons, no animation; fixed height, so it can't clip. */
-      .wx-fc { display:flex; gap:8px; }
-      .wx-fc .fc { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
-        background:rgba(255,255,255,.03); border:1px solid var(--stroke); border-radius:12px; padding:7px 4px; }
-      .wx-fc .fc .d { font-family:var(--font-mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
-        color:var(--ink-faint); display:flex; align-items:baseline; justify-content:center; gap:5px; }
-      .wx-fc .fc .d.wknd { color:var(--mint); }
-      /* rain-chance chip — a quiet blue "💧70%" beside a forecast day's weekday when
-         that day is genuinely likely to be wet (≥30%), so a glance answers "will the
-         weekend rain?" — the one planning cue the icon alone can't give. Sits inline
-         on the existing label line, so it adds NO height and can't clip; echoes the
-         hourly timeline's blue rain language. Hidden on dry days, keeping the strip
-         calm. */
-      .wx-fc .fc .d .pp { color:#9cc0ff; font-weight:700; letter-spacing:.02em; }
-      .wx-fc .fc img { display:block; width:26px; height:26px; }
-      .wx-fc .fc .r { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
-      .wx-fc .fc .r .hi { font-family:var(--font-display); font-size:15px; font-weight:600; line-height:1; color:var(--ink); }
-      .wx-fc .fc .r .lo { font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
+      /* 1 · now */
+      .wx-now { display:flex; align-items:center; gap:12px; }
+      .wx-now .ic { width:56px; height:56px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
+        animation:wxin .9s ease-out both; }
+      @keyframes wxin { from{transform:translateY(-8px);opacity:0} to{transform:none;opacity:1} }
+      @media (prefers-reduced-motion: reduce) { .wx-now .ic { animation:none; } }
+      .wx-now .ic img { display:block; }
+      .wx-now .tmp { display:flex; align-items:baseline; gap:8px; flex:none; }
+      .wx-now .f { font-family:var(--font-display); font-size:54px; line-height:.9; color:#fff; }
+      .wx-now .c { font-family:var(--font-display); font-size:20px; line-height:1; color:var(--ink-soft); }
+      .wx-now .meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:4px; min-width:0; }
+      .wx-now .cond { font-family:var(--font-display); font-size:24px; color:var(--ink);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .wx-now .rng { font-size:14px; color:var(--ink-soft); white-space:nowrap; }
 
-      /* ---- 2026-10-01 "modern" pass: no boxes. Open columns, type + icons + space.
-         (Overrides the boxed tile styles above; data/markup unchanged.) ---- */
-      .wx { gap:16px; }
-      .wx-temp .f { font-size:54px; font-weight:400; }
-      .wx-temp .c { font-size:20px; font-weight:400; color:var(--ink-faint); }
-      .wx-meta .cond { font-size:24px; }
-      .wx-meta .range { font-family:var(--font); font-size:13px; letter-spacing:0; color:var(--ink-soft); }
-      .wx-sky { font-family:var(--font); font-size:13px; letter-spacing:0; gap:4px 16px; color:var(--ink-soft); }
-      .wx-sky .day, .wx-sky .baro, .wx-sky .uv, .wx-sky .vis:not(.foggy) { display:none; }
-      .wx-stats { gap:0; }
-      .wx-stat { background:none; border:none; border-radius:0; padding:0; gap:3px; }
-      .wx-stat .k { font-size:12.5px; letter-spacing:.04em; text-transform:none; color:var(--ink-faint); }
-      .wx-stat .v { font-size:22px; font-weight:400; }
-      .wx-stat .wx-wu { font-size:13px; font-weight:400; }
-      .wx-fc { gap:0; }
-      .wx-fc .fc { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:8px; row-gap:2px;
-        align-items:center; justify-items:start; background:none; border:none; border-radius:0; padding:0; }
-      .wx-fc .fc .d { grid-column:1 / -1; font-family:var(--font); font-size:12.5px; letter-spacing:.04em; }
-      .wx-fc .fc img { grid-row:2; }
-      .wx-fc .fc img { width:24px; height:24px; }
-      .wx-fc .fc .r .hi { font-size:20px; font-weight:400; }
-      .wx-fc .fc .r .lo { font-family:var(--font); font-size:13px; }
-      .wx-tl { border-top:none; padding-top:4px; }
-      .wx-plot { height:58px; }
-      .wx-axis .hr .t, .wx-axis .hr .p, .wx-pt .tv { font-family:var(--font); }
-      /* Graph v3: just the curve. Temps live in one aligned row under it with the
-         icons + times; only now / warmest / coolest get a dot. */
-      .wx-pt .tv { display:none; }
-      .wx-pt:not(.now):not(.hi):not(.lo) .dot { display:none; }
-      .wx-pt.now .dot { background:#fff; }
-      .wx-plot { height:46px; margin:0 6px; }
-      .wx-axis { margin-top:8px; }
-      .wx-axis .hr { gap:4px; }
-      .wx-axis .hr .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
-      .wx-axis .hr:first-child .tt { color:#fff; }
+      /* 2 · sun */
+      .wx-sun { display:flex; gap:18px; font-size:14px; color:var(--ink-soft); margin-top:-4px; }
+      .wx-sun b { color:var(--ink); font-weight:600; }
 
-      /* linear hourly timeline — sits in its own panel, clearly divided from the
-         stat rows above so the floating temp labels can never collide with them. */
-      .wx-tl { margin-top:auto; display:flex; flex-direction:column; gap:0;
-        padding-top:14px; border-top:1px solid var(--stroke); }
-      .wx-plot { position:relative; height:40px; }
+      /* 3 · stats — open columns, no boxes */
+      .wx-stats { display:flex; }
+      .wx-stat { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+      .wx-stat .k { font-size:12.5px; letter-spacing:.04em; color:var(--ink-faint); white-space:nowrap; }
+      .wx-stat .v { font-family:var(--font-display); font-size:22px; color:var(--ink); line-height:1.05;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .wx-stat .v small { font-family:var(--font); font-size:14px; color:var(--ink-soft); margin-left:4px; }
+
+      /* 4 · next days — a small table, tomorrow first, °F with °C beside it */
+      .wx-days { display:grid; grid-template-columns:minmax(0,1fr) 26px auto auto; column-gap:12px; row-gap:0; align-items:center; }
+      .wx-days .h { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); text-align:right; }
+      .wx-days .wx-sec { margin:0; text-align:left; grid-column:1 / 3; }
+      .wx-days .dn { font-size:16px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .wx-days .dn.tm { color:var(--ink); font-weight:600; }
+      .wx-days .dn .pp { color:#9cc0ff; font-size:13px; font-weight:600; margin-left:6px; }
+      .wx-days img { display:block; width:26px; height:26px; }
+      .wx-days .t { text-align:right; white-space:nowrap; }
+      .wx-days .t .f { font-family:var(--font-display); font-size:20px; color:var(--ink); }
+      .wx-days .t.lo .f { color:var(--ink-soft); }
+      .wx-days .t .c { font-size:13.5px; color:var(--ink-faint); margin-left:5px; }
+
+      /* 5 · hourly curve */
+      .wx-hours { margin-top:auto; }
+      .wx-plot { position:relative; height:30px; margin:0 6px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
-      .wx-pt { position:absolute; transform:translate(-50%,-50%); width:0; height:0; }
-      .wx-pt .dot { position:absolute; left:-4px; top:-4px; width:8px; height:8px; border-radius:50%;
-        background:var(--mint); box-shadow:0 0 0 2px #10261f; }
-      .wx-pt .tv { position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
-        font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink); white-space:nowrap; }
-      /* Warmest / coolest hour ahead — the curve's own peak and trough, tinted so
-         the day's temperature arc reads at a glance across the room. Colour + a
-         caret in the label carry the meaning; no extra height, no animation. */
-      .wx-pt .dot.hi { background:var(--gold); box-shadow:0 0 0 2px #10261f, 0 0 10px rgba(255,217,138,.55); }
-      .wx-pt .dot.lo { background:#9cc0ff; box-shadow:0 0 0 2px #10261f, 0 0 10px rgba(156,192,255,.55); }
-      .wx-pt .tv.hi { color:var(--gold); }
-      .wx-pt .tv.lo { color:#9cc0ff; }
-      .wx-pt .tv .cr { font-size:12px; margin-right:1px; vertical-align:1px; }
-      .wx-axis { display:flex; margin-top:5px; }
-      .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:2px; }
-      .wx-axis .hr .e { font-size:13px; line-height:1; }
-      .wx-axis .hr .t { font-size:12.5px; color:var(--ink-faint); font-family:var(--font-mono); }
-      /* rain-chance: a quiet blue line beneath each hour. Reserves its height even
-         when empty so the axis row never jumps; only speaks up when rain is likely. */
-      .wx-axis .hr .p { font-family:var(--font-mono); font-size:12px; line-height:1; min-height:10px;
-        color:#9cc0ff; letter-spacing:.01em; }
-      .wx-axis .hr .p.dry { visibility:hidden; }
-      /* sunrise ☀ / sunset ☾ markers — tiny hushed glyphs pinned to the TOP of the
-         plot at the exact day↔night crossing, naming what the faint divider line
-         below them already marks. Absolutely positioned in the plot's empty upper
-         band (the temp curve lives in the lower ~28–80%), so they add no height and
-         can't clip; static, no animation. Gold sunrise / cool-blue sunset echo the
-         timeline's own warm/cool language. */
-      .wx-sun { position:absolute; top:0; transform:translateX(-50%); font-size:12.5px;
-        line-height:1; opacity:.75; pointer-events:none; text-shadow:0 1px 4px rgba(0,0,0,.5); }
-      .wx-sun.rise { color:var(--gold); }
-      .wx-sun.set { color:#9cc0ff; }
+      .wx-plot .now { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
+        background:#fff; box-shadow:0 0 0 2px #10261f; }
+      .wx-axis { display:flex; margin-top:6px; }
+      .wx-axis .hr { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+      .wx-axis .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
+      .wx-axis .hr:first-child .tt { color:#fff; }
+      .wx-axis img { display:block; }
+      .wx-axis .t { font-size:12.5px; color:var(--ink-faint); line-height:1; }
+      .wx-axis .p { font-size:12px; color:#9cc0ff; line-height:1; }
 
-      /* graceful fallback — fills the tall card so a network miss at boot never
-         leaves a large empty region (matching Hacker News & APOD); static. */
-      .wx-fallback { display:flex; flex-direction:column; align-items:center;
-        justify-content:center; gap:10px; height:100%; text-align:center; color:var(--ink-soft); }
-      .wx-fallback .wx-fb-icon { font-size:40px; opacity:.55; line-height:1; }
-      .wx-fallback .wx-fb-msg { font-size:15px; color:var(--ink); }
-      .wx-fallback .wx-fb-sub { font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
+      .wx-fallback { display:flex; flex-direction:column; align-items:center; justify-content:center;
+        gap:10px; height:100%; text-align:center; }
+      .wx-fallback .i { font-size:40px; opacity:.55; line-height:1; }
+      .wx-fallback .m { font-size:15px; color:var(--ink); }
+      .wx-fallback .s { font-size:13px; color:var(--ink-faint); }
     `);
 
-    // A calm full-card fallback (icon + message) for when the sky can't be read —
-    // fills the tall card instead of a bare error line stranded in a black void.
-    const fallback = (msg, sub) => ctx.h('div', { class: 'wx-fallback' },
-      ctx.h('div', { class: 'wx-fb-icon' }, '🌤'),
-      ctx.h('div', { class: 'wx-fb-msg' }, msg),
-      ctx.h('div', { class: 'wx-fb-sub' }, sub));
+    const h = ctx.h;
+    const icon = (slug, px) => h('img', { src: `/assets/weather/${slug}.svg`, width: px, height: px, alt: '' });
+    const fallback = (msg, sub) => h('div', { class: 'wx-fallback' },
+      h('div', { class: 'i' }, '🌤'), h('div', { class: 'm' }, msg), h('div', { class: 's' }, sub));
     body.appendChild(ctx.loading('reading the sky…'));
 
-    try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,pressure_msl,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day`
-        + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,visibility,pressure_msl,is_day&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,uv_index_max,daylight_duration,precipitation_probability_max`
-        + `&temperature_unit=fahrenheit&wind_speed_unit=mph`
-        + `&timezone=${encodeURIComponent(tz)}&forecast_days=4`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day`
+      + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,is_day`
+      + `&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_probability_max`
+      + `&temperature_unit=fahrenheit&timezone=${encodeURIComponent(tz)}&forecast_days=4`;
 
-      // Live "next sun event" countdown. sunMins holds today's sunrise/sunset as
-      // minutes-past-midnight (display tz); sunNextEl is the span we update each
-      // minute. Comparing against "now" (also read in the display tz) keeps the
-      // countdown correct no matter what zone the host clock runs in.
-      let sunMins = null;
-      let sunNextEl = null;
-      const nowFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-      const nowMinutes = () => {
-        const p = nowFmt.formatToParts(new Date());
-        const hh = parseInt(p.find((x) => x.type === 'hour')?.value || '0', 10);
-        const mm = parseInt(p.find((x) => x.type === 'minute')?.value || '0', 10);
-        return hh * 60 + mm;
-      };
-      const updateSunNext = () => {
-        if (!sunNextEl || !sunMins) return;
-        const { sunrise, sunset } = sunMins;
-        const now = nowMinutes();
-        let ev = null;
-        if (sunrise != null && now < sunrise) ev = { name: 'sunrise', at: sunrise };
-        else if (sunset != null && now < sunset) ev = { name: 'sunset', at: sunset };
-        else if (sunrise != null) ev = { name: 'sunrise', at: sunrise + 1440 }; // tomorrow (≈ same time)
-        if (!ev) { sunNextEl.textContent = ''; sunNextEl.title = ''; return; }
-        const txt = `${ev.name} in ${fmtDur(ev.at - now)}`;
-        sunNextEl.textContent = `· ${txt}`;
-        sunNextEl.title = `Next: ${txt}`;
-      };
+    // Current hour index into the hourly series (which starts at local midnight
+    // in the display tz) — read the hour in that tz, not the host's.
+    const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' });
+    const nowHour = () => parseInt(hourFmt.format(new Date()), 10) || 0;
 
-      const refresh = async () => {
-        const d = await ctx.fetchJSON(url);
-        const cur = d.current;
-        const [cond, baseSlug] = WMO(cur.weather_code);
-        // Now: pick the day or night face of the current condition.
-        const iconSlug = nightSlug(baseSlug, cur.is_day);
-        const wxIcon = (slug, px) => ctx.h('img', { class: 'wx-icon', src: `/assets/weather/${slug}.svg`, width: px, height: px, alt: '' });
-        const tF = Math.round(cur.temperature_2m);
-        const hi = Math.round(d.daily.temperature_2m_max[0]);
-        const lo = Math.round(d.daily.temperature_2m_min[0]);
-        const feels = Math.round(cur.apparent_temperature);
-        // Comfort read — how the apparent temperature diverges from the real air.
-        // Only surfaced when the swing is worth a glance (≥3°F): SF's afternoon
-        // wind chill (and the occasional muggy warmth) is a genuinely useful "grab
-        // a jacket" cue. Uses the gold-▲-warmer / blue-▼-cooler language shared with
-        // the hourly timeline and tomorrow's outlook, so it reads at once.
-        const feelsDelta = feels - tF;
-        const feelsTrend = Math.abs(feelsDelta) < 3 ? null
-          : feelsDelta < 0
-            ? { car: '▼', color: '#9cc0ff', word: `${-feelsDelta}° cooler` }
-            : { car: '▲', color: 'var(--gold)', word: `${feelsDelta}° warmer` };
-        const hum = Math.round(cur.relative_humidity_2m);
-        // Dew point → a glanceable comfort word beside the humidity %, so the
-        // Humidity tile reads like a comfort cue (matching the Feels-like caret and
-        // Wind's gust clause) rather than a bare number. Kept for the tooltip even
-        // when the air is calm, so a tap always names the exact dew point.
-        const dewF = Math.round(cur.dew_point_2m);
-        const comfort = dewComfort(dewF);
-        const wind = Math.round(cur.wind_speed_10m);
-        // Wind gusts — always kept for the tooltip; surfaced as a compact "· gNN"
-        // clause only when the air is genuinely gusty (gust ≥ sustained + 3 mph),
-        // so the tile stays calm on still days and speaks up when the wind is
-        // snapping — a common, genuinely useful reading on SF's breezy afternoons.
-        const gust = Number.isFinite(cur.wind_gusts_10m) ? Math.round(cur.wind_gusts_10m) : null;
-        const gusty = gust != null && gust >= wind + 3;
-        // Wind direction: an arrow pointing the way the wind BLOWS (from-dir + 180°),
-        // labelled with the cardinal it comes from. Rotation is a one-shot static
-        // transform — no animation, free to render.
-        const windDir = cur.wind_direction_10m;
-        const windCard = windCardinal(windDir);
-        const sunrise = fmtClock(d.daily.sunrise?.[0]);
-        const sunset = fmtClock(d.daily.sunset?.[0]);
-        const sunriseMin = minutesOf(d.daily.sunrise?.[0]);
-        const sunsetMin = minutesOf(d.daily.sunset?.[0]);
+    const render = (d) => {
+      const cur = d.current;
+      const [cond, slug] = WMO(cur.weather_code);
+      const tF = Math.round(cur.temperature_2m);
+      const hi = Math.round(d.daily.temperature_2m_max[0]);
+      const lo = Math.round(d.daily.temperature_2m_min[0]);
+      const feels = Math.round(cur.apparent_temperature);
+      const hum = Math.round(cur.relative_humidity_2m);
+      const hNow = nowHour();
+      const uvRaw = d.hourly.uv_index?.[hNow];
+      const uv = Number.isFinite(uvRaw) ? Math.round(uvRaw) : null;
+      const [uvLabel, uvColor] = uvBand(uv);
 
-        // Length of day + how it's changing — a quiet, seasonal reading derived
-        // from the sunrise/sunset the widget already shows. daylight_duration is
-        // in seconds; the day-over-day delta (today→tomorrow) shows the year turning.
-        const dayLenSecs = d.daily.daylight_duration?.[0];
-        const tmrwLenSecs = d.daily.daylight_duration?.[1];
-        const dayLen = Number.isFinite(dayLenSecs) ? fmtDayLen(dayLenSecs) : null;
-        const dayDeltaSecs = (Number.isFinite(dayLenSecs) && Number.isFinite(tmrwLenSecs))
-          ? tmrwLenSecs - dayLenSecs : null;
-        // Ignore sub-15s wobble (rounding near a solstice) so the arrow is honest.
-        const dayTrend = (dayDeltaSecs != null && Math.abs(dayDeltaSecs) >= 15)
-          ? (dayDeltaSecs > 0
-            ? { arrow: '↑', word: 'longer' }
-            : { arrow: '↓', word: 'shorter' })
-          : null;
-
-        // UV index — current hour's reading, with the day's peak for context.
-        const hNow = new Date().getHours();
-        const uvNowRaw = d.hourly.uv_index?.[hNow];
-        const uvNow = Number.isFinite(uvNowRaw) ? Math.round(uvNowRaw) : null;
-        const uvPeakRaw = d.daily.uv_index_max?.[0];
-        const uvPeak = Number.isFinite(uvPeakRaw) ? Math.round(uvPeakRaw) : null;
-        const [uvLabel, uvColor] = uvBand(uvNow);
-        // Is the sun still climbing? Scan today's REMAINING hours for the UV peak
-        // the day is heading toward, so a morning glance answers "how strong will
-        // the sun get, and when?" — a genuinely useful sunscreen cue the bare "UV 2"
-        // can't give. Reuses the hourly uv_index already fetched (no extra request).
-        // Surfaced only in daylight when the peak is a real step above now (≥ now+2)
-        // and at least Moderate, so it falls quiet once the sun has passed its height.
-        // hNow indexes today (the hourly series starts at local midnight), so the
-        // slice hNow..23 is exactly the hours left in the day.
-        let uvAhead = null;
-        if (cur.is_day !== 0 && Array.isArray(d.hourly.uv_index)) {
-          let pv = -Infinity, pj = -1;
-          for (let j = hNow; j <= Math.min(23, d.hourly.uv_index.length - 1); j++) {
-            const v = d.hourly.uv_index[j];
-            if (Number.isFinite(v) && v > pv) { pv = v; pj = j; }
-          }
-          const pval = Number.isFinite(pv) ? Math.round(pv) : null;
-          if (pval != null && pj >= 0 && uvNow != null && pval >= uvNow + 2 && pval >= 3) {
-            uvAhead = { val: pval, hour: new Date(d.hourly.time[pj]).getHours() };
-          }
-        }
-
-        // Visibility / fog — read the current hour's visibility (metres). SF's
-        // marine layer makes this a genuinely local reading: it sits calm and faint
-        // when the air is clear, and turns a cool-blue "🌫 Fog · 0.4 mi" when Karl
-        // rolls in. Always present so the sky line reads consistently.
-        const visM = Number.isFinite(d.hourly.visibility?.[hNow]) ? d.hourly.visibility[hNow] : null;
-        const vis = visBand(visM);
-        // Forward-looking marine-layer note (SF's signature weather): when the fog
-        // is expected to lift, or roll in, over the next ~12h — read from the same
-        // hourly visibility series, so it costs no extra request and adds no height
-        // (it's a hushed sub-clause tucked inside the visibility reading below).
-        const fog = fogOutlook(d.hourly, hNow);
-
-        // Barometric pressure + its 3-hour tendency. The current reading comes from
-        // the `current` block; the trend compares it against the hourly series three
-        // hours back (skipped before 3am, when there's no prior hour to read), so a
-        // rising/falling barometer tells the wall which way the weather is leaning.
-        const pNow = Number.isFinite(cur.pressure_msl) ? cur.pressure_msl : null;
-        const p3 = (hNow >= 3 && Array.isArray(d.hourly.pressure_msl)) ? d.hourly.pressure_msl[hNow - 3] : null;
-        const baro = (Number.isFinite(pNow) && Number.isFinite(p3)) ? baroTendency(pNow - p3) : null;
-
-        // Next few days' outlook — a compact strip of the three days ahead
-        // (condition icon + high/low), read from the daily arrays (forecast_days=4
-        // guarantees indices 1–3 are present). Richer than the old one-line
-        // "Tomorrow:" clause and it fills the calm band above the hourly timeline
-        // with genuinely useful "what's coming" information. Each day's high is
-        // tinted gold/blue when it's markedly warmer/cooler than TODAY's high,
-        // echoing the timeline's warm/cool language.
-        const fc = [];
-        for (let i = 1; i <= 3; i++) {
-          const iso = d.daily.time?.[i];
-          const code = d.daily.weather_code?.[i];
-          const dhi = d.daily.temperature_2m_max?.[i];
-          const dlo = d.daily.temperature_2m_min?.[i];
-          if (iso == null || code == null || !Number.isFinite(dhi) || !Number.isFinite(dlo)) continue;
-          const ppRaw = d.daily.precipitation_probability_max?.[i];
-          const pp = Number.isFinite(ppRaw) ? Math.round(ppRaw) : null;
-          fc.push({ iso, code, hi: Math.round(dhi), lo: Math.round(dlo), pp });
-        }
-
-        // Sample the next ~14h every 2 hours for a linear timeline.
-        const idx = new Date().getHours();
-        const STEP = 2, N = 6;
-        const pts = [];
-        for (let i = 0; i < N; i++) {
-          const j = idx + i * STEP;
-          if (j >= d.hourly.time.length) break;
-          const t = Math.round(d.hourly.temperature_2m[j]);
-          const hr = new Date(d.hourly.time[j]).getHours();
-          const popRaw = d.hourly.precipitation_probability?.[j];
-          const pop = Number.isFinite(popRaw) ? popRaw : null;
-          pts.push({ t, code: d.hourly.weather_code[j], hr, pop, first: i === 0, isDay: d.hourly.is_day?.[j] });
-        }
-        // The CURVE uses every hour across the same window (unrounded), so it bends
-        // smoothly through the real hourly shape instead of zig-zagging between the
-        // 2-hour labelled samples. Labelled dots sit on it at their own hours.
-        const HOURS = (pts.length - 1) * STEP;
-        const fine = [];
-        for (let k = 0; k <= HOURS; k++) {
-          const v = d.hourly.temperature_2m[idx + k];
-          if (Number.isFinite(v)) fine.push({ k, v });
-        }
-        const temps = pts.map((p) => p.t);
-        const tMin = Math.min(...temps, ...fine.map((f) => f.v)), tMax = Math.max(...temps, ...fine.map((f) => f.v));
-        const span = (tMax - tMin) || 1;
-        // The warmest and coolest sampled hours ahead — the curve's peak/trough.
-        // Only flagged when there's a real spread (≥3°F) so a flat day stays calm;
-        // ties resolve to the FIRST/EARLIEST occurrence (the soonest peak/low).
-        let hiIdx = 0, loIdx = 0;
-        pts.forEach((p, i) => { if (p.t > pts[hiIdx].t) hiIdx = i; if (p.t < pts[loIdx].t) loIdx = i; });
-        const markExtremes = (tMax - tMin) >= 3 && hiIdx !== loIdx;
-        // y as a percentage from top; warm sits high, cool sits low, padded so
-        // temp labels above the dots never clip the plot.
-        const yOf = (t) => 80 - ((t - tMin) / span) * 52; // 28%..80%
-        const xOf = (i) => (N === 1 ? 50 : (i / (pts.length - 1)) * 100);
-
-        const xOfHour = (k) => (HOURS ? (k / HOURS) * 100 : 50);
-        const rawAt = (i) => { const f = fine.find((q) => q.k === i * STEP); return f ? f.v : pts[i].t; };
-        // Monotone cubic (Fritsch–Carlson) through the hourly points: smooth, but never
-        // overshoots the data (no fake peaks/dips between hours).
-        const smooth = (P) => {
-          const n = P.length;
-          if (n < 2) return P.length ? `M${P[0][0]},${P[0][1]}` : '';
-          const dx = [], m = [];
-          for (let i = 0; i < n - 1; i++) { dx[i] = P[i + 1][0] - P[i][0]; m[i] = (P[i + 1][1] - P[i][1]) / (dx[i] || 1); }
-          const t = [m[0]];
-          for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
-          t[n - 1] = m[n - 2];
-          for (let i = 0; i < n - 1; i++) {
-            if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
-            const a = t[i] / m[i], b = t[i + 1] / m[i], h2 = a * a + b * b;
-            if (h2 > 9) { const k3 = 3 / Math.sqrt(h2); t[i] = k3 * a * m[i]; t[i + 1] = k3 * b * m[i]; }
-          }
-          let dStr = `M${P[0][0].toFixed(2)},${P[0][1].toFixed(2)}`;
-          for (let i = 0; i < n - 1; i++) {
-            const c = dx[i] / 3;
-            dStr += ` C${(P[i][0] + c).toFixed(2)},${(P[i][1] + t[i] * c).toFixed(2)} ${(P[i + 1][0] - c).toFixed(2)},${(P[i + 1][1] - t[i + 1] * c).toFixed(2)} ${P[i + 1][0].toFixed(2)},${P[i + 1][1].toFixed(2)}`;
-          }
-          return dStr;
-        };
-        const curvePts = (fine.length >= 2 ? fine.map((f) => [xOfHour(f.k), yOf(f.v)]) : pts.map((p, i) => [xOf(i), yOf(p.t)]));
-        const linePath = smooth(curvePts);
-        const areaPath = `${linePath} L${curvePts[curvePts.length - 1][0].toFixed(2)},100 L${curvePts[0][0].toFixed(2)},100 Z`;
-
-        // Night shading — a static, cool wash behind the hours that fall after
-        // sunset / before sunrise, so the evening reads at a glance on the temp
-        // curve (it echoes the star-lit night icons already used on the axis).
-        // Purely additive to the SVG; adds NO height, so the card can't clip.
-        // Each sample owns the span to the midpoint of its neighbours; runs of
-        // night samples merge into one rect, and internal day↔night edges get a
-        // hushed vertical divider marking the moment the sun crosses.
-        // Midpoint between samples i-1 and i (valid for 1..len-1); a column's left
-        // edge is the midpoint to its previous neighbour, its right edge the
-        // midpoint to the next — with the plot's 0/100 edges capping the ends.
-        const mid = (i) => (xOf(i - 1) + xOf(i)) / 2;
-        const colOf = (i) => [
-          i === 0 ? 0 : mid(i),
-          i === pts.length - 1 ? 100 : mid(i + 1),
-        ];
-        const isNight = (p) => p.isDay === 0;
-        // sunMarks: interior day↔night crossings, tagged as sunset (entering a
-        // night run) or sunrise (leaving one), for the little glyphs above the plot.
-        let nightRects = '', edgeLines = '', k = 0;
-        const sunMarks = [];
-        while (k < pts.length) {
-          if (isNight(pts[k])) {
-            const [start] = colOf(k);
-            let e = k;
-            while (e + 1 < pts.length && isNight(pts[e + 1])) e++;
-            const [, end] = colOf(e);
-            nightRects += `<rect x="${start}" y="0" width="${Math.max(0, end - start)}" height="100" fill="url(#wxnight)"/>`;
-            // A faint divider at an interior sun-crossing (skip the plot edges); the
-            // sunset/sunrise glyph is pinned above it so the line reads unambiguously.
-            if (start > 0.5) { edgeLines += `<line x1="${start}" y1="0" x2="${start}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; sunMarks.push({ x: start, type: 'set' }); }
-            if (end < 99.5) { edgeLines += `<line x1="${end}" y1="0" x2="${end}" y2="100" stroke="rgba(180,196,255,.28)" stroke-width="1" vector-effect="non-scaling-stroke"/>`; sunMarks.push({ x: end, type: 'rise' }); }
-            k = e + 1;
-          } else k++;
-        }
-
-        const svg = `
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="wxfill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="rgba(116,247,176,.24)"/>
-                <stop offset=".7" stop-color="rgba(116,247,176,.05)"/>
-                <stop offset="1" stop-color="rgba(116,247,176,0)"/>
-              </linearGradient>
-              <linearGradient id="wxline" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="#b9ffd6"/>
-                <stop offset="1" stop-color="var(--mint)"/>
-              </linearGradient>
-              <linearGradient id="wxnight" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="rgba(84,102,170,0)"/>
-                <stop offset=".45" stop-color="rgba(84,102,170,.20)"/>
-                <stop offset="1" stop-color="rgba(60,74,130,.06)"/>
-              </linearGradient>
-            </defs>
-            <path d="${areaPath}" fill="url(#wxfill)"/>
-            <path d="${linePath}" fill="none" stroke="rgba(116,247,176,.22)" stroke-width="7"
-              stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-            <path d="${linePath}" fill="none" stroke="url(#wxline)" stroke-width="2.4"
-              stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-          </svg>`;
-
-        const hr12 = (hh) => `${((hh + 11) % 12) + 1}${hh < 12 ? 'a' : 'p'}`;
-        const dots = pts.map((p, i) => {
-          const isHi = markExtremes && i === hiIdx;
-          const isLo = markExtremes && i === loIdx;
-          const kind = isHi ? ' hi' : isLo ? ' lo' : '';
-          const when = p.first ? 'now' : hr12(p.hr);
-          const title = isHi ? `Warmest ahead · ${p.t}°F at ${when}`
-            : isLo ? `Coolest ahead · ${p.t}°F at ${when}` : '';
-          return ctx.h('div', {
-            class: `wx-pt${i === 0 ? ' now' : ''}${kind}`, style: { left: `${xOf(i)}%`, top: `${yOf(rawAt(i))}%` }, title,
-          },
-            ctx.h('div', { class: `tv${kind}` },
-              (isHi || isLo) ? ctx.h('span', { class: 'cr' }, isHi ? '▲' : '▼') : null,
-              `${p.t}°`),
-            ctx.h('div', { class: `dot${kind}` }));
-        });
-
-        const axis = pts.map((p) => {
-          const slug = nightSlug(WMO(p.code)[1], p.isDay);
-          const label = p.first ? 'now' : `${((p.hr + 11) % 12) + 1}${p.hr < 12 ? 'a' : 'p'}`;
-          // Show rain chance only when it's worth a glance (>=25%); otherwise the
-          // line stays in the layout but invisible, so the row never shifts.
-          const wet = p.pop != null && p.pop >= 25;
-          return ctx.h('div', { class: 'hr' },
-            ctx.h('div', { class: 'tt' }, `${p.t}°`),
-            ctx.h('div', { class: 'e' }, wxIcon(slug, 22)),
-            ctx.h('div', { class: 't' }, label),
-            ctx.h('div', { class: `p${wet ? '' : ' dry'}` }, wet ? `💧${p.pop}%` : '0'));
-        });
-
-        const plot = ctx.h('div', { class: 'wx-plot', html: svg });
-        dots.forEach((dt) => plot.appendChild(dt));
-        // Sunrise / sunset glyphs above the plot's crossing lines — hushed, static,
-        // and clip-safe (they live in the empty upper band). Tooltip carries the
-        // exact clock time so a tap/hover names the moment precisely.
-        // (Sun-crossing glyphs + night band dropped in the 2026-10-01 clean-up — the
-        // hour icons already show night; the plot is now just the curve.)
-        [].forEach((s) => plot.appendChild(ctx.h('div', {
-          class: `wx-sun ${s.type === 'rise' ? 'rise' : 'set'}`,
-          style: { left: `${s.x}%` },
-          title: s.type === 'rise' ? `Sunrise · ${sunrise}` : `Sunset · ${sunset}`,
-        }, s.type === 'rise' ? '☀' : '☾')));
-
-        body.replaceChildren(ctx.h('div', { class: 'wx' },
-          ctx.h('div', { class: 'wx-top' },
-            ctx.h('div', { class: 'wx-emoji' }, wxIcon(iconSlug, 72)),
-            ctx.h('div', { class: 'wx-temp' },
-              ctx.h('div', { class: 'f' }, `${tF}°F`),
-              ctx.h('div', { class: 'c' }, `${fToC(tF)}°C`)),
-            ctx.h('div', { class: 'wx-meta' },
-              ctx.h('div', { class: 'cond' }, cond),
-              ctx.h('div', { class: 'range' }, `H ${hi}°  ·  L ${lo}°`))),
-          ctx.h('div', { class: 'wx-sky' },
-            dayLen ? ctx.h('span', {
-              class: 'day',
-              title: dayTrend
-                ? `${dayLen} of daylight · ${fmtDayDelta(dayDeltaSecs)} ${dayTrend.word} tomorrow`
-                : `${dayLen} of daylight`,
-            }, '☀ ', ctx.h('b', {}, dayLen),
-              dayTrend ? ctx.h('span', { class: 'tr' },
-                `${dayTrend.arrow} ${fmtDayDelta(dayDeltaSecs)}`) : null) : null,
-            ctx.h('span', { class: 'sun' }, `↑ ${sunrise}  ↓ ${sunset} `,
-              ctx.h('span', { class: 'nextsun' })),
-            vis ? ctx.h('span', {
-              class: `vis${vis.foggy ? ' foggy' : ''}`,
-              title: `Visibility ~${fmtVis(visM)} · ${vis.label}`
-                + (fog ? ` · fog ${fog.kind === 'clears' ? 'lifts' : 'rolls in'} around ${hr12(fog.hour)}` : ''),
-            }, vis.foggy ? '🌫 ' : '👁 ',
-              vis.foggy ? ctx.h('b', {}, vis.label) : null,
-              vis.foggy ? '' : fmtVis(visM), // fog: just name it (the distance read as noise)
-              // Marine-layer outlook — a hushed clause naming when the fog lifts
-              // (foggy now) or rolls in (clear now). Inside the nowrap .vis atom, so
-              // it wraps as one unit and never splits mid-phrase.
-              fog ? ctx.h('span', { class: 'vfc' },
-                fog.kind === 'clears' ? ` · lifts ${hr12(fog.hour)}` : ` · fog ${hr12(fog.hour)}`) : null) : null,
-            ctx.h('span', {
-              class: 'uv',
-              title: uvAhead
-                ? `UV index now ${uvNow ?? '—'} · climbs to ${uvAhead.val} by ${hr12(uvAhead.hour)} (peak ${uvPeak} today)`
-                : uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index',
-            }, ctx.h('span', { class: 'dot', style: { background: uvColor, boxShadow: `0 0 6px ${uvColor}` } }),
-              'UV ', ctx.h('b', {}, `${uvNow ?? '—'}`), ` ${uvLabel}`,
-              // Climbing-UV cue — a hushed "↑6 1p" tinted to the peak's own band,
-              // trailing the current reading inside this nowrap atom (so it wraps as
-              // one unit and adds no height beyond the line's existing wrap).
-              uvAhead ? ctx.h('span', {
-                class: 'uvpk',
-                style: { color: uvBand(uvAhead.val)[1] },
-              }, ` · ↑${uvAhead.val} ${hr12(uvAhead.hour)}`) : null),
-            Number.isFinite(pNow) ? ctx.h('span', {
-              class: 'baro',
-              title: `Barometric pressure — ${inHg(pNow)} inHg (${Math.round(pNow)} hPa)`
-                + (baro ? ` · ${baro.word} — ${baro.hint}` : ''),
-            }, baro
-              ? ctx.h('span', { class: 'bar', style: { color: baro.color } }, `${baro.arrow} `)
-              : '◦ ',
-              ctx.h('b', {}, `${inHg(pNow)}″`),
-              baro ? ctx.h('span', { class: 'bw' }, ` ${baro.word}`) : null) : null),
-          ctx.h('div', { class: 'wx-stats' },
-            ctx.h('div', { class: 'wx-stat' },
-              ctx.h('div', { class: 'k' }, 'Feels like'),
-              ctx.h('div', {
-                class: 'v',
-                title: feelsTrend
-                  ? `Feels ${feelsTrend.word} than the ${tF}° air`
-                  : `Feels like ${feels}°F · ${fToC(feels)}°C`,
-              }, `${feels}°F`,
-                feelsTrend
-                  ? ctx.h('span', { class: 'wx-feeltr', style: { color: feelsTrend.color } },
-                      ' ', ctx.h('span', { class: 'cr' }, feelsTrend.car), `${Math.abs(feelsDelta)}°`)
-                  : ` · ${fToC(feels)}°C`)),
-            ctx.h('div', { class: 'wx-stat' },
-              ctx.h('div', { class: 'k' }, 'Humidity'),
-              ctx.h('div', {
-                class: 'v',
-                title: Number.isFinite(dewF)
-                  ? `${hum}% relative humidity · dew point ${dewF}°F${comfort ? ` — ${comfort.word}` : ''}`
-                  : `${hum}% relative humidity`,
-              }, `${hum}%`,
-                comfort ? ctx.h('span', { class: 'wx-wu' },
-                  ctx.h('span', { class: 'wx-dew', style: { color: comfort.color } }, ` · ${comfort.word}`)) : null)),
-            // (Wind removed 2026-10-01 at the humans' request — UV takes its slot.)
-            ctx.h('div', { class: 'wx-stat', title: uvAhead
-                ? `UV index now ${uvNow ?? '—'} · climbs to ${uvAhead.val} by ${hr12(uvAhead.hour)} (peak ${uvPeak} today)`
-                : uvPeak != null ? `UV index now ${uvNow ?? '—'} · peak ${uvPeak} today` : 'UV index' },
-              ctx.h('div', { class: 'k' }, 'UV'),
-              ctx.h('div', { class: 'v' }, `${uvNow ?? '—'}`,
-                ctx.h('span', { class: 'wx-wu', style: { color: uvColor } }, ` · ${uvLabel}`)))),
-          fc.length ? ctx.h('div', { class: 'wx-fc' }, ...fc.map((f) => {
-            const wd = weekdayIdx(f.iso);
-            const wknd = wd === 0 || wd === 6;
-            const [flabel, fslug] = WMO(f.code);
-            const dHi = Number.isFinite(hi) ? f.hi - hi : 0;
-            const hiTint = dHi >= 4 ? 'var(--gold)' : dHi <= -4 ? '#9cc0ff' : 'var(--ink)';
-            // Rain-chance chip — only when the day is genuinely likely to be wet, so
-            // the strip stays calm on dry days and speaks up when there's a plan to
-            // make. Inline on the weekday line → adds no height, can't clip.
-            const wet = Number.isFinite(f.pp) && f.pp >= 30;
-            return ctx.h('div', {
-              class: 'fc',
-              title: `${wd == null ? '' : WD_FULL[wd] + ' · '}${flabel} · H ${f.hi}° L ${f.lo}°`
-                + (Number.isFinite(f.pp) ? ` · ${f.pp}% rain` : ''),
-            },
-              ctx.h('div', { class: `d${wknd ? ' wknd' : ''}` }, wd == null ? '—' : WD_SHORT[wd],
-                wet ? ctx.h('span', { class: 'pp' }, `💧${f.pp}%`) : null),
-              wxIcon(fslug, 26),
-              ctx.h('div', { class: 'r' },
-                ctx.h('span', { class: 'hi', style: { color: hiTint } }, `${f.hi}°`),
-                ctx.h('span', { class: 'lo' }, `${f.lo}°`)));
-          })) : null,
-          ctx.h('div', { class: 'wx-tl' },
-            plot,
-            ctx.h('div', { class: 'wx-axis' }, ...axis))));
-
-        // Wire up the live "next sun event" countdown against this fresh render.
-        sunMins = { sunrise: sunriseMin, sunset: sunsetMin };
-        sunNextEl = body.querySelector('.nextsun');
-        updateSunNext();
-      };
-      // Initial load: a few attempts so one slow/aborted response doesn't blank
-      // the widget for a whole refresh cycle.
-      let loaded = false;
-      for (let attempt = 1; attempt <= 3 && !loaded; attempt++) {
-        try { await refresh(); loaded = true; }
-        catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 2500)); }
+      // Next days: tomorrow + two more, each in °F and °C.
+      const days = [];
+      for (let i = 1; i <= 3; i++) {
+        const iso = d.daily.time?.[i];
+        const dhi = d.daily.temperature_2m_max?.[i], dlo = d.daily.temperature_2m_min?.[i];
+        if (iso == null || !Number.isFinite(dhi) || !Number.isFinite(dlo)) continue;
+        const pp = d.daily.precipitation_probability_max?.[i];
+        days.push({ i, iso, code: d.daily.weather_code?.[i], hi: Math.round(dhi), lo: Math.round(dlo),
+          pp: Number.isFinite(pp) ? Math.round(pp) : null });
       }
-      if (!loaded) body.replaceChildren(fallback('The sky is quiet', 'reconnecting to the forecast…'));
-      // Steady refresh; on failure KEEP the last good reading (don't blank).
-      ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
-      // Tick the "next sun event" countdown each minute (cheap text-only update)
-      // so it stays live between the 15-minute data refreshes; no-ops until loaded.
-      ctx.interval(updateSunNext, 60 * 1000);
-    } catch (e) {
-      body.replaceChildren(fallback('Weather unavailable', 'could not reach the forecast'));
+      const tempCell = (f, cls) => h('div', { class: `t ${cls}` },
+        h('span', { class: 'f' }, `${f}°F`), h('span', { class: 'c' }, `${fToC(f)}°C`));
+      const dayRows = days.flatMap((x) => {
+        const wd = weekdayIdx(x.iso);
+        const [lbl, s] = WMO(x.code);
+        const wet = x.pp != null && x.pp >= 30;
+        return [
+          h('div', { class: `dn${x.i === 1 ? ' tm' : ''}`, title: `${wd == null ? '' : WD_FULL[wd] + ' · '}${lbl}` },
+            x.i === 1 ? 'Tomorrow' : (wd == null ? '—' : WD[wd]),
+            wet ? h('span', { class: 'pp' }, `💧${x.pp}%`) : null),
+          h('div', { title: lbl }, icon(s, 26)),
+          tempCell(x.hi, 'hi'),
+          tempCell(x.lo, 'lo'),
+        ];
+      });
+
+      // Hourly: labelled every 2 h for ~10 h, curve through every hour.
+      const STEP = 2, N = 6;
+      const pts = [];
+      for (let i = 0; i < N; i++) {
+        const j = hNow + i * STEP;
+        if (j >= d.hourly.time.length || !Number.isFinite(d.hourly.temperature_2m[j])) break;
+        const pop = d.hourly.precipitation_probability?.[j];
+        pts.push({ t: Math.round(d.hourly.temperature_2m[j]), code: d.hourly.weather_code[j],
+          hr: hourOf(d.hourly.time[j]), pop: Number.isFinite(pop) ? pop : null, isDay: d.hourly.is_day?.[j] });
+      }
+      const HOURS = Math.max(1, (pts.length - 1) * STEP);
+      const fine = [];
+      for (let k = 0; k <= HOURS; k++) {
+        const v = d.hourly.temperature_2m[hNow + k];
+        if (Number.isFinite(v)) fine.push([k, v]);
+      }
+      const anyWet = pts.some((p) => p.pop != null && p.pop >= 25); // rain line only when it matters
+      let hoursEl = null;
+      if (pts.length >= 2 && fine.length >= 2) {
+        const vs = fine.map((f) => f[1]);
+        const tMin = Math.min(...vs), span = (Math.max(...vs) - tMin) || 1;
+        const yOf = (v) => 80 - ((v - tMin) / span) * 60; // 20%..80%
+        const P = fine.map(([k, v]) => [(k / HOURS) * 100, yOf(v)]);
+        const line = smoothPath(P);
+        const area = `${line} L${P[P.length - 1][0].toFixed(2)},100 L${P[0][0].toFixed(2)},100 Z`;
+        const plot = h('div', { class: 'wx-plot', html: `
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="wxfill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="rgba(116,247,176,.22)"/><stop offset="1" stop-color="rgba(116,247,176,0)"/>
+            </linearGradient></defs>
+            <path d="${area}" fill="url(#wxfill)"/>
+            <path d="${line}" fill="none" stroke="var(--mint)" stroke-width="2.4" stroke-linejoin="round"
+              stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          </svg>` });
+        plot.appendChild(h('div', { class: 'now', style: { left: '0%', top: `${P[0][1]}%` } }));
+        hoursEl = h('div', { class: 'wx-hours' },
+          anyWet ? null : h('div', { class: 'wx-sec' }, 'Next hours'), // label yields its row to the rain line
+          plot,
+          h('div', { class: 'wx-axis' }, ...pts.map((p, i) => {
+            const wet = p.pop != null && p.pop >= 25;
+            return h('div', { class: 'hr' },
+              h('div', { class: 'tt' }, `${p.t}°`),
+              icon(nightSlug(WMO(p.code)[1], p.isDay), 20),
+              h('div', { class: 't' }, i === 0 ? 'now' : hr12(p.hr)),
+              anyWet ? h('div', { class: 'p' }, wet ? `💧${p.pop}%` : '') : null);
+          })));
+      }
+
+      body.replaceChildren(h('div', { class: 'wx' },
+        h('div', { class: 'wx-now' },
+          h('div', { class: 'ic' }, icon(nightSlug(slug, cur.is_day), 56)),
+          h('div', { class: 'tmp' },
+            h('div', { class: 'f' }, `${tF}°F`),
+            h('div', { class: 'c' }, `${fToC(tF)}°C`)),
+          h('div', { class: 'meta' },
+            h('div', { class: 'cond' }, cond),
+            h('div', { class: 'rng', title: `High ${hi}°F / ${fToC(hi)}°C · Low ${lo}°F / ${fToC(lo)}°C` },
+              `High ${hi}° · Low ${lo}°`))),
+        h('div', { class: 'wx-sun' },
+          h('span', {}, 'Sunrise ', h('b', {}, fmtClock(d.daily.sunrise?.[0]))),
+          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0])))),
+        h('div', { class: 'wx-stats' },
+          h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Feels like'),
+            h('div', { class: 'v' }, `${feels}°F`, h('small', {}, `${fToC(feels)}°C`))),
+          h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Humidity'),
+            h('div', { class: 'v' }, `${hum}%`)),
+          h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'UV index'),
+            h('div', { class: 'v' }, `${uv ?? '—'}`, h('small', { style: { color: uvColor } }, uvLabel)))),
+        days.length ? h('div', {},
+          h('div', { class: 'wx-days' },
+            h('div', { class: 'wx-sec' }, 'Next days'), h('div', { class: 'h' }, 'High'), h('div', { class: 'h' }, 'Low'),
+            ...dayRows)) : null,
+        hoursEl));
+    };
+
+    const refresh = async () => render(await ctx.fetchJSON(url)); // fetch first → failure keeps last render
+    let loaded = false;
+    for (let attempt = 1; attempt <= 3 && !loaded; attempt++) {
+      try { await refresh(); loaded = true; }
+      catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 2500)); }
     }
+    if (!loaded) body.replaceChildren(fallback('The sky is quiet', 'reconnecting to the forecast…'));
+    ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
   },
 };
