@@ -48,8 +48,10 @@ export default {
     const img = h('img', { alt: '' });
     const nm = h('div', { class: 'nm' }, '');
     const nx = h('div', { class: 'nx' }, '');
-    const wait = h('div', { class: 'wait' }, 'growing a new fractal…');
-    body.replaceChildren(h('div', { class: 'frc' }, wait, img, h('div', { class: 'cap' }, nm, nx)));
+    const wait = h('div', { class: 'wait' }, '');
+    // Picture only — no caption over the art (name + timing live in the tooltip / fullscreen).
+    const box = h('div', { class: 'frc' }, wait, img);
+    body.replaceChildren(box);
     img.addEventListener('load', () => { img.classList.add('in'); wait.remove(); });
     let slot = null, nextAt = 0;
     const refresh = async () => {
@@ -60,6 +62,7 @@ export default {
         if (meta.slot !== slot) { slot = meta.slot; img.src = `/api/fractal.png?s=${slot}`; }
         nm.textContent = meta.name;
         nx.textContent = `new in ${fmtLeft(nextAt - Date.now())}`;
+        box.title = `${meta.name} · new in ${fmtLeft(nextAt - Date.now())}`;
       } catch { /* keep the last picture */ }
     };
     await refresh();
