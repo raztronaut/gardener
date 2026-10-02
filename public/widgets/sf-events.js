@@ -33,12 +33,12 @@ export default {
       .won-hd .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
       .won-hd .all { opacity:.8; }
 
-      .won-list { flex:1 1 0; display:flex; flex-direction:column; gap:9px; min-height:0; overflow:hidden; }
+      .won-list { --sp:9px; flex:1 1 0; display:flex; flex-direction:column; gap:var(--sp); min-height:0; overflow:hidden; }
 
       /* Agenda rows — the readable day view: a fixed time column, then the full
          event name over up to two lines with its venue beneath. */
       .won-ag { flex:0 0 auto; display:grid; grid-template-columns:62px 1fr; column-gap:12px; min-width:0;
-        padding-bottom:9px; border-bottom:1px solid var(--stroke); }
+        padding-bottom:var(--sp); border-bottom:1px solid var(--stroke); }
       .won-ag:last-child { border-bottom:none; }
       .won-ag .tm { font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink);
         letter-spacing:.02em; padding-top:2px; white-space:nowrap; }
@@ -92,6 +92,7 @@ export default {
       const picks = (showingToday ? todayEvs : all.slice(0, 10)).slice();
       if (!picks.length) {
         head.style.display = 'none';
+        rows = [];
         list.replaceChildren(ctx.h('div', { class: 'won-empty' }, 'No upcoming events right now'));
         return;
       }
@@ -109,7 +110,8 @@ export default {
         ctx.h('span', { class: 'all' }, `${picks.length} EVENT${picks.length === 1 ? '' : 'S'}`));
       head.style.display = '';
 
-      list.replaceChildren(...picks.map((e) => {
+      let prevAllDay = false;
+      rows = picks.map((e) => {
         const isT = (() => { const o = dayOffset(e.when); return o != null && o <= 0; })();
         const live = liveCountdown(e.when, e.allDay, isT);
         let tm;
@@ -120,18 +122,48 @@ export default {
           tm = ctx.h('div', { class: 'tm' }, dayTag || clock,
             live ? ctx.h('span', { class: `lv${live.cls === 'soon' ? ' soon' : ''}` }, live.cls === 'live' ? '● ON NOW' : live.txt) : null);
         } else {
-          tm = ctx.h('div', { class: 'tm all' }, 'ALL DAY');
+          // Say "ALL DAY" once for the run of all-day events, not on every row —
+          // the repeated label read as noise down the time column.
+          tm = ctx.h('div', { class: 'tm all' }, prevAllDay ? '' : 'ALL DAY');
         }
+        prevAllDay = !timed(e);
         return ctx.h('div', { class: 'won-ag', title: e.name },
           tm,
           ctx.h('div', { style: 'min-width:0' },
             ctx.h('div', { class: 'nm' }, e.name),
             e.place ? ctx.h('div', { class: 'pl' }, e.place) : null));
-      }));
-      // Fit: drop trailing rows until the list no longer overflows the card.
-      const fit = () => { while (list.children.length > 1 && list.scrollHeight > list.clientHeight + 1) list.lastChild.remove(); };
-      fit(); requestAnimationFrame(fit);
+      });
+      fit();
     };
+
+    // Fit: lay out EVERY row, then drop trailing rows until the list no longer
+    // overflows. Re-run whenever the card's height changes — the grid settles as
+    // neighbouring widgets load, and fitting only once (against an early, shorter
+    // card) used to strand the list at 3–4 rows above a tall empty gap.
+    let rows = [];
+    const fit = () => {
+      if (!rows.length) return;
+      list.style.removeProperty('--sp');
+      list.replaceChildren(...rows);
+      while (list.children.length > 1 && list.scrollHeight > list.clientHeight + 1) list.lastChild.remove();
+      // When rows were trimmed, share the leftover height out as extra spacing
+      // between the survivors (gap + rule padding), so the agenda fills the card
+      // to its foot instead of stopping short above an empty band.
+      const n = list.children.length;
+      if (n > 1 && n < rows.length) {
+        const slack = list.getBoundingClientRect().bottom - list.lastChild.getBoundingClientRect().bottom;
+        if (slack > 2) list.style.setProperty('--sp', `${(9 + Math.min(14, (slack - 2) / (2 * n - 1))).toFixed(1)}px`);
+      }
+    };
+    let lastH = -1, fitQueued = false;
+    try {
+      new ResizeObserver(() => {
+        const hgt = list.clientHeight;
+        if (hgt === lastH || fitQueued) return;
+        lastH = hgt; fitQueued = true;
+        requestAnimationFrame(() => { fitQueued = false; fit(); });
+      }).observe(list);
+    } catch { /* no ResizeObserver — the minute re-render still refits */ }
 
     // Fetch BEFORE touching the list so a failed refresh keeps the last good render.
     // Keep the last good events so the minute-tick below can re-render the live
