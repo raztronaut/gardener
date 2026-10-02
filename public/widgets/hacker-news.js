@@ -149,18 +149,18 @@ export default {
          wears a quiet gold "▲2"; a fresh arrival wears a small mint "new" chip. Held
          or slipped stories show nothing, so the column stays calm. Tiny + static, so
          it adds no height worth clipping. */
-      .hn-move { font-family:var(--font-mono); font-size:9px; font-weight:700; line-height:1;
+      .hn-move { font-family:var(--font-mono); font-size:11.5px; font-weight:700; line-height:1;
         letter-spacing:.02em; white-space:nowrap; }
       .hn-move.up { color:var(--gold); }
       .hn-move.new { color:var(--mint-2); border:1px solid rgba(67,230,198,.4);
         border-radius:999px; padding:1.5px 4px; letter-spacing:.08em; text-transform:uppercase;
-        font-size:8px; }
+        font-size:11px; }
       .hn-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
       .hn-title { font-size:14.5px; line-height:1.2; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .hn-meta { display:flex; align-items:center; gap:7px; flex-wrap:nowrap;
         min-width:0; overflow:hidden;
-        font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
+        font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
       .hn-meta > * { flex:0 0 auto; }
       .hn-score { color:var(--gold); font-weight:600; }
       .hn-cmts { color:var(--mint-2); }
@@ -176,7 +176,7 @@ export default {
       .hn-domain { color:var(--ink-soft); flex:1 1 auto; min-width:0;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
       /* type badge — a compact static pill; colour keys the kind at a glance */
-      .hn-badge { font-size:9.5px; font-weight:700; letter-spacing:.08em; line-height:1;
+      .hn-badge { font-size:11.5px; font-weight:700; letter-spacing:.08em; line-height:1;
         padding:2.5px 5px; border-radius:6px; border:1px solid currentColor; }
       .hn-badge.ask { color:var(--gold); }
       .hn-badge.show { color:var(--mint); }
@@ -188,7 +188,7 @@ export default {
         color:var(--ink-soft); }
       .hn-fallback .hn-fb-icon { font-size:40px; opacity:.55; line-height:1; }
       .hn-fallback .hn-fb-msg { font-size:15px; color:var(--ink); }
-      .hn-fallback .hn-fb-sub { font-family:var(--font-mono); font-size:11.5px;
+      .hn-fallback .hn-fb-sub { font-family:var(--font-mono); font-size:13px;
         color:var(--ink-faint); }
     `);
     body.appendChild(ctx.loading('reading the front page…'));

@@ -740,7 +740,7 @@ export default {
       .dly-fact-sec { flex:1 1 auto; }
       .dly-quote-sec { flex:1 1 auto; }
       .dly-sec + .dly-sec { border-top:1px solid var(--stroke); }
-      .dly-lbl { font-family:var(--font-mono); font-size:11px; font-weight:600; letter-spacing:.2em;
+      .dly-lbl { font-family:var(--font-mono); font-size:12.5px; font-weight:600; letter-spacing:.2em;
         text-transform:uppercase; color:var(--ink-faint); margin-bottom:6px; flex:none; }
 
       /* WORD — the hero. Wraps to a 2nd line for long entries, then ellipsizes. */
@@ -761,7 +761,7 @@ export default {
       /* etymology — a quiet mono caption beneath the word's pronunciation/part of
          speech, telling where the word comes from. One line, ellipsised, so it can
          never push the definition or example out of the region. */
-      .dly-orig { margin-top:3px; font-family:var(--font-mono); font-size:11.5px; line-height:1.2;
+      .dly-orig { margin-top:3px; font-family:var(--font-mono); font-size:13px; line-height:1.2;
         color:var(--ink-faint); letter-spacing:.01em; flex:none;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
       .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
@@ -795,7 +795,7 @@ export default {
         margin-right:8px; letter-spacing:.01em; }
       /* relative "how long ago" — a hushed mono caption beside the year, so the
          moment reads as both dated and grounded in lived time at a glance. */
-      .dly-fact .ago { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint);
+      .dly-fact .ago { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint);
         margin-right:8px; letter-spacing:.02em; white-space:nowrap; }
       /* round-anniversary marker — a moment falling exactly a multiple of 25 years
          ago to the day turns its "how long ago" clause warm gold with a ✦, so the
@@ -805,7 +805,7 @@ export default {
       /* kind tag — a quiet "born"/"died" caption that leads a birthday or memorial
          entry, so the rotating history reads unambiguously (a life, not an event).
          Plain events carry no tag; the "On This Day" label already implies them. */
-      .dly-fact .kind { font-family:var(--font-mono); font-size:10.5px; font-weight:700;
+      .dly-fact .kind { font-family:var(--font-mono); font-size:12px; font-weight:700;
         letter-spacing:.1em; text-transform:uppercase; margin-right:8px; }
       .dly-fact .kind.born { color:var(--mint); }
       .dly-fact .kind.died { color:var(--ink-soft); }
@@ -821,7 +821,7 @@ export default {
         background:var(--mint); opacity:.75; }
       .dly-otd-nav .rail .fill.born { background:var(--mint); }
       .dly-otd-nav .rail .fill.died { background:var(--ink-soft); }
-      .dly-otd-nav .lbl { flex:0 0 auto; font-family:var(--font-mono); font-size:10px;
+      .dly-otd-nav .lbl { flex:0 0 auto; font-family:var(--font-mono); font-size:12px;
         letter-spacing:.1em; color:var(--ink-faint); white-space:nowrap; }
       .dly-otd-nav .lbl b { color:var(--ink-soft); font-weight:600; }
 

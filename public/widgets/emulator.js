@@ -130,10 +130,10 @@ export default {
       .em-count { display:flex; align-items:baseline; justify-content:center; gap:6px; }
       .em-count .n { font-family:var(--font-display); font-weight:700; font-size:22px; line-height:1;
         color:var(--mint); text-shadow:0 0 12px rgba(116,247,176,.4); }
-      .em-count .lbl, .em-empty { font-family:var(--font-mono); font-size:9px; letter-spacing:.14em;
+      .em-count .lbl, .em-empty { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.14em;
         text-transform:uppercase; color:var(--ink-faint); }
       /* the call-to-action, styled like a cabinet marquee prompt */
-      .em-cta { position:relative; margin-top:8px; font-family:var(--font-mono); font-size:9.5px;
+      .em-cta { position:relative; margin-top:8px; font-family:var(--font-mono); font-size:11.5px;
         font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--mint);
         text-shadow:0 0 10px rgba(116,247,176,.35); max-width:100%;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -211,7 +211,7 @@ export default {
          sidebar (right) with the big cover, full metadata and a Play button. */
       .eg-pick { flex:1; min-height:0; display:flex; flex-direction:column; padding:6px 4px 0; }
       .eg-pick-h { flex:none; display:flex; align-items:baseline; justify-content:space-between; gap:12px;
-        font-family:var(--font-mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+        font-family:var(--font-mono); font-size:12.5px; letter-spacing:.18em; text-transform:uppercase;
         color:var(--ink-faint); padding:0 6px 12px; }
       .eg-pick-h b { color:var(--mint); font-weight:600; }
       .eg-cols { flex:1; min-height:0; display:flex; gap:22px; padding:0 6px 8px; }
@@ -236,7 +236,7 @@ export default {
         text-shadow:0 2px 10px rgba(0,0,0,.55); overflow:hidden; display:-webkit-box;
         -webkit-line-clamp:3; -webkit-box-orient:vertical; }
       .eg-sys { position:relative; margin-top:8px; align-self:flex-start; font-family:var(--font-mono);
-        font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#06140f;
+        font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:#06140f;
         background:var(--mint); border-radius:999px; padding:3px 9px; font-weight:600; }
       .eg-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
         opacity:0; transition:opacity .25s ease; background:#06120d; }
@@ -252,12 +252,12 @@ export default {
       .eg-bigcover .eg-title { font-size:30px; -webkit-line-clamp:4; }
       .eg-bigcover .eg-pix { width:34px; height:34px; top:14px; left:14px; }
       .eg-side-t { font-family:var(--font-display); font-weight:700; font-size:23px; color:var(--ink); line-height:1.12; }
-      .eg-tag { font-family:var(--font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
+      .eg-tag { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
         color:var(--mint); border:1px solid var(--stroke-strong); border-radius:999px; padding:3px 9px; align-self:flex-start; }
       .eg-side-meta { display:flex; flex-direction:column; }
       .eg-mrow { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:9px 0;
         border-bottom:1px solid var(--stroke); }
-      .eg-mrow .k { font-family:var(--font-mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); }
+      .eg-mrow .k { font-family:var(--font-mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); }
       .eg-mrow .v { font-family:var(--font-mono); font-size:13px; color:var(--ink); text-align:right; }
       .eg-mrow .v.mint { color:var(--mint); }
       .eg-play { margin-top:auto; font-family:var(--font-display); font-weight:600; font-size:18px; color:#062018;
@@ -274,11 +274,11 @@ export default {
          dimensions — EmulatorJS measures its container and aborts if it's 0×0. */
       .eg-frame { position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:#071a14; }
       .eg-bar { flex:none; display:flex; align-items:center; justify-content:space-between;
-        padding:8px 10px 0; font-family:var(--font-mono); font-size:11px; letter-spacing:.1em;
+        padding:8px 10px 0; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.1em;
         text-transform:uppercase; color:var(--ink-faint); }
       .eg-bar b { color:var(--mint); font-weight:600; }
       .eg-back { background:transparent; border:1px solid var(--stroke); border-radius:999px;
-        padding:6px 14px; color:var(--mint); font:inherit; font-size:11px; letter-spacing:.1em;
+        padding:6px 14px; color:var(--mint); font:inherit; font-size:12.5px; letter-spacing:.1em;
         text-transform:uppercase; cursor:pointer; }
       .eg-back:hover { border-color:var(--mint); }
     `);

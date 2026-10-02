@@ -104,11 +104,11 @@ export default {
          the wider world keeping time alongside home. */
       .clk .world { margin-top:auto; display:flex; gap:13px; padding-top:6px; flex-wrap:nowrap; min-width:0; }
       .clk .world .wc { display:flex; align-items:baseline; gap:6px; min-width:0; }
-      .clk .world .wc .lbl { font-family:var(--font-mono); font-size:11px; font-weight:700; letter-spacing:.08em;
+      .clk .world .wc .lbl { font-family:var(--font-mono); font-size:12.5px; font-weight:700; letter-spacing:.08em;
         color:var(--ink-faint); flex:0 0 auto; }
       .clk .world .wc .wt { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-soft); letter-spacing:.01em;
         white-space:nowrap; }
-      .clk .world .wc .g { font-size:10px; line-height:1; opacity:.7; flex:0 0 auto; }
+      .clk .world .wc .g { font-size:12px; line-height:1; opacity:.7; flex:0 0 auto; }
       .clk .world .wc .g.day { color:var(--gold); }
       .clk .world .wc .g.night { color:#9cc0ff; }
       /* day-offset chip — appears beside a city ONLY when its calendar date differs
@@ -117,7 +117,7 @@ export default {
          bare times into a real sense of the world running a day ahead/behind; tiny
          and flex:none, so it never grows the row's height, and hidden entirely on
          the common same-day case so it adds nothing when there's nothing to say. */
-      .clk .world .wc .dd { font-family:var(--font-mono); font-size:9px; font-weight:700; letter-spacing:.02em;
+      .clk .world .wc .dd { font-family:var(--font-mono); font-size:11.5px; font-weight:700; letter-spacing:.02em;
         color:var(--mint-2); flex:0 0 auto; opacity:.9; }
       /* Year-in-numbers — a hushed one-line reading of how far the calendar year has
          run ("Day 262 · 103 left … 72%"), sitting beneath the world-clocks row. The

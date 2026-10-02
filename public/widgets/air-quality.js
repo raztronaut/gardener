@@ -132,20 +132,20 @@ export default {
       /* trend arrow beside the number — glanceable sense of where the air is headed */
       .aqs .trend { display:inline-flex; align-items:baseline; gap:3px; line-height:1; }
       .aqs .trend .ar { font-size:22px; font-weight:700; color:var(--ink-faint); }
-      .aqs .trend .tl { font-family:var(--font-mono); font-size:9px; letter-spacing:.05em;
+      .aqs .trend .tl { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.05em;
         color:var(--ink-faint); text-transform:lowercase; }
       .aqs .cat { font-size:14px; font-weight:700; color:var(--aqs-c, var(--ink)); line-height:1;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       /* quiet health cue under the category — clamped to 2 lines so it never
          pushes the scale/PM rows out of the small square tile. */
-      .aqs .tip { font-size:11px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
+      .aqs .tip { font-size:12.5px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* "vs. yesterday" cue — a compact coloured line that sits ABOVE the health
          tip only when the air shifted notably from the same hour yesterday. When
          it shows, the tip below drops to a single line (.one), so the two together
          occupy the SAME two-line box the tip used alone — no added height, no clip.
          A mint ↓ reads "cleared overnight"; a warm ↑ reads "smokier than yesterday". */
-      .aqs .vsy { font-size:11px; line-height:1.28; font-weight:700; letter-spacing:.01em;
+      .aqs .vsy { font-size:12.5px; line-height:1.28; font-weight:700; letter-spacing:.01em;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex;
         align-items:baseline; gap:4px; }
       .aqs .vsy .ar { font-weight:700; flex:0 0 auto; }
@@ -175,7 +175,7 @@ export default {
       /* footer: PM2.5 concentration, plus a quiet tag naming the pollutant that
          actually drives today's reading — but only when it ISN'T PM2.5, so the line
          stays calm on ordinary days and speaks up only when there's a reason to. */
-      .aqs .pm { font-family:var(--font-mono); font-size:10px; color:var(--ink-faint);
+      .aqs .pm { font-family:var(--font-mono); font-size:12px; color:var(--ink-faint);
         letter-spacing:.06em; display:flex; align-items:baseline; gap:6px; white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis; }
       .aqs .pm .lead { color:var(--aqs-c, var(--ink-soft)); font-weight:700; letter-spacing:.04em; flex:0 0 auto; }

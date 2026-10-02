@@ -219,13 +219,13 @@ export default {
       .wx-stats { display:flex; gap:8px; }
       .wx-stat { flex:1; min-width:0; background:rgba(255,255,255,.04); border:1px solid var(--stroke); border-radius:12px;
         padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
-      .wx-stat .k { font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap; }
+      .wx-stat .k { font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); white-space:nowrap; }
       .wx-stat .v { font-family:var(--font-display); font-size:15.5px; font-weight:600; color:var(--ink); line-height:1.05;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:baseline; gap:3px; }
       /* wind arrow — points the way the wind blows; static rotation, no animation */
       .wx-stat .wx-wdir { display:inline-block; font-size:14px; line-height:1; color:var(--mint);
         transform-origin:center; flex:none; }
-      .wx-stat .wx-wu { font-size:11px; font-weight:600; color:var(--ink-faint); letter-spacing:.02em;
+      .wx-stat .wx-wu { font-size:12.5px; font-weight:600; color:var(--ink-faint); letter-spacing:.02em;
         overflow:hidden; text-overflow:ellipsis; }
       /* gust clause — a quiet "· g27" appended to the wind unit when the air is
          genuinely gusty (gust ≥ sustained + 3 mph). Mint-2 ties it to the wind
@@ -242,8 +242,8 @@ export default {
          timeline and tomorrow's outlook use, so it reads instantly. Replaces the
          redundant °C on that tile only (the hero temp already carries °C), so it
          adds no width and can't clip. Calm days keep the plain °F · °C reading. */
-      .wx-stat .wx-feeltr { font-size:11.5px; font-weight:700; letter-spacing:.01em; white-space:nowrap; }
-      .wx-stat .wx-feeltr .cr { font-size:9px; vertical-align:1px; margin-right:1px; }
+      .wx-stat .wx-feeltr { font-size:13px; font-weight:700; letter-spacing:.01em; white-space:nowrap; }
+      .wx-stat .wx-feeltr .cr { font-size:11.5px; vertical-align:1px; margin-right:1px; }
 
       /* 3-day outlook strip — fills the calm band between the stat tiles and the
          hourly timeline with a glanceable few-days-ahead forecast (icon + hi/lo),
@@ -254,7 +254,7 @@ export default {
       .wx-fc { display:flex; gap:8px; }
       .wx-fc .fc { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:3px;
         background:rgba(255,255,255,.03); border:1px solid var(--stroke); border-radius:12px; padding:7px 4px; }
-      .wx-fc .fc .d { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+      .wx-fc .fc .d { font-family:var(--font-mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
         color:var(--ink-faint); display:flex; align-items:baseline; justify-content:center; gap:5px; }
       .wx-fc .fc .d.wknd { color:var(--mint); }
       /* rain-chance chip — a quiet blue "💧70%" beside a forecast day's weekday when
@@ -267,7 +267,34 @@ export default {
       .wx-fc .fc img { display:block; width:26px; height:26px; }
       .wx-fc .fc .r { display:flex; align-items:baseline; gap:6px; white-space:nowrap; }
       .wx-fc .fc .r .hi { font-family:var(--font-display); font-size:15px; font-weight:600; line-height:1; color:var(--ink); }
-      .wx-fc .fc .r .lo { font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
+      .wx-fc .fc .r .lo { font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
+
+      /* ---- 2026-10-01 "modern" pass: no boxes. Open columns, type + icons + space.
+         (Overrides the boxed tile styles above; data/markup unchanged.) ---- */
+      .wx { gap:16px; }
+      .wx-temp .f { font-size:54px; font-weight:400; }
+      .wx-temp .c { font-size:20px; font-weight:400; color:var(--ink-faint); }
+      .wx-meta .cond { font-size:24px; }
+      .wx-meta .range { font-family:var(--font); font-size:13px; letter-spacing:0; color:var(--ink-soft); }
+      .wx-sky { font-family:var(--font); font-size:13px; letter-spacing:0; gap:4px 16px; color:var(--ink-soft); }
+      .wx-sky .day, .wx-sky .baro, .wx-sky .vis:not(.foggy) { display:none; }
+      .wx-stats { gap:0; }
+      .wx-stat { background:none; border:none; border-radius:0; padding:0; gap:3px; }
+      .wx-stat .k { font-size:12.5px; letter-spacing:.04em; text-transform:none; color:var(--ink-faint); }
+      .wx-stat .v { font-size:22px; font-weight:400; }
+      .wx-stat .wx-wu { font-size:13px; font-weight:400; }
+      .wx-fc { gap:0; }
+      .wx-fc .fc { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:8px; row-gap:2px;
+        align-items:center; justify-items:start; background:none; border:none; border-radius:0; padding:0; }
+      .wx-fc .fc .d { grid-column:1 / -1; font-family:var(--font); font-size:12.5px; letter-spacing:.04em; }
+      .wx-fc .fc img { grid-row:2; }
+      .wx-fc .fc img { width:24px; height:24px; }
+      .wx-fc .fc .r .hi { font-size:20px; font-weight:400; }
+      .wx-fc .fc .r .lo { font-family:var(--font); font-size:13px; }
+      .wx-tl { border-top:none; padding-top:4px; }
+      .wx-plot { height:58px; }
+      .wx-axis .hr .t, .wx-axis .hr .p, .wx-pt .tv { font-family:var(--font); }
+      .wx-pt .tv { font-weight:400; font-size:14px; }
 
       /* linear hourly timeline — sits in its own panel, clearly divided from the
          stat rows above so the floating temp labels can never collide with them. */
@@ -287,14 +314,14 @@ export default {
       .wx-pt .dot.lo { background:#9cc0ff; box-shadow:0 0 0 2px #10261f, 0 0 10px rgba(156,192,255,.55); }
       .wx-pt .tv.hi { color:var(--gold); }
       .wx-pt .tv.lo { color:#9cc0ff; }
-      .wx-pt .tv .cr { font-size:10px; margin-right:1px; vertical-align:1px; }
+      .wx-pt .tv .cr { font-size:12px; margin-right:1px; vertical-align:1px; }
       .wx-axis { display:flex; margin-top:5px; }
       .wx-axis .hr { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; gap:2px; }
       .wx-axis .hr .e { font-size:13px; line-height:1; }
-      .wx-axis .hr .t { font-size:11px; color:var(--ink-faint); font-family:var(--font-mono); }
+      .wx-axis .hr .t { font-size:12.5px; color:var(--ink-faint); font-family:var(--font-mono); }
       /* rain-chance: a quiet blue line beneath each hour. Reserves its height even
          when empty so the axis row never jumps; only speaks up when rain is likely. */
-      .wx-axis .hr .p { font-family:var(--font-mono); font-size:10px; line-height:1; min-height:10px;
+      .wx-axis .hr .p { font-family:var(--font-mono); font-size:12px; line-height:1; min-height:10px;
         color:#9cc0ff; letter-spacing:.01em; }
       .wx-axis .hr .p.dry { visibility:hidden; }
       /* sunrise ☀ / sunset ☾ markers — tiny hushed glyphs pinned to the TOP of the
@@ -303,7 +330,7 @@ export default {
          band (the temp curve lives in the lower ~28–80%), so they add no height and
          can't clip; static, no animation. Gold sunrise / cool-blue sunset echo the
          timeline's own warm/cool language. */
-      .wx-sun { position:absolute; top:0; transform:translateX(-50%); font-size:11px;
+      .wx-sun { position:absolute; top:0; transform:translateX(-50%); font-size:12.5px;
         line-height:1; opacity:.75; pointer-events:none; text-shadow:0 1px 4px rgba(0,0,0,.5); }
       .wx-sun.rise { color:var(--gold); }
       .wx-sun.set { color:#9cc0ff; }
@@ -314,7 +341,7 @@ export default {
         justify-content:center; gap:10px; height:100%; text-align:center; color:var(--ink-soft); }
       .wx-fallback .wx-fb-icon { font-size:40px; opacity:.55; line-height:1; }
       .wx-fallback .wx-fb-msg { font-size:15px; color:var(--ink); }
-      .wx-fallback .wx-fb-sub { font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
+      .wx-fallback .wx-fb-sub { font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
     `);
 
     // A calm full-card fallback (icon + message) for when the sky can't be read —

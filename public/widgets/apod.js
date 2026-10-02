@@ -112,9 +112,9 @@ export default {
         color:var(--ink-soft); padding:24px;
         background:radial-gradient(130% 100% at 50% 30%, #16204a 0%, #0a0f28 48%, #05070f 100%); }
       .apod-ph .ic { font-size:38px; opacity:.7; filter:drop-shadow(0 2px 10px rgba(0,0,0,.5)); }
-      .apod-ph .t { font-family:var(--font-mono); font-size:12px; letter-spacing:.06em;
+      .apod-ph .t { font-family:var(--font-mono); font-size:13px; letter-spacing:.06em;
         color:var(--ink-faint); }
-      .apod-ph .sub { font-family:var(--font-mono); font-size:10px; letter-spacing:.05em;
+      .apod-ph .sub { font-family:var(--font-mono); font-size:12px; letter-spacing:.05em;
         color:var(--ink-faint); opacity:.6; margin-top:-4px; }
       /* Last-resort fallback: a hand-composed on-brand starfield so a missing feed
          still reads as an intentional night-sky illustration, never a broken box.
@@ -146,13 +146,13 @@ export default {
       .apod-ph.vid .vt { flex:0 0 auto; font-family:var(--font-display); font-weight:700; font-size:17px;
         line-height:1.26; color:var(--ink); max-width:94%;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .apod-ph.vid .vd { flex:0 0 auto; font-family:var(--font-mono); font-size:11px; letter-spacing:.05em;
+      .apod-ph.vid .vd { flex:0 0 auto; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.05em;
         color:var(--ink-soft); display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;
         justify-content:center; }
       .apod-ph.vid .vc { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; margin-top:4px;
         padding:5px 12px; border-radius:999px; background:rgba(8,14,34,.6);
         border:1px solid var(--stroke-strong); font-family:var(--font-mono);
-        font-size:10.5px; letter-spacing:.06em; color:var(--ink-soft); }
+        font-size:12px; letter-spacing:.06em; color:var(--ink-soft); }
       /* archival catalogue placard — a hushed mono chip in the photo's top corner,
          like the little catalogue tag beside a curated museum print, naming how deep
          into NASA's 30-year daily archive this picture sits. Absolutely positioned in
@@ -160,7 +160,7 @@ export default {
          it adds no height and can't clip; static, no animation. Its own dark, bordered
          pill + text-shadow keep it legible over any image, bright or dark. */
       .apod-cat { position:absolute; top:12px; right:13px; z-index:2; pointer-events:none;
-        font-family:var(--font-mono); font-size:10px; letter-spacing:.11em; line-height:1;
+        font-family:var(--font-mono); font-size:12px; letter-spacing:.11em; line-height:1;
         color:rgba(234,255,244,.64); background:rgba(5,8,16,.44);
         border:1px solid rgba(180,214,202,.18); border-radius:999px; padding:3.5px 9px;
         text-shadow:0 1px 5px rgba(0,0,0,.85); }
@@ -173,14 +173,14 @@ export default {
       .apod-title { font-family:var(--font-display); font-weight:700; font-size:18px; line-height:1.22;
         color:#fff; text-shadow:0 1px 8px rgba(0,0,0,.7);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .apod-date { margin-top:5px; font-family:var(--font-mono); font-size:11px; letter-spacing:.05em;
+      .apod-date { margin-top:5px; font-family:var(--font-mono); font-size:12.5px; letter-spacing:.05em;
         color:rgba(234,255,244,.72); text-shadow:0 1px 5px rgba(0,0,0,.7);
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .apod-date .cr { color:rgba(234,255,244,.5); }
       /* freshness chip — a hushed pill naming how recent the picture is, so a
          glance tells whether the wall is showing today's newest image. */
       .apod-fresh { display:inline-block; margin-right:8px; padding:1px 7px; border-radius:999px;
-        font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.1em;
+        font-family:var(--font-mono); font-size:11.5px; font-weight:700; letter-spacing:.1em;
         color:var(--mint); background:rgba(120,247,176,.16); border:1px solid rgba(120,247,176,.34);
         vertical-align:1px; text-shadow:none; }
       /* stale (2+ days old) — the feed hasn't refreshed; a hushed neutral pill

@@ -27,7 +27,7 @@ export default {
          carry the eye across, and the size of the full listing at the far right
          (which is why the card no longer needs a separate footer line). */
       .won-hd { flex:0 0 auto; display:flex; align-items:center; gap:9px;
-        font-family:var(--font-mono); font-size:10px; letter-spacing:.13em;
+        font-family:var(--font-mono); font-size:12px; letter-spacing:.13em;
         color:var(--ink-faint); white-space:nowrap; }
       .won-hd .tdy { color:var(--mint); font-weight:700; }
       .won-hd .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
@@ -40,14 +40,14 @@ export default {
       .won-ag { flex:0 0 auto; display:grid; grid-template-columns:62px 1fr; column-gap:12px; min-width:0;
         padding-bottom:9px; border-bottom:1px solid var(--stroke); }
       .won-ag:last-child { border-bottom:none; }
-      .won-ag .tm { font-family:var(--font-mono); font-size:12px; font-weight:600; color:var(--ink);
+      .won-ag .tm { font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink);
         letter-spacing:.02em; padding-top:2px; white-space:nowrap; }
-      .won-ag .tm.all { font-size:10px; color:var(--ink-faint); letter-spacing:.08em; }
-      .won-ag .tm .lv { display:block; margin-top:4px; font-size:9.5px; font-weight:700; color:var(--gold); letter-spacing:.04em; }
+      .won-ag .tm.all { font-size:12px; color:var(--ink-faint); letter-spacing:.08em; }
+      .won-ag .tm .lv { display:block; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--gold); letter-spacing:.04em; }
       .won-ag .tm .lv.soon { color:var(--mint); font-weight:600; }
       .won-ag .nm { font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink); min-width:0;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .won-ag .pl { margin-top:3px; font-size:11.5px; color:var(--ink-faint); white-space:nowrap;
+      .won-ag .pl { margin-top:3px; font-size:13px; color:var(--ink-faint); white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis; }
       .won-empty { flex:1; display:flex; align-items:center; justify-content:center;
         text-align:center; color:var(--ink-faint); font-size:13px; padding:0 10px; }
