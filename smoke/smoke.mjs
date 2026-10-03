@@ -182,6 +182,17 @@ async function main() {
       check('events: localeRank reads SF vs East Bay',
         localeRank({ name: 'Party (SF)' }) === 0 && localeRank({ name: 'Party (Oakland)' }) === 2
         && localeRank({ name: 'Mystery Party' }) === 1, 'locality classifier wrong');
+      // splitTitle tidies trailing title tags for the wall card.
+      const { splitTitle } = await import(join(PUBLIC, 'lib', 'events.js'));
+      const s1 = splitTitle('Desi Comedy Night Live in SF (7p + 9p)');
+      const s2 = splitTitle('Latine Makers Pop-Up (SF’s Ferry Building)');
+      const s3 = splitTitle('Whale’s Tail Beer Garden (Summer 2026)');
+      const s4 = splitTitle('Terror Vault Haunt (Oct. 1-Nov. 1)');
+      check('events: splitTitle moves time/venue/date tags out of the name',
+        s1.name === 'Desi Comedy Night Live in SF' && s1.time === '7P + 9P'
+        && s2.where === 'Ferry Building' && s3.name === 'Whale’s Tail Beer Garden' && !s3.note
+        && s4.note === 'thru Nov 1' && splitTitle('Party (SF)').name === 'Party (SF)',
+        JSON.stringify([s1, s2, s3, s4]));
       // A recurring series collapses to ONE row — and must keep its SOONEST date.
       const patches = evs.filter((e) => /Westbrae/.test(e.name));
       check('events: recurring series keeps its soonest occurrence',

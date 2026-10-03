@@ -11,7 +11,7 @@
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
 // no network), so a glance across the room answers "what can we do tonight?".
-import { fetchEvents, TZ, MON } from '/lib/events.js';
+import { fetchEvents, splitTitle, TZ, MON } from '/lib/events.js';
 
 export default {
   id: 'sf-events',
@@ -114,6 +114,10 @@ export default {
       rows = picks.map((e) => {
         const isT = (() => { const o = dayOffset(e.when); return o != null && o <= 0; })();
         const live = liveCountdown(e.when, e.allDay, isT);
+        // Tidy the scraped title: its trailing "(SF)" / "(2026)" / "(7p + 9p)" /
+        // "(Yerba Buena Gardens)" tags move to the time column and venue line.
+        const t = splitTitle(e.name);
+        const sub = [e.place || t.where, t.note].filter(Boolean).join(' · ');
         let tm;
         if (timed(e)) {
           const clock = timeFmt.format(e.when).replace(':00', '');
@@ -121,17 +125,19 @@ export default {
             ? `${e.when.getDate()} ${MON[e.when.getMonth()]}` : null;
           tm = ctx.h('div', { class: 'tm' }, dayTag || clock,
             live ? ctx.h('span', { class: `lv${live.cls === 'soon' ? ' soon' : ''}` }, live.cls === 'live' ? '● ON NOW' : live.txt) : null);
+        } else if (t.time) {
+          tm = ctx.h('div', { class: 'tm' }, t.time);
         } else {
           // Say "ALL DAY" once for the run of all-day events, not on every row —
           // the repeated label read as noise down the time column.
           tm = ctx.h('div', { class: 'tm all' }, prevAllDay ? '' : 'ALL DAY');
         }
-        prevAllDay = !timed(e);
+        prevAllDay = !timed(e) && !t.time;
         return ctx.h('div', { class: 'won-ag', title: e.name },
           tm,
           ctx.h('div', { style: 'min-width:0' },
-            ctx.h('div', { class: 'nm' }, e.name),
-            e.place ? ctx.h('div', { class: 'pl' }, e.place) : null));
+            ctx.h('div', { class: 'nm' }, t.name || e.name),
+            sub ? ctx.h('div', { class: 'pl' }, sub) : null));
       });
       fit();
     };

@@ -789,8 +789,9 @@ export default {
 
       /* ON THIS DAY (falls back to a plain fact when offline). The text is the
          flexible middle of its region and clamps with an ellipsis. */
-      .dly-fact { font-size:14px; line-height:1.36; color:var(--ink); min-height:0;
-        display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+      .dly-fact { font-size:14px; line-height:1.36; color:var(--ink); flex:none;
+        max-height:calc(14px * 1.36 * 3); padding-bottom:0;
+        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
       .dly-fact .yr { font-family:var(--font-display); font-weight:700; color:var(--mint);
         margin-right:8px; letter-spacing:.01em; }
       /* relative "how long ago" — a hushed mono caption beside the year, so the
@@ -814,7 +815,7 @@ export default {
          today's notable moments over the day (advances every half-hour). Bounded
          width + fixed tiny height (flex:none), so it never grows the region or
          clips; static, no animation. Hidden entirely in the offline fact fallback. */
-      .dly-otd-nav { display:flex; align-items:center; gap:9px; margin-top:7px; flex:none; }
+      .dly-otd-nav { display:flex; align-items:center; gap:9px; margin-top:10px; flex:none; }
       .dly-otd-nav .rail { position:relative; flex:1 1 auto; height:2px; border-radius:2px;
         background:rgba(255,255,255,.08); overflow:hidden; }
       .dly-otd-nav .rail .fill { position:absolute; left:0; top:0; bottom:0; border-radius:2px;
@@ -833,7 +834,7 @@ export default {
          more label-plus-text block. Purely decorative — static, adds no height. */
       .dly-quote { font-family:var(--font-display); font-style:normal; font-size:17px; line-height:1.32;
         color:var(--ink); min-height:0;
-        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+        display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; padding-bottom:3px; }
       .dly-quote .qm { color:var(--mint); font-weight:600; font-style:normal; }
       .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
         color:var(--mint); letter-spacing:.02em; flex:none;
@@ -1000,7 +1001,10 @@ export default {
       const d = await ctx.fetchJSON(url) || {};
       const clean = (arr, kind) => (Array.isArray(arr) ? arr : [])
         .filter((e) => e && e.text && Number.isFinite(e.year))
-        .map((e) => ({ kind, year: e.year, text: e.text.toString().trim() }))
+        .map((e) => ({ kind, year: e.year,
+          // Wikipedia's "(pictured)" / "(pictured right)" caption cues point at a photo
+          // the wall never shows — drop them so the line reads as plain prose.
+          text: e.text.toString().replace(/\s*\((?:also\s+)?pictured(?:[^()]{0,24})?\)/gi, '').replace(/\s+([,.;])/g, '$1').trim() }))
         .sort((a, b) => b.year - a.year); // newest → oldest within a kind
       // Prefer Wikipedia's curated "selected" highlights for the event stream
       // (the day's most notable moments); fall back to the raw events list.

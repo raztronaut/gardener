@@ -223,3 +223,38 @@ export async function fetchEvents(fetchJSON, { limit = 150 } = {}) {
   }
   return picked;
 }
+
+// Display split of a scraped title into a calm headline + its trailing tags.
+// Titles carry their metadata in a final parenthetical — "(SF)", "(2026)",
+// "(Summer 2026)", "(Oct. 1-Nov. 1)", "(7p + 9p)", "(Every Saturday)",
+// "(Yerba Buena Gardens)" — which read as noise in a two-line clamp. Pure; the
+// raw ev.name is untouched (locale ranking + dedupe still read it). Exported for smoke.
+//   → { name, time, where, note }  (time/where/note are '' when absent)
+const MONTH_RE = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s*\d/i;
+export function splitTitle(raw) {
+  let name = tidy(raw).replace(/\s+-\s+\d+\+$/, ''); // "… (Alameda) - 5+" age tag
+  let time = '', where = '', note = '';
+  for (let i = 0; i < 2; i++) {
+    const m = name.match(/\s*\(([^()]{1,40})\)$/);
+    if (!m) break;
+    const tag = m[1].trim();
+    const rest = name.slice(0, m.index).trim();
+    if (rest.length < 8) break; // the parenthetical IS the name — leave it
+    if (/^(sf|s\.f\.|san francisco)$/i.test(tag)) { /* the card is already "Out in SF" */ }
+    else if (/^((spring|summer|fall|autumn|winter)\s+)?20\d\d$/i.test(tag)) { /* year/season */ }
+    else if (/^\d{1,2}(:\d\d)?\s*[ap]m?(\s*[+&,/–-]\s*\d{1,2}(:\d\d)?\s*[ap]m?)*$/i.test(tag)) {
+      time = tag.replace(/\s+/g, ' ').toUpperCase();
+    } else if (/^every\b/i.test(tag)) { note = tag.replace(/^Every/, 'every'); }
+    else if (MONTH_RE.test(tag)) {
+      // A date run ("Oct. 1-Nov. 1") is worth keeping as "thru …"; a lone date is today.
+      const end = tag.split(/\s*[–-]\s*/)[1];
+      const mon = (t) => t.replace(/^([a-z]{3})[a-z]*\.?/i, '$1');
+      if (end) note = `thru ${mon(/^\d/.test(end) ? tag.match(/^[a-z]+/i)[0] + ' ' + end : end)}`;
+    } else if (!where && !/\d/.test(tag)) {
+      where = tag.replace(/^(SF|San Francisco)[’']s\s+/i, '');
+    } else break;
+    name = rest;
+  }
+  name = name.replace(/^SF[’']s\s+(?=\S)/, '');
+  return { name, time, where, note };
+}
