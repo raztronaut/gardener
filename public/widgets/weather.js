@@ -243,7 +243,7 @@ export default {
             const wet = p.pop != null && p.pop >= 25;
             return h('div', { class: 'hr' },
               h('div', { class: 'tt' }, `${p.t}°`),
-              icon(nightSlug(WMO(p.code)[1], p.isDay), 20),
+              icon(nightSlug(WMO(p.code)[1], p.isDay), 28),
               h('div', { class: 't' }, i === 0 ? 'now' : hr12(p.hr)),
               anyWet ? h('div', { class: 'p' }, wet ? `💧${p.pop}%` : '') : null);
           })));

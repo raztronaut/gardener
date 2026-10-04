@@ -273,7 +273,7 @@ const STYLE = `
   .gp-in { flex:0 0 auto; font-family:var(--font-display); font-size:17px; color:var(--c); }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
-  .gd-row, .gd-axis { display:grid; grid-template-columns: 104px 1fr 36px; align-items:center; column-gap:10px; }
+  .gd-row, .gd-axis { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
   .gd-axis { height:12px; flex:0 0 auto; }
   .gd-axis .ticks { position:relative; height:100%; }
   .gd-axis .tk { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font-mono);
@@ -292,7 +292,11 @@ const STYLE = `
   .gd-row.ready .rt { color:var(--mint); font-weight:600; }
   .ic { display:inline-flex; width:1em; height:1em; flex:0 0 auto; }
   .ic svg { width:100%; height:100%; }
-  .gd-row .nm { display:flex; align-items:center; gap:6px; }
+  .gd-row .nm { display:flex; align-items:center; gap:6px; min-width:0; }
+  /* flex kills text-overflow on bare text, so the label lives in its own span:
+     the name ellipsizes while the ×N count always stays visible. */
+  .gd-row .nm .lb { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gd-row .nm .ct { flex:none; font-size:11.5px; color:var(--ink-faint); }
   .gd-row .ic.kind { font-size:13px; }
 `;
 
@@ -307,7 +311,8 @@ function row(h, p, day) {
   const st = plantStatus(p, day);
   const ready = st.phase === 'ready' || st.phase === 'ongoing';
   return h('div', { class: `gd-row${ready ? ' ready' : ''}`, title: tip(p) },
-    h('div', { class: 'nm' }, kindIcon(p.k), p.n + (p.pos.length > 1 ? ' ×2' : '')),
+    h('div', { class: 'nm' }, kindIcon(p.k), h('span', { class: 'lb' }, p.n),
+      p.pos.length > 1 ? h('span', { class: 'ct' }, '×2') : null),
     h('div', { class: 'tr' },
       bar(h, 'sp', p.sp[0], p.sp[1], c),
       bar(h, 'mw', p.m[0], p.m[1], c),
@@ -322,7 +327,8 @@ function groupRow(h, kind, plants, day) {
   const first = Math.min(...plants.map((p) => p.m[0]));
   const ready = plants.some((p) => day >= p.m[0]);
   return h('div', { class: `gd-row grp${ready ? ' ready' : ''}`, title: plants.map(tip).join('\n') },
-    h('div', { class: 'nm' }, kindIcon(kind), `${KINDS[kind].label} ×${plants.length}`),
+    h('div', { class: 'nm' }, kindIcon(kind), h('span', { class: 'lb' }, KINDS[kind].label),
+      h('span', { class: 'ct' }, `×${plants.length}`)),
     h('div', { class: 'tr' },
       ...plants.map((p) => bar(h, 'mw', p.m[0], p.m[1], c)),
       day >= 0 && day <= AXIS_DAYS ? h('div', { class: 'now', style: { left: pct(day) } }) : null),
