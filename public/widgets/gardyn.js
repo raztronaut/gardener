@@ -235,6 +235,71 @@ export function gardenStage(day) {
   return 'Past prime';
 }
 
+// Step-by-step how-tos (Gardyn help center wording, condensed). Shown when a task
+// or watering row is tapped in the fullscreen view. video = official Gardyn video;
+// link = the Gardyn help article. Both become QR codes for the phone.
+const HELP = 'https://help.mygardyn.com/en/articles/';
+const HOWTO = {
+  thin: {
+    need: ['Clean, sharp scissors'],
+    steps: [
+      'Look at each pod and pick the strongest-looking sprouts to keep (see the list).',
+      'Snip every other sprout at its base, as close to the cube as you can.',
+      'Don’t pull them out — pulling tears the roots of the ones you keep.',
+      'Eat the lettuce, green and herb snippings (skip petunia — not edible).',
+    ],
+    perPod: true,
+    video: { label: 'Gardyn · How to Thin Your Sprouts', url: 'https://www.youtube.com/watch?v=L8A5-MuoMQQ' },
+    link: HELP + '1771329',
+  },
+  sprout: {
+    need: ['White Gardyn spoon (1 tsp)', '1-gallon jug', 'Warm tap water'],
+    steps: [
+      'Fill the jug with 1 gallon of warm tap water.',
+      'Add 1 level white spoon (1 tsp) of plant food — it’s ¼ tsp per gallon for the whole tank.',
+      'Shake until it dissolves, then pour all of it into the tank.',
+    ],
+    link: HELP + '2526145',
+  },
+  top: {
+    need: ['White Gardyn spoon (1 tsp)', '1-gallon jug', 'Warm tap water'],
+    steps: [
+      'Check the water tile in the Gardyn app — full is 4 gal.',
+      'Fill the jug with 1 gallon of warm tap water.',
+      'Mix in the food for that gallon ({amt}) and shake until dissolved.',
+      'Lift the small wooden cap on the lid and pour it in.',
+      'Repeat one gallon at a time until the tank reads 4 gal.',
+    ],
+    link: HELP + '1777985',
+  },
+  refresh: {
+    need: ['Towel', 'Soft sponge + baking soda', '1-gallon jug', 'Plant food + white spoon'],
+    steps: [
+      'Switch off and unplug the Gardyn; put a towel down.',
+      'Lift the pump up, unlock the lid, and stand the top half on the towel (lift by the columns, not the lights).',
+      'Pour out the old water; wipe the tank with a soft sponge and baking soda, then rinse.',
+      'Refill 1 gallon at a time with warm water mixed with food ({amt}) until it holds 4 gal.',
+      'Put the top half back, lower the pump, lock the lid, plug in — give it ~5 min to restart.',
+      'Log the refresh in the Gardyn app (resets its 28-day countdown).',
+    ],
+    link: HELP + '1788097',
+  },
+  replace: {
+    need: [],
+    steps: [
+      'Look at all 16 pods. Note any with no sprout at all (use the L1–R8 numbers).',
+      'Those qualify for Gardyn’s free replacement — request them in the Gardyn app or from Gardyn support.',
+      'Leave slow pods (pink celery, bunching onions) a few more days if they’re just starting.',
+    ],
+    link: HELP + '1772865',
+  },
+  petunia: { need: ['Fingers or small scissors'], steps: ['When a flower fades, pinch it off just below the bloom.', 'Keep doing it — removing spent blooms keeps new ones coming.'], link: HELP + '1866945' },
+  stock: { need: ['Small scissors'], steps: ['When a flower spike is spent, cut the whole spike off at its base.', 'Side shoots then grow new spikes. Stock won’t bloom if the room is above ~75°F.'], link: HELP + '1783425' },
+  snap: { need: ['Small scissors'], steps: ['Cut finished stems at 45°, just above a leaf node.', 'Leave about a third of the plant — it blooms again in waves.'], link: HELP + '2400513' },
+  roots: { need: ['Towel'], steps: ['Unplug and lift the top half onto a towel (same as a tank refresh).', 'Healthy roots are white or cream and firm.', 'Snip off any brown, slimy roots with clean scissors, then reassemble.'], link: HELP + '1772865' },
+};
+const KEEP = (p) => (p.k === 'green' || p.n === 'Sunflower' ? 1 : 3);
+
 // Compat: active = tasks in their window today; upcoming = later tasks.
 export function nextCare(day, log = DEFAULT_LOG) {
   const todo = tasks(log).filter((c) => c.done == null).sort((a, b) => a.d - b.d);
@@ -431,12 +496,56 @@ export default {
 // ✓ Done / undo button: records to the server, then both views re-render.
 function actBtn(h, label, payload, cls = '', title = 'Mark done') {
   const b = h('button', { class: `gx-btn ${cls}`, type: 'button', title, 'aria-label': title }, label);
+  // Two taps: the first arms it ("tap again"), a second within 4 s records —
+  // so a stray tap on the wall can't log something that didn't happen.
+  let armed = 0;
   b.addEventListener('click', async (e) => {
     e.stopPropagation();
+    if (Date.now() - armed > 4000) {
+      armed = Date.now(); b.classList.add('arm'); b.title = 'Tap again to confirm';
+      setTimeout(() => { if (Date.now() - armed >= 4000) { b.classList.remove('arm'); b.title = title; } }, 4100);
+      return;
+    }
     b.disabled = true;
     try { await record(payload); } catch { b.disabled = false; b.classList.add('err'); }
   });
   return b;
+}
+
+// QR for the phone (same quickchart route the corner Roots QR uses).
+const qr = (h, url) => h('img', { class: 'hw-qr', alt: '', src: `/api/proxy?url=${encodeURIComponent(
+  `https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=0c1f19&light=ffffff&ecLevel=M&margin=2&size=260&format=png`)}` });
+
+// How-to for one task / watering: what, when, what you need, numbered steps, the
+// per-pod keep list for thinning, and QR codes for the video + Gardyn article.
+function renderHow(h, body, key, item, day, log) {
+  const hw = HOWTO[key];
+  const back = h('button', { class: 'hw-back', type: 'button' }, '← Back');
+  back.addEventListener('click', () => renderFull(h, body, day, log));
+  const ic = item.ic || WATER_ICON[item.kind] || 'sprout';
+  const when = item.to != null ? `${fmtDay(item.d)} – ${fmtDay(item.to)}` : fmtDay(item.d);
+  const fill = (t) => t.replace('{amt}', item.amt || '');
+  const steps = hw ? hw.steps.map(fill) : [item.how || item.amt || '', item.s || ''].filter(Boolean);
+  let pods = null;
+  if (hw?.perPod) {
+    const byPos = {};
+    for (const p of PLANTS) for (const ps of p.pos) byPos[ps] = p;
+    const cell = (ps) => { const p = byPos[ps]; return h('div', { class: `hw-pod k${KEEP(p)}` }, h('span', { class: 'ps' }, ps), kindIcon(p.k),
+      h('span', { class: 'n' }, p.n.replace(/^(Purple|Yellow|Green|White|Red) (?=Snapdragon|Swiss|Salanova|Petunia|Sorrel)/, '')), h('b', {}, `keep ${KEEP(p)}`)); };
+    pods = h('section', { class: 'gx-sec' }, h('div', { class: 'gx-h' }, h('span', {}, 'Keep per pod'), h('span', { class: 'key' }, 'top → bottom')),
+      h('div', { class: 'hw-pods' }, ...Array.from({ length: 8 }, (_, i) => [cell('L' + (i + 1)), cell('R' + (i + 1))]).flat()));
+  }
+  const codes = h('div', { class: 'hw-qrs' },
+    hw?.video ? h('div', { class: 'hw-q' }, qr(h, hw.video.url), h('div', {}, h('b', {}, 'Watch the video'), h('div', { class: 'sub' }, hw.video.label))) : null,
+    hw?.link ? h('div', { class: 'hw-q' }, qr(h, hw.link), h('div', {}, h('b', {}, 'Gardyn guide'), h('div', { class: 'sub' }, 'help.mygardyn.com'))) : null);
+  body.replaceChildren(h('div', { class: 'gx hw' },
+    back,
+    h('div', { class: 'hw-hero' }, h('div', { class: 'hw-ic' }, icon(ic)),
+      h('div', {}, h('div', { class: 'hw-t' }, item.t), h('div', { class: 'hw-when' }, `${when} · ${item.to != null && day >= item.d && day <= item.to ? 'now' : daysTxt(item.d, day)}`))),
+    hw?.need?.length ? h('div', { class: 'hw-need' }, h('span', { class: 'lbl' }, 'You need'), ...hw.need.map((n) => h('span', { class: 'chip' }, n))) : null,
+    h('ol', { class: 'hw-steps' }, ...steps.map((t) => h('li', {}, t))),
+    pods,
+    codes));
 }
 
 function renderFull(h, body, day, log) {
@@ -479,21 +588,23 @@ function renderFull(h, body, day, log) {
 
     // Water & food: the next waterings, each with its exact food amount.
     // Only the NEXT watering can be marked done (it re-anchors the rest).
-    const waterRows = plan.map((w, i) => h('div', { class: `gx-row ${w.kind}${i === 0 ? ' next' : ''}`, title: `${w.t} — ${w.s}` },
+    const howTap = (el, key, item) => { el.classList.add('tap'); el.addEventListener('click', () => renderHow(h, body, key, item, day, log)); return el; };
+    const waterRows = plan.map((w, i) => howTap(h('div', { class: `gx-row ${w.kind}${i === 0 ? ' next' : ''}`, title: `${w.t} — tap for how-to` },
       h('div', { class: 'ri' }, icon(WATER_ICON[w.kind])),
       h('div', { class: 'rt' }, h('div', { class: 'd' }, fmtDay(w.d)), h('div', { class: 'm' }, w.amt)),
       h('div', { class: 'rn' }, daysTxt(w.d, day)),
-      i === 0 ? actBtn(h, icon('check'), w.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: w.kind, action: 'done' }) : h('div', { class: 'gx-btn-sp' })));
+      i === 0 ? actBtn(h, icon('check'), w.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: w.kind, action: 'done' }) : h('div', { class: 'gx-btn-sp' })),
+      w.kind === 'dose' ? 'sprout' : w.kind, w));
     // Tasks: the next one-off steps, then what's already done.
     const taskRows = tasks(log).filter((c) => c.done == null && endOf(c) >= day).sort((a, b) => a.d - b.d).slice(0, 4).map((c) => {
       const now = day >= c.d && day <= endOf(c);
-      return h('div', { class: `gx-row task${now ? ' now' : ''}`, title: `${c.t} — ${c.how}. ${c.s}` },
+      return howTap(h('div', { class: `gx-row task${now ? ' now' : ''}`, title: `${c.t} — tap for how-to` },
         h('div', { class: 'ri' }, icon(c.ic)),
         h('div', { class: 'rt' }, h('div', { class: 'd' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
           h('div', { class: 'm' }, c.short)),
         h('div', { class: 'rn' }, now ? 'now' : daysTxt(c.d, day)),
         // Done only once a task is due or close (no ticking off things weeks away).
-        c.d - day <= 3 ? actBtn(h, icon('check'), { id: c.id, action: 'done' }) : h('div', { class: 'gx-btn-sp' }));
+        c.d - day <= 3 ? actBtn(h, icon('check'), { id: c.id, action: 'done' }) : h('div', { class: 'gx-btn-sp' })), c.id, c);
     });
     const doneRows = doneLog(log).slice(-3).map((c) => h('div', { class: 'gx-row done', title: `Done ${fmtShort(c.d)}` },
       h('div', { class: 'ri' }, icon('check')),
@@ -627,4 +738,34 @@ const FULL_STYLE = `
   .gx-ramp .chip small { font-size:12.5px; color:var(--ink-faint); }
   .gx-ramp .per { margin-left:4px; font-size:13px; color:var(--ink-faint); }
   .gx-pod .ic.kind { font-size:13px; }
+  .gx-row.tap { cursor:pointer; }
+  .gx-btn.arm { background:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 35%, transparent); }
+  /* how-to view */
+  .hw { gap:20px; }
+  .hw-back { align-self:flex-start; font-family:var(--font); font-size:15px; color:var(--ink-soft); background:rgba(255,255,255,.06);
+    border:none; border-radius:999px; padding:8px 16px; cursor:pointer; }
+  .hw-hero { display:flex; align-items:center; gap:18px; }
+  .hw-ic { width:64px; height:64px; border-radius:50%; display:grid; place-items:center; font-size:30px; color:var(--gold);
+    background:color-mix(in srgb, var(--gold) 15%, transparent); flex:0 0 auto; }
+  .hw-t { font-family:var(--font-display); font-size:36px; color:var(--ink); line-height:1.05; }
+  .hw-when { font-size:16px; color:var(--ink-soft); margin-top:4px; }
+  .hw-need { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .hw-need .lbl { font-size:13px; color:var(--ink-faint); margin-right:4px; }
+  .hw-need .chip { font-size:15px; color:var(--ink); background:rgba(255,255,255,.06); border-radius:999px; padding:6px 13px; }
+  .hw-steps { margin:0; padding:0; list-style:none; counter-reset:st; display:flex; flex-direction:column; gap:14px; }
+  .hw-steps li { counter-increment:st; display:grid; grid-template-columns:36px 1fr; gap:12px; align-items:start; font-size:19px; line-height:1.35; color:var(--ink); }
+  .hw-steps li::before { content:counter(st); width:32px; height:32px; border-radius:50%; display:grid; place-items:center;
+    font-family:var(--font-display); font-size:17px; color:#042018; background:var(--mint); }
+  .hw-pods { display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; }
+  .hw-pod { display:flex; align-items:center; gap:8px; font-size:15px; color:var(--ink); padding:4px 0; }
+  .hw-pod .ps { font-size:12px; color:var(--ink-faint); width:22px; }
+  .hw-pod .n { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hw-pod b { font-weight:600; font-size:14px; padding:2px 9px; border-radius:999px; }
+  .hw-pod.k1 b { color:var(--mint); background:color-mix(in srgb, var(--mint) 14%, transparent); }
+  .hw-pod.k3 b { color:#c3a8ff; background:color-mix(in srgb, #9a7cf0 18%, transparent); }
+  .hw-qrs { display:flex; gap:28px; flex-wrap:wrap; }
+  .hw-q { display:flex; align-items:center; gap:14px; }
+  .hw-q b { font-size:17px; color:var(--ink); font-weight:600; }
+  .hw-q .sub { font-size:13px; color:var(--ink-soft); margin-top:3px; max-width:200px; }
+  .hw-qr { width:120px; height:120px; border-radius:12px; background:#fff; }
 `;
