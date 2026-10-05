@@ -73,7 +73,7 @@ export const PLANTS = [
 // fullscreen view → POST /api/gardyn/log, persisted server-side); this is only the
 // fallback when the server log can't be read. tasks: id → ISO date; water: [{date, kind}].
 export const DEFAULT_LOG = {
-  tasks: { sprout: '2026-09-28' }, // sprout dose: 1 tsp (white spoon) in 1 gal → tank (3 + 1 = 4 gal)
+  tasks: { sprout: '2026-09-28' }, // sprout dose: 1 tsp (white spoon) straight into the 3 gal tank (≈⅓ tsp/gal; no extra water)
   water: [],
 };
 
@@ -195,8 +195,8 @@ export function waterPlan(fromDay, n = 6, log = DEFAULT_LOG) {
       out.push({ d, kind: 'refresh', t: 'Tank refresh', amt: `4 gal water + ${tsp(g * 4)} tsp food`, short: `refill + ${tsp(g * 4)} tsp`,
         s: `Drain the tank, wipe it with baking soda, rinse, refill to 4 gal and mix in ${tsp(g * 4)} tsp plant food (${tsp(g)} tsp per gallon).` });
     } else {
-      out.push({ d, kind: 'top', t: 'Top off to 4 gal', amt: `${tsp(g)} tsp food per gal water`, short: `${tsp(g)} tsp food/gal`,
-        s: `Check the app’s water tile. For every gallon you add to get back to 4 gal, mix ${tsp(g)} tsp plant food into it first. The water already in the tank keeps its food.` });
+      out.push({ d, kind: 'top', t: 'Check water', amt: `if low: ${tsp(g)} tsp food per gal you add`, short: 'check level',
+        s: `Look at the app’s water tile. At ¾ or more, do nothing. Below that, add water back toward 4 gal — mix ${tsp(g)} tsp plant food into each gallon first. The water already in the tank keeps its food.` });
     }
   }
   return out;
@@ -264,8 +264,8 @@ const HOWTO = {
   top: {
     need: ['White Gardyn spoon (1 tsp)', '1-gallon jug', 'Warm tap water'],
     steps: [
-      'Check the water tile in the Gardyn app — full is 4 gal.',
-      'Fill the jug with 1 gallon of warm tap water.',
+      'Check the water tile in the Gardyn app. At ¾ full or more, you’re done — nothing to add.',
+      'If it’s lower, fill the jug with 1 gallon of warm tap water.',
       'Stir in the plant food powder for that gallon ({amt}) — e.g. ¼ tsp = a quarter of the white spoon — and shake until dissolved.',
       'Lift the small wooden cap on the lid and pour it in.',
       'Repeat one gallon at a time until the tank reads 4 gal.',
