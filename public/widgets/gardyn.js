@@ -192,10 +192,10 @@ export function waterPlan(fromDay, n = 6, log = DEFAULT_LOG) {
     const g = perGalOn(d);
     if (d - lastRefresh >= 25) {
       lastRefresh = d;
-      out.push({ d, kind: 'refresh', t: 'Tank refresh', amt: `refill · ${tsp(g * 4)} tsp food`,
+      out.push({ d, kind: 'refresh', t: 'Tank refresh', amt: `4 gal water + ${tsp(g * 4)} tsp food`, short: `refill + ${tsp(g * 4)} tsp`,
         s: `Drain the tank, wipe it with baking soda, rinse, refill to 4 gal and mix in ${tsp(g * 4)} tsp plant food (${tsp(g)} tsp per gallon).` });
     } else {
-      out.push({ d, kind: 'top', t: 'Top off to 4 gal', amt: `${tsp(g)} tsp / gal`,
+      out.push({ d, kind: 'top', t: 'Top off to 4 gal', amt: `${tsp(g)} tsp food per gal water`, short: `${tsp(g)} tsp food/gal`,
         s: `Check the app’s water tile. For every gallon you add to get back to 4 gal, mix ${tsp(g)} tsp plant food into it first. The water already in the tank keeps its food.` });
     }
   }
@@ -266,7 +266,7 @@ const HOWTO = {
     steps: [
       'Check the water tile in the Gardyn app — full is 4 gal.',
       'Fill the jug with 1 gallon of warm tap water.',
-      'Mix in the food for that gallon ({amt}) and shake until dissolved.',
+      'Stir in the plant food powder for that gallon ({amt}) — e.g. ¼ tsp = a quarter of the white spoon — and shake until dissolved.',
       'Lift the small wooden cap on the lid and pour it in.',
       'Repeat one gallon at a time until the tank reads 4 gal.',
     ],
@@ -335,7 +335,7 @@ const STYLE = `
   .gp-tx { flex:1; min-width:0; }
   .gp-d { font-size:13px; color:var(--ink-soft); white-space:nowrap; }
   .gp-m { font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gp-in { flex:0 0 auto; font-family:var(--font-display); font-size:17px; color:var(--c); }
+  .gp-in { color:var(--c); font-weight:600; }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
   .gd-row, .gd-axis { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
@@ -412,10 +412,9 @@ function planBlock(h, day, log) {
   const t = nextTask(day, log);
   const cell = (cls, ic, d, main, badge, title) => h('div', { class: `gp-cell ${cls}`, title },
     h('div', { class: 'gp-ic' }, icon(ic)),
-    h('div', { class: 'gp-tx' }, h('div', { class: 'gp-d' }, fmtDay(d)), h('div', { class: 'gp-m' }, main)),
-    h('div', { class: 'gp-in' }, badge));
+    h('div', { class: 'gp-tx' }, h('div', { class: 'gp-d' }, fmtDay(d), h('span', { class: 'gp-in' }, ` · ${badge}`)), h('div', { class: 'gp-m' }, main)));
   return h('div', { class: 'gp' },
-    w ? cell('water', WATER_ICON[w.kind], w.d, w.amt, daysTxt(w.d, day), `${w.t} — ${w.s}`) : null,
+    w ? cell('water', WATER_ICON[w.kind], w.d, w.short || w.amt, daysTxt(w.d, day), `${w.t} — ${w.s}`) : null,
     t ? cell('task', t.ic, t.d, t.short, day >= t.d ? 'now' : daysTxt(t.d, day), `${t.t} — ${t.s}`) : null);
 }
 
