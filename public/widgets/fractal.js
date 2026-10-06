@@ -15,6 +15,9 @@ const STYLE = `
   .frc img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
     opacity:0; transition:opacity .9s ease; }
   .frc img.in { opacity:1; }
+  /* Same look + spot as the other cards' corner titles (the card itself is bare). */
+  .frc .ttl { position:absolute; top:1px; left:11px; z-index:1; font-family:var(--font-display); font-size:14px;
+    font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); pointer-events:none; }
   .frc .cap { position:absolute; left:0; right:0; bottom:0; padding:28px 16px 13px;
     background:linear-gradient(to top, rgba(4,12,9,.82), transparent);
     display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
@@ -36,7 +39,8 @@ async function getMeta() {
 
 export default {
   id: 'fractal',
-  title: 'Fractal',
+  // 'of the Hour' as in the canonical hours (Prime, Terce, Sext…), ~3 h apart.
+  title: 'Fractal of the Hour',
   icon: '❋',
   size: 'tall',
   chrome: false, // bare: no card frame/glass/title — the art sits on the wall itself
@@ -49,7 +53,7 @@ export default {
     const nx = h('div', { class: 'nx' }, '');
     const wait = h('div', { class: 'wait' }, '');
     // Picture only — no caption over the art (name + timing live in the tooltip / fullscreen).
-    const box = h('div', { class: 'frc' }, wait, img);
+    const box = h('div', { class: 'frc' }, wait, img, h('div', { class: 'ttl' }, 'Fractal of the Hour'));
     body.replaceChildren(box);
     img.addEventListener('load', () => { img.classList.add('in'); wait.remove(); });
     let slot = null, nextAt = 0;

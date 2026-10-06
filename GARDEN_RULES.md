@@ -11,7 +11,8 @@ every day, including quiet no-feedback days.
 
 ## Banned widgets — NEVER add or re-add these (the humans removed them on purpose)
 - **Astronomy Photo (NASA APOD)** — replaced by the Fractal card (3D fractal art regenerated every 3 h). Removed 2026-10-01. The Fractal is BARE
-  (chrome:false, transparent PNG): no card frame, title, caption, backdrop or halo — the art sits on the wall itself.
+  (chrome:false, transparent PNG): no card frame, caption, backdrop or halo — the art sits on the wall itself.
+  Its only text is the corner title "Fractal of the Hour" (added 2026-10-06 at the humans' request).
 - **tides** — do not add a tides / tide-chart / marine / NOAA-currents widget in any
   form. The humans have removed it repeatedly and do not want it. (Removed 2026-06-20.)
 - **sun-moon** — do not add a "Sun & Moon" widget (sunrise/sunset + golden/blue hour +
