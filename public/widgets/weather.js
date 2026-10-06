@@ -281,8 +281,8 @@ export default {
               `High ${hi}° · Low ${lo}°`))),
         h('div', { class: 'wx-sun' },
           h('span', {}, 'Sunrise ', h('b', {}, fmtClock(d.daily.sunrise?.[0]))),
-          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0]))),
-          windEl),
+          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0])))),
+          // (no wind — the humans removed it twice; see GARDEN_RULES.md)
         h('div', { class: 'wx-stats' },
           h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Feels like'),
             h('div', { class: 'v' }, `${feels}°F`, h('small', {}, `${fToC(feels)}°C`))),

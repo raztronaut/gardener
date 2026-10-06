@@ -12,7 +12,7 @@ every day, including quiet no-feedback days.
 ## Banned widgets — NEVER add or re-add these (the humans removed them on purpose)
 - **Astronomy Photo (NASA APOD)** — replaced by the Fractal card (3D fractal art regenerated every 3 h). Removed 2026-10-01. The Fractal is BARE
   (chrome:false, transparent PNG): no card frame, caption, backdrop or halo — the art sits on the wall itself.
-  Its only text is the corner title "Fractal of the Hour" (added 2026-10-06 at the humans' request).
+  Its only text is the corner title "Trihourly Fractal" (added 2026-10-06 at the humans' request).
 - **tides** — do not add a tides / tide-chart / marine / NOAA-currents widget in any
   form. The humans have removed it repeatedly and do not want it. (Removed 2026-06-20.)
 - **sun-moon** — do not add a "Sun & Moon" widget (sunrise/sunset + golden/blue hour +
@@ -58,6 +58,8 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **No wind on the Weather card** (removed 2026-10-01, re-added by tend #140, removed again
+  2026-10-06). No wind speed, direction, arrow or gusts anywhere on the wall.
 - **No accent bars on card/row edges** (2026-10-01: "very vibecoded"). No coloured
   border-left / border-top stripes, side "equalizer" bars or edge highlights to mark
   items. Use an icon, colour on the text/number itself, or spacing instead.

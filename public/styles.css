@@ -226,6 +226,9 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .card.r2 { grid-row: span 2; }
 .card.bare { background: transparent; border: none; box-shadow: none; backdrop-filter: none; padding: 8px; }
 .card.bare::before { display: none; }
+/* Open card: keeps its title + padding, drops the glass panel. Alternates with
+   framed cards in a zigzag (fractal → Hacker News → Today → clock). */
+.card.unframed { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; }
 
 /* Widget titles: bare mono micro-labels (no emoji), tucked into the card's
    top-left corner — they sit 12% into the top/left padding instead of
@@ -254,11 +257,15 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 #feedbackInput { flex: 1; background: transparent; border: none; outline: none;
   color: var(--ink); font-size: 15px; font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
 #feedbackInput::placeholder { color: var(--ink-faint); }
-#feedbackSend { border: none; cursor: pointer; color: #042018; font-family: var(--font-display); font-weight: 700; font-size: 15px; line-height: 1;
-  padding: 11px 22px; border-radius: 999px; letter-spacing: .02em;
-  background: linear-gradient(120deg, var(--mint), var(--mint-2));
-  box-shadow: 0 6px 18px rgba(67,230,198,.35); transition: transform .15s ease, filter .15s ease; }
-#feedbackSend:active { transform: scale(.96); filter: brightness(1.08); }
+/* Pill buttons (Plant, Trash to curb): the wall's own language — a soft translucent
+   pill, card-title lettering, a line icon. No gradients, borders or glow. */
+#feedbackSend, .trashpill { display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
+  font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: .1em; text-transform: uppercase;
+  line-height: 1; color: var(--mint); background: rgba(255,255,255,.07); border-radius: 999px; padding: 10px 16px;
+  box-shadow: none; transition: background .15s ease, transform .15s ease; }
+#feedbackSend svg, .trashpill svg { width: 17px; height: 17px; flex: 0 0 auto; }
+#feedbackSend:hover, .trashpill:hover { background: rgba(255,255,255,.12); }
+#feedbackSend:active, .trashpill:active { transform: scale(.96); }
 
 /* ---------- toast ---------- */
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%) translateY(20px);
@@ -480,13 +487,6 @@ body.screenshot #plantalarm { display: none !important; }
 /* Trash-to-curb dashboard button — a calm mint pill in the header, shown all day
    on trash day so the bins can be put out & marked done before the night takeover.
    Static (no animation) so it stays idle-friendly. */
-.trashpill { display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-weight: 600; font-size: 13px; letter-spacing: .04em;
-  color: var(--mint); background: rgba(116, 247, 176, .10);
-  border: 1px solid var(--stroke-strong); border-radius: 999px;
-  padding: 9px 16px; cursor: pointer; line-height: 1;
-  transition: border-color .14s ease, background .14s ease; }
-.trashpill:hover { border-color: var(--mint); background: rgba(116, 247, 176, .16); }
 .trashpill[hidden] { display: none; }
 
 /* Corner Plant-a-Note QR — dark-green modules on a small white plate (so the

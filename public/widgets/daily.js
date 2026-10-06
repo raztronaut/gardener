@@ -717,6 +717,7 @@ export default {
   icon: '📖',
   size: 'tall',
   chrome: true,
+  frame: false, // zigzag of open cards (2026-10-06)
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`

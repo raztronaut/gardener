@@ -123,6 +123,7 @@ export default {
   icon: '📰',
   size: 'tall', // half width × 2 rows — a roomy front-page feed beside the APOD photo
   chrome: true,
+  frame: false, // zigzag of open cards (2026-10-06)
   async mount(body, ctx) {
     ctx.style(`
       .hn { display:flex; flex-direction:column; gap:7px; height:100%; overflow:hidden; }

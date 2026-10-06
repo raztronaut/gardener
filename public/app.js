@@ -161,7 +161,9 @@ async function loadWidgets(enabled, mountPoint) {
     }
     const bare = w.chrome === false;
     WIDGET_MODS[entry.id] = w; // registry for fullscreen remounts (click / right-stick open)
-    const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''}`.trim(), 'data-wid': entry.id });
+    // frame:false = no glass/background/border but the corner title stays (the
+    // zigzag of open cards); chrome:false = fully bare (no title either).
+    const card = h('div', { class: `card ${SIZE_CLASS[w.size] || ''} ${bare ? 'bare' : ''} ${w.frame === false ? 'unframed' : ''}`.replace(/\s+/g, ' ').trim(), 'data-wid': entry.id });
     // Click a widget to open it fullscreen — same path as the controller's
     // highlight+A (openWidgetPanel). Skip clicks the widget handled itself
     // (e.g. Mario's grow toy calls stopPropagation) and right-click edits.

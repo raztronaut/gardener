@@ -39,8 +39,7 @@ async function getMeta() {
 
 export default {
   id: 'fractal',
-  // 'of the Hour' as in the canonical hours (Prime, Terce, Sext…), ~3 h apart.
-  title: 'Fractal of the Hour',
+  title: 'Trihourly Fractal', // a new one every three hours
   icon: '❋',
   size: 'tall',
   chrome: false, // bare: no card frame/glass/title — the art sits on the wall itself
@@ -53,7 +52,7 @@ export default {
     const nx = h('div', { class: 'nx' }, '');
     const wait = h('div', { class: 'wait' }, '');
     // Picture only — no caption over the art (name + timing live in the tooltip / fullscreen).
-    const box = h('div', { class: 'frc' }, wait, img, h('div', { class: 'ttl' }, 'Fractal of the Hour'));
+    const box = h('div', { class: 'frc' }, wait, img, h('div', { class: 'ttl' }, 'Trihourly Fractal'));
     body.replaceChildren(box);
     img.addEventListener('load', () => { img.classList.add('in'); wait.remove(); });
     let slot = null, nextAt = 0;
