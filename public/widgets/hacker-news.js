@@ -126,13 +126,15 @@ export default {
   frame: false, // zigzag of open cards (2026-10-06)
   async mount(body, ctx) {
     ctx.style(`
-      .hn { display:flex; flex-direction:column; gap:7px; height:100%; overflow:hidden; }
+      .hn { display:flex; flex-direction:column; gap:0; height:100%; overflow:hidden; }
       /* Rows grow to share the card but NEVER shrink below their content — a
          two-line title used to squeeze its meta line out past the row's border.
          If the stories don't all fit, fitRows() drops the last one instead. */
       .hn-item { position:relative; display:flex; gap:12px; align-items:center; flex:1 0 auto;
-        padding:7px 12px 7px 12px; background:rgba(255,255,255,.04);
-        border:1px solid var(--stroke); border-radius:16px; }
+        padding:8px 0; background:none; border:none; border-radius:0;
+        border-bottom:1px solid var(--stroke); }
+      /* open card (2026-10-06): no boxed rows — hairline dividers like Out in SF */
+      .hn-item:last-child { border-bottom:none; }
       /* relative-popularity accent — a quiet vertical "equalizer" bar down the left
          edge whose FILL height (and, via the gradient, its colour) encodes this
          story's score against today's top story. Adds no vertical height, so it
