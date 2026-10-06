@@ -125,8 +125,11 @@ export default {
   chrome: true,
   async mount(body, ctx) {
     ctx.style(`
-      .hn { display:flex; flex-direction:column; gap:7px; height:100%; }
-      .hn-item { position:relative; display:flex; gap:12px; align-items:flex-start; flex:1; min-height:0;
+      .hn { display:flex; flex-direction:column; gap:7px; height:100%; overflow:hidden; }
+      /* Rows grow to share the card but NEVER shrink below their content — a
+         two-line title used to squeeze its meta line out past the row's border.
+         If the stories don't all fit, fitRows() drops the last one instead. */
+      .hn-item { position:relative; display:flex; gap:12px; align-items:center; flex:1 0 auto;
         padding:7px 12px 7px 12px; background:rgba(255,255,255,.04);
         border:1px solid var(--stroke); border-radius:16px; }
       /* relative-popularity accent — a quiet vertical "equalizer" bar down the left
@@ -199,6 +202,16 @@ export default {
     // to compare against yet — markers only begin from the second refresh on).
     let prevRanks = null;
 
+    // Keep every row whole: while the board's content is taller than the card
+    // gives it, drop the lowest story (never below 2). Whole stories beat a
+    // clipped meta line on a wall read from across the room.
+    const fitRows = (board) => {
+      if (!board.isConnected || board.clientHeight === 0) return;
+      while (board.children.length > 2 && board.scrollHeight > board.clientHeight + 1) {
+        board.lastElementChild.remove();
+      }
+    };
+
     // Fetch + render. Builds the rows BEFORE touching the DOM and only replaces on
     // success — so a flaky fetch or an empty response keeps the last good front page
     // intact rather than blanking it. Throws on failure so callers can retry.
@@ -266,7 +279,11 @@ export default {
         .filter(Boolean);
 
       if (rows.length === 0) throw new Error('no renderable stories');
-      body.replaceChildren(ctx.h('div', { class: 'hn' }, ...rows));
+      const board = ctx.h('div', { class: 'hn' }, ...rows);
+      body.replaceChildren(board);
+      fitRows(board);
+      // Webfonts can land after first paint and re-wrap titles — re-check once.
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitRows(board)).catch(() => {});
       // Remember this board's ranks so the NEXT refresh can show what climbed.
       prevRanks = new Map(stories.map((s, i) => [s.id, i]));
     };
