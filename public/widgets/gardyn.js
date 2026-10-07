@@ -210,7 +210,7 @@ export function nextTask(day, log = DEFAULT_LOG) {
 // Everything recorded as done, newest last: tasks + waterings.
 export function doneLog(log = DEFAULT_LOG) {
   const t = tasks(log).filter((c) => c.done != null).map((c) => ({ id: c.id, t: c.t, d: c.done }));
-  const w = ((log && log.water) || []).map((x) => ({ id: 'water', date: x.date, t: x.kind === 'refresh' ? 'Tank refresh' : x.kind === 'dose' ? 'Sprout dose' : 'Top-off', d: dayOfIso(x.date) }));
+  const w = ((log && log.water) || []).map((x) => ({ id: 'water', date: x.date, t: x.kind === 'refresh' ? 'Tank refresh' : x.kind === 'dose' ? 'Sprout dose' : 'Water check', d: dayOfIso(x.date) }));
   return [...t, ...w].sort((a, b) => a.d - b.d);
 }
 const rangeTxt = ([a, b]) => (a === b ? `day ${a} (${fmtShort(a)})` : `day ${a}–${b} (${fmtShort(a)} – ${fmtShort(b)})`);
@@ -326,23 +326,31 @@ const STYLE = `
   .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.08em; margin-right:5px; }
   .gd-st { font-family:var(--font-display); font-size:20px; font-weight:400; color:var(--mint); }
   .gd-light { margin-left:auto; font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); }
-  .gp { flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .gp-cell { display:flex; align-items:center; gap:9px; min-width:0; padding:8px 10px;
-    border-radius:14px; background:rgba(255,255,255,.04); }
-  .gp-cell.water { --c:#5fb6ff; }
-  .gp-cell.task { --c:var(--gold); }
-  .gp-ic { width:30px; height:30px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
-    color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); font-size:17px; }
-  .gp-tx { flex:1; min-width:0; }
-  .gp-d { font-size:13px; color:var(--ink-soft); white-space:nowrap; }
-  .gp-m { font-size:14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .gp-in { color:var(--c); font-weight:600; }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
   .gd-row, .gd-axis { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
-  .gd-axis { height:12px; flex:0 0 auto; }
+  .gd-axis { height:18px; flex:0 0 auto; }
+  .gd-axis .wk { position:absolute; bottom:0; width:1px; height:3px; background:var(--stroke-strong); }
+  .gd-axis .cm { position:absolute; bottom:0; width:2px; height:6px; margin-left:-1px; border-radius:1px; }
+  .gd-axis .cm.w { background:#5fb6ff; }
+  .gd-axis .cm.t { background:var(--gold); }
+  /* care rails — icons on the shared time axis */
+  .gd-rails { flex:0 0 auto; display:flex; flex-direction:column; gap:4px; margin:6px 0 8px; }
+  .gd-row.rail { height:20px; }
+  .gd-row.rail.water { --c:#5fb6ff; }
+  .gd-row.rail.task { --c:var(--gold); }
+  .gd-row.rail .nm { color:var(--c); font-weight:600; }
+  .gd-row.rail .tr::before { background:color-mix(in srgb, var(--c) 18%, transparent); }
+  .gd-row.rail .mk { position:absolute; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center;
+    font-size:10px; color:var(--c); opacity:.45; }
+  .gd-row.rail .mk.next { font-size:12px; opacity:1; width:20px; height:20px; border-radius:50%;
+    background:color-mix(in srgb, var(--c) 22%, #0d1f19); }
+  .gd-row.rail .mk.done { color:var(--ink-faint); opacity:.6; font-size:9px; }
+  .gd-row.rail .mk.dot { width:3px; height:3px; border-radius:50%; background:var(--c); opacity:.5; }
+  .gd-row.rail .rt { color:var(--c); }
+  .gd-row.rail .rt.due { font-weight:600; }
   .gd-axis .ticks { position:relative; height:100%; }
-  .gd-axis .tk { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font-mono);
+  .gd-axis .tk { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font);
     font-size:11px; letter-spacing:.08em; color:var(--ink-faint); }
   .gd-rows { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-evenly; }
   .gd-row { flex:0 0 auto; height:18px; }
@@ -404,22 +412,39 @@ function groupRow(h, kind, plants, day) {
 // "in 3 days" / "today" / "tomorrow" / "overdue 2d".
 const inDays = (d, day) => (d === day ? 'today' : d === day + 1 ? 'tomorrow' : d > day ? `in ${d - day} days` : `${day - d}d overdue`);
 
-// The two answers the wall must always give, side by side: the next watering
-// (with its food amount) and the next task. Icons carry the meaning; details are
-// in the tooltips.
+// "in 6d" style day count (or today / Nd late), shared by rails + how-tos.
 const daysTxt = (d, day) => (d === day ? 'today' : d < day ? `${day - d}d late` : `${d - day}d`);
-function planBlock(h, day, log) {
-  const w = waterPlan(day, 1, log)[0];
-  const t = nextTask(day, log);
-  const cell = (cls, ic, d, main, badge, title) => h('div', { class: `gp-cell ${cls}`, title },
-    h('div', { class: 'gp-ic' }, icon(ic)),
-    h('div', { class: 'gp-tx' }, h('div', { class: 'gp-d' }, fmtDay(d), h('span', { class: 'gp-in' }, ` · ${badge}`)), h('div', { class: 'gp-m' }, main)));
-  return h('div', { class: 'gp' },
-    w ? cell('water', WATER_ICON[w.kind], w.d, w.short || w.amt, daysTxt(w.d, day), `${w.t} — ${w.s}`) : null,
-    t ? cell('task', t.ic, t.d, t.short, day >= t.d ? 'now' : daysTxt(t.d, day), `${t.t} — ${t.s}`) : null);
-}
 
-function chart(h, day, detailed) {
+// Care lives ON the timeline: two thin rails (Water, Tasks) share the plants' time
+// axis. Every upcoming step is a tiny icon at its date; the next one is lit, named
+// in the row label, and counted down in the right column like the plant rows. Done
+// steps stay behind as faint ticks. The axis carries weekly ticks + a short colour
+// mark under each care date, and today's line runs through everything.
+function careEvents(day, log) {
+  const water = waterPlan(day, 18, log).filter((w) => w.d <= AXIS_DAYS)
+    .map((w) => ({ d: w.d, ic: WATER_ICON[w.kind], minor: w.kind === 'top', label: w.kind === 'refresh' ? 'Tank refresh' : w.kind === 'dose' ? 'Sprout dose' : 'Check water', tip: `${w.t} — ${w.amt}` }));
+  const task = tasks(log).filter((c) => c.done == null && endOf(c) >= day && c.d <= AXIS_DAYS).sort((a, b) => a.d - b.d)
+    .map((c) => ({ d: c.d, to: c.to, ic: c.ic, label: c.short, tip: `${c.t} — ${c.how}` }));
+  const done = doneLog(log).filter((e) => e.d >= 0 && e.d <= AXIS_DAYS);
+  return { water, task, done };
+}
+function rail(h, cls, evs, done, day) {
+  const next = evs[0];
+  // Routine weekly checks are quiet dots; only the next step and the notable ones
+  // (tank refresh, tasks) get an icon.
+  const mk = (e, extra) => (extra === '' && e.minor
+    ? h('span', { class: 'mk dot', style: { left: pct(e.d) }, title: e.tip || '' })
+    : h('span', { class: `mk ${extra}`, style: { left: pct(e.d) }, title: e.tip || '' }, icon(extra === 'done' ? 'check' : e.ic)));
+  const due = next && day >= next.d;
+  return h('div', { class: `gd-row rail ${cls}`, title: next ? `${next.tip} · ${fmtDay(next.d)}` : '' },
+    h('div', { class: 'nm' }, h('span', { class: 'lb' }, next ? next.label : '—')),
+    h('div', { class: 'tr' },
+      ...done.map((e) => mk(e, 'done')),
+      ...evs.map((e, i) => mk(e, i === 0 ? 'next' : '')),
+      day >= 0 && day <= AXIS_DAYS ? h('div', { class: 'now', style: { left: pct(day) } }) : null),
+    h('div', { class: `rt${due ? ' due' : ''}` }, next ? (due ? 'now' : `${next.d - day}d`) : ''));
+}
+function chart(h, day, detailed, log = DEFAULT_LOG) {
   // Ranked by how soon each plant (or group) reaches its first harvest / bloom.
   const soon = (a, b) => a.m[0] - b.m[0] || a.m[1] - b.m[1];
   const of = (k) => PLANTS.filter((p) => p.k === k).sort(soon);
@@ -429,10 +454,19 @@ function chart(h, day, detailed) {
     : [...of('flower').map((p) => ({ ...p, el: () => row(h, p, day) })),
       ...['green', 'herb'].map((k) => ({ ...first(of(k)), el: () => groupRow(h, k, of(k), day) }))]
       .sort(soon).map((r) => r.el());
+  const care = careEvents(day, log);
+  const weeks = []; for (let d = 7; d < AXIS_DAYS; d += 7) weeks.push(d);
   return h('div', { class: 'gd-chart' },
     h('div', { class: 'gd-axis' }, h('div', {}),
-      h('div', { class: 'ticks' }, ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t))),
+      h('div', { class: 'ticks' },
+        ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t)),
+        ...weeks.map((d) => h('i', { class: 'wk', style: { left: pct(d) } })),
+        ...care.water.filter((e) => !e.minor).map((e) => h('i', { class: 'cm w', style: { left: pct(e.d) } })),
+        ...care.task.map((e) => h('i', { class: 'cm t', style: { left: pct(e.d) } }))),
       h('div', {})),
+    h('div', { class: 'gd-rails' },
+      rail(h, 'water', care.water, care.done.filter((e) => e.id === 'water' || e.id === 'sprout'), day),
+      rail(h, 'task', care.task, care.done.filter((e) => e.id !== 'water' && e.id !== 'sprout'), day)),
     h('div', { class: 'gd-rows' }, ...rows));
 }
 
@@ -457,8 +491,7 @@ function build(h, body, tz, log = LOG) {
       h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
       h('div', { class: 'gd-st' }, gardenStage(day)),
       h('div', { class: 'gd-light', title: 'Lights 14 h/day Sep 20–22, 16 h/day since Sep 23 (Gardyn recommends 14–16 h)' }, `${LIGHT_HOURS}h ☀`)),
-    planBlock(h, day, log),
-    chart(h, day, false)));
+    chart(h, day, false, log)));
 }
 
 export default {
@@ -566,10 +599,10 @@ function renderFull(h, body, day, log) {
       tile('leaf', 'First harvest (greens)', firstOf('green'), KINDS.green.color, 'greens'),
       tile('flower', 'First bloom (petunias)', firstOf('flower'), KINDS.flower.color, 'petunias'),
       tile('sprig', 'Herbs ready', firstOf('herb'), KINDS.herb.color, 'herbs'),
-      w0 ? tile(WATER_ICON[w0.kind], `Next watering — ${w0.s}`, w0.d, '#5fb6ff', w0.kind === 'refresh' ? 'refresh' : 'top off') : null);
+      w0 ? tile(WATER_ICON[w0.kind], `Next watering — ${w0.s}`, w0.d, '#5fb6ff', w0.kind === 'refresh' ? 'tank refresh' : 'check water') : null);
 
     // Chart, with a labelled "today" marker above the rows.
-    const chartEl = chart(h, day, true);
+    const chartEl = chart(h, day, true, log);
     if (day >= 0 && day <= AXIS_DAYS) {
       chartEl.querySelector('.gd-axis .ticks')
         .append(h('span', { class: 'tk today', style: { left: pct(day) } }, 'TODAY'));
@@ -714,6 +747,10 @@ const FULL_STYLE = `
   .gx-routine { margin-top:12px; display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--ink-soft); }
   .gx-routine b { color:var(--ink); font-weight:600; margin-right:4px; }
   .gf-src { font-size:12.5px; color:var(--ink-faint); }
+  /* 2026-10-07 redesign: no boxes in the fullscreen either — open type + spacing. */
+  .gx-tile { border:none; background:none; border-radius:0; padding:0; }
+  .gx-sec { border:none; border-radius:0; padding:0; }
+  .gx-tiles { gap:24px; }
   /* icon rows (water / tasks / done) */
   .gx-row { display:grid; grid-template-columns:34px 1fr auto 34px; gap:10px; align-items:center;
     padding:9px 0; border-bottom:1px solid var(--stroke); }
