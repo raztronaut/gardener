@@ -272,6 +272,7 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .gbtn.icon svg { width: 22px; height: 22px; }
 .gbtn.icon:has(kbd) { width: auto; padding: 0 10px; gap: 8px; }
 .gbtn.quiet { color: var(--ink-soft); }
+#feedbackSend.gbtn.icon { color: var(--mint); }
 
 /* ---------- toast ---------- */
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%);
@@ -509,7 +510,9 @@ body.screenshot #plantalarm { display: none !important; }
   align-items: flex-end; justify-content: center;
   background: rgba(2, 10, 8, 0.72); padding: 44px 34px 104px; }
 #panel.open { display: flex; animation: panelVeil .12s linear both; }
-.panel-card { width: 100%; max-height: 100%; display: flex; flex-direction: column;
+/* FIXED height (layout rule): every panel opens at its full size and never grows
+   when its data arrives — content fills and scrolls inside. */
+.panel-card { width: 100%; height: 100%; max-height: 100%; display: flex; flex-direction: column;
   transform-origin: bottom center;
   background:
     linear-gradient(180deg, rgba(120,247,176,.06), transparent 120px),
@@ -534,7 +537,7 @@ body.screenshot #plantalarm { display: none !important; }
 .panel-card:focus { outline: none; }
 /* Native overflow scrolling: the chromium kiosk threads/composites it (smooth);
    panelScrollBy() in app.js drives it. */
-.panel-body { padding: 2px 28px 28px; overflow-y: auto; overscroll-behavior: contain; }
+.panel-body { flex: 1; min-height: 0; padding: 2px 28px 28px; overflow-y: auto; overscroll-behavior: contain; }
 
 /* ---------- scrollbar: a slim mint stem ---------- */
 .panel-body::-webkit-scrollbar { width: 10px; }

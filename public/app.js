@@ -561,8 +561,19 @@ async function showGrow() {
 
 // Full-screen, scrollable list of ALL upcoming SF events (the /events · /e command).
 // Arrow keys / PageUp-Down / Home-End scroll the list; Esc returns to the dashboard.
+// Stale-while-revalidate like Hacker News: the last event list renders instantly
+// (prefetched on boot + every 15 min); the fresh one swaps in place.
+let EVENTS_CACHE = null;
+if (!SCREENSHOT) {
+  const pre = async () => { try { const lib = await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`);
+    const evs = await lib.fetchEvents((url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }));
+    if (evs.length) EVENTS_CACHE = evs; } catch { /* keep last */ } };
+  setTimeout(pre, 10000); setInterval(pre, 15 * 60 * 1000);
+}
 async function showEvents() {
-  openPanel('Out in SF — upcoming events', h('div', { class: 'cl' })); // no loading text (layout rule)
+  const tok = (showEvents.tok = {}); // a newer open / a close invalidates this fetch
+  if (EVENTS_CACHE) renderEvents(EVENTS_CACHE);
+  else openPanel('Out in SF', h('div', { class: 'cl' })); // no loading text (layout rule)
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
   const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
@@ -573,11 +584,22 @@ async function showEvents() {
     const lib = await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`);
     evs = await lib.fetchEvents(fetchJSON); // shared default window — see lib/events.js
   } catch {
+    if (EVENTS_CACHE || showEvents.tok !== tok || !panelOpen()) return; // keep the cached list / closed
     return openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'Events are unavailable right now — try again shortly.')));
   }
   if (!evs.length) {
+    if (EVENTS_CACHE) return;
     return openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No upcoming events listed right now.')));
   }
+  EVENTS_CACHE = evs;
+  if (showEvents.tok !== tok || !panelOpen()) return; // closed meanwhile — don't reopen
+  renderEvents(evs);
+}
+function renderEvents(evs) {
+  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
+  const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
+  const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
   const rows = evs.map((e) => {
     let when = 'Soon';
     if (e.when) {
@@ -590,7 +612,10 @@ async function showEvents() {
         h('div', { class: 'cl-phrase' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
         e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null));
   });
-  openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl' }, ...rows));
+  // Re-render in place if the events panel is already showing (keeps scroll position).
+  const cur = document.querySelector('#panel.open .cl.ev-list');
+  if (cur) cur.replaceChildren(...rows);
+  else openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl ev-list' }, ...rows));
 }
 
 // Full Hacker News front page in a panel (the /hn command; controller: Y).
