@@ -31,7 +31,12 @@ visual review, and deployed only on green via git.
 `public/lib/lgr.js` is a plain-DOM port of liquid-glass-react (MIT, Max Rovensky):
 a warp layer (`backdrop-filter: blur saturate` + SVG `filter:url(#lgr)` with the
 library's displacement map and RGB chromatic aberration at the edges), a tint, and
-two cursor-lit rim layers, applied to `.panel-card`. `#panel` must NOT animate
+two cursor-lit rim layers. **Currently DISABLED** (app.js `LGLASS = null`): on the
+kiosk (SwiftShader, GPU blocklisted) an open glass panel measured 1–2 fps vs 60
+without it — live backdrop/SVG filters re-run on every repaint. Don't re-enable
+without a GPU. Also: never use animated SVG icons on the wall (the Meteocons'
+SMIL animation kept the kiosk's GPU process at ~100% CPU; weather uses
+`assets/weather/still/`). `#panel` must NOT animate
 opacity/filter — that makes it a backdrop root and the glass would only see the veil.
 
 ## Widget contract

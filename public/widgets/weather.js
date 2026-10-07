@@ -146,7 +146,7 @@ export default {
     `);
 
     const h = ctx.h;
-    const icon = (slug, px) => h('img', { src: `/assets/weather/${slug}.svg`, width: px, height: px, alt: '' });
+    const icon = (slug, px) => h('img', { src: `/assets/weather/still/${slug}.svg` /* static (no SMIL/CSS animation): animated icons kept the GPU-less kiosk repainting at ~100% CPU */, width: px, height: px, alt: '' });
     const fallback = (msg, sub) => h('div', { class: 'wx-fallback' },
       h('div', { class: 'i' }, '🌤'), h('div', { class: 'm' }, msg), h('div', { class: 's' }, sub));
     body.appendChild(ctx.loading('reading the sky…'));

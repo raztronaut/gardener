@@ -521,7 +521,7 @@ body.screenshot #plantalarm { display: none !important; }
    One-shot entrance animations only (no perpetual motion → idle-friendly). */
 #panel { position: absolute; inset: 0; z-index: 90; display: none; /* absolute: zooms with #zoomroot */
   align-items: flex-end; justify-content: center;
-  background: rgba(2, 10, 8, 0.30); /* light veil: the wall shows through the glass panel */ padding: 44px 34px 104px; }
+  background: rgba(2, 10, 8, 0.55); padding: 44px 34px 104px; }
 #panel.open { display: flex; } /* no opacity animation here: it would make #panel a backdrop root and hide the wall from the glass */
 /* Sized to its content (no empty space), but never resized after opening: async
    panels open with cached content, and each panel opens at its remembered size
