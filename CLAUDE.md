@@ -27,12 +27,13 @@ visual review, and deployed only on green via git.
   highest-priority law; the agent may append rules but never weaken them. When the user
   says "stop adding X for good" / "I keep removing X", record it there.
 
-## Liquid glass (baked)
-`public/lib/glass.js` bakes Apple-style glass per framed card ONCE (after boot, in
-idle slices): the static 900×1600 `aurora-blur.jpg` backdrop is refracted through a
-squircle bezel (Snell's law, n=1.5) + rim-lit, and set as the card's `--glass-img`
-(`.card.baked-glass`). No backdrop-filter / live SVG filters — they re-filter every
-repaint and this Jetson can't afford it. Re-bakes only when a card resizes.
+## Liquid glass (fullscreen panel)
+`public/lib/lglass.js` gives `.panel-card` real refraction: a displacement map for
+the panel's size (squircle bezel, Snell's law n=1.5; only the rim ring is computed,
+cached per size) fed to `<feDisplacementMap>` + a light blur, applied as
+`backdrop-filter: url(#lg-WxH)` (Chromium kiosk only). `#panel` must NOT animate
+opacity/filter — that makes it a backdrop root and the glass would only see the veil.
+Cards are not glass-refracted: their backdrop is a smooth gradient (nothing to bend).
 
 ## Widget contract
 **Layout stability:** a loading card must already have its loaded size (app.js

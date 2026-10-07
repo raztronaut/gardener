@@ -224,16 +224,17 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .card.bare::before { display: none; }
 /* Open card: keeps its title + padding, drops the glass panel. Alternates with
    framed cards in a zigzag (fractal → Hacker News → Today → clock). */
-.card.baked-glass {
-  /* baked Liquid Glass (lib/glass.js): the refracted, rim-lit backdrop for THIS
-     card, computed once — replaces the fixed aurora layer; tint + fill stay on top. */
-  background:
-    var(--glass-fill),
-    linear-gradient(0deg, var(--glass-tint), var(--glass-tint)),
-    var(--glass-img);
-  background-size: cover, cover, 100% 100%;
-  background-attachment: scroll, scroll, scroll;
-  background-origin: border-box, border-box, border-box;
+/* Liquid glass panel (lib/lglass.js sets the refracting backdrop-filter): a
+   translucent tint over the bent + softly blurred wall, with Apple's two-sided
+   specular edge (bright upper-left, faint lower-right). */
+.panel-card.lglass {
+  background: linear-gradient(180deg, rgba(14, 34, 28, .50), rgba(9, 24, 20, .62));
+  border-color: rgba(220, 255, 240, .22);
+  box-shadow:
+    inset 1.5px 1.5px 0 rgba(255, 255, 255, .38),
+    inset -1px -1px 0 rgba(255, 255, 255, .12),
+    inset 0 0 40px rgba(180, 255, 225, .05),
+    0 30px 80px rgba(0, 0, 0, .45);
 }
 .card.unframed { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; }
 
@@ -519,8 +520,8 @@ body.screenshot #plantalarm { display: none !important; }
    One-shot entrance animations only (no perpetual motion → idle-friendly). */
 #panel { position: absolute; inset: 0; z-index: 90; display: none; /* absolute: zooms with #zoomroot */
   align-items: flex-end; justify-content: center;
-  background: rgba(2, 10, 8, 0.72); padding: 44px 34px 104px; }
-#panel.open { display: flex; animation: panelVeil .12s linear both; }
+  background: rgba(2, 10, 8, 0.30); /* light veil: the wall shows through the glass panel */ padding: 44px 34px 104px; }
+#panel.open { display: flex; } /* no opacity animation here: it would make #panel a backdrop root and hide the wall from the glass */
 /* Sized to its content (no empty space), but never resized after opening: async
    panels open with cached content, and each panel opens at its remembered size
    (app.js reservePanelSize) — layout-stability rule. */

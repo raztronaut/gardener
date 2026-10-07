@@ -264,9 +264,6 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
-    // Baked Liquid Glass: refract + rim-light each card's backdrop once, off the
-    // critical path (idle slices), after the layout has settled.
-    setTimeout(() => import(`/lib/glass.js?v=${window.__GARDEN_VERSION}`).then((m) => m.bakeGlass()).catch(() => {}), 1200);
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
     if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }
@@ -387,6 +384,8 @@ function reservePanelSize(title) {
     try { if (h2 > 120) localStorage.setItem(PANEL_KEY(title), String(h2)); } catch { /* ignore */ }
   }, 1500);
 }
+let LGLASS = null;
+import(`/lib/lglass.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { LGLASS = m; }).catch(() => {});
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
   if (!keepStack) reservePanelSize(title);
@@ -404,6 +403,8 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   readerFrame = null;
   document.getElementById('panelBody')?.classList.remove('reading'); // cleared unless openReader re-adds it
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
+  // Liquid glass: the wall bends through the panel's bezel (lib/lglass.js).
+  if (LGLASS) LGLASS.liquidGlass(p.querySelector('.panel-card'));
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the
   // page until something focusable holds focus; a <button> reliably does, where a
