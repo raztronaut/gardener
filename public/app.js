@@ -192,11 +192,15 @@ async function loadWidgets(enabled, mountPoint) {
     if (prankActiveFor(entry.id)) { try { renderPrank(body); } catch { /* never break boot */ } return; }
     mounts.push((async () => {
       try {
-        // The card frame is drawn instantly at its final size; its CONTENT fades in
-        // once the widget has its data (hides the API wait — no sliding motion).
+        // LAYOUT-STABILITY RULE: an empty (still-fetching) card must already have
+        // its loaded size. We remember each card's settled height and reserve it as
+        // min-height on the next boot, so data arriving never resizes or shifts the
+        // grid; the content just fades into the reserved space.
+        reserveCardSize(card, entry.id);
         const fail = setTimeout(() => body.classList.add('ready'), 4000);
         const cleanup = await w.mount(body, makeCtx(w.id));
         clearTimeout(fail); body.classList.add('ready');
+        settleCardSize(card, entry.id);
         if (typeof cleanup === 'function') cleanups.push(cleanup);
       } catch (e) {
         body.classList.add('ready');
@@ -263,6 +267,27 @@ async function boot() {
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
     if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }
+}
+
+// ---- layout stability: reserve each card's loaded size before its data arrives ----
+// Settled heights persist in localStorage (per widget id, per canvas zoom level) so
+// the very first paint after a reload already has every card at its final size.
+const CARD_H_KEY = (id) => `garden.cardH.${id}`;
+function reserveCardSize(card, id) {
+  if (SCREENSHOT) return; // QA captures measure natural layout
+  try {
+    const hgt = parseInt(localStorage.getItem(CARD_H_KEY(id)) || '0', 10);
+    if (hgt > 40 && hgt < 1600) card.style.minHeight = `${hgt}px`;
+  } catch { /* storage unavailable */ }
+}
+function settleCardSize(card, id) {
+  if (SCREENSHOT) return;
+  // Measure after the content has painted, then hand layout back to the grid.
+  setTimeout(() => {
+    const hgt = Math.round(card.getBoundingClientRect().height);
+    try { if (hgt > 40) localStorage.setItem(CARD_H_KEY(id), String(hgt)); } catch { /* ignore */ }
+    card.style.minHeight = '';
+  }, 600);
 }
 
 // Detect when widgets exceed the locked 900×1600 canvas (overflow:hidden would

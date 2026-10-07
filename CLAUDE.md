@@ -28,6 +28,9 @@ visual review, and deployed only on green via git.
   says "stop adding X for good" / "I keep removing X", record it there.
 
 ## Widget contract
+**Layout stability:** a loading card must already have its loaded size (app.js
+reserves each card's settled height; no collapsed loading states; no size/position
+animation — content only fades in). See GARDEN_RULES.md.
 See the top of `public/app.js`. A widget default-exports `{ id, title, icon, size,
 chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.fetchJSON`
 (through the SSRF-safe proxy) with loading/error/empty states. Add external hosts to

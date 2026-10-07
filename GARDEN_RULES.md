@@ -58,6 +58,12 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **Layout stability (2026-10-07, mandatory):** a widget that is still fetching must
+  occupy EXACTLY the size it will have once loaded — never render a smaller empty card
+  that grows when data arrives. app.js reserves each card's last settled height
+  (reserveCardSize / settleCardSize); widgets must also keep their own placeholders at
+  full size (no collapsed loading states), and must not animate size or position —
+  content only fades in.
 - **No wind on the Weather card** (removed 2026-10-01, re-added by tend #140, removed again
   2026-10-06). No wind speed, direction, arrow or gusts anywhere on the wall.
 - **No accent bars on card/row edges** (2026-10-01: "very vibecoded"). No coloured

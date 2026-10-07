@@ -105,6 +105,15 @@ async function main() {
       check('HN rank movement stays quiet on held/slipped stories',
         quietMoves.every((v) => v === null), `got ${JSON.stringify(quietMoves)}`);
     } catch (e) { bad('HN rank movement', e.message); }
+    // Layout-stability rule: the runtime must reserve each card's settled size
+    // before its data arrives (see GARDEN_RULES.md) and must not animate cards.
+    try {
+      const appSrc = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
+      const css = readFileSync(join(PUBLIC, 'styles.css'), 'utf8');
+      check('layout stability: cards reserve their loaded size before data arrives',
+        /reserveCardSize\(card, entry\.id\)[\s\S]{0,200}await w\.mount/.test(appSrc) && /function settleCardSize/.test(appSrc));
+      check('layout stability: no card entrance motion', !/\.card\s*\{[^}]*animation:\s*rise/.test(css) && !/@keyframes rise/.test(css));
+    } catch (e) { bad('layout stability', e.message); }
     // Fractal art (replaced APOD): deterministic per 3-hour slot, cycles through the
     // families, and the tiny PNG encoder emits a valid signature + IHDR.
     try {
