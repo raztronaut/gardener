@@ -240,7 +240,7 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .lgr-rim { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; padding: 1.5px;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
-  box-shadow: 0 0 0 .5px rgba(255,255,255,.5) inset, 0 1px 3px rgba(255,255,255,.25) inset, 0 1px 4px rgba(0,0,0,.35); }
+  box-shadow: 0 0 0 .5px rgba(255,255,255,.18) inset, 0 1px 3px rgba(255,255,255,.08) inset, 0 1px 4px rgba(0,0,0,.3); }
 .card.unframed { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; }
 
 /* Widget titles: bare mono micro-labels (no emoji), tucked into the card's

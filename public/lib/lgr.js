@@ -47,8 +47,8 @@ function ensureFilter() {
 }
 
 const rimBg = (ox, oy, k) => `linear-gradient(${135 + ox * 1.2}deg, rgba(255,255,255,0) 0%,
-  rgba(255,255,255,${k[0] + Math.abs(ox) * 0.008}) ${Math.max(10, 33 + oy * 0.3)}%,
-  rgba(255,255,255,${k[1] + Math.abs(ox) * 0.012}) ${Math.min(90, 66 + oy * 0.4)}%, rgba(255,255,255,0) 100%)`;
+  rgba(255,255,255,${k[0] + Math.abs(ox) * 0.003}) ${Math.max(10, 33 + oy * 0.3)}%,
+  rgba(255,255,255,${k[1] + Math.abs(ox) * 0.005}) ${Math.min(90, 66 + oy * 0.4)}%, rgba(255,255,255,0) 100%)`;
 
 // Turn `el` (position: relative/absolute, has border-radius) into liquid glass.
 export function liquidGlass(el) {
@@ -63,7 +63,7 @@ export function liquidGlass(el) {
   // The library's 2nd rim uses mix-blend-mode:overlay; inside the glass element
   // that would isolate it and make it a backdrop root (the warp then sees nothing),
   // so both rims blend normally — the 2nd at lower strength to match the overlay look.
-  const rims = [[0.12, 0.4], [0.14, 0.26]].map(([a, b]) => {
+  const rims = [[0.05, 0.16], [0.06, 0.11]].map(([a, b]) => { // ~40% of the library's strength (too bright on the wall)
     const s = document.createElement('span');
     s.className = 'lgr-rim';
     s._k = [a, b];
