@@ -370,8 +370,23 @@ function updateCloseHint() {
 }
 function setPadMode(on) { if (padMode !== on) { padMode = on; updateCloseHint(); } }
 
+// Each panel (keyed by its title's first part) remembers its settled height and
+// opens at it, so content arriving never grows the panel; then it fits content.
+const PANEL_KEY = (t) => `garden.panelH.${String(t).split(' — ')[0].replace(/\s+\d+.*$/, '').trim()}`;
+function reservePanelSize(title) {
+  const card = document.querySelector('#panel .panel-card'); if (!card || SCREENSHOT) return;
+  let hgt = 0; try { hgt = parseInt(localStorage.getItem(PANEL_KEY(title)) || '0', 10); } catch { /* ignore */ }
+  card.style.minHeight = hgt > 120 ? `${hgt}px` : '';
+  clearTimeout(reservePanelSize.t);
+  reservePanelSize.t = setTimeout(() => {
+    card.style.minHeight = '';
+    const h2 = Math.round(card.getBoundingClientRect().height);
+    try { if (h2 > 120) localStorage.setItem(PANEL_KEY(title), String(h2)); } catch { /* ignore */ }
+  }, 1500);
+}
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
+  if (!keepStack) reservePanelSize(title);
   if (!keepStack) { panelStack.length = 0; stopPanelWidget(); } // fresh top-level view resets any stacked detail
   updateCloseHint();
   setTimeout(updateCloseHint, 60); // re-check after a game widget may set __GARDEN_GAME

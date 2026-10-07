@@ -5,9 +5,11 @@
 // family (Mandelbulb, Mandelbox, quaternion Julia, Menger sponge), camera, light
 // and a palette from the wall's own colours. Replaced the Astronomy Photo card.
 
+// "1h 12m 34s" — live, ticking every second.
 const fmtLeft = (ms) => {
-  const m = Math.max(0, Math.round(ms / 60000));
-  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return `${h ? `${h}h ` : ''}${h || m ? `${m}m ` : ''}${sec}s`;
 };
 
 const STYLE = `
@@ -29,6 +31,7 @@ const STYLE = `
   .frf .row { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
   .frf .nm { font-family:var(--font-display); font-size:30px; color:var(--ink); }
   .frf .meta { font-size:14px; color:var(--ink-soft); }
+  .frf .meta .live { color:var(--mint); font-variant-numeric:tabular-nums; }
 `;
 
 async function getMeta() {
@@ -69,6 +72,8 @@ export default {
     };
     await refresh();
     ctx.interval(refresh, 60 * 1000);
+    // live seconds in the hover text (a browser only redraws an OPEN tooltip on re-hover)
+    ctx.interval(() => { if (nm.textContent) box.title = `${nm.textContent} · new in ${fmtLeft(nextAt - Date.now())}`; }, 1000);
   },
 
   async openFull(body, ctx) {
@@ -77,10 +82,13 @@ export default {
     let meta = null; try { ({ meta } = await getMeta()); } catch { /* none */ }
     if (!meta) { body.replaceChildren(h('div', { class: 'frf' }, h('div', { class: 'meta' }, 'growing a new fractal…'))); return; }
     const made = new Date(meta.generatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const live = h('span', { class: 'live' }, '');
     body.replaceChildren(h('div', { class: 'frf' },
       h('img', { src: `/api/fractal.png?s=${meta.slot}`, alt: meta.name }),
       h('div', { class: 'row' },
         h('div', { class: 'nm' }, meta.name),
-        h('div', { class: 'meta' }, `${meta.palette} palette · grown ${made} · next in ${fmtLeft(meta.nextAt - Date.now())}`))));
+        h('div', { class: 'meta' }, `${meta.palette} palette · grown ${made} · next in `, live))));
+    const tick = () => { live.textContent = fmtLeft(meta.nextAt - Date.now()); };
+    tick(); ctx.interval(tick, 1000);
   },
 };

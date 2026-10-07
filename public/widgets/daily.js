@@ -718,6 +718,22 @@ export default {
   size: 'tall',
   chrome: true,
   frame: false, // zigzag of open cards (2026-10-06)
+  // Fullscreen: the same content at ~1.5× type, natural height (no flex thirds, no
+  // clamping) — the panel sizes to it, so there's no empty space.
+  async openFull(body, ctx) {
+    const wrap = ctx.h('div', { class: 'dly-full' });
+    body.replaceChildren(wrap);
+    // own <style> (ctx.style is deduped per widget, so it can't add a 2nd sheet)
+    if (!document.getElementById('style-daily-full')) {
+      const st = document.createElement('style'); st.id = 'style-daily-full'; st.textContent = `
+      .dly-full { zoom:1.5; padding:0 4px 8px; }
+      .dly-full .dly { height:auto; gap:22px; }
+      .dly-full .dly > * { flex:none !important; overflow:visible !important; min-height:0; }
+      .dly-full * { -webkit-line-clamp:unset !important; max-height:none !important; }
+    `; document.head.appendChild(st);
+    }
+    await this.mount(wrap, ctx);
+  },
   async mount(body, ctx) {
     const { h } = ctx;
     ctx.style(`
