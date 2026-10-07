@@ -455,13 +455,13 @@ const daysTxt = (d, day) => (d === day ? 'today' : d < day ? `${day - d}d late` 
 // mark under each care date, and today's line runs through everything.
 function careEvents(day, log) {
   const water = waterPlan(day, 18, log).filter((w) => w.d <= AXIS_DAYS)
-    .map((w) => ({ d: w.d, ic: WATER_ICON[w.kind], minor: w.kind === 'top', label: w.kind === 'refresh' ? 'Tank refresh' : w.kind === 'dose' ? 'Sprout dose' : 'Check water',
+    .map((w) => ({ src: w, kind: w.kind, d: w.d, ic: WATER_ICON[w.kind], minor: w.kind === 'top', label: w.kind === 'refresh' ? 'Tank refresh' : w.kind === 'dose' ? 'Sprout dose' : 'Check water',
       what: w.kind === 'refresh' ? `Drain the tank, wipe it clean, then refill with ${w.amt}.`
         : w.kind === 'dose' ? w.amt
         : `Look at the water level in the Gardyn app. If it's below ¾, add water with ${w.amt.replace(/^if low: /, '').replace(/ you add$/, '')}; otherwise nothing to do.`,
       tip: `${w.t} — ${w.amt}` }));
   const task = tasks(log).filter((c) => c.done == null && endOf(c) >= day && c.d <= AXIS_DAYS).sort((a, b) => a.d - b.d)
-    .map((c) => ({ id: c.id, d: c.d, to: c.to, ic: c.ic, label: c.short, what: c.long || c.how, tip: `${c.t} — ${c.how}` }));
+    .map((c) => ({ src: c, id: c.id, d: c.d, to: c.to, ic: c.ic, label: c.short, what: c.long || c.how, tip: `${c.t} — ${c.how}` }));
   const done = doneLog(log).filter((e) => e.d >= 0 && e.d <= AXIS_DAYS);
   return { water, task, done };
 }
@@ -633,103 +633,111 @@ function renderHow(h, body, key, item, day, log) {
     codes));
 }
 
+// Fullscreen = the tile, expanded: same header + "today" answer, then ONE list of
+// what's coming (plain instruction, date, days, ✓, tap → how-to), the milestones as
+// one line, the full timeline, feeding in one sentence, and the pod tower. Open
+// rows and hairlines — no tiles, boxes or chips.
 function renderFull(h, body, day, log) {
-  {
+  const { due, next } = agenda(day, log);
+  // the next water step + every notable step (routine weekly checks after the first are noise)
+  let seenWater = false;
+  const items = [...due, ...next].filter((e) => {
+    if (e.k !== 'water') return true;
+    if (!seenWater) { seenWater = true; return true; }
+    return !e.minor;
+  }).slice(0, 6);
+  const firstWater = items.find((e) => e.k === 'water');
+  const row = (e) => {
+    const isDue = e.d <= day;
+    const canDo = e.d - day <= 3 && (e.k === 'task' || e === firstWater);
+    const payload = e.k === 'water'
+      ? (e.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: e.kind, action: 'done' })
+      : { id: e.id, action: 'done' };
+    const el = h('div', { class: `fx-row ${e.k}${isDue ? ' due' : ''}`, title: 'Tap for step-by-step' },
+      h('span', { class: 'ri' }, icon(e.ic)),
+      h('div', { class: 'tx' }, h('div', { class: 'nm' }, e.label), h('div', { class: 'wh' }, e.what || '')),
+      h('div', { class: 'when' }, h('div', { class: 'dt' }, fmtDay(e.d)), h('div', { class: 'in' }, isDue ? 'today' : `in ${e.d - day} days`)),
+      canDo ? actBtn(h, icon('check'), payload) : h('span', { class: 'gx-btn-sp' }));
+    el.addEventListener('click', () => renderHow(h, body, e.k === 'water' ? (e.kind === 'dose' ? 'sprout' : e.kind) : e.id, e.src, day, log));
+    return el;
+  };
+  const today = due.length
+    ? h('div', { class: 'gd-today due' }, icon(due[0].ic), h('span', {}, `Today: ${due.map((e) => e.label).join(', ')}`))
+    : h('div', { class: 'gd-today' }, icon('check'), h('span', {}, 'Nothing today'));
 
-    // Milestone tiles: when each kind first pays off, plus the next care step.
-    const firstOf = (k) => Math.min(...PLANTS.filter((p) => p.k === k).map((p) => p.m[0]));
-    const tile = (ic, title, d, color, what) => {
-      const left = d - day;
-      return h('div', { class: 'gx-tile', style: { '--c': color }, title },
-        h('div', { class: 'l' }, icon(ic)),
-        h('div', { class: 'v' }, left > 0 ? String(left) : '✓', left > 0 ? h('small', {}, 'd') : null),
-        h('div', { class: 's' }, left > 0 ? `${what} · ${fmtShort(d)}` : `${what} · now`));
-    };
-    const plan = waterPlan(day, 4, log);
-    const w0 = plan[0];
-    const tiles = h('div', { class: 'gx-tiles' },
-      tile('leaf', 'First harvest (greens)', firstOf('green'), KINDS.green.color, 'greens'),
-      tile('flower', 'First bloom (petunias)', firstOf('flower'), KINDS.flower.color, 'petunias'),
-      tile('sprig', 'Herbs ready', firstOf('herb'), KINDS.herb.color, 'herbs'),
-      w0 ? tile(WATER_ICON[w0.kind], `Next watering — ${w0.s}`, w0.d, '#5fb6ff', w0.kind === 'refresh' ? 'tank refresh' : 'check water') : null);
+  const firstOf = (k) => Math.min(...PLANTS.filter((p) => p.k === k).map((p) => p.m[0]));
+  const ms = (k, what) => { const d = firstOf(k); return h('span', { class: 'ms' }, kindIcon(k), h('b', {}, what), ` ${fmtShort(d)}`, h('i', {}, d > day ? ` · ${d - day} days` : ' · now')); };
 
-    // Chart, with a labelled "today" marker above the rows.
-    const chartEl = chart(h, day, true, log);
-    if (day >= 0 && day <= AXIS_DAYS) {
-      chartEl.querySelector('.gd-axis .ticks')
-        .append(h('span', { class: 'tk today', style: { left: pct(day) } }, 'TODAY'));
-    }
+  const chartEl = chart(h, day, true, log);
 
-    // The tower: Studio 2 pods, two columns top → bottom, as the device stands.
-    const byPos = {};
-    for (const p of PLANTS) for (const ps of p.pos) byPos[ps] = p;
-    const col = (side) => h('div', { class: 'gx-col' }, ...Array.from({ length: 8 }, (_, i) => {
-      const p = byPos[side + (i + 1)];
-      return h('div', { class: 'gx-pod', title: `${p.n} — ${p.note}` },
-        kindIcon(p.k),
-        h('span', { class: 'n' }, p.n.replace(/^(Purple|Yellow) (?=Snapdragon|Swiss)/, '')),
-        h('span', { class: 'ps' }, side + (i + 1)));
-    }));
+  const byPos = {};
+  for (const p of PLANTS) for (const ps of p.pos) byPos[ps] = p;
+  const col = (side) => h('div', { class: 'gx-col' }, ...Array.from({ length: 8 }, (_, i) => {
+    const p = byPos[side + (i + 1)];
+    return h('div', { class: 'gx-pod', title: `${p.n} — ${p.note}` },
+      kindIcon(p.k), h('span', { class: 'n' }, p.n.replace(/^(Purple|Yellow) (?=Snapdragon|Swiss)/, '')), h('span', { class: 'ps' }, side + (i + 1)));
+  }));
 
-    // Water & food: the next waterings, each with its exact food amount.
-    // Only the NEXT watering can be marked done (it re-anchors the rest).
-    const howTap = (el, key, item) => { el.classList.add('tap'); el.addEventListener('click', () => renderHow(h, body, key, item, day, log)); return el; };
-    const waterRows = plan.map((w, i) => howTap(h('div', { class: `gx-row ${w.kind}${i === 0 ? ' next' : ''}`, title: `${w.t} — tap for how-to` },
-      h('div', { class: 'ri' }, icon(WATER_ICON[w.kind])),
-      h('div', { class: 'rt' }, h('div', { class: 'd' }, fmtDay(w.d)), h('div', { class: 'm' }, w.amt)),
-      h('div', { class: 'rn' }, daysTxt(w.d, day)),
-      i === 0 ? actBtn(h, icon('check'), w.kind === 'dose' ? { id: 'sprout', action: 'done' } : { id: 'water', kind: w.kind, action: 'done' }) : h('div', { class: 'gx-btn-sp' })),
-      w.kind === 'dose' ? 'sprout' : w.kind, w));
-    // Tasks: the next one-off steps, then what's already done.
-    const taskRows = tasks(log).filter((c) => c.done == null && endOf(c) >= day).sort((a, b) => a.d - b.d).slice(0, 4).map((c) => {
-      const now = day >= c.d && day <= endOf(c);
-      return howTap(h('div', { class: `gx-row task${now ? ' now' : ''}`, title: `${c.t} — tap for how-to` },
-        h('div', { class: 'ri' }, icon(c.ic)),
-        h('div', { class: 'rt' }, h('div', { class: 'd' }, c.to != null ? `${fmtShort(c.d)}–${fmtShort(c.to).replace(/^\w+ /, '')}` : fmtShort(c.d)),
-          h('div', { class: 'm' }, c.short)),
-        h('div', { class: 'rn' }, now ? 'now' : daysTxt(c.d, day)),
-        // Done only once a task is due or close (no ticking off things weeks away).
-        c.d - day <= 3 ? actBtn(h, icon('check'), { id: c.id, action: 'done' }) : h('div', { class: 'gx-btn-sp' })), c.id, c);
-    });
-    const doneRows = doneLog(log).slice(-3).map((c) => h('div', { class: 'gx-row done', title: `Done ${fmtShort(c.d)}` },
-      h('div', { class: 'ri' }, icon('check')),
-      h('div', { class: 'rt' }, h('div', { class: 'd' }, fmtShort(c.d)), h('div', { class: 'm' }, c.t)),
-      h('div', { class: 'rn' }, ''),
-      actBtn(h, icon('refresh'), c.id === 'water' ? { id: 'water', date: c.date, action: 'undo' } : { id: c.id, action: 'undo' }, 'ghost', 'Undo')));
-
-    body.replaceChildren(h('div', { class: 'gx' },
-      h('div', { class: 'gx-hero' },
-        h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
-        h('div', { class: 'gx-id' },
-          h('div', { class: 'st' }, gardenStage(day)),
-          h('div', { class: 'sub' }, `${DEVICE} · ${KIT} · sown ${fmtShort(0)} · ${LIGHT_HOURS}h light since Sep 23`))),
-      tiles,
-      h('section', { class: 'gx-sec gf-chart' },
-        h('div', { class: 'gx-h' }, h('span', {}, 'Trajectory'),
-          h('span', { class: 'key' }, h('i', { class: 'k1' }), 'sprouting', h('i', { class: 'k2' }), 'bloom / harvest')),
-        chartEl),
-      h('div', { class: 'gx-bottom' },
-        h('section', { class: 'gx-sec water' },
-          h('div', { class: 'gx-h' }, h('span', {}, 'Water & food')),
-          h('div', { class: 'gx-evs' }, ...waterRows),
-          // Feed strength ramp as three chips + the spoon key; the "mix food into the
-          // water first" rule lives in each row's tooltip.
-          h('div', { class: 'gx-ramp', title: 'Food always goes in the water: mix it into each gallon before pouring. The white Gardyn spoon is 1 tsp.' },
-            h('span', { class: 'chip on' }, icon('spoon'), '¼'),
-            h('span', { class: 'chip' }, '½ ', h('small', {}, fmtShort(TRUE_LEAVES))),
-            h('span', { class: 'chip' }, '1 ', h('small', {}, fmtShort(MATURE))),
-            h('span', { class: 'per' }, 'tsp / gal'))),
-        h('section', { class: 'gx-sec' },
-          h('div', { class: 'gx-h' }, h('span', {}, 'Tasks')),
-          h('div', { class: 'gx-evs' }, ...taskRows, ...doneRows))),
-      h('section', { class: 'gx-sec' },
-        h('div', { class: 'gx-h' }, h('span', {}, 'The tower'), h('span', { class: 'key' }, 'top → bottom')),
-        h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R'))),
-      h('div', { class: 'gf-src' }, 'Gardyn’s published ranges from sow day, scaled by your light hours (14 h → 16 h on Sep 23) — estimates, not sensor readings.')));
-  }
+  const done = doneLog(log).slice(-4);
+  const sec = (t, ...kids) => h('section', { class: 'fx-sec' }, h('div', { class: 'fx-h' }, t), ...kids);
+  body.replaceChildren(h('div', { class: 'gx fx' },
+    h('div', { class: 'fx-head' },
+      h('div', { class: 'gd-day' }, `Day ${Math.max(0, day)}`), h('div', { class: 'gd-st' }, gardenStage(day)), today),
+    h('div', { class: 'fx-sub' }, `${DEVICE} · ${KIT} · sown ${fmtShort(0)} · ${LIGHT_HOURS}h of light a day`),
+    sec('Coming up', h('div', { class: 'fx-list' }, ...items.map(row)),
+      done.length ? h('div', { class: 'fx-done' }, h('span', { class: 'lb' }, 'Done'),
+        ...done.map((c) => actBtn(h, [icon('check'), h('span', {}, `${c.t} · ${fmtShort(c.d)}`)],
+          c.id === 'water' ? { id: 'water', date: c.date, action: 'undo' } : { id: c.id, action: 'undo' }, 'undo', 'Tap twice to undo'))) : null),
+    sec('Milestones', h('div', { class: 'fx-ms' }, ms('green', 'First greens'), ms('flower', 'First flowers'), ms('herb', 'Herbs'))),
+    h('section', { class: 'fx-sec gf-chart' }, h('div', { class: 'fx-h' }, 'Every plant'), chartEl),
+    sec('Feeding', h('div', { class: 'fx-feed' }, icon('spoon'),
+      h('span', {}, 'Mix plant food into the water before it goes in: ', h('b', {}, '¼ tsp per gallon'),
+        ` now, ½ tsp from ${fmtShort(TRUE_LEAVES)}, 1 tsp from ${fmtShort(MATURE)}. The white Gardyn spoon is 1 tsp.`))),
+    sec('The tower · top to bottom', h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R')))));
 }
 
 const FULL_STYLE = `
+  /* ---- fullscreen v2 ---- */
+  .fx { gap:26px; padding:4px 30px 30px; }
+  .fx-head { display:flex; align-items:baseline; gap:14px; }
+  .fx-head .gd-day, .fx-head .gd-st { font-size:44px; }
+  .fx-head .gd-today { font-size:18px; }
+  .fx-head .gd-today .ic { font-size:19px; }
+  .fx-sub { margin-top:-18px; font-size:15px; color:var(--ink-soft); }
+  .fx-h { font-family:var(--font-display); font-size:14px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-soft); margin-bottom:10px; }
+  .fx-list { display:flex; flex-direction:column; border-top:1px solid var(--stroke); }
+  .fx-row { display:grid; grid-template-columns:26px 1fr auto 40px; column-gap:14px; align-items:center; padding:12px 0;
+    border-bottom:1px solid var(--stroke); cursor:var(--c-hand); }
+  .fx-row .ri { font-size:22px; display:flex; align-self:start; margin-top:2px; }
+  .fx-row.water .ri { color:#5fb6ff; }
+  .fx-row.task .ri { color:var(--gold); }
+  .fx-row .nm { font-size:19px; color:var(--ink); }
+  .fx-row .wh { font-size:15px; line-height:1.35; color:var(--ink-soft); margin-top:3px; }
+  .fx-row .when { text-align:right; align-self:start; margin-top:2px; white-space:nowrap; }
+  .fx-row .dt { font-size:15px; color:var(--ink); }
+  .fx-row .in { font-size:13px; color:var(--ink-faint); margin-top:2px; }
+  .fx-row.due .nm, .fx-row.due .in { color:var(--gold); }
+  .fx-row .gx-btn { align-self:center; }
+  .fx-done { display:flex; flex-wrap:wrap; align-items:center; gap:4px 16px; margin-top:12px; }
+  .fx-done .lb { font-size:13px; color:var(--ink-faint); }
+  .fx-done .gx-btn.undo { width:auto; height:auto; border-radius:999px; padding:4px 6px; background:none; color:var(--ink-soft);
+    display:inline-flex; align-items:center; gap:6px; font-size:14px; font-weight:400; }
+  .fx-done .gx-btn.undo .ic { color:var(--mint); }
+  .fx-done .gx-btn.undo.arm { color:var(--gold); box-shadow:none; }
+  .fx-ms { display:flex; flex-wrap:wrap; gap:8px 28px; font-size:17px; color:var(--ink-soft); }
+  .fx-ms .ms { display:inline-flex; align-items:center; gap:7px; }
+  .fx-ms .ms .ic { font-size:17px; }
+  .fx-ms b { color:var(--ink); font-weight:600; }
+  .fx-ms i { font-style:normal; color:var(--ink-faint); }
+  .fx-feed { display:flex; gap:12px; font-size:17px; line-height:1.45; color:var(--ink-soft); }
+  .fx-feed .ic { font-size:22px; color:#5fb6ff; margin-top:2px; }
+  .fx-feed b { color:var(--ink); font-weight:600; }
+  .fx .gf-chart .gd-axis { height:56px !important; margin:0 0 6px !important; }
+  .fx .gf-chart .gd-axis .tk { font-size:13px; }
+  .fx .gf-chart .gd-axis .am { top:22px; }
+  .fx .gf-chart .gd-axis .am .ics { font-size:16px; }
+  .fx .gf-chart .gd-axis .am .dn { font-size:13px; }
   .panel-card:has(.gx) { background: linear-gradient(180deg, rgba(120,247,176,.06), transparent 160px), #0c1f19; }
   .gx { height:100%; overflow:auto; padding:4px 30px 30px; display:flex; flex-direction:column; gap:22px; }
   .gx-hero { display:flex; align-items:center; gap:22px; }
