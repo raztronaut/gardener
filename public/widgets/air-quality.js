@@ -305,7 +305,7 @@ export default {
               style: { left: `${posOf(peak.val)}%` },
             }) : null,
             h('div', { class: 'mark', style: { left: `${pos}%` } })),
-          outlookEl(aqiOutlook(d.hourly, tz), hr12),
+          // (12-hour outlook bars removed 2026-10-07 at the humans' request)
         ].filter(Boolean));
         body.dataset.loaded = '1';
       } catch (e) {

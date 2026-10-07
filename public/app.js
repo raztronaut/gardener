@@ -192,9 +192,14 @@ async function loadWidgets(enabled, mountPoint) {
     if (prankActiveFor(entry.id)) { try { renderPrank(body); } catch { /* never break boot */ } return; }
     mounts.push((async () => {
       try {
+        // The card frame is drawn instantly at its final size; its CONTENT fades in
+        // once the widget has its data (hides the API wait — no sliding motion).
+        const fail = setTimeout(() => body.classList.add('ready'), 4000);
         const cleanup = await w.mount(body, makeCtx(w.id));
+        clearTimeout(fail); body.classList.add('ready');
         if (typeof cleanup === 'function') cleanups.push(cleanup);
       } catch (e) {
+        body.classList.add('ready');
         markError('mount', `${entry.id}: ${e.stack || e.message}`);
         body.appendChild(h('div', { class: 'widget-error' }, '⚠', 'widget crashed on mount'));
       }
@@ -1800,7 +1805,7 @@ async function wireCornerQr() {
 }
 // The tunnel URL can rotate (cloudflared fallback restarts) without a version
 // bump/page reload — re-check periodically so the wall QR never goes stale.
-setInterval(() => { wireCornerQr().catch(() => {}); }, 60000);
+// (corner Roots QR removed 2026-10-07 — Roots is at /roots on the public URL)
 
 // The kiosk page must NEVER scroll: focusing the note bar auto-scrolls the root
 // scroller over zoom-scaled content (even with overflow:hidden), exposing raw
@@ -1817,5 +1822,4 @@ wireTrashAlarm();
 wireStreetAlarm();
 wirePlantAlarm();
 wireCursor();
-wireCornerQr();
 boot();

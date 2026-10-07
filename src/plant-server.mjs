@@ -110,7 +110,8 @@ const server = http.createServer(async (req, res) => {
 
     // Hearth — the household app is the new front door. `/` serves it; the
     // standalone note page stays reachable at /plant.html as a fallback.
-    if (req.method === 'GET' && (p === '/' || p === '/house' || p === '/house/')) {
+    // Also at /roots (2026-10-07: the wall no longer shows a QR — share this link).
+    if (req.method === 'GET' && (p === '/' || p === '/roots' || p === '/roots/' || p === '/house' || p === '/house/')) {
       const html = await fs.readFile(join(paths.PUBLIC, 'house', 'index.html'));
       return send(res, 200, 'text/html; charset=utf-8', html);
     }

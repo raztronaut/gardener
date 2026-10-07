@@ -728,8 +728,8 @@ export default {
          than being cut at the card's bottom edge. Content is vertically centred so
          the leftover slack reads as balanced breathing room, not an empty gap. */
       .dly { display:flex; flex-direction:column; height:100%; min-height:0;
-        animation:dlyfade .6s ease-out both; }
-      @keyframes dlyfade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+        animation:dlyfade .22s linear both; }
+      @keyframes dlyfade { from{opacity:0} to{opacity:1} }
       @media (prefers-reduced-motion: reduce) { .dly { animation:none; } }
       .dly-sec { display:flex; flex-direction:column; justify-content:center;
         min-height:0; overflow:hidden; padding:8px 0; }

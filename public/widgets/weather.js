@@ -95,8 +95,8 @@ export default {
       /* 1 · now */
       .wx-now { display:flex; align-items:center; gap:12px; }
       .wx-now .ic { width:56px; height:56px; flex:none; filter:drop-shadow(0 4px 12px rgba(0,0,0,.4));
-        animation:wxin .9s ease-out both; }
-      @keyframes wxin { from{transform:translateY(-8px);opacity:0} to{transform:none;opacity:1} }
+        animation:wxin .22s linear both; }
+      @keyframes wxin { from{opacity:0} to{opacity:1} }
       @media (prefers-reduced-motion: reduce) { .wx-now .ic { animation:none; } }
       .wx-now .ic img { display:block; }
       .wx-now .tmp { display:flex; align-items:baseline; gap:8px; flex:none; }
