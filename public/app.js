@@ -264,6 +264,9 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
+    // Baked Liquid Glass: refract + rim-light each card's backdrop once, off the
+    // critical path (idle slices), after the layout has settled.
+    setTimeout(() => import(`/lib/glass.js?v=${window.__GARDEN_VERSION}`).then((m) => m.bakeGlass()).catch(() => {}), 1200);
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
     if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }

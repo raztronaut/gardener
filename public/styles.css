@@ -224,6 +224,17 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .card.bare::before { display: none; }
 /* Open card: keeps its title + padding, drops the glass panel. Alternates with
    framed cards in a zigzag (fractal → Hacker News → Today → clock). */
+.card.baked-glass {
+  /* baked Liquid Glass (lib/glass.js): the refracted, rim-lit backdrop for THIS
+     card, computed once — replaces the fixed aurora layer; tint + fill stay on top. */
+  background:
+    var(--glass-fill),
+    linear-gradient(0deg, var(--glass-tint), var(--glass-tint)),
+    var(--glass-img);
+  background-size: cover, cover, 100% 100%;
+  background-attachment: scroll, scroll, scroll;
+  background-origin: border-box, border-box, border-box;
+}
 .card.unframed { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; }
 
 /* Widget titles: bare mono micro-labels (no emoji), tucked into the card's
@@ -299,7 +310,7 @@ body.idle, body.idle * { cursor: none !important; }
 /* ---------- slash-command palette (Claude-Code-style) ----------
    Floats just above the input; filtered as you type; ↑/↓ + Enter to run. */
 #cmdpal { position: absolute; left: 30px; right: 30px; bottom: 96px; z-index: 60; /* absolute: zooms with #zoomroot */
-  background: var(--glass-2); border: 1px solid var(--stroke-strong);
+  background: #040706; border: 1px solid var(--stroke-strong);
   border-radius: 18px; box-shadow: var(--shadow); overflow: hidden;
   animation: panelVeil .1s linear both; }
 #cmdpal[hidden] { display: none; }
