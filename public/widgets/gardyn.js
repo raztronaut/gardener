@@ -773,7 +773,7 @@ const FULL_STYLE = `
   .gx-ev.done .t { color:var(--mint); }
   .gx-ev .act { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
   .gx-btn { font-family:var(--font); font-size:13px; font-weight:600; color:#042018; background:var(--mint);
-    border:none; border-radius:999px; padding:6px 13px; cursor:pointer; white-space:nowrap; }
+    border:none; border-radius:999px; padding:6px 13px; cursor: var(--c-hand); white-space:nowrap; }
   .gx-sec.water .gx-btn { background:#5fb6ff; }
   .gx-btn.ghost { background:transparent; color:var(--ink-soft); border:1px solid var(--stroke); padding:4px 11px; font-weight:400; }
   .gx-btn:disabled { opacity:.6; }
@@ -809,7 +809,7 @@ const FULL_STYLE = `
   .gx-ramp .chip small { font-size:12.5px; color:var(--ink-faint); }
   .gx-ramp .per { margin-left:4px; font-size:13px; color:var(--ink-faint); }
   .gx-pod .ic.kind { font-size:13px; }
-  .gx-row.tap { cursor:pointer; }
+  .gx-row.tap { cursor: var(--c-hand); }
   .gx-btn.arm { background:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 35%, transparent); }
   /* how-to view */
   .hw { gap:20px; }

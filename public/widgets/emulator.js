@@ -111,7 +111,7 @@ export default {
     const { h } = ctx;
     ctx.style(`
       .em { position:relative; flex:1; min-height:0; display:flex; flex-direction:column;
-        align-items:center; justify-content:center; gap:11px; cursor:pointer; overflow:hidden;
+        align-items:center; justify-content:center; gap:11px; cursor: var(--c-hand); overflow:hidden;
         -webkit-tap-highlight-color:transparent; user-select:none; }
       /* faint static CRT scanlines confined to the tile — a cheap repeating gradient
          (no animation, essentially free to render) that gives the empty Arcade card
@@ -220,7 +220,7 @@ export default {
       /* a cover tile: a 3:4 portrait box-art card with a real drop shadow */
       .eg-rom { position:relative; aspect-ratio:3 / 4; display:block; text-align:left;
         background:transparent; border:none; border-radius:14px; padding:0;
-        color:var(--ink); cursor:pointer; font:inherit; overflow:hidden; box-shadow:0 8px 22px rgba(0,0,0,.42);
+        color:var(--ink); cursor: var(--c-hand); font:inherit; overflow:hidden; box-shadow:0 8px 22px rgba(0,0,0,.42);
         transition:box-shadow .14s ease, transform .14s ease; }
       .eg-cover { position:absolute; inset:0; display:flex; flex-direction:column;
         justify-content:flex-end; padding:14px; }
@@ -262,7 +262,7 @@ export default {
       .eg-mrow .v.mint { color:var(--mint); }
       .eg-play { margin-top:auto; font-family:var(--font-display); font-weight:600; font-size:18px; color:#062018;
         background:linear-gradient(120deg, var(--mint), var(--mint-2)); border:none; border-radius:14px;
-        padding:15px; cursor:pointer; letter-spacing:.02em; }
+        padding:15px; cursor: var(--c-hand); letter-spacing:.02em; }
       .eg-play:hover { filter:brightness(1.07); }
       .eg-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
         gap:10px; color:var(--ink-faint); font-family:var(--font-mono); font-size:13px; text-align:center;
@@ -279,7 +279,7 @@ export default {
       .eg-bar b { color:var(--mint); font-weight:600; }
       .eg-back { background:transparent; border:1px solid var(--stroke); border-radius:999px;
         padding:6px 14px; color:var(--mint); font:inherit; font-size:12.5px; letter-spacing:.1em;
-        text-transform:uppercase; cursor:pointer; }
+        text-transform:uppercase; cursor: var(--c-hand); }
       .eg-back:hover { border-color:var(--mint); }
     `);
     body.classList.add('eg');

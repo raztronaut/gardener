@@ -108,7 +108,6 @@ html, body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  cursor: none; /* native pointer hidden — replaced by the custom garden pointer (#cursor) */
 }
 
 /* ---------- aurora backdrop ----------
@@ -154,7 +153,7 @@ html, body {
 .brand #subtitle { color: var(--ink-faint); font-size: 13px; letter-spacing: .2px; }
 .brand .subdot { color: var(--ink-faint); opacity: .55; font-size: 13px; }
 /* The growth count — a quiet bloom beside the wordmark. Tap → /iterations. */
-.brand .bloom { background: none; border: none; padding: 0; cursor: pointer;
+.brand .bloom { background: none; border: none; padding: 0; cursor: var(--c-hand);
   font-family: var(--font); font-size: 13px; letter-spacing: .2px;
   color: var(--mint); opacity: .85; white-space: nowrap; }
 .brand .bloom:active { opacity: 1; }
@@ -258,7 +257,7 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
    .gbtn.icon  → icon-only round hit area (close ×)
    kbd inside  → a quiet key hint (↵, Y, L2…). Filled ✓ "confirm" buttons are a
    separate primary action (.gx-btn) and intentionally look different. */
-.gbtn { display: inline-flex; align-items: center; gap: 7px; border: none; background: none; cursor: pointer;
+.gbtn { display: inline-flex; align-items: center; gap: 7px; border: none; background: none; cursor: var(--c-hand);
   font-family: var(--font); font-weight: 600; font-size: 16px; letter-spacing: .02em; line-height: 1;
   color: var(--mint); padding: 8px 6px; border-radius: 999px; white-space: nowrap;
   transition: color .15s ease, background .15s ease, transform .15s ease; }
@@ -281,22 +280,20 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
   box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .15s linear; }
 #toast.show { opacity: 1; }
 
-/* ---------- custom cursor (garden pointer) ----------
-   A normal arrow pointer in mint with a dark outline, and a little leaf
-   sprouting from its tail. The TIP is the hotspot (top-left of the SVG).
-   Invisible when idle; on movement it fades in with a small pop and fades back
-   out after a moment of stillness. */
-#cursor {
-  position: fixed; left: 0; top: 0; z-index: 200;
-  width: 24px; height: 28px; margin: -2px 0 0 -2px; transform-origin: 2px 2px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,.45));
-  pointer-events: none; opacity: 0; transform: scale(1);
-  transition: opacity .25s linear; will-change: left, top;
+/* ---------- cursors (OS-drawn = zero lag) ----------
+   Real CSS cursor images, so the system compositor draws them (a DOM-following
+   cursor always trails a frame or two). Every state is themed so the stock Ubuntu
+   pointer never shows: arrow, hand over anything clickable, I-beam in text.
+   Hidden after 2 s of stillness (body.idle, toggled by wireCursor). */
+:root {
+  --c-arrow: url('/assets/cursors/arrow.svg') 2 2, default;
+  --c-hand: url('/assets/cursors/hand.svg') 10 2, pointer;
+  --c-text: url('/assets/cursors/text.svg') 8 13, text;
 }
-#cursor svg { display: block; }
-#cursor.on { opacity: 1; }
-
-body.night #cursor, body.screenshot #cursor { display: none; }
+html { cursor: var(--c-arrow); } /* inherited by everything without its own cursor */
+a, button, [role="button"], summary, select, .card { cursor: var(--c-hand); }
+input, textarea, [contenteditable="true"] { cursor: var(--c-text); }
+body.idle, body.idle * { cursor: none !important; }
 
 /* ---------- slash-command palette (Claude-Code-style) ----------
    Floats just above the input; filtered as you type; ↑/↓ + Enter to run. */
@@ -307,7 +304,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 #cmdpal[hidden] { display: none; }
 
 .cp-row { display: flex; align-items: baseline; gap: 12px; padding: 11px 18px;
-  cursor: pointer; }
+  cursor: var(--c-hand); }
 .cp-row + .cp-row { border-top: 1px solid var(--stroke); }
 .cp-row.sel { background: rgba(116,247,176,.10); }
 .cp-ic { font-size: 15px; flex: none; }
@@ -321,7 +318,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 .card.focused, #garden > .card[data-wid]:hover {
   border-color: var(--mint);
   box-shadow: var(--glass-edge), 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35);
-  cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
+  cursor: var(--c-hand); transition: border-color .12s ease, box-shadow .12s ease; }
 
 /* ---------- fullscreen widget panel ---------- */
 .panel-widget { padding: 10px 2px; min-height: 220px; }
@@ -331,7 +328,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 /* ---------- clickable / selectable panel rows ----------
    Cursor hover and controller/keyboard selection are IDENTICAL: a mint border
    ring + faint wash, so the highlight looks the same however you drive it. */
-.cl-row.clickable { cursor: pointer; border-radius: 12px;
+.cl-row.clickable { cursor: var(--c-hand); border-radius: 12px;
   transition: background .12s ease, box-shadow .12s ease; }
 .cl-row.clickable:hover, .cl-row.row-sel {
   background: rgba(116,247,176,.08); box-shadow: inset 0 0 0 1px var(--mint); }
@@ -343,19 +340,19 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 .rc-sec { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: .22em; text-transform: uppercase;
   color: var(--ink-faint); margin-top: 6px; }
 .rc-who { display: flex; flex-wrap: wrap; gap: 8px; }
-.rc-chip { font-family: var(--font-mono); font-size: 14px; color: var(--ink-soft); cursor: pointer;
+.rc-chip { font-family: var(--font-mono); font-size: 14px; color: var(--ink-soft); cursor: var(--c-hand);
   background: transparent; border: 1px solid var(--stroke); border-radius: 999px; padding: 7px 15px; }
 .rc-chip.on { color: #042018; background: linear-gradient(120deg, var(--mint), var(--mint-2)); border-color: transparent; font-weight: 600; }
 .rc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .rc-chore { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  font-family: var(--font); font-size: 15px; color: var(--ink); cursor: pointer; text-align: left;
+  font-family: var(--font); font-size: 15px; color: var(--ink); cursor: var(--c-hand); text-align: left;
   background: transparent; border: 1px solid var(--stroke); border-radius: 14px; padding: 13px 15px; }
 .rc-chore.on { border-color: var(--mint); box-shadow: inset 0 0 0 1px var(--mint); background: rgba(116,247,176,.08); }
 .rc-chore .rc-pt { font-family: var(--font-mono); font-size: 13px; color: var(--mint); flex: none; }
 .rc-log { margin-top: 8px; font-family: var(--font-display); font-weight: 600; font-size: 17px; color: #042018;
   background: linear-gradient(120deg, var(--mint), var(--mint-2)); border: none; border-radius: 16px;
-  padding: 15px; cursor: pointer; }
-.rc-log:disabled { background: var(--glass-2); color: var(--ink-faint); cursor: default; }
+  padding: 15px; cursor: var(--c-hand); }
+.rc-log:disabled { background: var(--glass-2); color: var(--ink-faint); cursor: var(--c-arrow); }
 .rc-board { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-top: 4px; }
 .rc-rank { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); }
 
@@ -386,7 +383,7 @@ body.night #cursor, body.screenshot #cursor { display: none; }
 
 /* ---------- hand pruning (right-click → edit in place) ---------- */
 .pruning { outline: 1px dashed var(--stroke-strong); outline-offset: 3px; border-radius: 6px;
-  caret-color: var(--mint); background: rgba(116,247,176,.06); cursor: text; }
+  caret-color: var(--mint); background: rgba(116,247,176,.06); cursor: var(--c-text); }
 
 /* ---------- Cmd+↑ markdown editor (full-screen take on the command line) ---------- */
 /* The Cmd+↑ note window rises from the command line and overlays the bottom of the
@@ -431,7 +428,7 @@ body.night #nightveil { opacity: 1; pointer-events: auto; }
   letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.4); }
 .ta-sub { font-size: 24px; line-height: 1.4; max-width: 620px; color: #fff; opacity: .94; margin-top: 6px; }
 #trashAck { margin-top: 34px; font-family: var(--font); font-size: 24px; font-weight: 700;
-  padding: 20px 44px; border-radius: 999px; cursor: pointer; color: #7a0a04;
+  padding: 20px 44px; border-radius: 999px; cursor: var(--c-hand); color: #7a0a04;
   background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 #trashAck:active { transform: scale(.97); }
 .ta-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
@@ -454,7 +451,7 @@ body.screenshot #trashalarm { display: none !important; }
   letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.4); }
 .sa-sub { font-size: 24px; line-height: 1.4; max-width: 640px; color: #fff; opacity: .94; margin-top: 6px; }
 #streetAck { margin-top: 34px; font-family: var(--font); font-size: 24px; font-weight: 700;
-  padding: 20px 44px; border-radius: 999px; cursor: pointer; color: #06346a;
+  padding: 20px 44px; border-radius: 999px; cursor: var(--c-hand); color: #06346a;
   background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
 #streetAck:active { transform: scale(.97); }
 .sa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
@@ -478,7 +475,7 @@ body.screenshot #streetalarm { display: none !important; }
   max-height: 46vh; overflow: auto; }
 .pa-sub.note { font-size: 25px; text-align: left; line-height: 1.55; }
 #plantAck { margin-top: 28px; font-family: var(--font); font-size: 24px; font-weight: 700;
-  padding: 20px 44px; border-radius: 999px; cursor: pointer; color: #0a4a2a;
+  padding: 20px 44px; border-radius: 999px; cursor: var(--c-hand); color: #0a4a2a;
   background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
 #plantAck:active { transform: scale(.97); }
 .pa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
@@ -572,9 +569,9 @@ body.screenshot #plantalarm { display: none !important; }
 /* delete control on a pending /notes row */
 .cl-row .note-del { flex: 0 0 auto; align-self: center; font-size: 16px; line-height: 1;
   background: rgba(255,155,176,.10); border: 1px solid var(--stroke); border-radius: 10px;
-  color: var(--rose); cursor: pointer; padding: 8px 11px; transition: filter .15s ease; }
+  color: var(--rose); cursor: var(--c-hand); padding: 8px 11px; transition: filter .15s ease; }
 .cl-row .note-del:hover { filter: brightness(1.2); border-color: var(--stroke-strong); }
-.cl-row .note-del:disabled { opacity: .4; cursor: default; }
+.cl-row .note-del:disabled { opacity: .4; cursor: var(--c-arrow); }
 
 /* /grow — run a tending now on the planted notes (the "selection") */
 .grow { display: flex; flex-direction: column; gap: 16px; }
@@ -585,9 +582,9 @@ body.screenshot #plantalarm { display: none !important; }
 .grow-foot { margin-top: 6px; }
 .grow-go { font-family: var(--font-display); font-weight: 700; font-size: 19px; color: #08110d;
   background: linear-gradient(120deg, var(--mint), var(--mint-2)); border: none; border-radius: 14px;
-  padding: 14px 26px; cursor: pointer; box-shadow: 0 4px 18px rgba(116,247,176,.3); }
+  padding: 14px 26px; cursor: var(--c-hand); box-shadow: 0 4px 18px rgba(116,247,176,.3); }
 .grow-go:hover { filter: brightness(1.05); }
-.grow-go:disabled { opacity: .5; cursor: default; }
+.grow-go:disabled { opacity: .5; cursor: var(--c-arrow); }
 .grow-running { font-size: 16px; color: var(--mint); line-height: 1.5; border: 1px solid var(--stroke);
   border-radius: 14px; padding: 14px 18px; background: rgba(116,247,176,.06); }
 

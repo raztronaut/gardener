@@ -1749,19 +1749,17 @@ function wireFeedback() {
 
 // ---- custom green-dot cursor ------------------------------------------------
 function wireCursor() {
-  const cur = document.getElementById('cursor');
-  if (!cur) return;
-  let on = false, hideT;
-  window.addEventListener('mousemove', (e) => {
-    cur.style.left = `${e.clientX}px`;
-    cur.style.top = `${e.clientY}px`;
-    if (!on) { // first move after stillness → fade in big, then shrink to default
-      on = true;
-      cur.classList.remove('on'); void cur.offsetWidth; cur.classList.add('on');
-    }
+  // The cursor itself is a CSS image (drawn by the OS — no lag). This only hides it
+  // after 2 s of stillness and brings it back on the next move.
+  let hideT;
+  const wake = () => {
+    if (document.body.classList.contains('idle')) document.body.classList.remove('idle');
     clearTimeout(hideT);
-    hideT = setTimeout(() => { on = false; cur.classList.remove('on'); }, 2000);
-  }, { passive: true });
+    hideT = setTimeout(() => document.body.classList.add('idle'), 2000);
+  };
+  window.addEventListener('mousemove', wake, { passive: true });
+  window.addEventListener('pointerdown', wake, { passive: true });
+  document.body.classList.add('idle');
 }
 
 // ---- corner Plant-a-Note QR -------------------------------------------------
