@@ -322,14 +322,31 @@ const MONTHS = (() => {
 const STYLE = `
   .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:9px; }
   .gd-top { flex:0 0 auto; display:flex; align-items:baseline; gap:12px; }
-  .gd-day { font-family:var(--font-display); font-weight:700; font-size:44px; line-height:.85; color:var(--ink); }
-  .gd-day small { font-size:13px; font-weight:600; color:var(--ink-faint); letter-spacing:.08em; margin-right:5px; }
-  .gd-st { font-family:var(--font-display); font-size:20px; font-weight:400; color:var(--mint); }
-  .gd-light { margin-left:auto; font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); }
+  .gd-day { font-family:var(--font-display); font-size:30px; line-height:1; color:var(--ink); }
+  .gd-st { font-family:var(--font-display); font-size:30px; line-height:1; color:var(--mint); }
+  /* today's answer, top-right: quiet when nothing's due, gold when something is */
+  .gd-today { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:15px; color:var(--ink-soft); white-space:nowrap; }
+  .gd-today .ic { font-size:16px; color:var(--mint); }
+  .gd-today.due { color:var(--gold); font-weight:600; }
+  .gd-today.due .ic { color:var(--gold); }
+  /* the next two steps — an agenda (hairlines, no boxes), like Out in SF */
+  .gd-agenda { flex:0 0 auto; display:flex; flex-direction:column; }
+  .gd-ag { display:grid; grid-template-columns:18px 1fr auto 34px; align-items:center; column-gap:9px; padding:6px 0;
+    border-bottom:1px solid var(--stroke); font-size:14px; color:var(--ink); }
+  .gd-ag:first-child { border-top:1px solid var(--stroke); }
+  .gd-ag .ic { font-size:16px; }
+  .gd-ag.water .ic { color:#5fb6ff; }
+  .gd-ag.task .ic { color:var(--gold); }
+  .gd-ag .dt { font-size:13px; color:var(--ink-soft); }
+  .gd-ag .in { font-size:13px; color:var(--ink-faint); text-align:right; }
+  /* axis care icons — WHAT happens on that date */
+  .gd-axis .am { position:absolute; top:15px; transform:translateX(-50%); font-size:12px; display:flex; }
+  .gd-axis .am.w { color:#5fb6ff; }
+  .gd-axis .am.t { color:var(--gold); }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
   .gd-row, .gd-axis { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
-  .gd-axis { height:18px; flex:0 0 auto; }
+  .gd-axis { height:30px; flex:0 0 auto; }
   .gd-axis .wk { position:absolute; bottom:0; width:1px; height:3px; background:var(--stroke-strong); }
   .gd-axis .cm { position:absolute; bottom:0; width:2px; height:6px; margin-left:-1px; border-radius:1px; }
   .gd-axis .cm.w { background:#5fb6ff; }
@@ -412,7 +429,16 @@ function groupRow(h, kind, plants, day) {
 // "in 3 days" / "today" / "tomorrow" / "overdue 2d".
 const inDays = (d, day) => (d === day ? 'today' : d === day + 1 ? 'tomorrow' : d > day ? `in ${d - day} days` : `${day - d}d overdue`);
 
-// "in 6d" style day count (or today / Nd late), shared by rails + how-tos.
+// What needs doing: everything due today (or overdue), then the next steps.
+function agenda(day, log) {
+  const { water, task } = careEvents(day, log);
+  const all = [...water.map((e) => ({ ...e, k: 'water' })), ...task.map((e) => ({ ...e, k: 'task' }))]
+    .sort((a, b) => a.d - b.d);
+  const due = all.filter((e) => e.d <= day);
+  const next = all.filter((e) => e.d > day);
+  return { due, next };
+}
+// "in 6d" style day count (or today / Nd late), shared by the tile + how-tos.
 const daysTxt = (d, day) => (d === day ? 'today' : d < day ? `${day - d}d late` : `${d - day}d`);
 
 // Care lives ON the timeline: two thin rails (Water, Tasks) share the plants' time
@@ -424,7 +450,7 @@ function careEvents(day, log) {
   const water = waterPlan(day, 18, log).filter((w) => w.d <= AXIS_DAYS)
     .map((w) => ({ d: w.d, ic: WATER_ICON[w.kind], minor: w.kind === 'top', label: w.kind === 'refresh' ? 'Tank refresh' : w.kind === 'dose' ? 'Sprout dose' : 'Check water', tip: `${w.t} — ${w.amt}` }));
   const task = tasks(log).filter((c) => c.done == null && endOf(c) >= day && c.d <= AXIS_DAYS).sort((a, b) => a.d - b.d)
-    .map((c) => ({ d: c.d, to: c.to, ic: c.ic, label: c.short, tip: `${c.t} — ${c.how}` }));
+    .map((c) => ({ id: c.id, d: c.d, to: c.to, ic: c.ic, label: c.short, tip: `${c.t} — ${c.how}` }));
   const done = doneLog(log).filter((e) => e.d >= 0 && e.d <= AXIS_DAYS);
   return { water, task, done };
 }
@@ -454,19 +480,17 @@ function chart(h, day, detailed, log = DEFAULT_LOG) {
     : [...of('flower').map((p) => ({ ...p, el: () => row(h, p, day) })),
       ...['green', 'herb'].map((k) => ({ ...first(of(k)), el: () => groupRow(h, k, of(k), day) }))]
       .sort(soon).map((r) => r.el());
+  // Axis marks carry meaning: an icon at each notable care date (tank refresh,
+  // thinning, replacement check, blooms…) — routine weekly checks are left off.
   const care = careEvents(day, log);
-  const weeks = []; for (let d = 7; d < AXIS_DAYS; d += 7) weeks.push(d);
+  // Only real chores (blooms are already the pink bars; weekly checks are routine).
+  const marks = [...care.water.filter((e) => !e.minor), ...care.task.filter((e) => ['sprout', 'thin', 'replace', 'roots', 'refresh'].includes(e.id))].filter((e) => e.d > day);
   return h('div', { class: 'gd-chart' },
     h('div', { class: 'gd-axis' }, h('div', {}),
       h('div', { class: 'ticks' },
         ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t)),
-        ...weeks.map((d) => h('i', { class: 'wk', style: { left: pct(d) } })),
-        ...care.water.filter((e) => !e.minor).map((e) => h('i', { class: 'cm w', style: { left: pct(e.d) } })),
-        ...care.task.map((e) => h('i', { class: 'cm t', style: { left: pct(e.d) } }))),
+        ...marks.map((e) => h('span', { class: `am ${care.water.includes(e) ? 'w' : 't'}`, style: { left: pct(e.d) }, title: `${e.label} · ${fmtDay(e.d)}` }, icon(e.ic)))),
       h('div', {})),
-    h('div', { class: 'gd-rails' },
-      rail(h, 'water', care.water, care.done.filter((e) => e.id === 'water' || e.id === 'sprout'), day),
-      rail(h, 'task', care.task, care.done.filter((e) => e.id !== 'water' && e.id !== 'sprout'), day)),
     h('div', { class: 'gd-rows' }, ...rows));
 }
 
@@ -486,11 +510,21 @@ async function record(body) {
 
 function build(h, body, tz, log = LOG) {
   const day = todayIndex(tz);
+  const { due, next } = agenda(day, log);
+  // The one question the tile must answer at a glance: anything to do today?
+  const today = due.length
+    ? h('div', { class: 'gd-today due', title: due.map((e) => e.tip).join('\n') }, icon(due[0].ic),
+      h('span', {}, due.length > 1 ? `Today: ${due[0].label} +${due.length - 1}` : `Today: ${due[0].label}`))
+    : h('div', { class: 'gd-today' }, icon('check'), h('span', {}, 'Nothing today'));
+  const line = (e) => h('div', { class: `gd-ag ${e.k}`, title: e.tip },
+    icon(e.ic), h('span', { class: 'lb' }, e.label),
+    h('span', { class: 'dt' }, fmtDay(e.d)), h('span', { class: 'in' }, `${e.d - day}d`));
   body.replaceChildren(h('div', { class: 'gd' },
     h('div', { class: 'gd-top' },
-      h('div', { class: 'gd-day' }, h('small', {}, 'DAY'), String(Math.max(0, day))),
+      h('div', { class: 'gd-day' }, `Day ${Math.max(0, day)}`),
       h('div', { class: 'gd-st' }, gardenStage(day)),
-      h('div', { class: 'gd-light', title: 'Lights 14 h/day Sep 20–22, 16 h/day since Sep 23 (Gardyn recommends 14–16 h)' }, `${LIGHT_HOURS}h ☀`)),
+      today),
+    h('div', { class: 'gd-agenda' }, ...next.slice(0, 2).map(line)),
     chart(h, day, false, log)));
 }
 
