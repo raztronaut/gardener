@@ -333,10 +333,10 @@ let padMode = false;
 function updateCloseHint() {
   const b = document.getElementById('panelClose');
   if (!b) return;
-  if (!padMode) { b.textContent = 'esc · close ✕'; return; }
-  // Pages: Y goes back. Games: Y is a game button, so L2 leaves.
-  if (window.__GARDEN_GAME) b.innerHTML = '<span class="kcap">L2</span> leave';
-  else b.innerHTML = '<span class="kcap">Y</span> back';
+  // A plain × (no text). With the controller, a quiet key hint joins it:
+  // pages close with Y; games use Y in-game, so L2 leaves.
+  const x = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  b.innerHTML = !padMode ? x : `${x}<kbd>${window.__GARDEN_GAME ? 'L2' : 'Y'}</kbd>`;
 }
 function setPadMode(on) { if (padMode !== on) { padMode = on; updateCloseHint(); } }
 
@@ -1526,6 +1526,34 @@ function wirePad() {
 }
 
 // ---- feedback bar -----------------------------------------------------------
+// ---- MX Master 3 thumb buttons -----------------------------------------------
+// The two side buttons arrive as mouse buttons 4 (forward = TOP) and 3 (back =
+// BOTTOM). Top: press "Done" on a big announcement if one is up (trash to curb,
+// move the car, water the plants), otherwise open Gardyn fullscreen. Bottom: go
+// back — out of a Gardyn how-to, then close the panel. We swallow every event
+// phase so the browser never treats them as history back/forward.
+function wireMouseSide() {
+  const forward = () => {
+    const alarm = ['trashalarm', 'streetalarm', 'plantalarm'].map((id) => document.getElementById(id))
+      .find((el) => el && el.classList.contains('on'));
+    if (alarm) { alarm.querySelector('button')?.click(); return; }
+    if (paletteOpen()) hidePalette();
+    if (!(panelOpen() && document.querySelector('#panel .gx'))) openWidgetPanel('gardyn');
+  };
+  const back = () => {
+    if (paletteOpen()) { hidePalette(); return; }
+    const hw = document.querySelector('#panel .hw-back');
+    if (hw) { hw.click(); return; }
+    if (panelOpen()) closePanel();
+  };
+  const onBtn = (e) => {
+    if (e.button !== 3 && e.button !== 4) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === 'mouseup') (e.button === 4 ? forward : back)();
+  };
+  for (const t of ['mousedown', 'mouseup', 'auxclick', 'pointerdown', 'pointerup', 'click']) window.addEventListener(t, onBtn, true);
+}
+
 // ---- Cmd/Ctrl + ↑ : expand the command line into a larger writing window ------
 // Just a bigger plain-text box for longer notes. Enter plants (Shift+Enter makes
 // a newline); Cmd/Ctrl + ↓ or Esc returns to the command line. No markdown.
@@ -1780,6 +1808,7 @@ if (SCREENSHOT && qs.has('bar')) document.body.classList.add('qa-bar'); // QA: s
 wireFeedback();
 wireEditing(); // right-click hand-pruning of titles/labels
 if (!SCREENSHOT) wirePad(); // controller bridge (skip in QA captures)
+wireMouseSide(); // MX Master thumb buttons: top = Gardyn / confirm, bottom = back
 wireTrashAlarm();
 wireStreetAlarm();
 wirePlantAlarm();

@@ -257,15 +257,27 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 #feedbackInput { flex: 1; background: transparent; border: none; outline: none;
   color: var(--ink); font-size: 15px; font-family: var(--font-mono); font-weight: 400; letter-spacing: 0; }
 #feedbackInput::placeholder { color: var(--ink-faint); }
-/* Pill buttons (Plant, Trash to curb): the wall's own language — a soft translucent
-   pill, card-title lettering, a line icon. No gradients, borders or glow. */
-#feedbackSend, .trashpill { display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
-  font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: .1em; text-transform: uppercase;
-  line-height: 1; color: var(--mint); background: rgba(255,255,255,.07); border-radius: 999px; padding: 10px 16px;
-  box-shadow: none; transition: background .15s ease, transform .15s ease; }
-#feedbackSend svg, .trashpill svg { width: 17px; height: 17px; flex: 0 0 auto; }
-#feedbackSend:hover, .trashpill:hover { background: rgba(255,255,255,.12); }
-#feedbackSend:active, .trashpill:active { transform: scale(.96); }
+/* ---- .gbtn — the wall's ONE button component ---------------------------------
+   Plain mint text + a line icon, Barlow 600, no box. Used by Plant seed, Trash to
+   curb, the panel close (×) and the Gardyn how-to Back. Variants:
+   .gbtn.icon  → icon-only round hit area (close ×)
+   kbd inside  → a quiet key hint (↵, Y, L2…). Filled ✓ "confirm" buttons are a
+   separate primary action (.gx-btn) and intentionally look different. */
+.gbtn { display: inline-flex; align-items: center; gap: 7px; border: none; background: none; cursor: pointer;
+  font-family: var(--font); font-weight: 600; font-size: 16px; letter-spacing: .02em; line-height: 1;
+  color: var(--mint); padding: 8px 6px; border-radius: 999px; white-space: nowrap;
+  transition: color .15s ease, background .15s ease, transform .15s ease; }
+.gbtn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.gbtn:hover { color: #b9ffd6; background: rgba(255,255,255,.06); }
+.gbtn:active { transform: scale(.96); }
+.gbtn:focus { outline: none; }
+.gbtn:focus-visible { background: rgba(255,255,255,.06); }
+.gbtn kbd { font-family: var(--font); font-size: 12px; font-weight: 400; color: var(--ink-faint);
+  border: 1px solid var(--stroke); border-radius: 6px; padding: 2px 6px; margin-left: 2px; }
+.gbtn.icon { width: 40px; height: 40px; padding: 0; justify-content: center; color: var(--ink-soft); }
+.gbtn.icon svg { width: 22px; height: 22px; }
+.gbtn.icon:has(kbd) { width: auto; padding: 0 10px; gap: 8px; }
+.gbtn.quiet { color: var(--ink-soft); }
 
 /* ---------- toast ---------- */
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%) translateY(20px);
@@ -534,15 +546,8 @@ body.screenshot #plantalarm { display: none !important; }
 }
 .panel-head { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 24px 28px 14px; }
 #panelTitle { font-family: var(--font-display); font-size: 25px; color: var(--ink); }
-.panel-close { font-family: var(--font-mono); font-size: 13px; letter-spacing: .06em; color: var(--ink-soft);
-  background: rgba(255,255,255,.05); border: 1px solid var(--stroke); border-radius: 999px;
-  padding: 7px 14px; cursor: pointer; white-space: nowrap; }
-.panel-close:hover { color: var(--ink); border-color: var(--stroke-strong); }
-/* controller close hint — a little shoulder-button keycap before "leave" */
-.panel-close .kcap { display: inline-block; font-family: var(--font-mono); font-weight: 600;
-  font-size: 12.5px; letter-spacing: .04em; color: #062018; margin-right: 6px;
-  background: linear-gradient(160deg, var(--mint), var(--mint-2));
-  border-radius: 7px; padding: 2px 7px 3px; box-shadow: 0 1px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.4); }
+.panel-close { align-self: center; } /* look comes from .gbtn.icon */
+
 .panel-card:focus { outline: none; }
 /* Native overflow scrolling: the chromium kiosk threads/composites it (smooth);
    panelScrollBy() in app.js drives it. */

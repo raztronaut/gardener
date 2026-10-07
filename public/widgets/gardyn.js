@@ -113,6 +113,7 @@ const ICON = {
   search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.6-4.6"/>',
   roots: '<path d="M12 3v8"/><path d="M12 11c-1.5 2.5-4.5 3.8-6.5 8M12 11c1.5 2.5 4.5 3.8 6.5 8M12 11v9"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/>',
   sprout: '<path d="M12 21v-8"/><path d="M12 13c0-4-3-6-7-6 0 4 3 6 7 6zM12 13c0-3 2.5-5 6-5 0 3-2.5 5-6 5z"/>',
 };
@@ -519,7 +520,7 @@ const qr = (h, url) => h('img', { class: 'hw-qr', alt: '', src: `/api/proxy?url=
 // per-pod keep list for thinning, and QR codes for the video + Gardyn article.
 function renderHow(h, body, key, item, day, log) {
   const hw = HOWTO[key];
-  const back = h('button', { class: 'hw-back', type: 'button' }, '← Back');
+  const back = h('button', { class: 'hw-back gbtn quiet', type: 'button' }, icon('back'), 'Back');
   back.addEventListener('click', () => renderFull(h, body, day, log));
   const ic = item.ic || WATER_ICON[item.kind] || 'sprout';
   const when = item.to != null ? `${fmtDay(item.d)} – ${fmtDay(item.to)}` : fmtDay(item.d);
@@ -741,8 +742,7 @@ const FULL_STYLE = `
   .gx-btn.arm { background:var(--gold); box-shadow:0 0 0 3px color-mix(in srgb, var(--gold) 35%, transparent); }
   /* how-to view */
   .hw { gap:20px; }
-  .hw-back { align-self:flex-start; font-family:var(--font); font-size:15px; color:var(--ink-soft); background:rgba(255,255,255,.06);
-    border:none; border-radius:999px; padding:8px 16px; cursor:pointer; }
+  .hw-back { align-self:flex-start; margin-left:-6px; } /* look from the shared .gbtn */
   .hw-hero { display:flex; align-items:center; gap:18px; }
   .hw-ic { width:64px; height:64px; border-radius:50%; display:grid; place-items:center; font-size:30px; color:var(--gold);
     background:color-mix(in srgb, var(--gold) 15%, transparent); flex:0 0 auto; }
