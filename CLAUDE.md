@@ -31,10 +31,15 @@ visual review, and deployed only on green via git.
 `public/lib/lgr.js` is a plain-DOM port of liquid-glass-react (MIT, Max Rovensky):
 a warp layer (`backdrop-filter: blur saturate` + SVG `filter:url(#lgr)` with the
 library's displacement map and RGB chromatic aberration at the edges), a tint, and
-two cursor-lit rim layers. **Currently DISABLED** (app.js `LGLASS = null`): on the
-kiosk (SwiftShader, GPU blocklisted) an open glass panel measured 1–2 fps vs 60
-without it — live backdrop/SVG filters re-run on every repaint. Don't re-enable
-without a GPU. Also: never use animated SVG icons on the wall (the Meteocons'
+two cursor-lit rim layers, on the fullscreen panel only (~29 fps scrolling on the
+Tegra GPU; cards stay plain — 13 fps with glass). Needs the GPU kiosk below.
+
+## GPU kiosk
+The snap chromium can't see the Tegra NVIDIA libs (snap confinement) → SwiftShader.
+`scripts/gardener.sh kiosk` runs a non-snap Chromium (Chrome for Testing arm64 in
+`~/.local/share/gardener-chrome/`, from Playwright) with `--ignore-gpu-blocklist
+--use-gl=angle --use-angle=gles-egl` → "NVIDIA Tegra Orin (nvgpu), OpenGL ES 3.2",
+GPU compositing/raster/WebGL on. `GARDENER_KIOSK=snap` falls back to the snap. Also: never use animated SVG icons on the wall (the Meteocons'
 SMIL animation kept the kiosk's GPU process at ~100% CPU; weather uses
 `assets/weather/still/`). `#panel` must NOT animate
 opacity/filter — that makes it a backdrop root and the glass would only see the veil.

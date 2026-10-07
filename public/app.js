@@ -384,9 +384,11 @@ function reservePanelSize(title) {
     try { if (h2 > 120) localStorage.setItem(PANEL_KEY(title), String(h2)); } catch { /* ignore */ }
   }, 1500);
 }
-// Live liquid glass (lib/lgr.js) is OFF: measured on the kiosk (SwiftShader, no GPU)
-// an open glass panel ran at 1–2 fps vs 60 without — every repaint re-filters it.
-const LGLASS = null;
+// Live liquid glass on the fullscreen panel (lib/lgr.js). Needs the GPU kiosk:
+// measured on the Tegra GPU an open glass panel scrolls at ~29 fps (60 without) —
+// on the old SwiftShader kiosk it was 1–2 fps. Cards stay plain (13 fps with glass).
+let LGLASS = null;
+import(`/lib/lgr.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { LGLASS = m; }).catch(() => {});
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
   if (!keepStack) reservePanelSize(title);

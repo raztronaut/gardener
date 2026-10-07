@@ -106,6 +106,21 @@ case "$cmd" in
       SURF="$HOME/.local/bin/surf"; [ -x "$SURF" ] || SURF="surf"
       exec "$SURF" -F "http://127.0.0.1:$PORT"
     fi
+    # GPU kiosk (2026-10-07): the SNAP chromium can't reach the Tegra NVIDIA libs
+    # (snap confinement) and falls back to SwiftShader. A non-snap Chromium build
+    # (Chrome for Testing arm64, copied to ~/.local/share/gardener-chrome) with
+    # ANGLE on GLES/EGL gets the real GPU: "NVIDIA Tegra Orin (nvgpu), OpenGL ES 3.2".
+    GPUCHROME="${GARDENER_GPU_CHROME:-$HOME/.local/share/gardener-chrome/chrome-linux-arm64/chrome}"
+    if [ "$ENGINE" != "snap" ] && [ -x "$GPUCHROME" ]; then
+      exec "$GPUCHROME" --kiosk "http://127.0.0.1:$PORT" \
+        --user-data-dir="$HOME/.config/gardener-kiosk-gpu" \
+        --ignore-gpu-blocklist --use-gl=angle --use-angle=gles-egl \
+        --enable-gpu-rasterization --enable-zero-copy \
+        --noerrdialogs --disable-session-crashed-bubble --disable-infobars --test-type \
+        --no-first-run --password-store=basic --disable-features=OverlayScrollbar \
+        --remote-debugging-port=9223 \
+        --window-position=0,0 --window-size=900,1600
+    fi
     exec /snap/bin/chromium --kiosk "http://127.0.0.1:$PORT" \
       --user-data-dir="$HOME/.config/gardener-kiosk-chrome" \
       --noerrdialogs --disable-session-crashed-bubble --disable-infobars \
