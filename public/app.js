@@ -264,11 +264,16 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
-    // EXPERIMENT (2026-10-07): liquid glass on the framed widget cards too. Measured
-    // 13 fps while those cards repaint (GPU kiosk). Revert = delete this block.
-    import(`/lib/lgr.js?v=${window.__GARDEN_VERSION}`).then((m) => {
-      document.querySelectorAll('#garden > .card:not(.bare):not(.unframed)').forEach((c) => m.liquidGlass(c));
-    }).catch(() => {});
+    // BAKED liquid glass (lib/glassbake.js): the cards' glass is computed once from
+    // the static aurora; the panel's from a wall snapshot refreshed every minute
+    // while no panel is open. No per-frame filter cost.
+    setTimeout(() => GB_READY.then((gb) => {
+      gb.bakeCards([...document.querySelectorAll('#garden > .card:not(.bare):not(.unframed)')]);
+      if (!SCREENSHOT) {
+        const snapNow = () => { if (!panelOpen()) gb.refreshSnapshot(); };
+        setTimeout(snapNow, 2500); setInterval(snapNow, 60 * 1000);
+      }
+    }), 800);
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
     if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }
@@ -389,11 +394,10 @@ function reservePanelSize(title) {
     try { if (h2 > 120) localStorage.setItem(PANEL_KEY(title), String(h2)); } catch { /* ignore */ }
   }, 1500);
 }
-// Live liquid glass on the fullscreen panel (lib/lgr.js). Needs the GPU kiosk:
-// measured on the Tegra GPU an open glass panel scrolls at ~29 fps (60 without) —
-// on the old SwiftShader kiosk it was 1–2 fps. Cards stay plain (13 fps with glass).
-let LGLASS = null;
-import(`/lib/lgr.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { LGLASS = m; }).catch(() => {});
+// Baked liquid glass (lib/glassbake.js) — computed once, shown as an image.
+// (The live version, lib/lgr.js, ran the panel at 29 fps / cards at 13 fps.)
+let GB = null;
+const GB_READY = import(`/lib/glassbake.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => (GB = m)).catch(() => null);
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
   if (!keepStack) reservePanelSize(title);
@@ -411,8 +415,13 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   readerFrame = null;
   document.getElementById('panelBody')?.classList.remove('reading'); // cleared unless openReader re-adds it
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
-  // Liquid glass (liquid-glass-react port, lib/lgr.js): the wall bends + fringes at the rim.
-  if (LGLASS) LGLASS.liquidGlass(p.querySelector('.panel-card'));
+  // Baked liquid glass on the panel: tint + rims now, the baked image a frame later.
+  const pc = p.querySelector('.panel-card');
+  if (GB) {
+    GB.glassLayers(pc);
+    clearTimeout(openPanel.gbT);
+    openPanel.gbT = setTimeout(() => GB.bakePanel(pc).then((ok) => pc.classList.toggle('nosnap', !ok)), 30);
+  }
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the
   // page until something focusable holds focus; a <button> reliably does, where a

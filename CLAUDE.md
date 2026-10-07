@@ -27,12 +27,17 @@ visual review, and deployed only on green via git.
   highest-priority law; the agent may append rules but never weaken them. When the user
   says "stop adding X for good" / "I keep removing X", record it there.
 
-## Liquid glass (fullscreen panel)
-`public/lib/lgr.js` is a plain-DOM port of liquid-glass-react (MIT, Max Rovensky):
-a warp layer (`backdrop-filter: blur saturate` + SVG `filter:url(#lgr)` with the
-library's displacement map and RGB chromatic aberration at the edges), a tint, and
-two cursor-lit rim layers, on the fullscreen panel only (~29 fps scrolling on the
-Tegra GPU; cards stay plain — 13 fps with glass). Needs the GPU kiosk below.
+## Liquid glass (baked)
+`public/lib/glassbake.js` reproduces liquid-glass-react's look (MIT; backdrop blur 6px
++ saturate 140%, then the library's displacement map per colour channel at scales
+70/77/84) ONCE in JS and shows it as a plain image (`.gb-img`), so there is no
+per-frame filter cost — nothing behind the glass moves. Cards bake from the static
+`aurora-blur.jpg`; the fullscreen panel bakes from a wall screenshot
+(`GET /api/wall-snapshot`, server → kiosk debug port 9223) refreshed every minute
+while no panel is open, cached per panel size. Only the cursor-lit rims are live.
+Measured on the kiosk: panel opens 33 ms, glass appears ~250 ms later, 60 fps.
+`lib/lgr.js` (the live port) is kept for reference but unused (29 / 13 fps).
+`#panel` must NOT animate opacity/filter (backdrop root).
 
 ## GPU kiosk
 The snap chromium can't see the Tegra NVIDIA libs (snap confinement) → SwiftShader.

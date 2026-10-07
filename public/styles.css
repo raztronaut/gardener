@@ -230,6 +230,11 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .panel-card.lgr { position: relative; background: transparent; border-color: transparent;
   box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
 .panel-card.lgr::before { display: none; }
+.gb-img { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
+  background-size: 100% 100%; opacity: 0; transition: opacity .15s linear; }
+.gb-img.in { opacity: 1; }
+/* no wall snapshot (QA / snap kiosk): fall back to the solid panel */
+.panel-card.lgr.nosnap { background: #0c1f19; }
 /* widget cards as liquid glass (experiment): warp/tint replace the frosted bg */
 .card.lgr { background: transparent; border-color: transparent; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
 .card.lgr > .card-title { z-index: 1; }

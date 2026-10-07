@@ -510,6 +510,16 @@ const server = http.createServer(async (req, res) => {
     }
     // ---- Gardyn care log (✓ Done buttons in the Gardyn fullscreen). Localhost-only
     // wall server, so only the wall writes it. Stored as one JSON value in kv.
+    // ---- Wall snapshot for the baked liquid-glass panel (lib/glassbake.js): a JPEG
+    // of the live kiosk page via its debug port. Localhost-only server; the client
+    // only asks while no panel is open. 404 when there's no kiosk (QA / smoke).
+    if (req.method === 'GET' && p === '/api/wall-snapshot') {
+      try {
+        const jpg = await kioskSnapshot();
+        res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': jpg.length, 'Cache-Control': 'no-store' });
+        return res.end(jpg);
+      } catch { return json(res, 404, { error: 'no kiosk' }); }
+    }
     // ---- Fractal art (widget "Fractal"): current 3-hour slot's raymarched still.
     if (req.method === 'GET' && p === '/api/fractal') {
       let meta = null; try { meta = JSON.parse(readFileSync(join(FRACTAL_DIR, 'fractal.json'), 'utf8')); } catch { /* not rendered yet */ }
@@ -688,6 +698,25 @@ server.on('error', (e) => {
 // Never let an unexpected throw take the dashboard down.
 process.on('uncaughtException', (e) => log(`uncaughtException: ${e.stack || e}`));
 process.on('unhandledRejection', (e) => log(`unhandledRejection: ${e}`));
+
+// Screenshot the kiosk's wall page through its Chrome debug port (scripts/gardener.sh
+// starts the kiosk with --remote-debugging-port=9223).
+async function kioskSnapshot() {
+  const port = process.env.GARDENER_KIOSK_DEBUG_PORT || '9223';
+  const list = await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1500) })).json();
+  const page = list.find((t) => t.type === 'page' && /^http:\/\/127\.0\.0\.1:\d+\/(\?.*)?$/.test(t.url));
+  if (!page) throw new Error('no kiosk page');
+  const ws = new WebSocket(page.webSocketDebuggerUrl);
+  try {
+    await new Promise((ok, bad) => { ws.onopen = ok; ws.onerror = bad; setTimeout(() => bad(new Error('timeout')), 2000); });
+    const data = await new Promise((ok, bad) => {
+      ws.onmessage = (e) => { const d = JSON.parse(e.data); if (d.id === 1) (d.result ? ok(d.result.data) : bad(new Error('capture failed'))); };
+      ws.send(JSON.stringify({ id: 1, method: 'Page.captureScreenshot', params: { format: 'jpeg', quality: 88 } }));
+      setTimeout(() => bad(new Error('timeout')), 4000);
+    });
+    return Buffer.from(data, 'base64');
+  } finally { try { ws.close(); } catch { /* ignore */ } }
+}
 
 // Fractal scheduler: keep the current slot rendered (worker threads, ~20 s every
 // 3 h). Disabled for the smoke server (GARDENER_FRACTAL=0) to keep tests light.
