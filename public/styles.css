@@ -230,6 +230,10 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .panel-card.lgr { position: relative; background: transparent; border-color: transparent;
   box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
 .panel-card.lgr::before { display: none; }
+/* widget cards as liquid glass (experiment): warp/tint replace the frosted bg */
+.card.lgr { background: transparent; border-color: transparent; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
+.card.lgr > .card-title { z-index: 1; }
+.card.lgr > .card-body { position: relative; z-index: 1; }
 .panel-card.lgr > .panel-head, .panel-card.lgr > .panel-body { position: relative; z-index: 1; }
 .lgr-tint { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
   background: linear-gradient(180deg, rgba(12, 30, 25, .46), rgba(8, 22, 18, .58)); }

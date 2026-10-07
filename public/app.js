@@ -264,6 +264,11 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
+    // EXPERIMENT (2026-10-07): liquid glass on the framed widget cards too. Measured
+    // 13 fps while those cards repaint (GPU kiosk). Revert = delete this block.
+    import(`/lib/lgr.js?v=${window.__GARDEN_VERSION}`).then((m) => {
+      document.querySelectorAll('#garden > .card:not(.bare):not(.unframed)').forEach((c) => m.liquidGlass(c));
+    }).catch(() => {});
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
     if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }
