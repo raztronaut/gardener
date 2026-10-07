@@ -28,12 +28,11 @@ visual review, and deployed only on green via git.
   says "stop adding X for good" / "I keep removing X", record it there.
 
 ## Liquid glass (fullscreen panel)
-`public/lib/lglass.js` gives `.panel-card` real refraction: a displacement map for
-the panel's size (squircle bezel, Snell's law n=1.5; only the rim ring is computed,
-cached per size) fed to `<feDisplacementMap>` + a light blur, applied as
-`backdrop-filter: url(#lg-WxH)` (Chromium kiosk only). `#panel` must NOT animate
+`public/lib/lgr.js` is a plain-DOM port of liquid-glass-react (MIT, Max Rovensky):
+a warp layer (`backdrop-filter: blur saturate` + SVG `filter:url(#lgr)` with the
+library's displacement map and RGB chromatic aberration at the edges), a tint, and
+two cursor-lit rim layers, applied to `.panel-card`. `#panel` must NOT animate
 opacity/filter — that makes it a backdrop root and the glass would only see the veil.
-Cards are not glass-refracted: their backdrop is a smooth gradient (nothing to bend).
 
 ## Widget contract
 **Layout stability:** a loading card must already have its loaded size (app.js

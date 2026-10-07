@@ -352,7 +352,11 @@ const STYLE = `
   .gd-axis .am .dn { font-size:11px; line-height:1; color:var(--ink-soft); }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
-  .gd-row, .gd-axis { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
+  .gd-row, .gd-axis, .gd-mlines { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
+  .gd-rows { position:relative; }
+  .gd-mlines { position:absolute; inset:0; pointer-events:none; align-items:stretch; }
+  .gd-mlines .trk { position:relative; }
+  .gd-mlines .ml { position:absolute; top:0; bottom:0; border-left:1px dashed rgba(140,240,195,.22); }
   .gd-axis { height:40px; flex:0 0 auto; }
   .gd-axis .wk { position:absolute; bottom:0; width:1px; height:3px; background:var(--stroke-strong); }
   .gd-axis .cm { position:absolute; bottom:0; width:2px; height:6px; margin-left:-1px; border-radius:1px; }
@@ -509,7 +513,11 @@ function chart(h, day, detailed, log = DEFAULT_LOG) {
             h('span', { class: 'dn' }, String(dateOf(d).getUTCDate())));
         })),
       h('div', {})),
-    h('div', { class: 'gd-rows' }, ...rows));
+    h('div', { class: 'gd-rows' },
+      // dashed month separators, one continuous line per month across every row
+      h('div', { class: 'gd-mlines' }, h('div', {}),
+        h('div', { class: 'trk' }, ...MONTHS.map((m) => h('i', { class: 'ml', style: { left: pct(m.d) } }))), h('div', {})),
+      ...rows));
 }
 
 // The care log lives on the wall server (so ✓ Done survives reloads). Shared by the
@@ -645,7 +653,7 @@ function renderFull(h, body, day, log) {
     if (e.k !== 'water') return true;
     if (!seenWater) { seenWater = true; return true; }
     return !e.minor;
-  }).slice(0, 6);
+  }).slice(0, 4);
   const firstWater = items.find((e) => e.k === 'water');
   const row = (e) => {
     const isDue = e.d <= day;
@@ -690,24 +698,25 @@ function renderFull(h, body, day, log) {
           c.id === 'water' ? { id: 'water', date: c.date, action: 'undo' } : { id: c.id, action: 'undo' }, 'undo', 'Tap twice to undo'))) : null),
     sec('Milestones', h('div', { class: 'fx-ms' }, ms('green', 'First greens'), ms('flower', 'First flowers'), ms('herb', 'Herbs'))),
     h('section', { class: 'fx-sec gf-chart' }, h('div', { class: 'fx-h' }, 'Every plant'), chartEl),
-    sec('Feeding', h('div', { class: 'fx-feed' }, icon('spoon'),
-      h('span', {}, 'Mix plant food into the water before it goes in: ', h('b', {}, '¼ tsp per gallon'),
-        ` now, ½ tsp from ${fmtShort(TRUE_LEAVES)}, 1 tsp from ${fmtShort(MATURE)}. The white Gardyn spoon is 1 tsp.`))),
-    sec('The tower · top to bottom', h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R')))));
+    h('div', { class: 'fx-pair' },
+      sec('Feeding', h('div', { class: 'fx-feed' }, icon('spoon'),
+        h('span', {}, 'Mix plant food into the water before it goes in: ', h('b', {}, '¼ tsp per gallon'),
+          ` now, ½ tsp from ${fmtShort(TRUE_LEAVES)}, 1 tsp from ${fmtShort(MATURE)}. The white Gardyn spoon is 1 tsp.`))),
+      sec('The tower · top to bottom', h('div', { class: 'gx-tower' }, col('L'), h('div', { class: 'spine' }), col('R'))))));
 }
 
 const FULL_STYLE = `
   /* ---- fullscreen v2 ---- */
-  .fx { gap:26px; padding:4px 30px 30px; }
+  .fx { gap:14px; padding:0 30px 0; }
   .fx-head { display:flex; align-items:baseline; gap:14px; }
   .fx-head .gd-day, .fx-head .gd-st { font-size:44px; }
   .fx-head .gd-today { font-size:18px; }
   .fx-head .gd-today .ic { font-size:19px; }
-  .fx-sub { margin-top:-18px; font-size:15px; color:var(--ink-soft); }
+  .fx-sub { margin-top:-12px; font-size:15px; color:var(--ink-soft); }
   .fx-h { font-family:var(--font-display); font-size:14px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
     color:var(--ink-soft); margin-bottom:10px; }
   .fx-list { display:flex; flex-direction:column; border-top:1px solid var(--stroke); }
-  .fx-row { display:grid; grid-template-columns:26px 1fr auto 40px; column-gap:14px; align-items:center; padding:12px 0;
+  .fx-row { display:grid; grid-template-columns:26px 1fr auto 40px; column-gap:14px; align-items:center; padding:8px 0;
     border-bottom:1px solid var(--stroke); cursor:var(--c-hand); }
   .fx-row .ri { font-size:22px; display:flex; align-self:start; margin-top:2px; }
   .fx-row.water .ri { color:#5fb6ff; }
@@ -733,6 +742,10 @@ const FULL_STYLE = `
   .fx-feed { display:flex; gap:12px; font-size:17px; line-height:1.45; color:var(--ink-soft); }
   .fx-feed .ic { font-size:22px; color:#5fb6ff; margin-top:2px; }
   .fx-feed b { color:var(--ink); font-weight:600; }
+  .fx .gf-chart .gd-row { height:19px; }
+  .fx .gx-pod { height:24px; }
+  .fx-pair { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:28px; align-items:start; }
+  .fx-pair .gx-tower { max-width:none; margin:0; }
   .fx .gf-chart .gd-axis { height:56px !important; margin:0 0 6px !important; }
   .fx .gf-chart .gd-axis .tk { font-size:13px; }
   .fx .gf-chart .gd-axis .am { top:22px; }
@@ -767,7 +780,7 @@ const FULL_STYLE = `
   .gf-chart .gd-rows { gap:4px; }
   .gf-chart .gd-row { height:24px; }
   .gf-chart .gd-row .nm { font-size:16px; }
-  .gf-chart .gd-row, .gf-chart .gd-axis { grid-template-columns: 170px 1fr 52px; }
+  .gf-chart .gd-row, .gf-chart .gd-axis, .gf-chart .gd-mlines { grid-template-columns: 170px 1fr 52px; }
   .gf-chart .gd-row .rt { font-size:13px; }
   .gf-chart .gd-axis { height:16px; margin:16px 0 6px; }
   .gf-chart .gd-axis .tk { font-size:12px; }

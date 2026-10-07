@@ -385,7 +385,7 @@ function reservePanelSize(title) {
   }, 1500);
 }
 let LGLASS = null;
-import(`/lib/lglass.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { LGLASS = m; }).catch(() => {});
+import(`/lib/lgr.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { LGLASS = m; }).catch(() => {});
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
   if (!keepStack) reservePanelSize(title);
@@ -403,7 +403,7 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   readerFrame = null;
   document.getElementById('panelBody')?.classList.remove('reading'); // cleared unless openReader re-adds it
   p.classList.add('open'); p.setAttribute('aria-hidden', 'false');
-  // Liquid glass: the wall bends through the panel's bezel (lib/lglass.js).
+  // Liquid glass (liquid-glass-react port, lib/lgr.js): the wall bends + fringes at the rim.
   if (LGLASS) LGLASS.liquidGlass(p.querySelector('.panel-card'));
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the

@@ -224,18 +224,19 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
 .card.bare::before { display: none; }
 /* Open card: keeps its title + padding, drops the glass panel. Alternates with
    framed cards in a zigzag (fractal → Hacker News → Today → clock). */
-/* Liquid glass panel (lib/lglass.js sets the refracting backdrop-filter): a
-   translucent tint over the bent + softly blurred wall, with Apple's two-sided
-   specular edge (bright upper-left, faint lower-right). */
-.panel-card.lglass {
-  background: linear-gradient(180deg, rgba(14, 34, 28, .50), rgba(9, 24, 20, .62));
-  border-color: rgba(220, 255, 240, .22);
-  box-shadow:
-    inset 1.5px 1.5px 0 rgba(255, 255, 255, .38),
-    inset -1px -1px 0 rgba(255, 255, 255, .12),
-    inset 0 0 40px rgba(180, 255, 225, .05),
-    0 30px 80px rgba(0, 0, 0, .45);
-}
+/* Liquid glass panel — liquid-glass-react port (lib/lgr.js): the warp layer bends
+   + fringes the blurred wall, a tint keeps text legible, two rim layers carry the
+   cursor-following specular edge. Content sits above all of it. */
+.panel-card.lgr { position: relative; background: transparent; border-color: transparent;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.panel-card.lgr::before { display: none; }
+.panel-card.lgr > .panel-head, .panel-card.lgr > .panel-body { position: relative; z-index: 1; }
+.lgr-tint { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
+  background: linear-gradient(180deg, rgba(12, 30, 25, .46), rgba(8, 22, 18, .58)); }
+.lgr-rim { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; padding: 1.5px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  box-shadow: 0 0 0 .5px rgba(255,255,255,.5) inset, 0 1px 3px rgba(255,255,255,.25) inset, 0 1px 4px rgba(0,0,0,.35); }
 .card.unframed { background: transparent; border-color: transparent; box-shadow: none; backdrop-filter: none; }
 
 /* Widget titles: bare mono micro-labels (no emoji), tucked into the card's
