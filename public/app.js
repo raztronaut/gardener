@@ -1484,6 +1484,8 @@ function wirePad() {
         padMapPeek = false;
         openArcade();
         break;
+      case 'mxup': mouseForward(); break;   // MX Master top thumb button (via pad.mjs)
+      case 'mxdown': mouseBack(); break;    // MX Master bottom thumb button
       case 'padmap': // R2 down — peek the controller map instantly
         if (pal) { hidePalette(); if (input) input.value = ''; }
         showPadMap();
@@ -1519,7 +1521,7 @@ function wirePad() {
   window.addEventListener('keydown', () => setPadMode(false), true);
   const connect = () => {
     const es = new EventSource('/api/pad/stream');
-    es.onmessage = (e) => { try { const a = JSON.parse(e.data).action; setPadMode(true); apply(a); } catch { /* ignore */ } };
+    es.onmessage = (e) => { try { const a = JSON.parse(e.data).action; if (!a.startsWith('mx')) setPadMode(true); apply(a); } catch { /* ignore */ } };
     es.onerror = () => { es.close(); setTimeout(connect, 5000); }; // server restart → reconnect
   };
   connect();
@@ -1532,24 +1534,26 @@ function wirePad() {
 // move the car, water the plants), otherwise open Gardyn fullscreen. Bottom: go
 // back — out of a Gardyn how-to, then close the panel. We swallow every event
 // phase so the browser never treats them as history back/forward.
+function mouseForward() {
+  const alarm = ['trashalarm', 'streetalarm', 'plantalarm'].map((id) => document.getElementById(id))
+    .find((el) => el && el.classList.contains('on'));
+  if (alarm) { alarm.querySelector('button')?.click(); return; }
+  if (paletteOpen()) hidePalette();
+  if (!(panelOpen() && document.querySelector('#panel .gx'))) openWidgetPanel('gardyn');
+}
+function mouseBack() {
+  if (paletteOpen()) { hidePalette(); return; }
+  const hw = document.querySelector('#panel .hw-back');
+  if (hw) { hw.click(); return; }
+  if (panelOpen()) closePanel();
+}
+// If the browser ever does deliver the DOM events, handle them too (and stop
+// history navigation). On this kiosk they arrive via the pad bridge instead.
 function wireMouseSide() {
-  const forward = () => {
-    const alarm = ['trashalarm', 'streetalarm', 'plantalarm'].map((id) => document.getElementById(id))
-      .find((el) => el && el.classList.contains('on'));
-    if (alarm) { alarm.querySelector('button')?.click(); return; }
-    if (paletteOpen()) hidePalette();
-    if (!(panelOpen() && document.querySelector('#panel .gx'))) openWidgetPanel('gardyn');
-  };
-  const back = () => {
-    if (paletteOpen()) { hidePalette(); return; }
-    const hw = document.querySelector('#panel .hw-back');
-    if (hw) { hw.click(); return; }
-    if (panelOpen()) closePanel();
-  };
   const onBtn = (e) => {
     if (e.button !== 3 && e.button !== 4) return;
     e.preventDefault(); e.stopPropagation();
-    if (e.type === 'mouseup') (e.button === 4 ? forward : back)();
+    if (e.type === 'mouseup') (e.button === 4 ? mouseForward : mouseBack)();
   };
   for (const t of ['mousedown', 'mouseup', 'auxclick', 'pointerdown', 'pointerup', 'click']) window.addEventListener(t, onBtn, true);
 }

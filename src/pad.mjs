@@ -140,5 +140,32 @@ function attach() {
   s.on('open', () => log(`listening on ${DEV}`));
 }
 
+// ---- MX Master 3 thumb buttons --------------------------------------------
+// The kiosk browser swallows mouse buttons 8/9 (it treats them as history
+// back/forward), so the page never sees them. Read them from X instead with
+// `xinput test` on the Logitech receiver and forward them like pad actions:
+// X button 9 (top / forward) → 'mxup', 8 (bottom / back) → 'mxdown'.
+import { spawn as spawnProc, execFileSync } from 'node:child_process';
+const MOUSE_NAME = process.env.GARDENER_MOUSE || 'Logitech USB Receiver Mouse';
+function attachMouse() {
+  const env = { ...process.env, DISPLAY: process.env.DISPLAY || config.display };
+  let id = '';
+  try { id = execFileSync('xinput', ['list', '--id-only', MOUSE_NAME], { env, timeout: 5000 }).toString().trim(); } catch { /* not connected */ }
+  if (!/^\d+$/.test(id)) { setTimeout(attachMouse, 15000); return; }
+  log(`mouse: listening on "${MOUSE_NAME}" (xinput id ${id})`);
+  const p = spawnProc('xinput', ['test', id], { env, stdio: ['ignore', 'pipe', 'ignore'] });
+  let buf = '';
+  p.stdout.on('data', (d) => {
+    buf += d; const lines = buf.split('\n'); buf = lines.pop();
+    for (const l of lines) {
+      const m = /^button press\s+(\d+)/.exec(l.trim());
+      if (m && m[1] === '9') send('mxup');
+      else if (m && m[1] === '8') send('mxdown');
+    }
+  });
+  p.on('exit', () => { log('mouse: xinput exited — retrying in 5s'); setTimeout(attachMouse, 5000); });
+}
+
 log('SN30 Pro bridge starting');
 attach();
+attachMouse();
