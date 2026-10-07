@@ -83,21 +83,21 @@ const CARE = [
   // Dose rule is ¼ tsp per gallon for EVERY gallon in the tank. Gardyn's Studio figure
   // (¾ tsp) assumes a 2 gal start; this tank started with 3 gal, so 3 + 1 = 4 gal → 1 tsp
   // (one level white Gardyn spoon, which is 1 tsp).
-  { id: 'sprout', ic: 'spoon', short: 'Sprout dose', d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
+  { id: 'sprout', long: "Mix ¾–1 tsp plant food into a gallon of water and pour it into the tank — the plants' first food.", ic: 'spoon', short: 'Sprout dose', d: 7, to: 14, t: 'Sprout dose', how: '1 white spoon (1 tsp) food + 1 gal water → tank',
     s: 'Once most pods have sprouted: mix 1 tsp (the white Gardyn spoon, level) of plant food into 1 gal of warm water, shake, pour it all into the tank. Rule: ¼ tsp per gallon in the tank — 3 gal start + this 1 gal = 4 gal. Water only until then.' },
-  { id: 'thin', ic: 'scissors', short: 'Thin sprouts', after: 'sprout', d: 5, to: 7, t: 'Mini harvest', how: 'thin: snip extras, keep 1–3 per pod',
+  { id: 'thin', long: 'Snip the extra sprouts at the base — keep 1 per pod for greens & sunflower, 3 for herbs & flowers.', ic: 'scissors', short: 'Thin sprouts', after: 'sprout', d: 5, to: 7, t: 'Mini harvest', how: 'thin: snip extras, keep 1–3 per pod',
     s: '5–7 days after the sprout dose. Cut extras at the base with clean scissors (don’t pull). Keep 1 for greens & sunflower, 3 for herbs and small flowers. Green, lettuce and herb thinnings are edible — that’s the “mini harvest”.' },
-  { id: 'replace', ic: 'search', short: 'Check pods', d: 22, t: 'Replacement check', how: 'any pod with no sprout → claim a free one',
+  { id: 'replace', long: 'Look for pods with no sprout at all. Gardyn replaces those free — request them in the Gardyn app.', ic: 'search', short: 'Empty-pod check', d: 22, t: 'Empty-pod check (free replacements)', how: 'any pod still bare → Gardyn sends a free one',
     s: 'Any pod still unsprouted today qualifies for Gardyn’s replacement guarantee.' },
-  { id: 'petunia', ic: 'flower', short: 'Petunias bloom', d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
+  { id: 'petunia', long: 'First petunia flowers. Pinch off each bloom once it fades so new ones keep coming.', ic: 'flower', short: 'Petunias bloom', d: 30, g: true, t: 'Petunias start blooming', how: 'pinch off spent blooms',
     s: 'First flowers of the kit. Deadhead spent blooms to keep them coming.' },
-  { id: 'roots', ic: 'roots', short: 'Check roots', d: 60, g: true, t: 'Check the roots', how: 'healthy = white; trim any brown mush',
+  { id: 'roots', long: 'Lift the top off and look at the roots: white is healthy; snip any brown, slimy bits.', ic: 'roots', short: 'Check roots', d: 60, g: true, t: 'Check the roots', how: 'healthy = white; trim any brown mush',
     s: 'Plants are maturing and blooming — check roots every 2–4 weeks from now.' },
-  { id: 'stock', ic: 'flower', short: 'Stock blooms', d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
+  { id: 'stock', long: 'Stock and sunflowers start blooming. Cut finished stock spikes at the base.', ic: 'flower', short: 'Stock blooms', d: 65, g: true, t: 'Stock & sunflower blooms', how: 'keep the room under ~75°F for stock',
     s: 'Expect the first stock spikes and sunflowers. Keep the room under ~75°F for stock.' },
-  { id: 'snap', ic: 'flower', short: 'Snapdragons', d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node',
+  { id: 'snap', long: 'Snapdragons open. Cut finished stems just above a leaf to get another wave.', ic: 'flower', short: 'Snapdragons', d: 80, g: true, t: 'Snapdragons open', how: 'cut at 45° above a leaf node',
     s: 'Snapdragon blooms arrive in waves.' },
-  { id: 'refresh', ic: 'sprout', short: 'Replant', d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
+  { id: 'refresh', long: 'Most plants are past their best — swap tired pods for new ones.', ic: 'sprout', short: 'Replant', d: 180, t: 'Refresh the garden', how: 'swap tired pods for new ones',
     s: 'Most Gardyn plants last ~6 months — swap tired yCubes for new ones.' },
 ];
 
@@ -320,10 +320,10 @@ const MONTHS = (() => {
 })();
 
 const STYLE = `
-  .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:9px; }
+  .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:7px; }
   .gd-top { flex:0 0 auto; display:flex; align-items:baseline; gap:12px; }
-  .gd-day { font-family:var(--font-display); font-size:30px; line-height:1; color:var(--ink); }
-  .gd-st { font-family:var(--font-display); font-size:30px; line-height:1; color:var(--mint); }
+  .gd-day { font-family:var(--font-display); font-size:27px; line-height:1; color:var(--ink); }
+  .gd-st { font-family:var(--font-display); font-size:27px; line-height:1; color:var(--mint); }
   /* today's answer, top-right: quiet when nothing's due, gold when something is */
   .gd-today { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:15px; color:var(--ink-soft); white-space:nowrap; }
   .gd-today .ic { font-size:16px; color:var(--mint); }
@@ -331,22 +331,29 @@ const STYLE = `
   .gd-today.due .ic { color:var(--gold); }
   /* the next two steps — an agenda (hairlines, no boxes), like Out in SF */
   .gd-agenda { flex:0 0 auto; display:flex; flex-direction:column; }
-  .gd-ag { display:grid; grid-template-columns:18px 1fr auto 34px; align-items:center; column-gap:9px; padding:6px 0;
+  .gd-ag { display:grid; grid-template-columns:18px 1fr auto 34px; align-items:center; column-gap:9px; padding:5px 0;
     border-bottom:1px solid var(--stroke); font-size:14px; color:var(--ink); }
   .gd-ag:first-child { border-top:1px solid var(--stroke); }
-  .gd-ag .ic { font-size:16px; }
+  .gd-ag .ic { font-size:16px; align-self:start; margin-top:2px; }
+  .gd-ag .lb { min-width:0; }
+  /* the explanation runs under the whole row (all columns after the icon), up to 2 lines */
+  .gd-ag .wh { grid-column:2 / -1; grid-row:2; font-size:12.5px; line-height:1.3; color:var(--ink-soft);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-top:2px; }
+  .gd-ag .dt, .gd-ag .in { align-self:start; margin-top:1px; }
   .gd-ag.water .ic { color:#5fb6ff; }
   .gd-ag.task .ic { color:var(--gold); }
   .gd-ag .dt { font-size:13px; color:var(--ink-soft); }
   .gd-ag .in { font-size:13px; color:var(--ink-faint); text-align:right; }
   /* axis care icons — WHAT happens on that date */
-  .gd-axis .am { position:absolute; top:15px; transform:translateX(-50%); font-size:12px; display:flex; }
-  .gd-axis .am.w { color:#5fb6ff; }
-  .gd-axis .am.t { color:var(--gold); }
+  .gd-axis .am { position:absolute; top:15px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:1px; }
+  .gd-axis .am .ics { display:flex; gap:1px; font-size:12px; }
+  .gd-axis .am .ic.w { color:#5fb6ff; }
+  .gd-axis .am .ic.t { color:var(--gold); }
+  .gd-axis .am .dn { font-size:11px; line-height:1; color:var(--ink-soft); }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
   .gd-row, .gd-axis { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
-  .gd-axis { height:30px; flex:0 0 auto; }
+  .gd-axis { height:40px; flex:0 0 auto; }
   .gd-axis .wk { position:absolute; bottom:0; width:1px; height:3px; background:var(--stroke-strong); }
   .gd-axis .cm { position:absolute; bottom:0; width:2px; height:6px; margin-left:-1px; border-radius:1px; }
   .gd-axis .cm.w { background:#5fb6ff; }
@@ -448,9 +455,13 @@ const daysTxt = (d, day) => (d === day ? 'today' : d < day ? `${day - d}d late` 
 // mark under each care date, and today's line runs through everything.
 function careEvents(day, log) {
   const water = waterPlan(day, 18, log).filter((w) => w.d <= AXIS_DAYS)
-    .map((w) => ({ d: w.d, ic: WATER_ICON[w.kind], minor: w.kind === 'top', label: w.kind === 'refresh' ? 'Tank refresh' : w.kind === 'dose' ? 'Sprout dose' : 'Check water', tip: `${w.t} — ${w.amt}` }));
+    .map((w) => ({ d: w.d, ic: WATER_ICON[w.kind], minor: w.kind === 'top', label: w.kind === 'refresh' ? 'Tank refresh' : w.kind === 'dose' ? 'Sprout dose' : 'Check water',
+      what: w.kind === 'refresh' ? `Drain the tank, wipe it clean, then refill with ${w.amt}.`
+        : w.kind === 'dose' ? w.amt
+        : `Look at the water level in the Gardyn app. If it's below ¾, add water with ${w.amt.replace(/^if low: /, '').replace(/ you add$/, '')}; otherwise nothing to do.`,
+      tip: `${w.t} — ${w.amt}` }));
   const task = tasks(log).filter((c) => c.done == null && endOf(c) >= day && c.d <= AXIS_DAYS).sort((a, b) => a.d - b.d)
-    .map((c) => ({ id: c.id, d: c.d, to: c.to, ic: c.ic, label: c.short, tip: `${c.t} — ${c.how}` }));
+    .map((c) => ({ id: c.id, d: c.d, to: c.to, ic: c.ic, label: c.short, what: c.long || c.how, tip: `${c.t} — ${c.how}` }));
   const done = doneLog(log).filter((e) => e.d >= 0 && e.d <= AXIS_DAYS);
   return { water, task, done };
 }
@@ -489,7 +500,14 @@ function chart(h, day, detailed, log = DEFAULT_LOG) {
     h('div', { class: 'gd-axis' }, h('div', {}),
       h('div', { class: 'ticks' },
         ...MONTHS.map((m) => h('span', { class: 'tk', style: { left: pct(m.d) } }, m.t)),
-        ...marks.map((e) => h('span', { class: `am ${care.water.includes(e) ? 'w' : 't'}`, style: { left: pct(e.d) }, title: `${e.label} · ${fmtDay(e.d)}` }, icon(e.ic)))),
+        // one mark per date: the chore icon(s) with the day-of-month under it
+        // (the month name sits above), so each symbol says WHEN.
+        ...[...new Set(marks.map((e) => e.d))].sort((a, b) => a - b).map((d) => {
+          const es = marks.filter((e) => e.d === d);
+          return h('span', { class: 'am', style: { left: pct(d) }, title: es.map((e) => `${e.label} · ${fmtDay(d)}`).join('\n') },
+            h('span', { class: 'ics' }, ...es.map((e) => { const i = icon(e.ic); i.classList.add(care.water.includes(e) ? 'w' : 't'); return i; })),
+            h('span', { class: 'dn' }, String(dateOf(d).getUTCDate())));
+        })),
       h('div', {})),
     h('div', { class: 'gd-rows' }, ...rows));
 }
@@ -517,7 +535,7 @@ function build(h, body, tz, log = LOG) {
       h('span', {}, due.length > 1 ? `Today: ${due[0].label} +${due.length - 1}` : `Today: ${due[0].label}`))
     : h('div', { class: 'gd-today' }, icon('check'), h('span', {}, 'Nothing today'));
   const line = (e) => h('div', { class: `gd-ag ${e.k}`, title: e.tip },
-    icon(e.ic), h('span', { class: 'lb' }, e.label),
+    icon(e.ic), h('span', { class: 'lb' }, e.label), h('span', { class: 'wh' }, e.what || ''),
     h('span', { class: 'dt' }, fmtDay(e.d)), h('span', { class: 'in' }, `${e.d - day}d`));
   body.replaceChildren(h('div', { class: 'gd' },
     h('div', { class: 'gd-top' },
