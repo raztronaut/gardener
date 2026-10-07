@@ -562,7 +562,7 @@ async function showGrow() {
 // Full-screen, scrollable list of ALL upcoming SF events (the /events · /e command).
 // Arrow keys / PageUp-Down / Home-End scroll the list; Esc returns to the dashboard.
 async function showEvents() {
-  openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'checking the city…')));
+  openPanel('Out in SF — upcoming events', h('div', { class: 'cl' })); // no loading text (layout rule)
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
   const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
@@ -594,32 +594,41 @@ async function showEvents() {
 }
 
 // Full Hacker News front page in a panel (the /hn command; controller: Y).
-async function showHackerNews() {
-  openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'reading the front page…')));
+// Stale-while-revalidate: the last front page is kept in memory (prefetched on
+// boot and every 10 min), so the panel opens INSTANTLY with real stories — never a
+// "loading…" message — and swaps in the fresh list in place when it arrives.
+let HN_CACHE = null;
+async function fetchHN() {
   const fetchJSON = (url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-  let stories = [];
-  try {
-    const ids = (await fetchJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 15);
-    stories = (await Promise.all(ids.map((id) =>
-      fetchJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).catch(() => null))))
-      .filter((s) => s && s.title);
-  } catch {
-    return openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'Hacker News is unavailable right now — try again shortly.')));
-  }
-  if (!stories.length) {
-    return openPanel('Hacker News — front page', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No stories right now.')));
-  }
+  const ids = (await fetchJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 15);
+  const stories = (await Promise.all(ids.map((id) =>
+    fetchJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).catch(() => null))))
+    .filter((x) => x && x.title);
+  if (stories.length) HN_CACHE = stories;
+  return HN_CACHE || [];
+}
+function hnRows(stories) {
   const domainOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'news.ycombinator.com'; } };
-  const rows = stories.map((s, i) => h('div', {
+  return stories.map((st, i) => h('div', {
     class: 'cl-row clickable',
-    onclick: () => openReader(s.url || `https://news.ycombinator.com/item?id=${s.id}`, s.title),
+    onclick: () => openReader(st.url || `https://news.ycombinator.com/item?id=${st.id}`, st.title),
   },
     h('div', { class: 'cl-id' }, String(i + 1)),
     h('div', { class: 'cl-main' },
-      h('div', { class: 'cl-phrase' }, s.title),
-      h('div', { class: 'cl-meta' }, `▲ ${s.score || 0} · 💬 ${s.descendants || 0} · ${domainOf(s.url)} · tap to read`))));
-  openPanel(`Hacker News — top ${stories.length}`, h('div', { class: 'cl' }, ...rows));
+      h('div', { class: 'cl-phrase' }, st.title),
+      h('div', { class: 'cl-meta' }, `▲ ${st.score || 0} · 💬 ${st.descendants || 0} · ${domainOf(st.url)} · tap to read`))));
 }
+async function showHackerNews() {
+  const list = h('div', { class: 'cl' }, ...(HN_CACHE ? hnRows(HN_CACHE) : []));
+  openPanel('Hacker News', list);
+  try {
+    const fresh = await fetchHN();
+    if (list.isConnected && fresh.length) list.replaceChildren(...hnRows(fresh));
+  } catch {
+    if (!HN_CACHE && list.isConnected) list.replaceChildren(h('div', { class: 'cl-empty' }, 'Hacker News is unavailable right now — try again shortly.'));
+  }
+}
+if (!SCREENSHOT) { setTimeout(() => fetchHN().catch(() => {}), 8000); setInterval(() => fetchHN().catch(() => {}), 10 * 60 * 1000); }
 
 // Controller button map (the /controls command; controller: HOLD R2).
 // A static SN30-Pro-style diagram with label callouts — idle-friendly.
@@ -1271,7 +1280,7 @@ function openWidgetPanel(id) {
 // this write (it's localhost-only). The Roots phone app remains the richer flow.
 let rootsLogWho = '';
 async function showRootsChores() {
-  openPanel('Roots — log a chore', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'loading…')));
+  openPanel('Roots — log a chore', h('div', { class: 'cl' })); // no loading text (layout rule)
   let chores = [], users = [], status = null;
   try {
     [chores, users, status] = await Promise.all([
