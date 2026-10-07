@@ -17,6 +17,7 @@ const STYLE = `
   .frc img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
     opacity:0; transition:opacity .9s ease; }
   .frc img.in { opacity:1; }
+  body.screenshot .frc img.in { transition:none; } /* QA captures: no mid-fade frame */
   /* Same look + spot as the other cards' corner titles (the card itself is bare). */
   .frc .ttl { position:absolute; top:1px; left:11px; z-index:1; font-family:var(--font-display); font-size:14px;
     font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); pointer-events:none; }

@@ -850,7 +850,7 @@ export default {
          it reads distinctly from the word/fact sections above rather than as one
          more label-plus-text block. Purely decorative — static, adds no height. */
       .dly-quote { font-family:var(--font-display); font-style:normal; font-size:17px; line-height:1.32;
-        color:var(--ink); min-height:0;
+        color:var(--ink); min-height:0; text-wrap:balance; /* no lone last word */
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; padding-bottom:3px; }
       .dly-quote .qm { color:var(--mint); font-weight:600; font-style:normal; }
       .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12.5px;

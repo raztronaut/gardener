@@ -114,6 +114,11 @@ async function main() {
         /reserveCardSize\(card, entry\.id\)[\s\S]{0,200}await w\.mount/.test(appSrc) && /function settleCardSize/.test(appSrc));
       check('layout stability: no card entrance motion', !/\.card\s*\{[^}]*animation:\s*rise/.test(css) && !/@keyframes rise/.test(css));
     } catch (e) { bad('layout stability', e.message); }
+    // House rule: no wind anywhere on the Weather card (removed twice by the humans).
+    try {
+      const wx = readFileSync(join(PUBLIC, 'widgets', 'weather.js'), 'utf8');
+      check('weather: no wind fetched or rendered (house rule)', !/wind_speed|wind_direction|wind_gusts|windArrow|\bmph\b/.test(wx));
+    } catch (e) { bad('weather wind rule', e.message); }
     // Fractal art (replaced APOD): deterministic per 3-hour slot, cycles through the
     // families, and the tiny PNG encoder emits a valid signature + IHDR.
     try {

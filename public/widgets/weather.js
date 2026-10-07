@@ -24,14 +24,6 @@ const nightSlug = (slug, isDay) => isDay !== 0 ? slug
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
-// Wind: meteorological degrees (direction the wind blows FROM) → 8-point compass.
-const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-const compass = (deg) => Number.isFinite(deg) ? COMPASS[Math.round(((deg % 360) + 360) % 360 / 45) % 8] : '';
-// Static arrow pointing the way the wind is GOING (FROM + 180°) — read like a flag.
-const windArrow = (deg) => `<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"
-  style="transform:rotate(${((deg + 180) % 360).toFixed(0)}deg)"><path d="M12 3 L18 19 L12 15 L6 19 Z"
-  fill="currentColor"/></svg>`;
-
 // UV index → [label, colour] (WHO bands).
 const uvBand = (u) => u == null ? ['—', 'var(--ink-faint)']
   : u < 3 ? ['Low', '#74f7b0'] : u < 6 ? ['Moderate', '#f7d774']
@@ -89,7 +81,7 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; height:100%; gap:10px; }
+      .wx { display:flex; flex-direction:column; height:100%; gap:8px; }
       .wx-sec { font-size:12.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
 
       /* 1 · now */
@@ -110,9 +102,6 @@ export default {
       /* 2 · sun */
       .wx-sun { display:flex; gap:16px; font-size:14px; color:var(--ink-soft); margin-top:-4px; }
       .wx-sun b { color:var(--ink); font-weight:600; }
-      .wx-sun .wind { margin-left:auto; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
-      .wx-sun .wind .ar { display:inline-flex; color:var(--mint); }
-      .wx-sun .wind .gu { color:var(--ink-faint); }
 
       /* 3 · stats — open columns, no boxes */
       .wx-stats { display:flex; }
@@ -137,7 +126,7 @@ export default {
 
       /* 5 · hourly curve */
       .wx-hours { margin-top:auto; }
-      .wx-plot { position:relative; height:30px; margin:0 6px; }
+      .wx-plot { position:relative; height:26px; margin:0 6px; }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-plot .now { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
         background:#fff; box-shadow:0 0 0 2px #10261f; }
@@ -163,8 +152,7 @@ export default {
     body.appendChild(ctx.loading('reading the sky…'));
 
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-      + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m`
-      + `&wind_speed_unit=mph`
+      + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day`
       + `&hourly=temperature_2m,weather_code,precipitation_probability,uv_index,is_day`
       + `&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_probability_max`
       + `&temperature_unit=fahrenheit&timezone=${encodeURIComponent(tz)}&forecast_days=4`;
@@ -186,15 +174,6 @@ export default {
       const uvRaw = d.hourly.uv_index?.[hNow];
       const uv = Number.isFinite(uvRaw) ? Math.round(uvRaw) : null;
       const [uvLabel, uvColor] = uvBand(uv);
-      // Wind (mph). Gusts only when they meaningfully exceed the sustained speed.
-      const ws = Number.isFinite(cur.wind_speed_10m) ? Math.round(cur.wind_speed_10m) : null;
-      const wg = Number.isFinite(cur.wind_gusts_10m) ? Math.round(cur.wind_gusts_10m) : null;
-      const wd = cur.wind_direction_10m;
-      const windEl = ws == null ? null : h('span', { class: 'wind', title: `Wind ${ws} mph${compass(wd) ? ' from the ' + compass(wd) : ''}${wg ? ' · gusts ' + wg + ' mph' : ''}` },
-        ws > 0 && Number.isFinite(wd) ? h('span', { class: 'ar', html: windArrow(wd) }) : null,
-        h('b', {}, ws === 0 ? 'calm' : `${ws} mph ${compass(wd)}`.trim()),
-        wg != null && ws > 0 && wg >= ws + 5 ? h('span', { class: 'gu' }, `gust ${wg}`) : null);
-
       // Next days: tomorrow + two more, each in °F and °C.
       const days = [];
       for (let i = 1; i <= 3; i++) {
