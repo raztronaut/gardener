@@ -704,7 +704,7 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 #touchcal .tc-msg small { font-family: var(--font); font-size: 16px; color: var(--ink-faint); }
 #touchcal .tc-dot { position: absolute; border-radius: 50%; }
 #touchcal .tc-dot.mark { background: #fff; }
-#touchcal .tc-dot.target { border: 6px solid var(--mint); box-shadow: 0 0 30px rgba(116,247,176,.6), inset 0 0 0 12px rgba(116,247,176,.15); }
+#touchcal .tc-dot.target { border: 5px solid var(--mint); } /* no glow: the camera sees glows as change */
 #touchcal .tc-dot.target::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; background: var(--mint); }
 #touchcal .tc-dot.wait { border-color: #555; box-shadow: none; }
 #touchcal .tc-dot.ok { border: 6px solid var(--mint); background: rgba(116,247,176,.25); }

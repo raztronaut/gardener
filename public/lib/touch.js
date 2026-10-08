@@ -205,7 +205,7 @@ export async function testCorners() {
 }
 
 // screen-quad mask in camera px (a little inside the edges)
-function quadMask(S2C) {
+export function quadMask(S2C) {
   const m = new Uint8Array(PW * PH), C2S = homography(MARK.map(([x, y]) => apply(S2C, x, y)), MARK);
   for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
     const [u, v] = apply(C2S, x, y);
@@ -240,73 +240,155 @@ function showFeed(cal) {
 }
 
 // ---- 2. foreground blob + tip -----------------------------------------------------
-let inScreen = null; // camera px inside the screen rectangle (built once per calibration)
-function detect(frame, ref, mask, C2S) {
-  if (!inScreen) { inScreen = new Uint8Array(PW * PH); for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const [u, v] = apply(C2S, x, y); if (u >= 0 && u <= W && v >= 0 && v <= H) inScreen[y * PW + x] = 1; } }
-  const fg = new Uint8Array(PW * PH);
-  // global brightness drift (auto-exposure) compensation: median-ish mean ratio
-  let a = 0, b = 0; for (let i = 0; i < frame.length; i += 7) if (mask[i]) { a += frame[i]; b += ref[i]; }
-  const gain = b > 0 ? a / b : 1;
-  // saturated spots (lamp glare) carry no information — skip them
-  // Shadows only DARKEN. On the (dark) screen a lit hand is BRIGHTER than the
-  // reference, so inside the screen only positive changes count — the user's shadow
-  // can't make a blob there. Outside (arm against the bright wall) darker counts too.
-  for (let i = 0; i < fg.length; i++) {
-    if (!mask[i] || ref[i] >= 225) continue;
-    const d = frame[i] - ref[i] * gain;
-    if (inScreen[i] ? d > 28 : Math.abs(d) > 32) fg[i] = 1;
+// ---- 2. hand segmentation (background subtraction, shadow-aware) -----------------
+// What the camera-touchscreen literature + OpenCV's MOG2 do, adapted to a fixed scene:
+//  • compare against a CLEAN reference of the same screen (verified hand-free);
+//  • compensate global auto-exposure gain;
+//  • reject SHADOWS by chromaticity: a shadow darkens a surface but keeps its colour
+//    (rg-chromaticity ≈ same, brightness ratio 0.35–0.97); a hand changes colour;
+//  • inside the (dark) screen a lit hand is BRIGHTER — darker-only changes there are
+//    shadows/reflections; outside (arm over the bright wall) either way counts;
+//  • morphological opening (3×3 erode → dilate) removes thin noise: bezel-edge
+//    shimmer, refresh bands, single-pixel flicker;
+//  • keep the biggest blob that ENTERS FROM OUTSIDE the screen and reaches inside;
+//    the touch point is the inside end of it farthest from where it enters.
+function grabRGB() {
+  cx.drawImage(video, 0, 0, PW, PH);
+  const d = cx.getImageData(0, 0, PW, PH).data, n = PW * PH;
+  const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
+  for (let i = 0; i < n; i++) { r[i] = d[i * 4]; g[i] = d[i * 4 + 1]; b[i] = d[i * 4 + 2]; }
+  return { r, g, b };
+}
+async function grabRGBAvg(k = 5) {
+  const n = PW * PH, r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
+  for (let t = 0; t < k; t++) { const f = grabRGB(); for (let i = 0; i < n; i++) { r[i] += f.r[i] / k; g[i] += f.g[i] / k; b[i] += f.b[i] / k; } await sleep(40); }
+  return { r, g, b };
+}
+// Detector settings — tuned offline against recorded sessions with simulated noise
+// (exposure, sensor noise, body shadows, reflection changes, camera shake).
+export const P = { dYin: 34, dcIn: 0.1, dYout: 30, dcOut: 0.08, glareK: 1.8, open: 1, bridge: 0, minIn: 40, minOut: 15, edge: 12, needOut: 1 }; // swept 2026-10-08: 54% <90 px, median 86 px across 7 noise conditions
+let inScreen = null; // camera px inside the screen rectangle (rebuilt per calibration)
+export function detectRGB(F, R, mask, C2S, opts = {}) {
+  const n = PW * PH;
+  if (!detectRGB._core || detectRGB._coreC2S !== C2S || detectRGB._coreE !== P.edge) { const cm = new Uint8Array(n); for (let i = 0; i < n; i++) { const [u, v] = apply(C2S, i % PW, (i / PW) | 0); cm[i] = u > P.edge && u < W - P.edge && v > P.edge && v < H - P.edge ? 1 : 0; } detectRGB._core = cm; detectRGB._coreC2S = C2S; detectRGB._coreE = P.edge; }
+  const inCore = detectRGB._core;
+  if (!detectRGB._band || detectRGB._bandC2S !== C2S) { const bm = new Uint8Array(n); for (let i = 0; i < n; i++) { const [u, v] = apply(C2S, i % PW, (i / PW) | 0); bm[i] = u > -160 && u < W + 160 && v > -420 && v < H + 60 ? 1 : 0; } detectRGB._band = bm; detectRGB._bandC2S = C2S; }
+  const inBand = (i) => detectRGB._band[i] === 1;
+  if (!inScreen || inScreen._C2S !== C2S) { inScreen = new Uint8Array(n); inScreen._C2S = C2S; for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const [u, v] = apply(C2S, x, y); if (u >= 0 && u <= W && v >= 0 && v <= H) inScreen[y * PW + x] = 1; } }
+  // global gain from non-screen + screen pixels (robust ratio of sums)
+  let a = 0, b2 = 0; for (let i = 0; i < n; i += 9) if (mask[i]) { a += F.r[i] + F.g[i] + F.b[i]; b2 += R.r[i] + R.g[i] + R.b[i]; }
+  const gain = b2 > 0 ? a / b2 : 1;
+  // REFLECTION zone: inside the screen, wherever the reference is much brighter than
+  // the black stage's typical level, the light is the room lamp reflected off the
+  // glass — it changes when anyone moves, so it's unusable. Ignore it.
+  if (!inScreen._glare || inScreen._R !== R || inScreen._gk !== P.glareK) {
+    inScreen._gk = P.glareK;
+    const vals = []; for (let i = 0; i < n; i += 5) if (inScreen[i]) vals.push(R.r[i] + R.g[i] + R.b[i]);
+    vals.sort((p, q) => p - q); const med = vals[vals.length >> 1] || 90;
+    inScreen._glare = new Uint8Array(n); inScreen._R = R;
+    for (let i = 0; i < n; i++) if (inScreen[i] && R.r[i] + R.g[i] + R.b[i] > Math.max(med * P.glareK, med + 120)) inScreen._glare[i] = 1;
   }
-  // the biggest 4-connected blob that ENTERS FROM OUTSIDE the screen (an arm/hand
-  // does; screen glare and refresh noise stay inside) and also reaches inside it
-  const lab = new Int32Array(PW * PH); let best = 0, bestN = 0, cur = 0; const st = [];
-  for (let s = 0; s < fg.length; s++) {
-    if (!fg[s] || lab[s]) continue; cur++; let n = 0, out = 0, inn = 0; st.push(s); lab[s] = cur;
-    while (st.length) { const p = st.pop(); n++; const x = p % PW, y = (p / PW) | 0;
-      const [u, v] = apply(C2S, x, y); if (u < 0 || u > W || v < 0 || v > H) out++; else inn++;
-      for (const q of [x > 0 ? p - 1 : -1, x < PW - 1 ? p + 1 : -1, y > 0 ? p - PW : -1, y < PH - 1 ? p + PW : -1])
-        if (q >= 0 && fg[q] && !lab[q]) { lab[q] = cur; st.push(q); } }
-    if (out >= 8 && inn >= 8 && n > bestN) { bestN = n; best = cur; }
+  const glare = inScreen._glare;
+  const fg = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (!mask[i] || glare[i]) continue;
+    const Sr = R.r[i] + R.g[i] + R.b[i], Sf = F.r[i] + F.g[i] + F.b[i];
+    if (Sr > 690) continue;                                  // saturated: no info
+    const Yr = Sr / 3 * gain, Yf = Sf / 3, dY = Yf - Yr;
+    const cr = (F.r[i] + 1) / (Sf + 3) - (R.r[i] + 1) / (Sr + 3), cg = (F.g[i] + 1) / (Sf + 3) - (R.g[i] + 1) / (Sr + 3);
+    const dc = Math.abs(cr) + Math.abs(cg);
+    const ratio = (Yf + 1) / (Yr + 1);
+    const shadow = dY < 0 && ratio > 0.35 && ratio < 0.97 && dc < 0.05;
+    if (shadow) continue;
+    if (inScreen[i] ? (dY > P.dYin || (dc > P.dcIn && Math.abs(dY) > 14)) : (Math.abs(dY) > P.dYout || (dc > P.dcOut && Math.abs(dY) > 12))) fg[i] = 1;
   }
-  if (bestN < 60) return null;
-  // entry = centroid of blob pixels at the screen boundary (or the blob end lowest on screen)
-  let ex = 0, ey = 0, en = 0; const pts = [];
-  for (let p = 0; p < lab.length; p++) if (lab[p] === best) {
-    const [u, v] = apply(C2S, p % PW, (p / PW) | 0); pts.push([u, v]);
-    if (u < 0 || u > W || v < 0 || v > H) { ex += u; ey += v; en++; } // the part outside = where the arm comes from
+  // evaluation hook: ignore discs (screen px) — e.g. the target ring offline
+  if (opts.ignore) for (let i = 0; i < n; i++) if (fg[i]) { const [u, v] = apply(C2S, i % PW, (i / PW) | 0); for (const [iu, iv, ir] of opts.ignore) if ((u - iu) ** 2 + (v - iv) ** 2 < ir * ir) { fg[i] = 0; break; } }
+  {
   }
-  if (en) { ex /= en; ey /= en; } else { ex = W / 2; ey = H + 200; }
-  let tip = null, far = -1;
-  for (const [u, v] of pts) { if (u < 0 || u > W || v < 0 || v > H) continue; const d = (u - ex) ** 2 + (v - ey) ** 2; if (d > far) { far = d; tip = [u, v]; } }
-  return tip ? { tip, area: bestN, entry: [ex, ey] } : null;
+  // opening: erode (all 8 neighbours set) then dilate
+  const er = new Uint8Array(n);
+  for (let y = 1; y < PH - 1; y++) for (let x = 1; x < PW - 1; x++) {
+    const i = y * PW + x; if (!fg[i]) continue;
+    if (fg[i - 1] && fg[i + 1] && fg[i - PW] && fg[i + PW] && fg[i - PW - 1] && fg[i - PW + 1] && fg[i + PW - 1] && fg[i + PW + 1]) er[i] = 1;
+  }
+  let op = new Uint8Array(n);
+  for (let y = 1; y < PH - 1; y++) for (let x = 1; x < PW - 1; x++) {
+    const i = y * PW + x;
+    if (er[i] || er[i - 1] || er[i + 1] || er[i - PW] || er[i + PW] || er[i - PW - 1] || er[i - PW + 1] || er[i + PW - 1] || er[i + PW + 1]) op[i] = 1;
+  }
+  if (!P.open) op = fg;
+  // BRIDGES: excluded zones (the live-preview box, the reflection zone) connect a blob
+  // across them — an arm crossing the preview stays one piece — but never count as
+  // blob pixels themselves (no tip, no area).
+  const bridge = new Uint8Array(n);
+  if (P.bridge) for (let i = 0; i < n; i++) if ((glare[i] || (inBand(i) && !mask[i])) && !op[i]) bridge[i] = 1;
+  // components: biggest one entering from outside and reaching ≥40 px inside
+  const lab = new Int32Array(n); let best = 0, bestN = 0, cur = 0; const st = [];
+  for (let s0 = 0; s0 < n; s0++) {
+    if (!op[s0] || lab[s0]) continue; cur++; let cnt = 0, out = 0, inn = 0, core = 0; st.push(s0); lab[s0] = cur;
+    const go = (q) => { if ((op[q] || bridge[q]) && !lab[q]) { lab[q] = cur; st.push(q); } };
+    while (st.length) { const p = st.pop(); const x = p % PW, y = (p / PW) | 0;
+      if (op[p]) { cnt++; if (inScreen[p]) { inn++; if (inCore[p]) core++; } else { const [, v] = apply(C2S, x, y); if (v < H * 0.65) out++; } } // arms come from above / upper sides
+      if (x > 0) go(p - 1); if (x < PW - 1) go(p + 1); if (y > 0) go(p - PW); if (y < PH - 1) go(p + PW); }
+    // the hand = the blob with the most area well INSIDE the screen (not the biggest
+    // overall — a body shadow on the wall can be bigger than the arm)
+    if ((!P.needOut || out >= P.minOut) && core >= P.minIn && core > bestN) { bestN = core; best = cur; }
+  }
+  if (!best) return null;
+  let ex = 0, ey = 0, en = 0; const ins = [];
+  for (let p = 0; p < n; p++) if (lab[p] === best && op[p]) {
+    const [u, v] = apply(C2S, p % PW, (p / PW) | 0);
+    if (inCore[p]) ins.push([u, v]); else if (v < H * 0.65) { ex += u; ey += v; en++; }
+  }
+  if (en) { ex /= en; ey /= en; }
+  else { // not connected to the outside: the arm side is the blob's top (arms come from above)
+    const byV = [...ins].sort((p, q) => p[1] - q[1]).slice(0, Math.max(5, Math.floor(ins.length * 0.15)));
+    ex = byV.reduce((a1, p) => a1 + p[0], 0) / byV.length; ey = byV.reduce((a1, p) => a1 + p[1], 0) / byV.length - 1;
+  }
+  // tip = mean of the 12 inside pixels farthest from the entry (steadier than 1 px)
+  ins.sort((p, q) => ((q[0] - ex) ** 2 + (q[1] - ey) ** 2) - ((p[0] - ex) ** 2 + (p[1] - ey) ** 2));
+  const top = ins.slice(0, 12);
+  const tip = [top.reduce((s1, p) => s1 + p[0], 0) / top.length, top.reduce((s1, p) => s1 + p[1], 0) / top.length];
+  return { tip, area: bestN, entry: [ex, ey], fg: opts.wantMask ? op : undefined, lab: opts.wantMask ? lab : undefined, best };
 }
 
 // ---- 3. the 9-target session --------------------------------------------------------
 async function targetRun(cal, mask) {
   const results = [];
+  // one verified-clean reference of the black stage (no ring) for checking per-target refs
+  msg('Hands away — taking a clean picture of the screen…');
+  await sleep(1200);
+  const clean = await grabRGBAvg(6);
   for (let k = 0; k < TARGETS.length; k++) {
     const [tx, ty] = TARGETS[k];
     clearDots();
-    const ring = dot(tx, ty, 'target wait', 44);
+    const ring = dot(tx, ty, 'target', 44); // same look before & during — no state change for the camera to see
     msg(`Target ${k + 1} of 9 — hands away…`);
-    await sleep(1100); // > the display delay, so the reference shows this ring
-    const ref = await grabAvg(5);
-    post({ kind: 'ref', k, frame: jpeg() }); // the clean reference (for offline analysis)
-    ring.classList.remove('wait');
-    msg(`Target ${k + 1} of 9 — touch the circle and hold`);
+    // reference WITH this ring, verified hand-free against the clean stage
+    let ref = null;
+    for (let tries = 0; tries < 12 && !ref; tries++) {
+      await sleep(tries ? 500 : 1100); // > display delay so the ring is in the picture
+      const cand = await grabRGBAvg(5);
+      if (detectRGB(cand, clean, mask, cal.C2S)) { msg(`Target ${k + 1} of 9 — move your hand away from the screen…`); continue; }
+      ref = cand;
+    }
+    if (!ref) ref = await grabRGBAvg(5);
+    post({ kind: 'ref', k, frame: jpeg() });
+    msg(`Target ${k + 1} of 9 — touch the dot and hold`);
     const tipEl = document.createElement('div'); tipEl.className = 'tc-tip'; root.appendChild(tipEl);
     const hist = []; const samples = []; let done = null; const t0 = performance.now();
     while (!done && performance.now() - t0 < 20000) {
-      const f = grab(); const r = detect(f, ref, mask, cal.C2S); const now = performance.now();
+      const r = detectRGB(grabRGB(), ref, mask, cal.C2S); const now = performance.now();
       feedTip = r ? r.tip : null;
       if (r) {
         tipEl.style.display = 'block'; tipEl.style.left = `${r.tip[0] - 10}px`; tipEl.style.top = `${r.tip[1] - 10}px`;
         hist.push({ t: now, p: r.tip }); samples.push({ t: Math.round(now - t0), tip: r.tip.map(Math.round), area: r.area });
-        while (hist.length && now - hist[0].t > 600) hist.shift();
-        if (hist.length > 6 && now - hist[0].t > 550) {
-          const xs = hist.map((h) => h.p[0]), ys = hist.map((h) => h.p[1]);
-          if (Math.max(...xs) - Math.min(...xs) < 18 && Math.max(...ys) - Math.min(...ys) < 26) {
-            done = { tip: [xs.reduce((a, b) => a + b) / xs.length, ys.reduce((a, b) => a + b) / ys.length], area: r.area };
-          }
+        while (hist.length && now - hist[0].t > 700) hist.shift();
+        if (hist.length > 6 && now - hist[0].t > 600) {
+          const xs = hist.map((h) => h.p[0]).sort((p, q) => p - q), ys = hist.map((h) => h.p[1]).sort((p, q) => p - q);
+          const q = (arr, f) => arr[Math.floor((arr.length - 1) * f)];
+          if (q(xs, 0.85) - q(xs, 0.15) < 24 && q(ys, 0.85) - q(ys, 0.15) < 32) done = { tip: [q(xs, 0.5), q(ys, 0.5)], area: r.area };
         }
       } else { tipEl.style.display = 'none'; hist.length = 0; }
       await sleep(30);
