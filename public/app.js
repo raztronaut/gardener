@@ -1530,7 +1530,9 @@ function wirePad() {
     switch (action) {
       case 'palette':
         if (pal) { hidePalette(); break; }
-        if (panelOpen()) closePanel();
+        // X opens the palette ONLY from the wall — it never closes a panel (that read
+        // as "back + palette" and knocked people out of the Arcade).
+        if (panelOpen()) break;
         if (input) { input.value = '/'; focusInput(); palSel = 0; updatePalette(input); }
         break;
       case 'up':
