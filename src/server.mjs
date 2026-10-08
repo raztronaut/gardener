@@ -676,6 +676,28 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- FPS test results from the live kiosk (read back via kv / logs).
+    // ---- camera touch calibration (public/lib/touch.js): session log + frames in
+    // data/touch/<session-day>/, the resulting calibration in data/touch/calibration.json
+    if (req.method === 'POST' && p === '/api/touch/log') {
+      let b; try { b = JSON.parse(await readBody(req, 4 * 1024 * 1024)); } catch { return json(res, 400, { error: 'bad json' }); }
+      const dir = join(paths.DATA, 'touch', new Date().toISOString().slice(0, 10)); await fs.mkdir(dir, { recursive: true });
+      const stamp = Date.now();
+      if (typeof b.frame === 'string' && b.frame.startsWith('data:image/jpeg;base64,')) {
+        await fs.writeFile(join(dir, `${stamp}-${b.kind}${b.k != null ? '-' + b.k : ''}.jpg`), Buffer.from(b.frame.split(',')[1], 'base64')).catch(() => {});
+        delete b.frame;
+      }
+      appendFileSync(join(dir, 'session.jsonl'), JSON.stringify({ at: stamp, ...b }) + '\n');
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && p === '/api/touch/calibration') {
+      let b; try { b = JSON.parse(await readBody(req, 256 * 1024)); } catch { return json(res, 400, { error: 'bad json' }); }
+      await fs.mkdir(join(paths.DATA, 'touch'), { recursive: true });
+      await fs.writeFile(join(paths.DATA, 'touch', 'calibration.json'), JSON.stringify(b, null, 1));
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === 'GET' && p === '/api/touch/calibration') {
+      try { return json(res, 200, JSON.parse(readFileSync(join(paths.DATA, 'touch', 'calibration.json'), 'utf8'))); } catch { return json(res, 404, { error: 'not calibrated' }); }
+    }
     // ---- Arcade telemetry: the running game reports once a second (frames, stalls,
     // audio, memory, inputs) → data/arcade.log, so evidence survives wall reloads.
     if (req.method === 'POST' && p === '/api/arcade-log') {

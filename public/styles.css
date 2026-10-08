@@ -696,3 +696,17 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 .cam-status { margin-top: 10px; font-size: 14px; color: var(--ink-soft); }
 .cam-status::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rose);
   margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 8px var(--rose); }
+
+/* camera touch calibration (lib/touch.js) — a full-screen dark stage */
+#touchcal { position: fixed; inset: 0; z-index: 500; background: #000; cursor: none; }
+#touchcal .tc-msg { position: absolute; left: 0; right: 0; top: 46%; text-align: center; font-family: var(--font-display);
+  font-size: 30px; color: #cfeede; padding: 0 60px; line-height: 1.3; pointer-events: none; }
+#touchcal .tc-msg small { font-family: var(--font); font-size: 16px; color: var(--ink-faint); }
+#touchcal .tc-dot { position: absolute; border-radius: 50%; }
+#touchcal .tc-dot.mark { background: #fff; }
+#touchcal .tc-dot.target { border: 6px solid var(--mint); box-shadow: 0 0 30px rgba(116,247,176,.6), inset 0 0 0 12px rgba(116,247,176,.15); }
+#touchcal .tc-dot.target::after { content: ''; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%; background: var(--mint); }
+#touchcal .tc-dot.wait { border-color: #555; box-shadow: none; }
+#touchcal .tc-dot.ok { border: 6px solid var(--mint); background: rgba(116,247,176,.25); }
+#touchcal .tc-dot.miss { border: 6px solid var(--rose); }
+#touchcal .tc-tip { position: absolute; display: none; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 14px var(--gold); }
