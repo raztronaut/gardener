@@ -674,3 +674,7 @@ body.arcade-full #garden, body.arcade-full #topbar { display: none !important; }
 .card.awaiting-glass { background: none !important; border-color: transparent !important; box-shadow: none !important; }
 .card.awaiting-glass > * { opacity: 0 !important; }
 .card > .gb-img, .card > .lgr-tint, .card > .lgr-rim { transition: opacity .22s linear; }
+
+/* note bar as baked liquid glass (glass layers behind the prompt, input and button) */
+#feedbackForm.lgr { position: relative; background: transparent; border-color: transparent; }
+#feedbackForm.lgr > :not(.gb-img):not(.lgr-tint):not(.lgr-rim) { position: relative; z-index: 3; }
