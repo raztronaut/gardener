@@ -10,7 +10,7 @@
 //   3. `xrandr --brightness 0` → gamma dim as extra insurance.
 // The overlay (layer 1) needs no X access at all, so it always works.
 import { execFileSync } from 'node:child_process';
-import { existsSync, appendFileSync } from 'node:fs';
+import { existsSync, appendFileSync, readFileSync } from 'node:fs';
 import { config, paths, isNightNow, isEveningNow, eveningLevel } from './config.mjs';
 import { setNight } from './db.mjs';
 
@@ -47,8 +47,23 @@ function run(cmd, args) {
   }
 }
 
+// gnome-shell leaks on this kiosk (found at 5.2 GB RAM+swap after 77 days, swap
+// 100% full → system-wide freezes, unplayable Arcade). While the screen is off,
+// restart it in place if it's grown past 1.5 GB (X11: SIGHUP = restart, windows stay).
+function trimShell() {
+  try {
+    const pid = execFileSync('pgrep', ['-x', 'gnome-shell']).toString().trim().split('\n')[0];
+    if (!pid) return;
+    const st = readFileSync(`/proc/${pid}/status`, 'utf8');
+    const kb = (k) => parseInt((st.match(new RegExp(`${k}:\\s+(\\d+)`)) || [])[1] || '0', 10);
+    const mb = Math.round((kb('VmRSS') + kb('VmSwap')) / 1024);
+    if (mb > 1500) { process.kill(Number(pid), 'SIGHUP'); log(`night: gnome-shell at ${mb} MB — restarted it`); }
+  } catch (e) { log(`night: shell trim skipped: ${e.message}`); }
+}
+
 export function goNight() {
   setNight(true); // layer 1 — always works (frontend overlay)
+  trimShell();
   run('xset', ['s', 'off']); // no screensaver interference
   run('xrandr', ['--output', config.output, '--brightness', '0']); // layer 3
   run('xset', ['dpms', 'force', 'off']); // layer 2 — real power-down
