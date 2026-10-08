@@ -1859,6 +1859,13 @@ function wireCursor() {
     hideT = setTimeout(() => document.body.classList.add('idle'), 2000);
   };
   window.addEventListener('mousemove', wake, { passive: true });
+  // No native tooltips on the wall: the moment the cursor reaches an element with a
+  // `title`, move it to data-title (the browser never shows the popup).
+  document.addEventListener('mouseover', (e) => {
+    for (let el = e.target; el && el !== document; el = el.parentElement) {
+      if (el.hasAttribute && el.hasAttribute('title')) { el.dataset.title = el.getAttribute('title'); el.removeAttribute('title'); }
+    }
+  }, true);
   window.addEventListener('pointerdown', wake, { passive: true });
   document.body.classList.add('idle');
 }

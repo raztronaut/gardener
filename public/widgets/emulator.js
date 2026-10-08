@@ -263,7 +263,7 @@ export default {
       .eg-play { margin-top:auto; font-family:var(--font-display); font-weight:600; font-size:18px; color:#062018;
         background:linear-gradient(120deg, var(--mint), var(--mint-2)); border:none; border-radius:14px;
         padding:15px; cursor: var(--c-hand); letter-spacing:.02em; }
-      .eg-play:hover { filter:brightness(1.07); }
+      body:not(.idle) .eg-play:hover { filter:brightness(1.07); }
       .eg-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
         gap:10px; color:var(--ink-faint); font-family:var(--font-mono); font-size:13px; text-align:center;
         line-height:1.8; padding:30px; }
@@ -280,7 +280,7 @@ export default {
       .eg-back { background:transparent; border:1px solid var(--stroke); border-radius:999px;
         padding:6px 14px; color:var(--mint); font:inherit; font-size:12.5px; letter-spacing:.1em;
         text-transform:uppercase; cursor: var(--c-hand); }
-      .eg-back:hover { border-color:var(--mint); }
+      body:not(.idle) .eg-back:hover { border-color:var(--mint); }
     `);
     body.classList.add('eg');
 

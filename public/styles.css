@@ -284,7 +284,7 @@ body.screenshot .card { animation: none !important; opacity: 1 !important; trans
   color: var(--mint); padding: 8px 6px; border-radius: 999px; white-space: nowrap;
   transition: color .15s ease, background .15s ease, transform .15s ease; }
 .gbtn svg { width: 18px; height: 18px; flex: 0 0 auto; }
-.gbtn:hover { color: #b9ffd6; background: rgba(255,255,255,.06); }
+body:not(.idle) .gbtn:hover { color: #b9ffd6; background: rgba(255,255,255,.06); }
 .gbtn:active { transform: scale(.96); }
 .gbtn:focus { outline: none; }
 .gbtn:focus-visible { background: rgba(255,255,255,.06); }
@@ -338,7 +338,7 @@ body.idle, body.idle * { cursor: none !important; }
 
 /* ---------- widget focus (right-stick highlight) ---------- */
 /* Controller focus AND cursor hover share the same mint ring + glow. */
-.card.focused, #garden > .card[data-wid]:hover {
+.card.focused, body:not(.idle) #garden > .card[data-wid]:hover {
   border-color: var(--mint);
   box-shadow: var(--glass-edge), 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35);
   cursor: var(--c-hand); transition: border-color .12s ease, box-shadow .12s ease; }
@@ -353,7 +353,7 @@ body.idle, body.idle * { cursor: none !important; }
    ring + faint wash, so the highlight looks the same however you drive it. */
 .cl-row.clickable { cursor: var(--c-hand); border-radius: 12px;
   transition: background .12s ease, box-shadow .12s ease; }
-.cl-row.clickable:hover, .cl-row.row-sel {
+body:not(.idle) .cl-row.clickable:hover, .cl-row.row-sel {
   background: rgba(116,247,176,.08); box-shadow: inset 0 0 0 1px var(--mint); }
 /* generic selectable controls (Roots chore logger) get a matching mint ring */
 [data-psel].row-sel { outline: 2px solid var(--mint); outline-offset: 2px; }
@@ -596,7 +596,7 @@ body.screenshot #plantalarm { display: none !important; }
 .cl-row .note-del { flex: 0 0 auto; align-self: center; font-size: 16px; line-height: 1;
   background: rgba(255,155,176,.10); border: 1px solid var(--stroke); border-radius: 10px;
   color: var(--rose); cursor: var(--c-hand); padding: 8px 11px; transition: filter .15s ease; }
-.cl-row .note-del:hover { filter: brightness(1.2); border-color: var(--stroke-strong); }
+body:not(.idle) .cl-row .note-del:hover { filter: brightness(1.2); border-color: var(--stroke-strong); }
 .cl-row .note-del:disabled { opacity: .4; cursor: var(--c-arrow); }
 
 /* /grow — run a tending now on the planted notes (the "selection") */
@@ -609,7 +609,7 @@ body.screenshot #plantalarm { display: none !important; }
 .grow-go { font-family: var(--font-display); font-weight: 700; font-size: 19px; color: #08110d;
   background: linear-gradient(120deg, var(--mint), var(--mint-2)); border: none; border-radius: 14px;
   padding: 14px 26px; cursor: var(--c-hand); box-shadow: 0 4px 18px rgba(116,247,176,.3); }
-.grow-go:hover { filter: brightness(1.05); }
+body:not(.idle) .grow-go:hover { filter: brightness(1.05); }
 .grow-go:disabled { opacity: .5; cursor: var(--c-arrow); }
 .grow-running { font-size: 16px; color: var(--mint); line-height: 1.5; border: 1px solid var(--stroke);
   border-radius: 14px; padding: 14px 18px; background: rgba(116,247,176,.06); }
