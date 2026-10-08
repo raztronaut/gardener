@@ -103,7 +103,7 @@ function makeCtx(widgetId) {
 // ---- widget loader ----------------------------------------------------------
 // 4-col grid: '' = half width (span 2), 'q' = quarter-width square (span 1),
 // 'w4' = full width (span 4), 'tall'/'r2' add a second row.
-const SIZE_CLASS = { sq: 'q', sm: '', md: '', lg: 'w4', full: 'w4', wide: 'w4', tall: 'tall', hero: 'w4 tall' };
+const SIZE_CLASS = { sq: 'q', sm: '', md: '', lg: 'w4', full: 'w4', wide: 'w4', tall: 'tall', hero: 'w4 tall', stage: 'w4 stage' };
 const WIDGET_MODS = {}; // id → widget module object (filled by loadWidgets)
 
 // ---- one-day surprise: a single widget gets "taken over" for exactly one day ----
@@ -144,7 +144,7 @@ function renderPrank(body) {
 // (~10s boot); parallel collapses that to roughly the slowest single widget.
 async function loadWidgets(enabled, mountPoint) {
   const mods = await Promise.all(enabled.map((entry) =>
-    import(`/widgets/${entry.file}?v=${window.__GARDEN_VERSION}`).catch((e) => ({ __importError: e }))));
+    import(`${entry.file.startsWith('/') ? entry.file : `/widgets/${entry.file}`}?v=${window.__GARDEN_VERSION}`).catch((e) => ({ __importError: e }))));
   const mounts = [];
   mods.forEach((mod, index) => {
     const entry = enabled[index];
@@ -209,7 +209,10 @@ async function loadWidgets(enabled, mountPoint) {
           GB_READY.then((gb) => gb && gb.bakeCards([card]));
         }
         const fail = setTimeout(() => body.classList.add('ready'), 4000);
-        const cleanup = await w.mount(body, makeCtx(w.id));
+        const wctx = makeCtx(w.id);
+        card._unmount = () => { try { wctx._stop(); } catch { /* ignore */ } };
+        const cleanup = await w.mount(body, wctx);
+        if (typeof cleanup === 'function') { const s = card._unmount; card._unmount = () => { s(); try { cleanup(); } catch { /* ignore */ } }; }
         clearTimeout(fail); body.classList.add('ready'); card._reveal?.();
         settleCardSize(card, entry.id);
         if (typeof cleanup === 'function') cleanups.push(cleanup);
@@ -251,16 +254,15 @@ async function boot() {
   // controller zoom. Clears the persisted level so it can't get stuck.
   try { localStorage.removeItem('garden.zoomlvl'); setZoomLevel(0); } catch { /* ignore */ }
 
+  // Dashboards (public/dashboards.json): 'main' is the common wall; each other
+  // dashboard is bound to a controller shoulder combo that TOGGLES to it and back.
+  try { DASHBOARDS = (await (await fetch(`/dashboards.json?v=${window.__GARDEN_VERSION}`, { cache: 'no-store' })).json()).dashboards || DASHBOARDS; } catch (e) { markError('core', `dashboards: ${e.message}`); }
+  const startDash = DASHBOARDS.find((d) => d.id === qs.get('dash')) ? qs.get('dash') : 'main';
+
   // Load manifest + widgets.
   const garden = document.getElementById('garden');
-  let manifest = { widgets: [] };
-  try {
-    manifest = await (await fetch(`/widgets/manifest.json?v=${window.__GARDEN_VERSION}`, { cache: 'no-store' })).json();
-  } catch (e) { markError('core', `manifest: ${e.message}`); }
-
-  const enabled = (manifest.widgets || [])
-    .filter((w) => w.enabled !== false)
-    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  const enabled = await dashboardWidgets(startDash);
+  setDashAttr(startDash);
 
   // Concurrent load (order preserved inside loadWidgets) — see its comment.
   try {
@@ -292,6 +294,47 @@ async function boot() {
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
     if (qs.get('open')) { document.body.classList.add('qa-open'); setTimeout(() => openWidgetPanel(qs.get('open')), 300); }
   }
+}
+
+// ---- dashboards -----------------------------------------------------------------
+let DASHBOARDS = [{ id: 'main', name: 'GardenOS', manifest: '/widgets/manifest.json' }];
+let CURRENT_DASH = 'main';
+const PINNED = ['clock']; // stays on every dashboard (GardenOS header + time)
+function setDashAttr(id) {
+  CURRENT_DASH = id; window.__DASH = id;
+  document.body.dataset.dash = id;
+  document.body.classList.toggle('alt-dash', id !== 'main');
+}
+async function dashboardWidgets(id) {
+  const d = DASHBOARDS.find((x) => x.id === id) || DASHBOARDS[0];
+  let manifest = { widgets: [] };
+  try { manifest = await (await fetch(`${d.manifest}?v=${window.__GARDEN_VERSION}`, { cache: 'no-store' })).json(); }
+  catch (e) { markError('core', `manifest(${id}): ${e.message}`); }
+  let list = (manifest.widgets || []).filter((w) => w.enabled !== false).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  if (id !== 'main') list = [{ id: 'clock', file: 'clock.js', order: 0 }, ...list.filter((w) => !PINNED.includes(w.id))];
+  return list;
+}
+// Controller combo code: L1=a R1=b L2=c R2=d, sorted ("L1+R1+L2" → "abc").
+const comboCode = (combo) => (combo || '').split('+').map((b) => ({ L1: 'a', R1: 'b', L2: 'c', R2: 'd' })[b.trim()] || '').sort().join('');
+async function switchDashboard(id) {
+  if (id === CURRENT_DASH) id = 'main';                 // same combo again → back to the common wall
+  if (!DASHBOARDS.find((d) => d.id === id)) return;
+  if (panelOpen()) closePanel();
+  try { window.__GARDEN_GAME?.stop?.(); } catch { /* ignore */ }
+  window.__GARDEN_GAME = null;
+  document.body.classList.remove('arcade-full');
+  const garden = document.getElementById('garden');
+  for (const card of [...garden.querySelectorAll(':scope > .card')]) {
+    if (PINNED.includes(card.dataset.wid)) continue;
+    try { card._unmount?.(); } catch { /* ignore */ }
+    card.remove();
+  }
+  const list = (await dashboardWidgets(id)).filter((w) => !PINNED.includes(w.id));
+  setDashAttr(id);
+  await loadWidgets(list, garden);
+  setTimeout(checkOverflow, 1500);
+  const d = DASHBOARDS.find((x) => x.id === id);
+  toast(id === 'main' ? 'GardenOS' : d.name);
 }
 
 // ---- layout stability: reserve each card's loaded size before its data arrives ----
@@ -1540,6 +1583,13 @@ function wirePad() {
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
+    // Dashboard combos ('dash' + combo code) always win — they toggle dashboards
+    // even mid-game (the same combo that opened a dashboard closes it).
+    if (/^dash[a-d]+$/.test(action)) {
+      const d = DASHBOARDS.find((x) => x.combo && comboCode(x.combo) === action.slice(4));
+      if (d) switchDashboard(d.id);
+      return;
+    }
     // Raw controller edges (jb…/jx…/jy…) only matter to a running game.
     if (/^j[bxy]/.test(action)) { try { window.__GARDEN_GAME?.raw?.(action); } catch { /* ignore */ } return; }
     // A running game OVERWRITES all control mappings. Leaving: hold all four
@@ -1612,7 +1662,7 @@ function wirePad() {
       case 'arcade': // L1+R1+L2+R2 chord — the Arcade isn't on the grid; open it on demand
         if (pal) { hidePalette(); if (input) input.value = ''; }
         padMapPeek = false;
-        openArcade();
+        switchDashboard('arcade');
         break;
       case 'mxup': mouseForward(); break;   // MX Master top thumb button (via pad.mjs)
       case 'mxdown': mouseBack(); break;    // MX Master bottom thumb button
@@ -1723,7 +1773,7 @@ async function plantMd(text) {
   text = String(text || '').trim();
   if (!text) { closeMdEditor(); return; }
   try {
-    const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, dashboard: CURRENT_DASH }) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     toast('Planted 🌱  — the gardener will tend to it');
     const input = document.getElementById('feedbackInput'); if (input) input.value = '';
@@ -1861,10 +1911,10 @@ function wireFeedback() {
     try {
       const r = await fetch('/api/feedback', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, dashboard: CURRENT_DASH }),
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      toast('Planted 🌱  — the gardener will tend to it');
+      toast(CURRENT_DASH === 'main' ? 'Planted — it grows tomorrow morning' : `Planted in ${(DASHBOARDS.find((d) => d.id === CURRENT_DASH) || {}).name} — its own gardener tends it`);
     } catch {
       input.value = text;
       toast('Could not reach the gardener — try again');

@@ -1,0 +1,22 @@
+{
+  "widgets": [
+    {
+      "id": "declaration",
+      "file": "/dashboards/gui/widgets/declaration.js",
+      "enabled": true,
+      "order": 1
+    },
+    {
+      "id": "reasons",
+      "file": "/dashboards/gui/widgets/reasons.js",
+      "enabled": true,
+      "order": 2
+    },
+    {
+      "id": "promises",
+      "file": "/dashboards/gui/widgets/promises.js",
+      "enabled": true,
+      "order": 3
+    }
+  ]
+}

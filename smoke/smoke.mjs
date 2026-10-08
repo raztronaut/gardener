@@ -51,6 +51,24 @@ async function main() {
       const src = readFileSync(wf, 'utf8');
       check(`widget exports default: ${w.file}`, /export\s+default/.test(src), 'no `export default`');
     }
+    // Dashboards: registry parses, every combo is unique and 3+ shoulders, every
+    // dashboard manifest lists real widget files with a default export.
+    try {
+      const dj = JSON.parse(readFileSync(join(PUBLIC, 'dashboards.json'), 'utf8'));
+      const ds = dj.dashboards || [];
+      check('dashboards.json has main', ds.some((d) => d.id === 'main'));
+      const combos = ds.filter((d) => d.combo).map((d) => d.combo.split('+').map((x) => x.trim()).sort().join('+'));
+      check('dashboard combos unique + 3+ shoulder buttons', new Set(combos).size === combos.length
+        && combos.every((c) => c.split('+').length >= 3 && c.split('+').every((b) => ['L1', 'R1', 'L2', 'R2'].includes(b))), combos.join(' | '));
+      for (const d of ds.filter((x) => x.id !== 'main')) {
+        const mf = join(PUBLIC, d.manifest.replace(/^\//, ''));
+        if (!check(`dashboard ${d.id}: manifest exists`, existsSync(mf))) continue;
+        for (const w of JSON.parse(readFileSync(mf, 'utf8')).widgets || []) {
+          const wf = join(PUBLIC, w.file.replace(/^\//, ''));
+          check(`dashboard ${d.id}: ${w.file} exports default`, existsSync(wf) && /export\s+default/.test(readFileSync(wf, 'utf8')));
+        }
+      }
+    } catch (e) { bad('dashboards.json', e.message); }
     for (const f of ['index.html', 'app.js', 'styles.css']) {
       check(`core file exists: ${f}`, existsSync(join(PUBLIC, f)));
     }

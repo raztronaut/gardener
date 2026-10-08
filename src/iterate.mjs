@@ -8,7 +8,7 @@
 import { spawn, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { appendFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { appendFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { config, paths } from './config.mjs';
@@ -68,6 +68,7 @@ const AGENTS = {
 
 // ---- run the agent (one query) --------------------------------------------
 async function runAgent({ prompt, timeoutMs, transcriptPath, label }) {
+  prompt = SCOPE_NOTE + prompt;
   const ac = new AbortController();
   const timer = setTimeout(() => { log(`${label}: timeout ${Math.round(timeoutMs / 60000)}m — aborting`); ac.abort(); }, timeoutMs);
   let summary = '';
@@ -107,6 +108,7 @@ async function runAgent({ prompt, timeoutMs, transcriptPath, label }) {
   } finally {
     clearTimeout(timer);
   }
+  try { enforceScope(SCOPE_ID); } catch (e) { log(`scope check failed: ${e.message}`); }
   return { summary: (summary || lastAssistantText || '').slice(0, 4000), success, turns };
 }
 
@@ -135,6 +137,40 @@ function freePort(port) {
   } catch { /* ss missing or port free */ }
 }
 
+// ---- per-dashboard scope -----------------------------------------------------
+// Each dashboard (public/dashboards.json) is tended by its OWN agent run with its
+// own context, feedback and commit. A non-main dashboard's agent may only change
+// files under public/dashboards/<id>/ — anything else it touches is reverted.
+let DASH_QS = '';      // review screenshot query (?dash=<id>)
+let SCOPE_NOTE = '';   // prepended to every agent prompt for a dashboard run
+let SCOPE_ID = 'main';
+function dashScopeNote(id, name) {
+  return `## SCOPE — you are tending ONLY the "${name}" dashboard (id: ${id})\n`
+    + `GardenOS has several dashboards; the humans switch between them with controller combos. `
+    + `You work on this one alone. You may ONLY create/edit files under \`public/dashboards/${id}/\` `
+    + `(its \`manifest.json\`, \`widgets/*.js\`, and any data/helper files there). Never touch the main wall `
+    + `(public/widgets/, app.js, styles.css, index.html), other dashboards, the server or the rules — changes `
+    + `outside your folder are automatically reverted. Widget entries in your manifest use absolute file paths, `
+    + `e.g. \`"file": "/dashboards/${id}/widgets/foo.js"\`; widgets follow the normal widget contract. The clock `
+    + `is pinned at the top of every dashboard (don't add one). Preview it at \`/?dash=${id}\`. `
+    + `Run \`npm run smoke\` before finishing.\n\n`;
+}
+function enforceScope(id) {
+  if (id === 'main') return [];
+  const keep = `public/dashboards/${id}/`;
+  const out = execFileSync('git', ['status', '--porcelain', '-uall'], { cwd: paths.ROOT, encoding: 'utf8' });
+  const bad = [];
+  for (const line of out.split('\n').filter(Boolean)) {
+    const f = line.slice(3).replace(/^"|"$/g, '').split(' -> ').pop();
+    if (f.startsWith(keep)) continue;
+    bad.push(f);
+    if (line.startsWith('??')) { try { execFileSync('rm', ['-rf', join(paths.ROOT, f)]); } catch { /* ignore */ } }
+    else { try { execFileSync('git', ['checkout', 'HEAD', '--', f], { cwd: paths.ROOT }); } catch { /* ignore */ } }
+  }
+  if (bad.length) log(`scope: reverted ${bad.length} out-of-scope change(s): ${bad.slice(0, 8).join(', ')}`);
+  return bad;
+}
+
 async function captureAndReview(iterDir) {
   freePort(REVIEW_PORT);
   // GARDENER_NO_RECOVER=1: this child must NEVER run crash recovery, or it would
@@ -154,7 +190,7 @@ async function captureAndReview(iterDir) {
     }
     if (!healthy) throw new Error(`review server did not become healthy on ${REVIEW_PORT}`);
     const shot = join(iterDir, 'screenshot.png');
-    await captureUrl(`http://127.0.0.1:${REVIEW_PORT}/?screenshot=1`, shot, { waitMs: 7000 });
+    await captureUrl(`http://127.0.0.1:${REVIEW_PORT}/?screenshot=1${DASH_QS}`, shot, { waitMs: 7000 });
     try { copyFileSync(shot, join(paths.SCREENSHOTS, 'latest.png')); } catch { /* ignore */ }
     let verdict = { ok: true, score: null, issues: [], notes: 'review skipped' };
     try { verdict = await reviewScreenshot(shot); } catch (e) { log(`visual review failed (non-blocking): ${e.message}`); }
@@ -176,12 +212,32 @@ async function main() {
   if (!acquireLock()) { log('another iteration holds the lock — exiting'); process.exit(0); }
   // Heartbeat the lock so a long-but-healthy run is never seen as stale/stealable.
   const heartbeat = setInterval(() => { try { refreshLock(); } catch { /* ignore */ } }, 60 * 1000);
+  try {
+    let dashes = [{ id: 'main', name: 'GardenOS' }];
+    try { dashes = JSON.parse(readFileSync(join(paths.PUBLIC, 'dashboards.json'), 'utf8')).dashboards || dashes; } catch { /* main only */ }
+    const pending = getPendingFeedback();
+    // main is always tended (self-directed when it has no notes); other dashboards
+    // only when someone planted a seed there. One independent agent run each.
+    for (const d of dashes) {
+      const items = pending.filter((f) => (f.dashboard || 'main') === d.id);
+      if (d.id !== 'main' && !items.length) continue;
+      DASH_QS = d.id === 'main' ? '' : `&dash=${d.id}`;
+      SCOPE_NOTE = d.id === 'main' ? '' : dashScopeNote(d.id, d.name);
+      SCOPE_ID = d.id;
+      await tendDashboard(d.id === 'main' ? trigger : `${trigger}/${d.id}`, d, items);
+    }
+  } finally {
+    clearInterval(heartbeat);
+    releaseLock();
+  }
+  process.exit(0);
+}
 
+async function tendDashboard(trigger, dash, feedbackItems) {
   // Start from a clean, known-good base (HEAD). Discard any stray working changes.
   if (git.isRepo() && git.isDirty()) { log('working tree dirty at start — resetting to HEAD'); git.resetHard('HEAD'); }
   const baseCommit = git.head();
 
-  const feedbackItems = getPendingFeedback();
   const feedbackIds = feedbackItems.map((f) => f.id); // consume ONLY these at deploy; mid-run feedback stays pending
   const date = new Date().toLocaleDateString('en-US', { timeZone: config.tz, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const iterId = createIteration({ trigger, baseCommit, feedbackCount: feedbackItems.length });
@@ -190,7 +246,7 @@ async function main() {
   logFile = join(iterDir, 'iterate.log');
   const transcript = join(iterDir, 'transcript.jsonl');
 
-  log(`=== iteration #${iterId} (${trigger}) base=${baseCommit?.slice(0, 8)} feedback=${feedbackItems.length} ===`);
+  log(`=== iteration #${iterId} (${trigger}) dashboard=${dash.id} base=${baseCommit?.slice(0, 8)} feedback=${feedbackItems.length} ===`);
   // Always tend with the newest Opus (the humans' standing order). Mutates the
   // shared config so the vision review uses the same model.
   const latest = await resolveLatestOpus();
@@ -279,7 +335,7 @@ async function main() {
     //    result_commit durably BEFORE finalizing, then bump+consume+mark in one
     //    atomic transaction (so a crash can't apply a partial deploy).
     const resultCommit = git.commitAll(
-      `tend #${iterId}: ${(changelogPhrase(finalSummary) || 'self-directed improvement').slice(0, 72)}\n\n`
+      `tend #${iterId}${dash.id === 'main' ? '' : ` [${dash.id}]`}: ${(changelogPhrase(finalSummary) || 'self-directed improvement').slice(0, 72)}\n\n`
       + `${finalSummary.slice(0, 1500)}\n\nGardener iteration ${iterId} (${trigger}, ${feedbackItems.length} feedback).`);
     updateIteration(iterId, { result_commit: resultCommit });
     const unresolved = (lastVerdict?.issues || []).filter((i) => i.severity === 'critical').length;
@@ -301,12 +357,8 @@ async function main() {
     log(`iteration FAILED: ${e.message} — rolling back to ${baseCommit?.slice(0, 8)}`);
     try { if (baseCommit) git.resetHard(baseCommit); else git.resetHard('HEAD'); } catch (re) { log(`rollback error: ${re.message}`); }
     finishIteration(iterId, 'failed', { error: e.message.slice(0, 1000), summary: finalSummary.slice(0, 2000), review_notes: lastVerdict ? summarizeIssues(lastVerdict).slice(0, 1000) : null });
-  } finally {
-    clearInterval(heartbeat);
-    releaseLock();
   }
   log(`=== iteration #${iterId} done (deployed=${deployed}) ===`);
-  process.exit(0);
 }
 
 main().catch((e) => { log(`fatal: ${e.stack || e}`); try { releaseLock(); } catch { /* ignore */ } process.exit(1); });

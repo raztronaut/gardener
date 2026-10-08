@@ -7,7 +7,7 @@ import { promises as fs, readFileSync, appendFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
-import { join, normalize, extname, resolve } from 'node:path';
+import { join, normalize, extname, resolve, basename } from 'node:path';
 import { config, paths } from './config.mjs';
 import {
   addFeedback, getRecentFeedback, countPendingFeedback, deletePendingFeedback,
@@ -83,6 +83,39 @@ const ROM_SYSTEMS = {
   '.md': 'segaMD', '.gen': 'segaMD',
   '.sms': 'segaMS', '.pce': 'pce',
 };
+// Box art for the Arcade: libretro-thumbnails (No-Intro names), fetched once per
+// ROM and cached in data/covers/. Name variants tried: as-is, then with extra tags
+// like "(Sample)"/"(Rev 1)" dropped, keeping the region. libretro replaces
+// &*/:`<>?\| with _ in file names.
+const COVER_SYS = {
+  nes: 'Nintendo - Nintendo Entertainment System', snes: 'Nintendo - Super Nintendo Entertainment System',
+  gb: 'Nintendo - Game Boy', gbc: 'Nintendo - Game Boy Color', gba: 'Nintendo - Game Boy Advance',
+  n64: 'Nintendo - Nintendo 64', segaMD: 'Sega - Mega Drive - Genesis', segaMS: 'Sega - Master System - Mark III',
+  pce: 'NEC - PC Engine - TurboGrafx 16',
+};
+async function romCover(file) {
+  const ext = extname(file).toLowerCase(), sys = COVER_SYS[ROM_SYSTEMS[ext]];
+  if (!sys) return null;
+  const dir = join(paths.DATA, 'covers'); await fs.mkdir(dir, { recursive: true });
+  const cached = join(dir, file.replace(/[^\w .()-]/g, '_') + '.png');
+  try { return await fs.readFile(cached); } catch { /* fetch */ }
+  const base = file.slice(0, -ext.length);
+  const region = (base.match(/\((USA|Europe|Japan|World|USA, Europe)[^)]*\)/) || [])[0] || '';
+  const title = base.replace(/\s*\(.*$/, '').trim();
+  const names = [...new Set([base, `${title} ${region}`.trim(), `${title} (USA)`, `${title} (World)`, `${title} (Europe)`])];
+  for (const n of names) {
+    const url = `https://thumbnails.libretro.com/${encodeURIComponent(sys)}/Named_Boxarts/${encodeURIComponent(n.replace(/[&*/:`<>?\\|]/g, '_'))}.png`;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (r.ok && (r.headers.get('content-type') || '').includes('image')) {
+        const buf = Buffer.from(await r.arrayBuffer());
+        await fs.writeFile(cached, buf).catch(() => {});
+        return buf;
+      }
+    } catch { /* next */ }
+  }
+  return null;
+}
 async function listRoms() {
   let names = [];
   try { names = await fs.readdir(paths.ROMS); } catch { return []; }
@@ -468,12 +501,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'POST' && p === '/api/feedback') {
       const raw = await readBody(req);
-      let text = '';
-      try { text = (JSON.parse(raw).text || '').toString(); } catch { return json(res, 400, { error: 'bad json' }); }
+      let text = '', dash = 'main';
+      try { const b = JSON.parse(raw); text = (b.text || '').toString(); dash = String(b.dashboard || 'main'); } catch { return json(res, 400, { error: 'bad json' }); }
       text = text.trim().slice(0, 2000);
       if (!text) return json(res, 400, { error: 'empty feedback' });
-      const id = addFeedback(text, 'ui');
-      log(`feedback #${id}: ${text.slice(0, 120)}`);
+      const id = addFeedback(text, 'ui', dash);
+      log(`feedback #${id} [${dash}]: ${text.slice(0, 120)}`);
       return json(res, 200, { ok: true, id });
     }
     if (req.method === 'DELETE' && p === '/api/feedback') {
@@ -685,6 +718,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/emu-frame.html') return serveEmuFrame(req, res, u);
     // List the ROMs the user dropped in data/roms/ (localhost-only server).
     if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
+    if (req.method === 'GET' && p === '/api/rom-cover') {
+      const file = basename(u.searchParams.get('file') || '');
+      if (!file || file.startsWith('.')) return json(res, 400, { error: 'bad file' });
+      const png = await romCover(file).catch(() => null);
+      if (!png) return json(res, 404, { error: 'no cover' });
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': png.length, 'Cache-Control': 'public, max-age=86400' });
+      return res.end(png);
+    }
     // Stream one ROM's bytes (read-only, basename-guarded path traversal).
     if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/roms/')) return serveRom(req, res, p);
 

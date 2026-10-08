@@ -665,7 +665,7 @@ body.arcade-full #feedbackbar { visibility: hidden; }
 /* Nothing of the wall is rendered under a running game: no paint, no layout, no
    compositing of the cards behind the emulator (its minute/5-minute refreshes
    used to cause small hitches in-game). */
-body.arcade-full #garden, body.arcade-full #topbar { display: none !important; }
+body.arcade-full #garden > .card:not([data-wid="arcade"]), body.arcade-full #topbar { display: none !important; }
 
 .rd-src { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rd-toggle { font-size: 14px; padding: 4px 6px; letter-spacing: 0; text-transform: none; }
@@ -678,6 +678,14 @@ body.arcade-full #garden, body.arcade-full #topbar { display: none !important; }
 /* note bar as baked liquid glass (glass layers behind the prompt, input and button) */
 #feedbackForm.lgr { position: relative; background: transparent; border-color: transparent; }
 #feedbackForm.lgr > :not(.gb-img):not(.lgr-tint):not(.lgr-rim) { position: relative; z-index: 3; }
-/* typing: the visible text is the glass's REFRACTED rendering (lib/glassbake.js
-   liveTextGlass); the real input text is transparent, the caret stays */
-#feedbackForm.lgr #feedbackInput:focus { color: transparent; caret-color: var(--mint); }
+
+/* ---------- dashboards ---------- */
+body.alt-dash .card[data-wid="clock"] { grid-column: span 4; }   /* the time stays, full width */
+.card.stage { grid-column: span 4; padding: 0; min-height: 0; }
+body:has(.card.stage) #garden { grid-template-rows: auto 1fr; }
+.card.stage > .card-body { height: 100%; }
+.card[data-wid="arcade"] .eg.arcade-host { width: 100%; margin: 0; height: 100%; min-height: 0; }
+.card[data-wid="arcade"] .ax { border-radius: var(--radius); }
+/* a running game: the arcade card takes the whole screen */
+body.arcade-full .card[data-wid="arcade"] { position: fixed; inset: 0; z-index: 300; border-radius: 0; background: #000; }
+body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }

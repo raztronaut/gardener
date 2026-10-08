@@ -281,6 +281,43 @@ export default {
         padding:6px 14px; color:var(--mint); font:inherit; font-size:12.5px; letter-spacing:.1em;
         text-transform:uppercase; cursor: var(--c-hand); }
       body:not(.idle) .eg-back:hover { border-color:var(--mint); }
+      /* ---- Arcade screen (2026-10-07): blurred box-art backdrop, hero, cover shelf ---- */
+      .ax { position:relative; height:100%; min-height:0; display:flex; flex-direction:column; overflow:hidden;
+        border-radius:inherit; padding:34px 34px 26px; gap:26px; isolation:isolate; }
+      .ax-bg { position:absolute; inset:-60px; z-index:-2; background-size:cover; background-position:center;
+        filter:blur(42px) saturate(1.3); opacity:.55; transform:scale(1.1); }
+      .ax-veil { position:absolute; inset:0; z-index:-1;
+        background:linear-gradient(180deg, rgba(4,12,9,.25) 0%, rgba(4,12,9,.55) 55%, rgba(4,10,8,.92) 100%); }
+      .ax-hero { flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:26px; }
+      .ax-cover { position:relative; overflow:hidden; border-radius:12px; background:#0a1712;
+        box-shadow:0 22px 50px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08); }
+      .ax-cover .eg-cover { position:absolute; inset:0; }
+      .ax-art { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .25s linear; }
+      .ax-art.show { opacity:1; }
+      .ax-cover.big { width:520px; aspect-ratio:512 / 364; border-radius:16px;
+        -webkit-box-reflect: below 6px linear-gradient(transparent 72%, rgba(255,255,255,.14)); }
+      .ax-info { display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; margin-top:34px; }
+      .ax-sys { font-size:13px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--mint); }
+      .ax-title { font-family:var(--font-display); font-size:52px; line-height:1; color:#fff; text-shadow:0 4px 24px rgba(0,0,0,.5); }
+      .ax-meta { font-size:16px; color:var(--ink-soft); }
+      .ax-play { margin-top:10px; display:inline-flex; align-items:center; gap:12px; border:none; cursor:var(--c-hand);
+        font-family:var(--font); font-weight:600; font-size:20px; color:#04140e; background:var(--mint);
+        border-radius:999px; padding:13px 26px 13px 22px; box-shadow:0 10px 30px rgba(116,247,176,.25); }
+      .ax-play .tri { width:0; height:0; border-left:13px solid #04140e; border-top:8px solid transparent; border-bottom:8px solid transparent; }
+      .ax-play kbd { font-family:var(--font); font-size:12px; font-weight:600; border:1.5px solid rgba(4,20,14,.4);
+        border-radius:6px; padding:1px 6px; }
+      .ax-hint { font-size:13px; color:var(--ink-faint); margin-top:4px; }
+      .ax-lib { flex:none; }
+      .ax-lib-h { display:flex; justify-content:space-between; font-size:13px; font-weight:600; letter-spacing:.14em;
+        text-transform:uppercase; color:var(--ink-soft); margin-bottom:12px; }
+      .ax-shelf { display:flex; gap:16px; overflow-x:auto; padding:6px 4px 10px; scrollbar-width:none; }
+      .ax-tile { flex:none; width:150px; aspect-ratio:512 / 364; padding:0; border:none; background:none; cursor:var(--c-hand);
+        border-radius:12px; opacity:.55; transition:opacity .15s linear; }
+      .ax-tile .ax-cover { width:100%; height:100%; }
+      .ax-tile.row-sel { opacity:1; }
+      .ax-tile.row-sel .ax-cover { box-shadow:0 0 0 2px var(--mint), 0 14px 34px rgba(0,0,0,.6); }
+      .card[data-wid="arcade"] { padding:0; }
+      .card[data-wid="arcade"] .card-body { height:100%; }
     `);
     body.classList.add('eg');
 
@@ -399,6 +436,7 @@ export default {
     const RAWPAD = { 0: 8, 1: 0, 3: 9, 4: 1, 6: 10, 7: 11, 10: 2, 11: 3 }; // SN30 idx → RetroPad
     const DIRPAD = { u: 4, d: 5, l: 6, r: 7 };
     const axisDown = { x: null, y: null };
+    const sysHeld = new Set();
     function pad(id, v) {
       try { emuFrame?.contentWindow?.EJS_emulator?.gameManager?.simulateInput(0, id, v); } catch { /* core not ready */ }
     }
@@ -406,7 +444,10 @@ export default {
       if (mode !== 'game') return;
       if (tele) tele.inputs++;
       if (a[1] === 'b') {                       // jb<idx><d|u> — true press / release
-        const id = RAWPAD[a.charCodeAt(2) - 97];
+        const bi = a.charCodeAt(2) - 97;
+        if (bi === 10 || bi === 11) { if (a[3] === 'd') sysHeld.add(bi); else sysHeld.delete(bi);
+          if (sysHeld.has(10) && sysHeld.has(11)) { sysHeld.clear(); showPicker(); return; } } // Select+Start → games
+        const id = RAWPAD[bi];
         if (id != null) pad(id, a[3] === 'd' ? 1 : 0);
         return;
       }
@@ -455,21 +496,15 @@ export default {
     // ---- ROM PICKER ----------------------------------------------------------
     // Derive the real column count from the rendered grid (so up/down arithmetic
     // always lands on the right tile even if the layout/column count changes).
-    const PREF_COLS = 2; // covers per row beside the detail sidebar (CSS --eg-cols)
-    function gridCols() {
-      const grid = body.querySelector('.eg-grid');
-      if (!grid) return PREF_COLS;
-      const cs = getComputedStyle(grid).gridTemplateColumns;
-      const n = cs ? cs.split(' ').filter(Boolean).length : 0;
-      return n > 0 ? n : PREF_COLS;
-    }
+    // The library is a single horizontal shelf: every direction steps ±1.
+    function gridCols() { return 1; }
 
     function setSel(i) {
       const btns = body.querySelectorAll('.eg-rom');
       if (!btns.length) return;
       sel = (i + btns.length) % btns.length;
       btns.forEach((b, k) => b.classList.toggle('row-sel', k === sel));
-      btns[sel].scrollIntoView({ block: 'nearest' });
+      btns[sel].scrollIntoView({ block: 'nearest', inline: 'center' });
       updateDetail();
     }
 
@@ -499,95 +534,68 @@ export default {
       ];
     }
 
-    // Refresh the DETAIL SIDEBAR (big cover + metadata + play stats) for the
-    // selection, and best-effort reveal real boxart over the generated cover.
-    let prevReq = 0;
+    // Cover art: real box art from /api/rom-cover (libretro-thumbnails, cached on
+    // the server); a generated cover (gradient + pixel motif + title) underneath
+    // shows if there's none.
+    const coverURL = (rom) => `/api/rom-cover?file=${encodeURIComponent(rom.file)}`;
+    function coverEl(rom, cls) {
+      const box = h('div', { class: `ax-cover ${cls || ''}` },
+        h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
+      const img = h('img', { class: 'ax-art', alt: '' });
+      img.onload = () => img.classList.add('show');
+      img.src = coverURL(rom);
+      box.appendChild(img);
+      return box;
+    }
+
+    // Refresh the hero (backdrop, big cover, title, meta) for the selection.
     function updateDetail() {
       const rom = roms[sel];
-      if (!rom) return;
-      const big = body.querySelector('.eg-bigcover');
-      const titleEl = body.querySelector('.eg-side-t');
-      const metaEl = body.querySelector('.eg-side-meta');
-      if (!big || !titleEl || !metaEl) return;
-
-      big.replaceChildren(h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
-      titleEl.textContent = rom.name.replace(/[-_]/g, ' ');
-
-      const ext = (rom.file.match(/\.[^.]+$/) || [''])[0].replace('.', '').toLowerCase();
-      const size = fmtSize(rom.sizeBytes);
+      const hero = body.querySelector('.ax-hero');
+      if (!rom || !hero) return;
       const st = loadStats()[rom.file] || { plays: 0, last: 0 };
-      const row = (k, v, mint) => h('div', { class: 'eg-mrow' },
-        h('span', { class: 'k' }, k), h('span', { class: 'v' + (mint ? ' mint' : '') }, v));
-      metaEl.replaceChildren(
-        row('System', SYS_NAME[rom.system] || rom.system),
-        row('Format', '.' + ext),
-        ...(size ? [row('Size', size)] : []),
-        row('Played', st.plays ? `${st.plays}×` : 'Never', !!st.plays),
-        row('Last played', agoStr(st.last)),
-      );
-
-      // progressive enhancement: overlay real boxart on the big cover if libretro has it.
-      const token = ++prevReq;
-      const url = boxartURL(rom);
-      if (url) {
-        const img = new Image();
-        img.onload = () => { if (token === prevReq) { const a = h('img', { class: 'eg-art show', src: img.src, alt: '' }); big.appendChild(a); } };
-        img.src = url;
-      }
+      const bg = body.querySelector('.ax-bg');
+      bg.style.backgroundImage = `url("${coverURL(rom)}")`;
+      const title = rom.name.replace(/\s*\((Sample|Rev [^)]*|Beta[^)]*|Proto[^)]*)\)/gi, '').replace(/[-_]/g, ' ');
+      hero.replaceChildren(
+        coverEl(rom, 'big'),
+        h('div', { class: 'ax-info' },
+          h('div', { class: 'ax-sys' }, SYS_NAME[rom.system] || rom.system),
+          h('div', { class: 'ax-title' }, title),
+          h('div', { class: 'ax-meta' }, st.plays ? `Played ${st.plays}× · last ${agoStr(st.last)}` : 'Never played'),
+          h('button', { class: 'ax-play', type: 'button', onclick: () => boot(roms[sel]) },
+            h('span', { class: 'tri' }), 'Play', h('kbd', {}, 'A')),
+          h('div', { class: 'ax-hint' }, 'In game: Select + Start back to games · L1 R1 L2 R2 back to GardenOS')));
     }
 
     async function showPicker() {
       document.body.classList.remove('arcade-full');
       mode = 'picker';
       teardownGame(); // if returning from a game, kill the previous core first
-      body.replaceChildren(h('div', { class: 'eg-pick' },
-        h('div', { class: 'eg-pick-h' }, 'loading games…')));
       try {
         const r = await fetch('/api/roms', { cache: 'no-store' });
         roms = (await r.json()).roms || [];
       } catch { roms = []; }
 
       if (!roms.length) {
-        body.replaceChildren(h('div', { class: 'eg-pick' },
+        body.replaceChildren(h('div', { class: 'ax' },
           h('div', { class: 'eg-empty' },
             h('div', {}, 'No games yet.'),
-            h('div', {}, 'Drop ROM files in ', h('code', {}, 'data/roms/'), ' on the wall machine.'),
-            h('div', {}, '.nes · .smc/.sfc · .gb/.gbc · .gba · .n64/.z64 · .md · .sms · .pce'))));
+            h('div', {}, 'Drop ROM files in ', h('code', {}, 'data/roms/'), ' on the wall machine.'))));
         return;
       }
-
-      // Left: a grid of 3:4 cover tiles. Click === boot, hover === select.
-      const grid = h('div', { class: 'eg-grid' },
-        ...roms.map((rom, i) => {
-          const tile = h('button', {
-            class: 'eg-rom', type: 'button', 'data-psel': '1', title: rom.name,
-            onclick: () => boot(rom),
-            onmouseover: () => setSel(i),
-          }, h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
-          const url = boxartURL(rom);
-          if (url) { // reveal real boxart over the generated cover if it exists
-            const art = h('img', { class: 'eg-art', alt: '', loading: 'lazy' });
-            art.onload = () => art.classList.add('show');
-            art.src = url;
-            tile.appendChild(art);
-          }
-          return tile;
-        }));
-
-      // Right: the OpenEmu-style detail sidebar (filled by updateDetail()).
-      const side = h('div', { class: 'eg-side' },
-        h('div', { class: 'eg-bigcover' }),
-        h('div', { class: 'eg-side-t' }, ''),
-        h('div', { class: 'eg-tag' }, 'Homebrew'),
-        h('div', { class: 'eg-side-meta' }),
-        h('button', { class: 'eg-play', type: 'button', onclick: () => boot(roms[sel]) }, '▶  Play'));
-
-      body.replaceChildren(h('div', { class: 'eg-pick' },
-        h('div', { class: 'eg-pick-h' },
-          h('span', { html: `<b>${roms.length}</b> game${roms.length === 1 ? '' : 's'} in the library` }),
-          h('span', {}, 'A / Enter · play')),
-        h('div', { class: 'eg-cols' }, grid, side)));
-      sel = 0; setSel(0);
+      const shelf = h('div', { class: 'ax-shelf' },
+        ...roms.map((rom, i) => h('button', {
+          class: 'eg-rom ax-tile', type: 'button', 'data-psel': '1',
+          onclick: () => (sel === i ? boot(rom) : setSel(i)),
+        }, coverEl(rom))));
+      body.replaceChildren(h('div', { class: 'ax' },
+        h('div', { class: 'ax-bg' }), h('div', { class: 'ax-veil' }),
+        h('div', { class: 'ax-hero' }),
+        h('div', { class: 'ax-lib' },
+          h('div', { class: 'ax-lib-h' }, h('span', {}, 'Library'), h('span', {}, `${roms.length} game${roms.length === 1 ? '' : 's'}`)),
+          shelf)));
+      sel = Math.min(sel, roms.length - 1); setSel(sel);
     }
 
     // ---- BOOT EmulatorJS for one ROM, inside its own IFRAME ------------------

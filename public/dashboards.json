@@ -1,0 +1,22 @@
+{
+  "_comment": "Dashboards. 'main' is the common wall. Each other dashboard is bound to a controller shoulder combo (L1 R1 L2 R2, 3+ buttons) — pressing it opens the dashboard, pressing it again returns to main. Seeds planted while a dashboard is open are tended by that dashboard's own agent, which may only edit public/dashboards/<id>/.",
+  "dashboards": [
+    {
+      "id": "main",
+      "name": "GardenOS",
+      "manifest": "/widgets/manifest.json"
+    },
+    {
+      "id": "arcade",
+      "name": "Arcade",
+      "combo": "L1+R1+L2+R2",
+      "manifest": "/dashboards/arcade/manifest.json"
+    },
+    {
+      "id": "gui",
+      "name": "Gui Dávid",
+      "combo": "L1+R1+L2",
+      "manifest": "/dashboards/gui/manifest.json"
+    }
+  ]
+}

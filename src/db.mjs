@@ -194,12 +194,15 @@ export function setEdit(slot, value) {
 }
 
 // ---- feedback --------------------------------------------------------------
-const _addFeedback = db.prepare('INSERT INTO feedback(ts, text, source) VALUES(?,?,?)');
-export function addFeedback(text, source = 'ui') {
-  const info = _addFeedback.run(Date.now(), String(text), source);
+// `dashboard`: which dashboard the seed was planted on ('main' = the common wall);
+// each dashboard's notes are tended by its own agent run (iterate.mjs).
+try { db.exec("ALTER TABLE feedback ADD COLUMN dashboard TEXT NOT NULL DEFAULT 'main'"); } catch { /* exists */ }
+const _addFeedback = db.prepare('INSERT INTO feedback(ts, text, source, dashboard) VALUES(?,?,?,?)');
+export function addFeedback(text, source = 'ui', dashboard = 'main') {
+  const info = _addFeedback.run(Date.now(), String(text), source, /^[a-z0-9-]{1,24}$/.test(dashboard) ? dashboard : 'main');
   return info.lastInsertRowid;
 }
-const _pending = db.prepare('SELECT id, ts, text, source FROM feedback WHERE consumed_by IS NULL ORDER BY ts ASC');
+const _pending = db.prepare('SELECT id, ts, text, source, dashboard FROM feedback WHERE consumed_by IS NULL ORDER BY ts ASC');
 export function getPendingFeedback() { return _pending.all(); }
 const _recent = db.prepare('SELECT id, ts, text, source, consumed_by FROM feedback ORDER BY ts DESC LIMIT ?');
 export function getRecentFeedback(limit = 25) { return _recent.all(limit); }

@@ -1,0 +1,10 @@
+{
+  "widgets": [
+    {
+      "id": "arcade",
+      "file": "/dashboards/arcade/widgets/arcade.js",
+      "enabled": true,
+      "order": 1
+    }
+  ]
+}

@@ -33,6 +33,9 @@ export async function bake(src, rect, { veil = 0, light = null, scale = 1 } = {}
   if (veil) { a.fillStyle = `rgba(2,10,8,${veil})`; a.fillRect(0, 0, A.width, A.height); }
   // optional light source INSIDE the glass (e.g. the note bar's text): drawn in the
   // padded canvas space, then refracted with everything else below
+  // Light inside the glass (the note bar's text) only shows where the glass BENDS
+  // light — the rims. S0 = backdrop without it (used where the map is neutral).
+  const S0 = light ? a.getImageData(0, 0, A.width, A.height).data : null;
   if (light) light(a, PAD, PAD);
   const S = a.getImageData(0, 0, A.width, A.height).data, SW = A.width, SH = A.height;
   // 2. the library's displacement map, cover-fitted to the element (xMidYMid slice)
@@ -48,12 +51,37 @@ export async function bake(src, rect, { veil = 0, light = null, scale = 1 } = {}
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4, dx = D[i] / 255 - 0.5, dy = D[i + 2] / 255 - 0.5;
+      const src = S0 || S; // the glass itself never shows the light source directly
       for (let c = 0; c < 3; c++) {
         let sx = Math.round(x + PAD - SCALES[c] * scale * dx), sy = Math.round(y + PAD - SCALES[c] * scale * dy);
         sx = sx < 0 ? 0 : sx >= SW ? SW - 1 : sx; sy = sy < 0 ? 0 : sy >= SH ? SH - 1 : sy;
-        Od[i + c] = S[(sy * SW + sx) * 4 + c];
+        Od[i + c] = src[(sy * SW + sx) * 4 + c];
       }
       Od[i + 3] = 255;
+    }
+  }
+  // Rim refraction of the inner light: within RIM px of the (pill) edge, the curved
+  // glass bends light from further inside toward the edge — sample the light layer
+  // (S − S0) at a point pulled inward along the edge normal, stronger at the very
+  // edge, and screen it onto the glass. The flat middle shows no light at all.
+  if (S0) {
+    const RIM = 13, R = Math.min(h / 2, rect.radius || h / 2);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const qx = Math.abs(x + 0.5 - w / 2) - (w / 2 - R), qy = Math.abs(y + 0.5 - h / 2) - (h / 2 - R);
+      const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
+      const e = -(Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - R); // px inside the edge
+      if (e < 0 || e >= RIM) continue;
+      let nx, ny;
+      if (qx > 0 && qy > 0) { const l = Math.hypot(ox, oy) || 1; nx = ox / l; ny = oy / l; } else if (qx > qy) { nx = 1; ny = 0; } else { nx = 0; ny = 1; }
+      nx *= x < w / 2 ? -1 : 1; ny *= y < h / 2 ? -1 : 1;
+      const pull = (RIM - e) * 2.1, k = Math.pow(1 - e / RIM, 1.6) * 0.9;
+      const sx = Math.round(x + PAD - nx * pull), sy = Math.round(y + PAD - ny * pull);
+      if (sx < 0 || sy < 0 || sx >= SW || sy >= SH) continue;
+      const si = (sy * SW + sx) * 4, oi = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const L = Math.max(0, S[si + c] - S0[si + c]) * k;
+        Od[oi + c] = 255 - (255 - Od[oi + c]) * (255 - L) / 255; // screen
+      }
     }
   }
   const C = document.createElement('canvas'); C.width = w; C.height = h;
@@ -180,8 +208,8 @@ export function liveTextGlass(form, input) {
       g.save();
       g.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       g.textBaseline = 'middle';
-      // the text itself, plain — the glass refracts it like anything else behind it
-      g.fillStyle = '#e9fff4'; // the input's own text colour (it's transparent while focused)
+      // the text as a light source; only the refracting rims pick it up (see bake)
+      g.fillStyle = '#e9fff4';
       g.fillText(text, ox + tx, oy + ty);
       g.restore();
     };

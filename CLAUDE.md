@@ -27,6 +27,24 @@ visual review, and deployed only on green via git.
   highest-priority law; the agent may append rules but never weaken them. When the user
   says "stop adding X for good" / "I keep removing X", record it there.
 
+## Dashboards (GardenOS)
+`public/dashboards.json` lists dashboards: `main` (the common wall,
+`public/widgets/manifest.json`) plus custom ones, each with a controller **combo** of
+3+ shoulder buttons and its own `public/dashboards/<id>/manifest.json` + `widgets/`
+(manifest `file`s are absolute, e.g. `/dashboards/gui/widgets/reasons.js`).
+- `src/pad.mjs`: holding 3+ shoulders sends `dash<code>` when the LAST is released
+  (L1=a R1=b L2=c R2=d, sorted: L1+R1+L2+R2 → `dashabcd`). L2 alone = back, on release.
+- `app.js switchDashboard(id)`: unmounts every card except the pinned clock (the
+  GardenOS header stays too), mounts the dashboard's widgets; the SAME combo again
+  returns to main. `?dash=<id>` opens one directly (QA / review screenshots).
+- Current: **arcade** (L1+R1+L2+R2 — the game library screen; in a game Select+Start
+  returns to the library) and **gui** (L1+R1+L2 — Gui Dávid's love notes for Louise;
+  all text in `public/dashboards/gui/love.js`).
+- Seeds planted while a dashboard is open are stored with that `dashboard`
+  (feedback column). `iterate.mjs` tends main (always) and then each dashboard that
+  has seeds, each as its OWN agent run (own context, prompt, iteration, commit),
+  scoped to `public/dashboards/<id>/` — out-of-scope edits are reverted.
+
 ## Liquid glass (baked)
 `public/lib/glassbake.js` reproduces liquid-glass-react's look (MIT; backdrop blur 6px
 + saturate 140%, then the library's displacement map per colour channel at scales

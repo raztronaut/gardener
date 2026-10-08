@@ -58,6 +58,10 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **Dashboards are the humans' own spaces** (public/dashboards.json, 2026-10-07). The main
+  tending must not edit, restyle or remove any dashboard under public/dashboards/ or
+  change their combos — each dashboard is tended only by its own scoped agent, and only
+  when a seed was planted on it.
 - **Layout stability (2026-10-07, mandatory):** a widget that is still fetching must
   occupy EXACTLY the size it will have once loaded — never render a smaller empty card
   that grows when data arrives. app.js reserves each card's last settled height

@@ -78,11 +78,14 @@ function setHeld(key, dir) {
 let rawLogged = 0;
 const rawAxis = {}; // last raw direction per axis (only transitions are sent)
 const zoomDown = new Set(); // which of the zoom-pair buttons are currently held
-// Secret Arcade chord: L1 + R1 + L2 + R2 held together opens the Arcade (the
-// emulator isn't on the wall grid — it only appears on this chord).
-const ARCADE_CHORD = [6, 7, 8, 9];
+// Dashboard combos: hold 3+ shoulder buttons together; on release of the LAST one
+// the full set held is sent as 'dash<code>' (L1=a R1=b L2=c R2=d, sorted), e.g.
+// L1+R1+L2+R2 → 'dashabcd' (Arcade), L1+R1+L2 → 'dashabc'. The wall maps codes to
+// dashboards (public/dashboards.json); the same combo toggles back to main.
+const SHOULDERS = [6, 7, 8, 9];
+const SH_CODE = { 6: 'a', 7: 'b', 8: 'c', 9: 'd' };
 const shoulders = new Set();
-let chordFired = false;
+let comboMax = new Set();
 function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
@@ -98,16 +101,19 @@ function onEvent(value, type, number) {
     if (rawAxis[key] !== st) { rawAxis[key] = st; send(`j${isY ? 'y' : 'x'}${st}`); }
   }
   if (t === 1) { // button: value 1=down 0=up
-    if (ARCADE_CHORD.includes(number)) {
-      if (value === 1) shoulders.add(number); else { shoulders.delete(number); if (!shoulders.size) chordFired = false; }
-      if (!chordFired && ARCADE_CHORD.every((b) => shoulders.has(b))) { chordFired = true; send('zoomreset').then(() => send('arcade')); return; }
-      // While the chord is being assembled (2+ shoulders down), swallow L2 (back) and
-      // R2 (map peek) so it doesn't close panels / flash the map. L1/R1 keep their own
-      // zoom chord (L1+R1 = reset to 100%), so the net zoom effect is a reset.
-      if ((number === 8 || number === 9) && (chordFired || shoulders.size >= 2)) {
-        if (value === 0 && number === 9) send('padmapend');
-        return;
+    if (SHOULDERS.includes(number)) {
+      if (value === 1) { shoulders.add(number); comboMax.add(number); }
+      else {
+        shoulders.delete(number);
+        if (!shoulders.size) {
+          const set = comboMax; comboMax = new Set();
+          if (set.size >= 3) { send('zoomreset').then(() => send('dash' + [...set].map((b) => SH_CODE[b]).sort().join(''))); return; }
+          if (number === 8 && set.size === 1) { send('back'); return; } // L2 alone, on release
+        }
       }
+      if (number === 8) return;                    // L2 never acts on press (combo-safe)
+      // R2 (map peek) is swallowed while a combo is being assembled
+      if (number === 9 && comboMax.size >= 2) { if (value === 0) send('padmapend'); return; }
     }
     const peek = (MAP.peeks || {})[number];
     if (peek) { send(value === 1 ? peek.down : peek.up); return; } // both edges

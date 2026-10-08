@@ -59,6 +59,8 @@ function wallPathAllowed(p) {
   if (p.includes('..') || p.includes('//')) return false;
   if (p.startsWith('/widgets/')) return p.endsWith('.js') || p === '/widgets/manifest.json';
   if (p.startsWith('/lib/')) return p.endsWith('.js');
+  if (p === '/dashboards.json') return true;
+  if (p.startsWith('/dashboards/')) return p.endsWith('.js') || p.endsWith('/manifest.json');
   return false;
 }
 // Generous read budget for the wall view (a page load is ~25 requests) that
