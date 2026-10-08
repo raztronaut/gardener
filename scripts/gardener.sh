@@ -115,6 +115,7 @@ case "$cmd" in
       exec "$GPUCHROME" --kiosk "http://127.0.0.1:$PORT" \
         --user-data-dir="$HOME/.config/gardener-kiosk-gpu" \
         --ignore-gpu-blocklist --use-gl=angle --use-angle=gles-egl \
+        --use-fake-ui-for-media-stream \
         --enable-gpu-rasterization --enable-zero-copy \
         --noerrdialogs --disable-session-crashed-bubble --disable-infobars --test-type \
         --no-first-run --password-store=basic --disable-features=OverlayScrollbar \

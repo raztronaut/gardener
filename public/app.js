@@ -492,6 +492,27 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
 // Panel stack: a detail view opened FROM a list (event detail, article reader)
 // pushes the list; closing (Esc/L2/B) restores it instead of dismissing.
 const panelStack = [];
+// ---- live camera (USB webcam on the Jetson) ------------------------------------
+// The kiosk browser reads the camera directly (getUserMedia; the kiosk launches with
+// --use-fake-ui-for-media-stream so no permission prompt). Full frame rate, nothing
+// recorded or sent anywhere; the stream is stopped the moment the panel closes.
+async function showCamera() {
+  const video = h('video', { class: 'cam-video', autoplay: true, muted: true, playsinline: true });
+  const status = h('div', { class: 'cam-status' }, '');
+  openPanel('Camera', h('div', { class: 'cam' }, video, status));
+  let stream = null;
+  panelWidgetStop = () => { try { stream?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ } stream = null; };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } } });
+    if (!panelOpen()) { stream.getTracks().forEach((t) => t.stop()); return; }
+    video.srcObject = stream;
+    const s = stream.getVideoTracks()[0]?.getSettings?.() || {};
+    status.textContent = s.width ? `${s.width}×${s.height} · ${Math.round(s.frameRate || 0)} fps · live` : 'live';
+  } catch (e) {
+    status.textContent = `Camera unavailable — ${e.name || e.message}`;
+  }
+}
+
 let panelWidgetStop = null; // stops a fullscreen-mounted widget's timers
 function stopPanelWidget() { try { panelWidgetStop?.(); } catch { /* ignore */ } panelWidgetStop = null; }
 function openSubPanel(title, bodyEl) {
@@ -1016,6 +1037,7 @@ const COMMANDS = [
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
+  { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
   { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },

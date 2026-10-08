@@ -689,3 +689,10 @@ body:has(.card.stage) #garden { grid-template-rows: auto 1fr; }
 /* a running game: the arcade card takes the whole screen */
 body.arcade-full .card[data-wid="arcade"] { position: fixed; inset: 0; z-index: 300; border-radius: 0; background: #000; }
 body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
+
+/* live camera panel */
+.cam { position: relative; }
+.cam-video { display: block; width: 100%; border-radius: 18px; background: #000; aspect-ratio: 16 / 9; object-fit: cover; }
+.cam-status { margin-top: 10px; font-size: 14px; color: var(--ink-soft); }
+.cam-status::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rose);
+  margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 8px var(--rose); }
