@@ -40,7 +40,10 @@ function decodeEntities(s) {
   });
 }
 
-const tidy = (s) => decodeEntities(s).trim().replace(/\s+/g, ' ');
+// The scraper sometimes drops apostrophes, leaving a lone "s" word ("SF s Wild
+// New Thursday Night Party"). A standalone lowercase "s" between words is almost
+// never real English, so restore the possessive: "SF s Wild" → "SF’s Wild".
+const tidy = (s) => decodeEntities(s).trim().replace(/\s+/g, ' ').replace(/([A-Za-z0-9]) s(?= )/g, '$1’s');
 
 // Titles from scraped sources look like "6/20/26: Name (Venue) - FREE". The real
 // date lives in available_from, so strip the leading date prefix and trailing price

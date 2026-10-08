@@ -827,6 +827,19 @@ export default {
         letter-spacing:.1em; text-transform:uppercase; margin-right:8px; }
       .dly-fact .kind.born { color:var(--mint); }
       .dly-fact .kind.died { color:var(--ink-soft); }
+      /* Almanac layout (2026-10-08): a live moment sets its date as a small
+         stacked margin note — kind / year / how-long-ago — with the sentence in a
+         hanging column beside it, so wrapped lines align under the text instead
+         of sliding back beneath the year. Same 3-line footprint as before. */
+      .dly-fact.has-meta { display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:14px;
+        align-items:start; max-height:none; -webkit-line-clamp:unset; }
+      .dly-fact .meta { display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+        padding-top:2px; min-width:58px; }
+      .dly-fact .meta > * { margin-right:0; line-height:1; }
+      .dly-fact .meta .yr { font-size:22px; }
+      .dly-fact .meta .ago { font-size:12px; }
+      .dly-fact .txt { align-self:center; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+        overflow:hidden; max-height:calc(14px * 1.36 * 3); }
       /* rotation indicator — a hushed "moment N of M today" caption with a slim
          progress rail, revealing that On This Day quietly cycles through all of
          today's notable moments over the day (advances every half-hour). Bounded
@@ -1099,7 +1112,7 @@ export default {
     };
 
     // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.
-    const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.textContent = text; otdNav.style.display = 'none'; };
+    const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.classList.remove('has-meta'); factEl.textContent = text; otdNav.style.display = 'none'; };
 
     // Live historical moments: we hold the whole "on this day" list and rotate
     // through it over the day, so a glance at the wall lands on a different moment
@@ -1121,17 +1134,17 @@ export default {
       // marks the occasion. Fires rarely; inline on the existing line, so it adds
       // no height and can't clip.
       const ms = milestoneOf(year);
-      const kids = [];
-      if (kind === 'born') kids.push(h('span', { class: 'kind born' }, 'born'));
-      else if (kind === 'died') kids.push(h('span', { class: 'kind died' }, 'died'));
-      kids.push(
+      const meta = [];
+      if (kind === 'born') meta.push(h('span', { class: 'kind born' }, 'born'));
+      else if (kind === 'died') meta.push(h('span', { class: 'kind died' }, 'died'));
+      meta.push(
         h('span', { class: 'yr' }, fmtYear(year)),
         h('span', {
           class: `ago${ms ? ' ms' : ''}`,
           title: ms ? `A round anniversary — ${ms.years} years ago to the day` : '',
-        }, ms ? `✦ ${ago}` : ago),
-        text);
-      factEl.replaceChildren(...kids);
+        }, ms ? `✦ ${ago}` : ago));
+      factEl.classList.add('has-meta');
+      factEl.replaceChildren(h('div', { class: 'meta' }, ...meta), h('div', { class: 'txt' }, text));
       const lead = kind === 'born' ? 'Born ' : kind === 'died' ? 'Died ' : '';
       factEl.title = `${lead}${fmtYear(year)} (${ago}${ms ? ` · ${ms.years}th anniversary` : ''}) — ${text}`;
       // Position indicator: which moment of today's M we're showing. Only shown

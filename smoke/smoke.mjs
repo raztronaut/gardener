@@ -225,6 +225,9 @@ async function main() {
         && s2.where === 'Ferry Building' && s3.name === 'Whale’s Tail Beer Garden' && !s3.note
         && s4.note === 'thru Nov 1' && splitTitle('Party (SF)').name === 'Party (SF)',
         JSON.stringify([s1, s2, s3, s4]));
+      const s5 = splitTitle('Arcade Karaoke: SF s Wild New Thursday Night Party + $3 Shots (SF)');
+      check('events: scraper-dropped apostrophe is restored ("SF s" → "SF’s")',
+        s5.name === 'Arcade Karaoke: SF’s Wild New Thursday Night Party + $3 Shots', s5.name);
       // A recurring series collapses to ONE row — and must keep its SOONEST date.
       const patches = evs.filter((e) => /Westbrae/.test(e.name));
       check('events: recurring series keeps its soonest occurrence',
