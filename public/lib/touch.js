@@ -76,25 +76,73 @@ function dot(x, y, cls, r = 40) {
 const clearDots = () => root.querySelectorAll('.tc-dot,.tc-tip').forEach((e) => e.remove());
 
 // ---- 1. corner calibration ------------------------------------------------------
+// Each marker BLINKS (on/off × CYCLES); a pixel counts only if it's brighter in every
+// "on" frame than in the "off" frames around it — slow exposure / white-balance
+// drift and anything moving outside the screen cancel out. The candidate region is
+// limited to where the screen is (dark while the stage is black, vs. the lit room).
+const CYCLES = 3;
+const LAG = 750; // ms: screen → camera latency (measured ~0.5 s) + margin
+async function blinkDiff(x, y) {
+  const acc = new Float32Array(PW * PH).fill(Infinity);
+  for (let c = 0; c < CYCLES; c++) {
+    const off1 = await grabAvg(3);
+    // the camera feed lags the screen by ~0.5 s — wait it out on each edge
+    const d = dot(x, y, 'mark', 54); await sleep(LAG);
+    const on = await grabAvg(3); d.remove(); await sleep(LAG);
+    const off2 = await grabAvg(3);
+    for (let i = 0; i < acc.length; i++) acc[i] = Math.min(acc[i], on[i] - Math.max(off1[i], off2[i]));
+  }
+  return acc;
+}
+function centroid(diff, region) {
+  let max = 0;
+  for (let i = 0; i < diff.length; i++) if (region[i] && diff[i] > max) max = diff[i];
+  if (max < 18) return null;
+  let sx = 0, sy = 0, sw = 0;
+  const th = max * 0.55;
+  for (let yy = 0; yy < PH; yy++) for (let xx = 0; xx < PW; xx++) { const i = yy * PW + xx, v = diff[i]; if (region[i] && v > th) { sx += xx * v; sy += yy * v; sw += v; } }
+  return sw ? [sx / sw, sy / sw, max] : null;
+}
 async function calibrateCorners() {
   msg('Calibrating — keep hands away from the screen');
   clearDots(); await sleep(900);
+  // the screen region: dark (stage is black) in the camera, relative to the room
   const black = await grabAvg(6);
-  const cam = [];
+  let sum = 0; for (const v of black) sum += v;
+  const mean = sum / black.length;
+  const region = new Uint8Array(PW * PH);
+  for (let i = 0; i < region.length; i++) region[i] = black[i] < mean * 0.85 ? 1 : 0;
+  const cam = [], strength = [];
+  let regionFrac = 0; for (const v of region) regionFrac += v; regionFrac /= region.length;
   for (const [x, y] of MARK) {
-    const d = dot(x, y, 'mark', 46); await sleep(500);
-    const lit = await grabAvg(4); d.remove();
-    let max = 0; const diff = new Float32Array(PW * PH);
-    for (let i = 0; i < diff.length; i++) { diff[i] = Math.max(0, lit[i] - black[i]); if (diff[i] > max) max = diff[i]; }
-    if (max < 25) throw new Error('marker not visible to the camera — is the dashboard in front and the camera aimed at the screen?');
-    let sx = 0, sy = 0, sw = 0; const th = max * 0.5;
-    for (let yy = 0; yy < PH; yy++) for (let xx = 0; xx < PW; xx++) { const v = diff[yy * PW + xx]; if (v > th) { sx += xx * v; sy += yy * v; sw += v; } }
-    cam.push([sx / sw, sy / sw]);
-    await sleep(150);
+    const df = await blinkDiff(x, y);
+    let mIn = 0, mAll = 0, at = 0; for (let i = 0; i < df.length; i++) { if (df[i] > mAll) { mAll = df[i]; at = i; } if (region[i] && df[i] > mIn) mIn = df[i]; }
+    post({ kind: 'corner-debug', marker: [x, y], maxInRegion: Math.round(mIn), maxAll: Math.round(mAll), maxAt: [at % PW, (at / PW) | 0], regionFrac: Math.round(regionFrac * 100) / 100, mean: Math.round(mean) });
+    const c = centroid(df, region);
+    if (!c) { post({ kind: 'corner-fail', frame: jpeg() }); throw new Error('a corner marker was not visible to the camera — is the dashboard in front and the whole screen in frame?'); }
+    cam.push([c[0], c[1]]); strength.push(Math.round(c[2]));
   }
+  // sanity: the 4 points must form a convex quad in the right order (TL,TR,BR,BL clockwise)
+  const cross = (a, b, c) => (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+  const s0 = Math.sign(cross(cam[0], cam[1], cam[2]));
+  const convex = [0, 1, 2, 3].every((k) => Math.sign(cross(cam[k], cam[(k + 1) % 4], cam[(k + 2) % 4])) === s0);
+  post({ kind: 'corners', cam, strength, convex, screen: MARK, frame: jpeg() });
+  if (!convex) throw new Error('corner markers came out in an impossible order — check the camera framing');
   const C2S = homography(cam, MARK), S2C = homography(MARK, cam);
-  post({ kind: 'corners', cam, screen: MARK, C2S, frame: jpeg() });
   return { C2S, S2C, cam };
+}
+
+// Corner calibration alone (no human needed): returns the points + saves a frame
+// with the detected quad so the mapping can be checked.
+export async function testCorners() {
+  ui();
+  let stream;
+  try {
+    stream = await startCamera();
+    const cal = await calibrateCorners();
+    return { ok: true, cam: cal.cam.map((p) => p.map((v) => Math.round(v * 10) / 10)) };
+  } catch (e) { return { ok: false, error: e.message }; }
+  finally { try { stream?.getTracks().forEach((t) => t.stop()); } catch { /* ignore */ } root.remove(); }
 }
 
 // screen-quad mask in camera px (a little inside the edges)
@@ -143,6 +191,7 @@ async function targetRun(cal, mask) {
     msg(`Target ${k + 1} of 9 — hands away…`);
     await sleep(700);
     const ref = await grabAvg(5);
+    post({ kind: 'ref', k, frame: jpeg() }); // the clean reference (for offline analysis)
     ring.classList.remove('wait');
     msg(`Target ${k + 1} of 9 — touch the circle and hold`);
     const tipEl = document.createElement('div'); tipEl.className = 'tc-tip'; root.appendChild(tipEl);
