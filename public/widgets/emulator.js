@@ -295,7 +295,50 @@ export default {
     // the emulator in an iframe — EmulatorJS declares un-deletable global classes
     // (EJS_STORAGE) and Web Audio contexts we can't reliably reach from outside;
     // an iframe gives a fresh, fully-disposable world every boot.
+    // ---- Arcade telemetry → POST /api/arcade-log once a second while a game runs.
+    // Per second: emulated frames, drawn frames, worst draw gap, emulation stalls
+    // (>50 ms without a new frame), audio state, JS heap, pad inputs seen.
+    let tele = null;
+    function startTelemetry(frame, rom) {
+      stopTelemetry();
+      const t = { frame, rom: rom.name, inputs: 0, stalls: [], draws: 0, worst: 0, lastDraw: 0, lastEmu: 0, pf: null, timers: [] };
+      tele = t;
+      const post = (o) => fetch('/api/arcade-log', { method: 'POST', body: JSON.stringify(o), keepalive: true }).catch(() => {});
+      post({ ev: 'boot', rom: rom.name });
+      t.timers.push(setInterval(() => { // 100 Hz emulation watcher
+        const w = frame.contentWindow, gm = w && w.EJS_emulator && w.EJS_emulator.gameManager;
+        if (!gm) return;
+        let n; try { n = gm.getFrameNum(); } catch { return; }
+        const now = performance.now();
+        if (t.pf === null) { t.pf = n; t.f0 = n; t.lastEmu = now; return; }
+        if (n !== t.pf) { const gap = now - t.lastEmu; if (gap > 50) t.stalls.push(Math.round(gap)); t.pf = n; t.lastEmu = now; }
+      }, 10));
+      const draw = (ts) => {
+        if (tele !== t) return;
+        if (t.lastDraw) { const g = ts - t.lastDraw; if (g > t.worst) t.worst = g; }
+        t.lastDraw = ts; t.draws++;
+        try { frame.contentWindow.requestAnimationFrame(draw); } catch { requestAnimationFrame(draw); }
+      };
+      setTimeout(() => { try { frame.contentWindow.requestAnimationFrame(draw); } catch { /* ignore */ } }, 500);
+      t.timers.push(setInterval(() => { // 1 Hz report
+        const w = frame.contentWindow, em = w && w.EJS_emulator;
+        let audio = '?'; try { audio = em.Module.AL.currentCtx.audioCtx.state; } catch { /* not yet */ }
+        const emuFrames = t.pf !== null && t.f1 !== undefined ? t.pf - t.f1 : null;
+        post({ ev: 'sec', emu: emuFrames, draw: t.draws, worstDrawMs: Math.round(t.worst), stalls: t.stalls,
+          audio, started: !!(em && em.started), heapMB: performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : null,
+          inputs: t.inputs, vis: document.visibilityState });
+        t.f1 = t.pf; t.draws = 0; t.worst = 0; t.stalls = []; t.inputs = 0;
+      }, 1000));
+    }
+    function stopTelemetry() {
+      if (!tele) return;
+      tele.timers.forEach(clearInterval);
+      fetch('/api/arcade-log', { method: 'POST', body: JSON.stringify({ ev: 'end', rom: tele.rom }), keepalive: true }).catch(() => {});
+      tele = null;
+    }
+
     function teardownGame() {
+      stopTelemetry();
       try { emuFrame?.remove(); } catch { /* ignore */ }
       emuFrame = null;
     }
@@ -361,6 +404,7 @@ export default {
     }
     function rawInput(a) {
       if (mode !== 'game') return;
+      if (tele) tele.inputs++;
       if (a[1] === 'b') {                       // jb<idx><d|u> — true press / release
         const id = RAWPAD[a.charCodeAt(2) - 97];
         if (id != null) pad(id, a[3] === 'd' ? 1 : 0);
@@ -584,6 +628,7 @@ export default {
           h('div', {}, 'Check the wall’s internet connection, then pick again.')));
       emuFrame = frame;
       stage.appendChild(frame);
+      startTelemetry(frame, rom);
 
       // AUDIO GESTURE GATE: this boot() runs inside a REAL user gesture (the
       // picker click / controller OK), so the frame tree is activated. RetroArch

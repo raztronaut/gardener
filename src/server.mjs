@@ -643,6 +643,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---- FPS test results from the live kiosk (read back via kv / logs).
+    // ---- Arcade telemetry: the running game reports once a second (frames, stalls,
+    // audio, memory, inputs) → data/arcade.log, so evidence survives wall reloads.
+    if (req.method === 'POST' && p === '/api/arcade-log') {
+      let b; try { b = JSON.parse(await readBody(req, 16384)); } catch { return json(res, 400, { error: 'bad json' }); }
+      try { appendFileSync(join(paths.DATA, 'arcade.log'), `${new Date().toISOString()} ${JSON.stringify(b).slice(0, 4000)}\n`); } catch { /* ignore */ }
+      return json(res, 200, { ok: true });
+    }
     if (req.method === 'POST' && p === '/api/fps-result') {
       let b; try { b = JSON.parse(await readBody(req)); } catch { return json(res, 400, { error: 'bad json' }); }
       const compact = JSON.stringify(b).slice(0, 1500);
