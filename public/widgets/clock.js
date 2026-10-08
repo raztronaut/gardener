@@ -220,14 +220,13 @@ export default {
         const turning = s.day === 1;
         const toLabel = turning
           ? `the ${s.turn}`
-          : `${s.toNext}d to ${s.nextName.toLowerCase()} ${s.nextIcon}`;
-        const toShort = turning ? s.turn : `${s.toNext}d ${s.nextIcon}`; // compact fallback when the row is tight
+          : `${s.toNext}d to ${s.nextName.toLowerCase()}`; // no emojis (2026-10-07)
+        const toShort = turning ? s.turn : `${s.toNext}d`; // compact fallback when the row is tight
         season.classList.toggle('turning', turning);
         season.title = turning
           ? `${s.name} begins today — the ${s.turn}`
           : `${s.phase} ${s.name} · day ${s.day} · ${toLabel}`;
         season.replaceChildren(
-          ctx.h('span', { class: 'ic' }, s.icon),
           ctx.h('b', {}, turning ? `${s.name} begins today` : `${s.phase} ${s.name}`),
           ctx.h('span', { class: 'to', 'data-full': `· ${toLabel}`, 'data-short': `· ${toShort}` }, `· ${toLabel}`));
         toplineDirty = true;

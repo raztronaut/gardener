@@ -277,7 +277,10 @@ async function boot() {
     startPolling();
     // Note bar: baked glass too — its backdrop (the bottom of the wall) never changes
     // while typing (the text sits ON the glass), so one cached bake is exact.
-    GB_READY.then((gb) => { const f = document.getElementById('feedbackForm'); if (gb && f) gb.bakeCards([f]); });
+    GB_READY.then((gb) => {
+      const f = document.getElementById('feedbackForm'), inp = document.getElementById('feedbackInput');
+      if (gb && f) { gb.bakeCards([f]); if (inp) gb.liveTextGlass(f, inp); } // typed text lights the glass
+    });
     // Panel glass: a wall snapshot refreshed every minute while no panel is open.
     // (Card glass is baked as the cards are created — see loadWidgets.)
     setTimeout(() => GB_READY.then((gb) => {
