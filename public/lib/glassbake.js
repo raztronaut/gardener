@@ -180,11 +180,9 @@ export function liveTextGlass(form, input) {
       g.save();
       g.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       g.textBaseline = 'middle';
-      g.globalCompositeOperation = 'lighter';
-      // a wide halo, a bright core, and a mirrored reflection pulled toward the rim
-      g.filter = 'blur(16px)'; g.fillStyle = 'rgba(116,247,176,1)'; g.fillText(text, ox + tx, oy + ty); g.fillText(text, ox + tx, oy + ty);
-      g.filter = 'blur(5px)'; g.fillStyle = 'rgba(200,255,230,.9)'; g.fillText(text, ox + tx, oy + ty);
-      g.filter = 'blur(3px)'; g.fillStyle = 'rgba(160,255,210,.35)'; g.save(); g.translate(0, (oy + ty) * 2); g.scale(1, -1); g.fillText(text, ox + tx, oy + ty); g.restore();
+      // the text itself, plain — the glass refracts it like anything else behind it
+      g.fillStyle = '#e9fff4'; // the input's own text colour (it's transparent while focused)
+      g.fillText(text, ox + tx, oy + ty);
       g.restore();
     };
     const url = await bake(aurora, { left: r.left / z, top: r.top / z, width: form.offsetWidth, height: form.offsetHeight }, { light, scale: 1.0 });
