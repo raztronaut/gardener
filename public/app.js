@@ -1437,7 +1437,7 @@ function openReader(url, title) {
     // page runs in an opaque/null origin and can't touch our origin, cookies,
     // localStorage or APIs. (No top-navigation/popups either — read-only.)
     sandbox: 'allow-scripts',
-    src: `/api/readable?raw=1&url=${encodeURIComponent(url)}`,
+    src: `/api/readable?read=1&url=${encodeURIComponent(url)}`, // clean reader by default
     referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
   });
   frame.addEventListener('load', () => { document.getElementById('panelClose')?.focus(); });
@@ -1446,8 +1446,17 @@ function openReader(url, title) {
     box.replaceChildren(h('div', { class: 'cl-empty' }, 'Couldn’t load this page — scan to read it on your phone.'),
       h('div', { class: 'evd-qr' }, h('img', { src: qr, alt: 'article link' })));
   });
+  // Reader ↔ original page toggle (the original runs the site's own scripts in the
+  // sandbox — sometimes richer, sometimes blank; the reader always works).
+  let raw = false;
+  const toggle = h('button', { class: 'gbtn quiet rd-toggle', type: 'button' }, 'Original page');
+  toggle.addEventListener('click', () => {
+    raw = !raw;
+    frame.src = `/api/readable?${raw ? 'raw' : 'read'}=1&url=${encodeURIComponent(url)}`;
+    toggle.textContent = raw ? 'Reader view' : 'Original page';
+  });
   const box = h('div', { class: 'reader-frame-wrap' },
-    h('div', { class: 'rd-src' }, host || 'reading'), frame);
+    h('div', { class: 'rd-src' }, h('span', {}, host || 'reading'), toggle), frame);
   openSubPanel(title || 'Reading…', box);
   document.getElementById('panelBody')?.classList.add('reading'); // panel stops scrolling; iframe scrolls
   // Set readerFrame AFTER openSubPanel — openPanel() nulls it, so assigning

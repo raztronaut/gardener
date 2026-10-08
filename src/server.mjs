@@ -599,6 +599,13 @@ const server = http.createServer(async (req, res) => {
         // <base> so relative assets resolve, our mint scrollbar skin, and a tiny
         // postMessage scroll bridge so the controller can still scroll it (the
         // parent can't reach a cross-origin iframe's scrollBy directly).
+        // read=1 → always the clean reader page (the wall's default: modern sites
+        // often keep their content hidden until scripts run, and scripts are crippled
+        // in the null-origin sandbox, so the ORIGINAL frequently rendered blank).
+        if (u.searchParams.get('read') === '1') {
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+          return res.end(readerTextPage(title.replace(/\s*[\\|–—-]\s*[^\\|–—-]*$/, '') || title, readerExtractText(html), r.url || target));
+        }
         if (u.searchParams.get('raw') === '1') {
           // AUTO mode: if the page is content-rich, render the ORIGINAL; if it's a
           // sparse SPA/JS-only shell (would render blank), serve our clean text
