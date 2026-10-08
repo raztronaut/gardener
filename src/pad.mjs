@@ -76,6 +76,7 @@ function setHeld(key, dir) {
 }
 
 let rawLogged = 0;
+const rawAxis = {}; // last raw direction per axis (only transitions are sent)
 const zoomDown = new Set(); // which of the zoom-pair buttons are currently held
 // Secret Arcade chord: L1 + R1 + L2 + R2 held together opens the Arcade (the
 // emulator isn't on the wall grid — it only appears on this chord).
@@ -86,6 +87,16 @@ function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
   if (rawLogged < 300) { rawLogged++; log(`raw ${t === 1 ? 'button' : 'axis'} #${number} = ${value}`); }
+  // Raw edges for games (the Arcade): every button press/release → 'jb<idx a..p><d|u>',
+  // every d-pad/stick direction change → 'jx<l|c|r>' / 'jy<u|c|d>'. The wall ignores
+  // these unless a game is running; the normal actions below are sent as before.
+  if (t === 1 && number < 16) send(`jb${String.fromCharCode(97 + number)}${value === 1 ? 'd' : 'u'}`);
+  if (t === 2 && (MAP.vert.includes(number) || MAP.horiz.includes(number))) {
+    const isY = MAP.vert.includes(number);
+    const st = value <= -THRESH ? (isY ? 'u' : 'l') : value >= THRESH ? (isY ? 'd' : 'r') : 'c';
+    const key = `${isY ? 'y' : 'x'}${number}`;
+    if (rawAxis[key] !== st) { rawAxis[key] = st; send(`j${isY ? 'y' : 'x'}${st}`); }
+  }
   if (t === 1) { // button: value 1=down 0=up
     if (ARCADE_CHORD.includes(number)) {
       if (value === 1) shoulders.add(number); else { shoulders.delete(number); if (!shoulders.size) chordFired = false; }

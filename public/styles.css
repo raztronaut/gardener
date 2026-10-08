@@ -637,3 +637,14 @@ body.screenshot.qa-bar #feedbackbar { visibility: visible; }
 body.screenshot #nightveil { opacity: 0 !important; }
 body.screenshot #toast, body.screenshot #panel { display: none; }
 body.screenshot.qa-open #panel.open { display: flex; }
+
+/* ---------- Arcade: a running game takes the WHOLE screen ----------
+   (body.arcade-full is set by the emulator widget while a game runs) */
+body.arcade-full #panel { padding: 0; background: #000; z-index: 300; }
+body.arcade-full #panel .panel-card { height: 100%; max-height: none; border: 0; border-radius: 0;
+  background: #000; box-shadow: none; }
+body.arcade-full #panel .panel-card > :not(.panel-body) { display: none; } /* title, close, glass layers */
+body.arcade-full #panel .panel-body { padding: 0; height: 100%; }
+body.arcade-full #panel .panel-inner, body.arcade-full #panel .eg { height: 100%; width: 100%; margin: 0; }
+body.arcade-full .eg-bar { display: none; }
+body.arcade-full #feedbackbar { visibility: hidden; }

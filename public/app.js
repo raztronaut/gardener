@@ -1516,6 +1516,8 @@ function wirePad() {
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
+    // Raw controller edges (jb…/jx…/jy…) only matter to a running game.
+    if (/^j[bxy]/.test(action)) { try { window.__GARDEN_GAME?.raw?.(action); } catch { /* ignore */ } return; }
     // A running game OVERWRITES all control mappings except 'back' (L2/Esc).
     if (window.__GARDEN_GAME) {
       if (action === 'back') { closePanel(); return; }
@@ -1621,7 +1623,7 @@ function wirePad() {
   window.addEventListener('keydown', () => setPadMode(false), true);
   const connect = () => {
     const es = new EventSource('/api/pad/stream');
-    es.onmessage = (e) => { try { const a = JSON.parse(e.data).action; if (!a.startsWith('mx')) setPadMode(true); apply(a); } catch { /* ignore */ } };
+    es.onmessage = (e) => { try { const a = JSON.parse(e.data).action; if (!a.startsWith('mx') && !/^j[bxy]/.test(a)) setPadMode(true); apply(a); } catch { /* ignore */ } };
     es.onerror = () => { es.close(); setTimeout(connect, 5000); }; // server restart → reconnect
   };
   connect();

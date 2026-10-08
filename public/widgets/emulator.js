@@ -344,9 +344,32 @@ export default {
       heldKeys.set(code, setTimeout(() => { fire('keyup', k); heldKeys.delete(code); }, DIR.has(action) ? 240 : 90));
     }
 
+    // SN30 Pro raw button index → EmulatorJS default RetroPad key (its
+    // defaultControllers: A=z B=x X=a Y=s L=q R=e Select=v Start=enter). The
+    // SN30 Pro face layout IS the SNES layout, so A→A, B→B, X→X, Y→Y.
+    // L2 (8) stays "leave the game"; R2 (9) is unused in-game.
+    const RAWKEY = {
+      0: ['z', 'KeyZ', 90], 1: ['x', 'KeyX', 88], 3: ['a', 'KeyA', 65], 4: ['s', 'KeyS', 83],
+      6: ['q', 'KeyQ', 81], 7: ['e', 'KeyE', 69], 10: ['v', 'KeyV', 86], 11: ['Enter', 'Enter', 13],
+    };
+    const ARROW = { l: ['ArrowLeft', 'ArrowLeft', 37], r: ['ArrowRight', 'ArrowRight', 39], u: ['ArrowUp', 'ArrowUp', 38], d: ['ArrowDown', 'ArrowDown', 40] };
+    const axisDown = { x: null, y: null };
+    function rawInput(a) {
+      if (mode !== 'game') return;
+      if (a[1] === 'b') {                       // jb<idx><d|u> — true press / release
+        const k = RAWKEY[a.charCodeAt(2) - 97];
+        if (k) fire(a[3] === 'd' ? 'keydown' : 'keyup', k);
+        return;
+      }
+      const ax = a[1], st = a[2];                // jx<l|c|r> / jy<u|c|d>
+      if (axisDown[ax]) { fire('keyup', ARROW[axisDown[ax]]); axisDown[ax] = null; }
+      if (st !== 'c') { fire('keydown', ARROW[st]); axisDown[ax] = st; }
+    }
+
     window.__GARDEN_GAME = {
+      raw: rawInput,
       input(action) {
-        if (mode === 'game') { gameKey(action); return; } // drive the emulator
+        if (mode === 'game') return; // in-game the raw press/release edges drive EmulatorJS
         if (!roms.length) return;
         const cols = gridCols();
         if (action === 'up' || action === 'fup') setSel(sel - cols);
@@ -356,6 +379,7 @@ export default {
         else if (action === 'ok' || action === 'fopen') boot(roms[sel]);
       },
       stop() {
+        document.body.classList.remove('arcade-full');
         for (const t of heldKeys.values()) clearTimeout(t);
         heldKeys.clear();
         teardownGame();
@@ -463,6 +487,7 @@ export default {
     }
 
     async function showPicker() {
+      document.body.classList.remove('arcade-full');
       mode = 'picker';
       teardownGame(); // if returning from a game, kill the previous core first
       body.replaceChildren(h('div', { class: 'eg-pick' },
@@ -525,6 +550,7 @@ export default {
       if (!core) return;
       recordPlay(rom); // bump play count + last-played for the detail panel
       mode = 'game';
+      document.body.classList.add('arcade-full'); // the game takes the whole screen
       teardownGame(); // remove any prior iframe
 
       const stage = h('div', { class: 'eg-stage' });

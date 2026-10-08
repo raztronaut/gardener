@@ -82,6 +82,14 @@ smoke render is cheap.
   streams the ROM bytes read-only (basename-guarded, `application/octet-stream`,
   cache-friendly, 404 if missing). Extension→system→core map lives in both
   `server.mjs` (`ROM_SYSTEMS`) and the widget (`CORE`).
+- Controller in-game (2026-10-07): pad.mjs also streams RAW edges — `jb<idx a..p><d|u>`
+  for every button press/release and `jx<l|c|r>` / `jy<u|c|d>` for direction changes.
+  app.js routes them only to `window.__GARDEN_GAME.raw`, which maps the SN30 Pro to
+  EmulatorJS's default RetroPad keys (A=z B=x X=a Y=s L=q R=e Select=v Start=Enter,
+  arrows) with true hold/release. L2 (and Esc) leaves the game.
+- A running game is fullscreen (`body.arcade-full`: no panel chrome, black, z 300) and
+  renders at native resolution (900×675, 4:3) — the half-res SwiftShader scaling is
+  gone now that the kiosk has the GPU. Measured: 59 fps emulation (Super Bomberman).
 - Controller: the SN30 Pro is a browser Gamepad, so EmulatorJS reads it natively
   in-game. The widget sets `window.__GARDEN_GAME = {input, stop}`; in the picker
   `input()` drives selection, in-game it's a no-op (EmulatorJS owns the pad).
