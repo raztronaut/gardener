@@ -240,13 +240,22 @@ function showFeed(cal) {
 }
 
 // ---- 2. foreground blob + tip -----------------------------------------------------
+let inScreen = null; // camera px inside the screen rectangle (built once per calibration)
 function detect(frame, ref, mask, C2S) {
+  if (!inScreen) { inScreen = new Uint8Array(PW * PH); for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const [u, v] = apply(C2S, x, y); if (u >= 0 && u <= W && v >= 0 && v <= H) inScreen[y * PW + x] = 1; } }
   const fg = new Uint8Array(PW * PH);
   // global brightness drift (auto-exposure) compensation: median-ish mean ratio
   let a = 0, b = 0; for (let i = 0; i < frame.length; i += 7) if (mask[i]) { a += frame[i]; b += ref[i]; }
   const gain = b > 0 ? a / b : 1;
   // saturated spots (lamp glare) carry no information — skip them
-  for (let i = 0; i < fg.length; i++) if (mask[i] && ref[i] < 225 && Math.abs(frame[i] - ref[i] * gain) > 32) fg[i] = 1;
+  // Shadows only DARKEN. On the (dark) screen a lit hand is BRIGHTER than the
+  // reference, so inside the screen only positive changes count — the user's shadow
+  // can't make a blob there. Outside (arm against the bright wall) darker counts too.
+  for (let i = 0; i < fg.length; i++) {
+    if (!mask[i] || ref[i] >= 225) continue;
+    const d = frame[i] - ref[i] * gain;
+    if (inScreen[i] ? d > 28 : Math.abs(d) > 32) fg[i] = 1;
+  }
   // the biggest 4-connected blob that ENTERS FROM OUTSIDE the screen (an arm/hand
   // does; screen glare and refresh noise stay inside) and also reaches inside it
   const lab = new Int32Array(PW * PH); let best = 0, bestN = 0, cur = 0; const st = [];
@@ -342,6 +351,7 @@ export async function runSession() {
     root.classList.add('cal-phase');
     const cal = await calibrateCorners();
     root.classList.remove('cal-phase');
+    inScreen = null;
     fetch('/api/touch/calibration', { method: 'POST', body: JSON.stringify({ at: Date.now(), C2S: cal.C2S, corners: cal.cam, partial: true }) }).catch(() => {});
     const mask = quadMask(cal.S2C);
     showFeed(cal); // live camera view (with the screen outline) during the targets
