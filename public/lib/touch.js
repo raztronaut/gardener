@@ -266,7 +266,7 @@ async function grabRGBAvg(k = 5) {
 }
 // Detector settings — tuned offline against recorded sessions with simulated noise
 // (exposure, sensor noise, body shadows, reflection changes, camera shake).
-export const P = { dYin: 34, dcIn: 0.1, dYout: 30, dcOut: 0.08, glareK: 1.8, open: 1, bridge: 0, minIn: 40, minOut: 15, edge: 12, needOut: 1 }; // swept 2026-10-08: 54% <90 px, median 86 px across 7 noise conditions
+export const P = { skinW: 4, chg: 34, yMin: 4, notRefSkin: 1, useGlare: 0, glareK: 2.6, open: 0, bridge: 0, minIn: 20, minOut: 15, edge: 12, needOut: 0, bigArm: 150 }; // swept 2026-10-08 on session 3 × 7 noise conditions: 70% <90 px, median 63 px; with LOO affine correction median 53 px
 let inScreen = null; // camera px inside the screen rectangle (rebuilt per calibration)
 export function detectRGB(F, R, mask, C2S, opts = {}) {
   const n = PW * PH;
@@ -289,18 +289,22 @@ export function detectRGB(F, R, mask, C2S, opts = {}) {
     for (let i = 0; i < n; i++) if (inScreen[i] && R.r[i] + R.g[i] + R.b[i] > Math.max(med * P.glareK, med + 120)) inScreen._glare[i] = 1;
   }
   const glare = inScreen._glare;
+  // SKIN ∧ CHANGED. Skin is "warm" in YCbCr (Cr − Cb > skinW) even when the hand is
+  // dark/backlit; the navy screen, white wall, lamp reflections and shadows are not.
+  // "Changed" (vs. the hand-free reference, gain-compensated) drops warm static things
+  // (wood, the wall's warm tint). Shadows, glare and refresh bands fail one test or both.
   const fg = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
-    if (!mask[i] || glare[i]) continue;
-    const Sr = R.r[i] + R.g[i] + R.b[i], Sf = F.r[i] + F.g[i] + F.b[i];
-    if (Sr > 690) continue;                                  // saturated: no info
-    const Yr = Sr / 3 * gain, Yf = Sf / 3, dY = Yf - Yr;
-    const cr = (F.r[i] + 1) / (Sf + 3) - (R.r[i] + 1) / (Sr + 3), cg = (F.g[i] + 1) / (Sf + 3) - (R.g[i] + 1) / (Sr + 3);
-    const dc = Math.abs(cr) + Math.abs(cg);
-    const ratio = (Yf + 1) / (Yr + 1);
-    const shadow = dY < 0 && ratio > 0.35 && ratio < 0.97 && dc < 0.05;
-    if (shadow) continue;
-    if (inScreen[i] ? (dY > P.dYin || (dc > P.dcIn && Math.abs(dY) > 14)) : (Math.abs(dY) > P.dYout || (dc > P.dcOut && Math.abs(dY) > 12))) fg[i] = 1;
+    if (!mask[i] || (P.useGlare && glare[i])) continue;
+    const fr = F.r[i], fgc = F.g[i], fb = F.b[i], rr = R.r[i] * gain, rg = R.g[i] * gain, rb = R.b[i] * gain;
+    const Yf = 0.299 * fr + 0.587 * fgc + 0.114 * fb;
+    if (Yf < P.yMin || Yf > 235) continue;
+    const Cbf = -0.168736 * fr - 0.331264 * fgc + 0.5 * fb, Crf = 0.5 * fr - 0.418688 * fgc - 0.081312 * fb;
+    if (Crf - Cbf < P.skinW) continue;                                   // not skin-warm
+    const Yr = 0.299 * rr + 0.587 * rg + 0.114 * rb, Cbr = -0.168736 * rr - 0.331264 * rg + 0.5 * rb, Crr = 0.5 * rr - 0.418688 * rg - 0.081312 * rb;
+    if (P.notRefSkin && Crr - Cbr >= P.skinW && Yr >= P.yMin) continue;  // was already skin-warm (wall tint, wood)
+    if (Math.abs(Yf - Yr) + Math.abs(Cbf - Cbr) + Math.abs(Crf - Crr) < P.chg) continue; // unchanged
+    fg[i] = 1;
   }
   // evaluation hook: ignore discs (screen px) — e.g. the target ring offline
   if (opts.ignore) for (let i = 0; i < n; i++) if (fg[i]) { const [u, v] = apply(C2S, i % PW, (i / PW) | 0); for (const [iu, iv, ir] of opts.ignore) if ((u - iu) ** 2 + (v - iv) ** 2 < ir * ir) { fg[i] = 0; break; } }
@@ -333,7 +337,9 @@ export function detectRGB(F, R, mask, C2S, opts = {}) {
       if (x > 0) go(p - 1); if (x < PW - 1) go(p + 1); if (y > 0) go(p - PW); if (y < PH - 1) go(p + PW); }
     // the hand = the blob with the most area well INSIDE the screen (not the biggest
     // overall — a body shadow on the wall can be bigger than the arm)
-    if ((!P.needOut || out >= P.minOut) && core >= P.minIn && core > bestN) { bestN = core; best = cur; }
+    // a fingertip at the top edge leaves only a few px inside — fine if a big arm is attached outside
+    const ok = core >= P.minIn || (core >= 6 && out >= P.bigArm);
+    if ((!P.needOut || out >= P.minOut) && ok && core + out * 0.05 > bestN) { bestN = core + out * 0.05; best = cur; }
   }
   if (!best) return null;
   let ex = 0, ey = 0, en = 0; const ins = [];
@@ -353,6 +359,34 @@ export function detectRGB(F, R, mask, C2S, opts = {}) {
   return { tip, area: bestN, entry: [ex, ey], fg: opts.wantMask ? op : undefined, lab: opts.wantMask ? lab : undefined, best };
 }
 
+// share of the band (screen + around it, minus the target ring) that changed vs. the
+// clean stage — a hand anywhere near the screen, even above it, raises it
+export function changedFraction(F, R, mask, ring, C2S) {
+  const n = PW * PH; let a = 0, b2 = 0;
+  for (let i = 0; i < n; i += 9) if (mask[i]) { a += F.r[i] + F.g[i] + F.b[i]; b2 += R.r[i] + R.g[i] + R.b[i]; }
+  const gain = b2 > 0 ? a / b2 : 1; let ch = 0, tot = 0;
+  for (let i = 0; i < n; i += 2) {
+    if (!mask[i]) continue;
+    if (ring) { const [u, v] = apply(C2S, i % PW, (i / PW) | 0); if ((u - ring[0]) ** 2 + (v - ring[1]) ** 2 < 70 * 70) continue; }
+    tot++; if (Math.abs((F.r[i] + F.g[i] + F.b[i]) / 3 - (R.r[i] + R.g[i] + R.b[i]) / 3 * gain) > 30) ch++;
+  }
+  return tot ? ch / tot : 0;
+}
+
+// pixels that are skin-warm now but weren't in the clean stage (a hand anywhere in the
+// band, even above the screen) — lighting shifts and shadows don't create skin
+export function newSkin(F, R, mask) {
+  const n = PW * PH; let c = 0;
+  for (let i = 0; i < n; i += 2) {
+    if (!mask[i]) continue;
+    const Yf = 0.299 * F.r[i] + 0.587 * F.g[i] + 0.114 * F.b[i]; if (Yf < P.yMin || Yf > 235) continue;
+    const wf = 0.5 * F.r[i] - 0.418688 * F.g[i] - 0.081312 * F.b[i] - (-0.168736 * F.r[i] - 0.331264 * F.g[i] + 0.5 * F.b[i]);
+    const wr = 0.5 * R.r[i] - 0.418688 * R.g[i] - 0.081312 * R.b[i] - (-0.168736 * R.r[i] - 0.331264 * R.g[i] + 0.5 * R.b[i]);
+    if (wf >= P.skinW + 4 && wr < P.skinW) c++;
+  }
+  return c;
+}
+
 // ---- 3. the 9-target session --------------------------------------------------------
 async function targetRun(cal, mask) {
   const results = [];
@@ -370,7 +404,7 @@ async function targetRun(cal, mask) {
     for (let tries = 0; tries < 12 && !ref; tries++) {
       await sleep(tries ? 500 : 1100); // > display delay so the ring is in the picture
       const cand = await grabRGBAvg(5);
-      if (detectRGB(cand, clean, mask, cal.C2S)) { msg(`Target ${k + 1} of 9 — move your hand away from the screen…`); continue; }
+      if (newSkin(cand, clean, mask) > 150) { msg(`Target ${k + 1} of 9 — move your hand away from the screen…`); continue; }
       ref = cand;
     }
     if (!ref) ref = await grabRGBAvg(5);
