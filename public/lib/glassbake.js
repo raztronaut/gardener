@@ -105,16 +105,33 @@ export function setGlass(el, url, { own = true } = {}) {
 
 // ---- cards: backdrop = the static aurora ------------------------------------
 let aurora = null;
+// Baked card glass is cached on the wall (Cache Storage, keyed by the card's
+// position + size), so after a reload it's ready instantly. Each card fires
+// 'glass-ready' once its image is DECODED — app.js reveals glass + content together.
+const CACHE = 'gardener-glass-v1';
+async function cachedBake(sig, make) {
+  const key = `/__glass/${encodeURIComponent(sig)}`;
+  let cache = null; try { cache = await caches.open(CACHE); } catch { /* no Cache API */ }
+  const hit = cache && await cache.match(key);
+  if (hit) return URL.createObjectURL(await hit.blob());
+  const url = await make();
+  try { if (cache) await cache.put(key, new Response(await (await fetch(url)).blob(), { headers: { 'Content-Type': 'image/jpeg' } })); } catch { /* ignore */ }
+  return url;
+}
 export async function bakeCards(cards) {
   aurora ||= await loadImg('/assets/aurora-blur.jpg');
-  for (const card of cards) {
-    await new Promise((r) => (window.requestIdleCallback || setTimeout)(r, { timeout: 400 }));
+  await Promise.all(cards.map(async (card) => {
     const r = card.getBoundingClientRect(), z = r.width / card.offsetWidth || 1;
-    const sig = `${Math.round(r.left)},${Math.round(r.top)},${card.offsetWidth}x${card.offsetHeight}`;
-    if (card._gbSig === sig) continue;
+    const sig = `${Math.round(r.left / z)},${Math.round(r.top / z)},${card.offsetWidth}x${card.offsetHeight}`;
+    if (card._gbSig === sig) return;
     card._gbSig = sig;
-    try { setGlass(card, await bake(aurora, { left: r.left / z, top: r.top / z, width: card.offsetWidth, height: card.offsetHeight })); } catch { /* keep plain */ }
-  }
+    try {
+      const url = await cachedBake(sig, () => bake(aurora, { left: r.left / z, top: r.top / z, width: card.offsetWidth, height: card.offsetHeight }));
+      const im = new Image(); im.src = url; await im.decode();   // decoded → no flash
+      setGlass(card, url);
+    } catch { /* keep the plain frosted glass */ }
+    card.dispatchEvent(new Event('glass-ready'));
+  }));
 }
 
 // ---- panel: backdrop = a recent snapshot of the wall ------------------------

@@ -111,7 +111,7 @@ async function main() {
       const appSrc = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
       const css = readFileSync(join(PUBLIC, 'styles.css'), 'utf8');
       check('layout stability: cards reserve their loaded size before data arrives',
-        /reserveCardSize\(card, entry\.id\)[\s\S]{0,200}await w\.mount/.test(appSrc) && /function settleCardSize/.test(appSrc));
+        /reserveCardSize\(card, entry\.id\)[\s\S]{0,1500}await w\.mount/.test(appSrc) && /function settleCardSize/.test(appSrc));
       check('layout stability: no card entrance motion', !/\.card\s*\{[^}]*animation:\s*rise/.test(css) && !/@keyframes rise/.test(css));
     } catch (e) { bad('layout stability', e.message); }
     // House rule: no wind anywhere on the Weather card (removed twice by the humans).

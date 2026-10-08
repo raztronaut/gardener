@@ -197,13 +197,24 @@ async function loadWidgets(enabled, mountPoint) {
         // min-height on the next boot, so data arriving never resizes or shifts the
         // grid; the content just fades into the reserved space.
         reserveCardSize(card, entry.id);
+        // Glass + content appear TOGETHER: a framed card stays invisible until its
+        // baked glass is decoded AND its widget has its data (or 3 s pass).
+        if (!SCREENSHOT && !card.classList.contains('bare') && !card.classList.contains('unframed') && !card._gate) {
+          card._gate = { glass: false, content: false };
+          card.classList.add('awaiting-glass');
+          const reveal = () => { if (card._gate.glass && card._gate.content) card.classList.remove('awaiting-glass'); };
+          card.addEventListener('glass-ready', () => { card._gate.glass = true; reveal(); }, { once: true });
+          card._reveal = () => { card._gate.content = true; reveal(); };
+          setTimeout(() => { card._gate.glass = card._gate.content = true; reveal(); }, 3000);
+          GB_READY.then((gb) => gb && gb.bakeCards([card]));
+        }
         const fail = setTimeout(() => body.classList.add('ready'), 4000);
         const cleanup = await w.mount(body, makeCtx(w.id));
-        clearTimeout(fail); body.classList.add('ready');
+        clearTimeout(fail); body.classList.add('ready'); card._reveal?.();
         settleCardSize(card, entry.id);
         if (typeof cleanup === 'function') cleanups.push(cleanup);
       } catch (e) {
-        body.classList.add('ready');
+        body.classList.add('ready'); card._reveal?.();
         markError('mount', `${entry.id}: ${e.stack || e.message}`);
         body.appendChild(h('div', { class: 'widget-error' }, '⚠', 'widget crashed on mount'));
       }
@@ -264,11 +275,9 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
-    // BAKED liquid glass (lib/glassbake.js): the cards' glass is computed once from
-    // the static aurora; the panel's from a wall snapshot refreshed every minute
-    // while no panel is open. No per-frame filter cost.
+    // Panel glass: a wall snapshot refreshed every minute while no panel is open.
+    // (Card glass is baked as the cards are created — see loadWidgets.)
     setTimeout(() => GB_READY.then((gb) => {
-      gb.bakeCards([...document.querySelectorAll('#garden > .card:not(.bare):not(.unframed)')]);
       if (!SCREENSHOT) {
         const snapNow = () => { if (!panelOpen()) gb.refreshSnapshot(); };
         setTimeout(snapNow, 2500); setInterval(snapNow, 60 * 1000);

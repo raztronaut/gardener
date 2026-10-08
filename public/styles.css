@@ -669,3 +669,8 @@ body.arcade-full #garden, body.arcade-full #topbar { display: none !important; }
 
 .rd-src { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rd-toggle { font-size: 14px; padding: 4px 6px; letter-spacing: 0; text-transform: none; }
+
+/* glass + content load together: hidden (frame and all) until both are ready */
+.card.awaiting-glass { background: none !important; border-color: transparent !important; box-shadow: none !important; }
+.card.awaiting-glass > * { opacity: 0 !important; }
+.card > .gb-img, .card > .lgr-tint, .card > .lgr-rim { transition: opacity .22s linear; }
