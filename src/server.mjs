@@ -219,6 +219,10 @@ async function serveEmuFrame(req, res, u) {
 </style>
 </head><body><div id="wrap"><div id="game"></div><div id="crt"></div></div>
 <script>
+  /* The wall drives input itself (pad bridge → gameManager.simulateInput). Hide the
+     browser Gamepad API from EmulatorJS so it can't ALSO read the SN30 Pro with its
+     own (different) mapping and fight the bridge. */
+  try { Object.defineProperty(navigator, 'getGamepads', { value: function(){ return []; } }); } catch(e) {}
   window.EJS_player='#game';
   window.EJS_pathtodata=${J(EJS_DATA)};
   window.EJS_core=${J(core)};

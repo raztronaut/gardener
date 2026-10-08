@@ -1518,9 +1518,11 @@ function wirePad() {
   const apply = (action) => {
     // Raw controller edges (jb…/jx…/jy…) only matter to a running game.
     if (/^j[bxy]/.test(action)) { try { window.__GARDEN_GAME?.raw?.(action); } catch { /* ignore */ } return; }
-    // A running game OVERWRITES all control mappings except 'back' (L2/Esc).
+    // A running game OVERWRITES all control mappings. Leaving: hold all four
+    // shoulder buttons (L1+R1+L2+R2 → 'arcade'); in the game list L2 still works.
     if (window.__GARDEN_GAME) {
-      if (action === 'back') { closePanel(); return; }
+      const inGame = window.__GARDEN_GAME.inGame?.();
+      if (action === 'arcade' || (action === 'back' && !inGame)) { closePanel(); return; }
       try { window.__GARDEN_GAME.input(action); } catch { /* ignore */ }
       return;
     }

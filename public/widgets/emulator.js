@@ -348,26 +348,32 @@ export default {
     // defaultControllers: A=z B=x X=a Y=s L=q R=e Select=v Start=enter). The
     // SN30 Pro face layout IS the SNES layout, so A→A, B→B, X→X, Y→Y.
     // L2 (8) stays "leave the game"; R2 (9) is unused in-game.
-    const RAWKEY = {
-      0: ['z', 'KeyZ', 90], 1: ['x', 'KeyX', 88], 3: ['a', 'KeyA', 65], 4: ['s', 'KeyS', 83],
-      6: ['q', 'KeyQ', 81], 7: ['e', 'KeyE', 69], 10: ['v', 'KeyV', 86], 11: ['Enter', 'Enter', 13],
-    };
-    const ARROW = { l: ['ArrowLeft', 'ArrowLeft', 37], r: ['ArrowRight', 'ArrowRight', 39], u: ['ArrowUp', 'ArrowUp', 38], d: ['ArrowDown', 'ArrowDown', 40] };
+    // Input goes STRAIGHT into the core via EmulatorJS's gameManager.simulateInput
+    // (player 0, RetroPad id, 1 = pressed / 0 = released) — no synthetic keyboard
+    // events (EmulatorJS only listens for keys on its own player element, so keys
+    // dispatched to window/document never arrived). RetroPad ids: B0 Y1 Select2
+    // Start3 Up4 Down5 Left6 Right7 A8 X9 L10 R11.
+    const RAWPAD = { 0: 8, 1: 0, 3: 9, 4: 1, 6: 10, 7: 11, 10: 2, 11: 3 }; // SN30 idx → RetroPad
+    const DIRPAD = { u: 4, d: 5, l: 6, r: 7 };
     const axisDown = { x: null, y: null };
+    function pad(id, v) {
+      try { emuFrame?.contentWindow?.EJS_emulator?.gameManager?.simulateInput(0, id, v); } catch { /* core not ready */ }
+    }
     function rawInput(a) {
       if (mode !== 'game') return;
       if (a[1] === 'b') {                       // jb<idx><d|u> — true press / release
-        const k = RAWKEY[a.charCodeAt(2) - 97];
-        if (k) fire(a[3] === 'd' ? 'keydown' : 'keyup', k);
+        const id = RAWPAD[a.charCodeAt(2) - 97];
+        if (id != null) pad(id, a[3] === 'd' ? 1 : 0);
         return;
       }
       const ax = a[1], st = a[2];                // jx<l|c|r> / jy<u|c|d>
-      if (axisDown[ax]) { fire('keyup', ARROW[axisDown[ax]]); axisDown[ax] = null; }
-      if (st !== 'c') { fire('keydown', ARROW[st]); axisDown[ax] = st; }
+      if (axisDown[ax]) { pad(DIRPAD[axisDown[ax]], 0); axisDown[ax] = null; }
+      if (st !== 'c') { pad(DIRPAD[st], 1); axisDown[ax] = st; }
     }
 
     window.__GARDEN_GAME = {
       raw: rawInput,
+      inGame: () => mode === 'game',
       input(action) {
         if (mode === 'game') return; // in-game the raw press/release edges drive EmulatorJS
         if (!roms.length) return;
