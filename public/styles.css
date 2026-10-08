@@ -337,11 +337,22 @@ body.idle, body.idle * { cursor: none !important; }
   text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
 
 /* ---------- widget focus (right-stick highlight) ---------- */
-/* Controller focus AND cursor hover share the same mint ring + glow. */
-.card.focused, body:not(.idle) #garden > .card[data-wid]:hover {
-  border-color: var(--mint);
-  box-shadow: var(--glass-edge), 0 0 0 1px var(--mint), 0 0 22px rgba(116,247,176,.35);
-  cursor: var(--c-hand); transition: border-color .12s ease, box-shadow .12s ease; }
+/* Controller focus AND cursor hover: the glass lights up from its own edges — no
+   ring. Glass cards: the rims brighten, light glows inward from the sides and the
+   glass itself brightens a touch. Open (zigzag) cards: the same lit rim + edge glow,
+   but clear inside (no glass fill / refraction). Static styles — no motion. */
+#garden > .card[data-wid] { cursor: var(--c-hand); }
+.card.lgr .lgr-rim, .card.lgr .gb-img { transition: filter .15s linear; }
+.card.lgr::after, .card.unframed::after { content: ''; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; z-index: 2; opacity: 0; transition: opacity .15s linear; }
+.card.lgr::after { box-shadow: inset 0 0 26px 2px rgba(190, 255, 228, .16), inset 0 0 3px rgba(255, 255, 255, .28); }
+.card.unframed::after { padding: 1.5px;
+  background: linear-gradient(135deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.34) 34%, rgba(255,255,255,.12) 66%, rgba(255,255,255,.30) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  box-shadow: inset 0 0 22px 1px rgba(190, 255, 228, .10); }
+.card.focused::after, body:not(.idle) #garden > .card[data-wid]:hover::after { opacity: 1; }
+.card.lgr.focused .lgr-rim, body:not(.idle) #garden > .card.lgr:hover .lgr-rim { filter: brightness(2.6); }
+.card.lgr.focused .gb-img, body:not(.idle) #garden > .card.lgr:hover .gb-img { filter: brightness(1.14) saturate(1.08); }
 
 /* ---------- fullscreen widget panel ---------- */
 .panel-widget { padding: 10px 2px; min-height: 220px; }
