@@ -16,6 +16,7 @@ const FEED = [210, 928, 690, 1198];
 const MARK = [[60, 60], [W - 60, 60], [W - 60, H - 60], [60, H - 60]];
 const TARGETS = [[0.12, 0.08], [0.5, 0.08], [0.88, 0.08], [0.12, 0.5], [0.5, 0.5], [0.88, 0.5], [0.12, 0.92], [0.5, 0.92], [0.88, 0.92]]
   .map(([x, y]) => [Math.round(x * W), Math.round(y * H)]);
+let LAST_CAL = null; // previous calibration's camera→screen map (masks the live preview)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const post = (body) => fetch('/api/touch/log', { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
 
@@ -57,6 +58,17 @@ function grab() { // grayscale Float32 at PW×PH
   const d = cx.getImageData(0, 0, PW, PH).data, g = new Float32Array(PW * PH);
   for (let i = 0; i < g.length; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
   return g;
+}
+// Wait until the camera's auto-exposure has settled (frame mean stable ±2% for
+// ~0.6 s, at least 1.5 s after opening) — a baseline taken mid-ramp is too dark.
+async function settle(maxMs = 6000) {
+  const t0 = performance.now(); const hist = [];
+  while (performance.now() - t0 < maxMs) {
+    const g = grab(); let m = 0; for (let i = 0; i < g.length; i += 13) m += g[i]; m /= g.length / 13;
+    hist.push(m); if (hist.length > 18) hist.shift();
+    if (performance.now() - t0 > 1500 && hist.length >= 18 && Math.max(...hist) - Math.min(...hist) < Math.max(2, m * 0.02)) return;
+    await sleep(33);
+  }
 }
 async function grabAvg(n = 4) { const acc = new Float32Array(PW * PH); for (let k = 0; k < n; k++) { const g = grab(); for (let i = 0; i < acc.length; i++) acc[i] += g[i] / n; await sleep(40); } return acc; }
 function jpeg() { const c = document.createElement('canvas'); c.width = 960; c.height = 540; c.getContext('2d').drawImage(video, 0, 0, 960, 540); return c.toDataURL('image/jpeg', 0.8); }
@@ -140,8 +152,15 @@ function centroid(diff, region) {
   return sw ? [sx / sw, sy / sw, mb] : null;
 }
 async function calibrateCorners() {
-  msg('Calibrating — keep hands away from the screen');
-  clearDots(); await sleep(900);
+  let last;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { return await calibrateOnce(attempt); } catch (e) { last = e; post({ kind: 'corner-retry', attempt, message: e.message }); }
+  }
+  throw last;
+}
+async function calibrateOnce(attempt) {
+  msg(attempt === 1 ? 'Calibrating — keep hands away from the screen' : `Calibrating (try ${attempt}) — keep hands away`);
+  clearDots(); await settle(); await sleep(300);
   // the screen region: dark (stage is black) in the camera, relative to the room
   const black = await grabAvg(6);
   let sum = 0; for (const v of black) sum += v;
@@ -150,6 +169,8 @@ async function calibrateCorners() {
   // whole frame except saturated spots (lamps): screen glare made a darkness-based
   // region drop the bottom corners. The appear/disappear handshake handles drift.
   for (let i = 0; i < region.length; i++) region[i] = black[i] < 235 ? 1 : 0;
+  // the live preview box changes constantly — exclude where it sits (from the last calibration)
+  if (LAST_CAL) { for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const [u, v] = apply(LAST_CAL, x, y); if (u > FEED[0] - 30 && u < FEED[2] + 30 && v > FEED[1] - 30 && v < FEED[3] + 30) region[y * PW + x] = 0; } }
   const cam = [], strength = [];
   let regionFrac = 0; for (const v of region) regionFrac += v; regionFrac /= region.length;
   for (const [x, y] of MARK) {
@@ -189,25 +210,30 @@ function quadMask(S2C) {
   for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
     const [u, v] = apply(C2S, x, y);
     const inFeed = u > FEED[0] - 20 && u < FEED[2] + 20 && v > FEED[1] - 20 && v < FEED[3] + 20; // the on-screen preview changes live — ignore it
-    if (u > -40 && u < W + 40 && v > -40 && v < H + 40 && !inFeed) m[y * PW + x] = 1;
+    // generous band around the screen — above it most (arms reach down from there)
+    if (u > -160 && u < W + 160 && v > -420 && v < H + 60 && !inFeed) m[y * PW + x] = 1;
   }
   return m;
 }
 
 // ---- live feed preview (realtime camera + detected screen outline + tip) -----------
-let feedTip = null;
+let feedTip = null, feedCal = null;
 function showFeed(cal) {
+  feedCal = cal;
+  if (root.querySelector('.tc-feed')) return;
   const box = document.createElement('div'); box.className = 'tc-feed';
   video.className = 'tc-video'; box.appendChild(video);
   const ov = document.createElement('canvas'); ov.width = PW; ov.height = PH; ov.className = 'tc-ov'; box.appendChild(ov);
   root.appendChild(box);
   const g = ov.getContext('2d');
-  const quad = MARK.map(() => 0) && [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => apply(cal.S2C, x, y));
   const draw = () => {
     if (!box.isConnected) return;
     g.clearRect(0, 0, PW, PH);
-    g.strokeStyle = '#74f7b0'; g.lineWidth = 2; g.beginPath(); quad.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
-    if (feedTip) { const [x, y] = apply(cal.S2C, feedTip[0], feedTip[1]); g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+    if (feedCal) {
+      const quad = [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => apply(feedCal.S2C, x, y));
+      g.strokeStyle = '#74f7b0'; g.lineWidth = 2; g.beginPath(); quad.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
+      if (feedTip) { const [x, y] = apply(feedCal.S2C, feedTip[0], feedTip[1]); g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+    }
     requestAnimationFrame(draw);
   };
   draw();
@@ -219,22 +245,25 @@ function detect(frame, ref, mask, C2S) {
   // global brightness drift (auto-exposure) compensation: median-ish mean ratio
   let a = 0, b = 0; for (let i = 0; i < frame.length; i += 7) if (mask[i]) { a += frame[i]; b += ref[i]; }
   const gain = b > 0 ? a / b : 1;
-  for (let i = 0; i < fg.length; i++) if (mask[i] && Math.abs(frame[i] - ref[i] * gain) > 32) fg[i] = 1;
-  // keep the biggest 4-connected blob
+  // saturated spots (lamp glare) carry no information — skip them
+  for (let i = 0; i < fg.length; i++) if (mask[i] && ref[i] < 225 && Math.abs(frame[i] - ref[i] * gain) > 32) fg[i] = 1;
+  // the biggest 4-connected blob that ENTERS FROM OUTSIDE the screen (an arm/hand
+  // does; screen glare and refresh noise stay inside) and also reaches inside it
   const lab = new Int32Array(PW * PH); let best = 0, bestN = 0, cur = 0; const st = [];
   for (let s = 0; s < fg.length; s++) {
-    if (!fg[s] || lab[s]) continue; cur++; let n = 0; st.push(s); lab[s] = cur;
+    if (!fg[s] || lab[s]) continue; cur++; let n = 0, out = 0, inn = 0; st.push(s); lab[s] = cur;
     while (st.length) { const p = st.pop(); n++; const x = p % PW, y = (p / PW) | 0;
+      const [u, v] = apply(C2S, x, y); if (u < 0 || u > W || v < 0 || v > H) out++; else inn++;
       for (const q of [x > 0 ? p - 1 : -1, x < PW - 1 ? p + 1 : -1, y > 0 ? p - PW : -1, y < PH - 1 ? p + PW : -1])
         if (q >= 0 && fg[q] && !lab[q]) { lab[q] = cur; st.push(q); } }
-    if (n > bestN) { bestN = n; best = cur; }
+    if (out >= 8 && inn >= 8 && n > bestN) { bestN = n; best = cur; }
   }
   if (bestN < 60) return null;
   // entry = centroid of blob pixels at the screen boundary (or the blob end lowest on screen)
   let ex = 0, ey = 0, en = 0; const pts = [];
   for (let p = 0; p < lab.length; p++) if (lab[p] === best) {
     const [u, v] = apply(C2S, p % PW, (p / PW) | 0); pts.push([u, v]);
-    if (u < 10 || u > W - 10 || v < 10 || v > H - 10) { ex += u; ey += v; en++; }
+    if (u < 0 || u > W || v < 0 || v > H) { ex += u; ey += v; en++; } // the part outside = where the arm comes from
   }
   if (en) { ex /= en; ey /= en; } else { ex = W / 2; ey = H + 200; }
   let tip = null, far = -1;
@@ -308,7 +337,12 @@ export async function runSession() {
     stream = await startCamera();
     const s = stream.getVideoTracks()[0].getSettings();
     post({ kind: 'start', camera: `${s.width}x${s.height}@${Math.round(s.frameRate || 0)}`, screen: [W, H] });
+    try { const prev = await (await fetch('/api/touch/calibration')).json(); if (prev && prev.C2S) LAST_CAL = prev.C2S; } catch { /* first time */ }
+    showFeed(null); // live camera view from the start (dimmed while corners blink)
+    root.classList.add('cal-phase');
     const cal = await calibrateCorners();
+    root.classList.remove('cal-phase');
+    fetch('/api/touch/calibration', { method: 'POST', body: JSON.stringify({ at: Date.now(), C2S: cal.C2S, corners: cal.cam, partial: true }) }).catch(() => {});
     const mask = quadMask(cal.S2C);
     showFeed(cal); // live camera view (with the screen outline) during the targets
     const results = await targetRun(cal, mask);
