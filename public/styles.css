@@ -710,3 +710,7 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 #touchcal .tc-dot.ok { border: 6px solid var(--mint); background: rgba(116,247,176,.25); }
 #touchcal .tc-dot.miss { border: 6px solid var(--rose); }
 #touchcal .tc-tip { position: absolute; display: none; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 14px var(--gold); }
+#touchcal .tc-feed { position: absolute; left: 50%; top: 58%; width: 480px; transform: translateX(-50%); border-radius: 14px;
+  overflow: hidden; border: 1px solid rgba(255,255,255,.18); opacity: .9; }
+#touchcal .tc-video { display: block; width: 100%; height: auto; }
+#touchcal .tc-ov { position: absolute; inset: 0; width: 100%; height: 100%; }

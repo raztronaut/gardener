@@ -11,6 +11,8 @@
 
 const W = 900, H = 1600;           // screen (kiosk window) px
 const PW = 640, PH = 360;          // processing resolution (camera downscaled)
+// on-screen live preview rect (screen px) — excluded from detection
+const FEED = [210, 928, 690, 1198];
 const MARK = [[60, 60], [W - 60, 60], [W - 60, H - 60], [60, H - 60]];
 const TARGETS = [[0.12, 0.08], [0.5, 0.08], [0.88, 0.08], [0.12, 0.5], [0.5, 0.5], [0.88, 0.5], [0.12, 0.92], [0.5, 0.92], [0.88, 0.92]]
   .map(([x, y]) => [Math.round(x * W), Math.round(y * H)]);
@@ -80,28 +82,62 @@ const clearDots = () => root.querySelectorAll('.tc-dot,.tc-tip').forEach((e) => 
 // "on" frame than in the "off" frames around it — slow exposure / white-balance
 // drift and anything moving outside the screen cancel out. The candidate region is
 // limited to where the screen is (dark while the stage is black, vs. the lit room).
-const CYCLES = 3;
-const LAG = 750; // ms: screen → camera latency (measured ~0.5 s) + margin
-async function blinkDiff(x, y) {
+const CYCLES = 2;
+// The screen's display pipeline delays changes by 0.2–1.0 s (jittery; the camera
+// itself adds only ~20 ms), so fixed waits miss. Instead WATCH the camera: after
+// showing a marker, grab frames until a bright blob has appeared in the screen
+// region (vs. the black baseline); after hiding it, until it's gone.
+// 4×4 block-averaged positive difference (160×90): a solid marker survives, the
+// camera's rolling refresh bands / sensor noise (thin, sparse) are averaged away.
+const BW = PW / 4, BH = PH / 4;
+function blockDiff(a, b, region) {
+  const out = new Float32Array(BW * BH);
+  for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+    let sum = 0, n = 0;
+    for (let y = by * 4; y < by * 4 + 4; y++) for (let x = bx * 4; x < bx * 4 + 4; x++) { const i = y * PW + x; if (region[i]) { sum += a[i] - b[i]; n++; } }
+    out[by * BW + bx] = n ? sum / n : 0;
+  }
+  return out;
+}
+async function waitFor(base, region, appear, timeout = 2500) {
+  const t0 = performance.now();
+  while (performance.now() - t0 < timeout) {
+    const bd = blockDiff(grab(), base, region); let m = 0;
+    for (const v of bd) if (v > m) m = v;
+    if (appear ? m > 90 : m < 40) { await sleep(150); return true; }
+    await sleep(33);
+  }
+  return false;
+}
+async function blinkDiff(x, y, base, region) {
   const acc = new Float32Array(PW * PH).fill(Infinity);
   for (let c = 0; c < CYCLES; c++) {
-    const off1 = await grabAvg(3);
-    // the camera feed lags the screen by ~0.5 s — wait it out on each edge
-    const d = dot(x, y, 'mark', 54); await sleep(LAG);
-    const on = await grabAvg(3); d.remove(); await sleep(LAG);
-    const off2 = await grabAvg(3);
-    for (let i = 0; i < acc.length; i++) acc[i] = Math.min(acc[i], on[i] - Math.max(off1[i], off2[i]));
+    const d = dot(x, y, 'mark', 54);
+    const seen = await waitFor(base, region, true);
+    const on = await grabAvg(3); d.remove();
+    await waitFor(base, region, false);
+    const off = await grabAvg(3);
+    if (!seen) continue; // this cycle never showed the marker — skip it rather than poison the min
+    for (let i = 0; i < acc.length; i++) acc[i] = Math.min(acc[i], on[i] - off[i]);
   }
+  for (let i = 0; i < acc.length; i++) if (acc[i] === Infinity) acc[i] = 0;
   return acc;
 }
 function centroid(diff, region) {
+  // brightest 4×4 block, then a weighted centroid in a 28 px window around it
+  const bd = new Float32Array(BW * BH);
+  for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
+    let sum = 0; for (let y = by * 4; y < by * 4 + 4; y++) for (let x = bx * 4; x < bx * 4 + 4; x++) { const i = y * PW + x; if (region[i]) sum += diff[i]; }
+    bd[by * BW + bx] = sum / 16;
+  }
+  let mb = 0, at = 0; for (let i = 0; i < bd.length; i++) if (bd[i] > mb) { mb = bd[i]; at = i; }
+  if (mb < 40) return null;
+  const cx0 = (at % BW) * 4 + 2, cy0 = ((at / BW) | 0) * 4 + 2;
   let max = 0;
-  for (let i = 0; i < diff.length; i++) if (region[i] && diff[i] > max) max = diff[i];
-  if (max < 18) return null;
-  let sx = 0, sy = 0, sw = 0;
-  const th = max * 0.55;
-  for (let yy = 0; yy < PH; yy++) for (let xx = 0; xx < PW; xx++) { const i = yy * PW + xx, v = diff[i]; if (region[i] && v > th) { sx += xx * v; sy += yy * v; sw += v; } }
-  return sw ? [sx / sw, sy / sw, max] : null;
+  for (let y = Math.max(0, cy0 - 14); y < Math.min(PH, cy0 + 14); y++) for (let x = Math.max(0, cx0 - 14); x < Math.min(PW, cx0 + 14); x++) max = Math.max(max, diff[y * PW + x]);
+  let sx = 0, sy = 0, sw = 0; const th = max * 0.5;
+  for (let y = Math.max(0, cy0 - 14); y < Math.min(PH, cy0 + 14); y++) for (let x = Math.max(0, cx0 - 14); x < Math.min(PW, cx0 + 14); x++) { const v = diff[y * PW + x]; if (v > th) { sx += x * v; sy += y * v; sw += v; } }
+  return sw ? [sx / sw, sy / sw, mb] : null;
 }
 async function calibrateCorners() {
   msg('Calibrating — keep hands away from the screen');
@@ -111,11 +147,13 @@ async function calibrateCorners() {
   let sum = 0; for (const v of black) sum += v;
   const mean = sum / black.length;
   const region = new Uint8Array(PW * PH);
-  for (let i = 0; i < region.length; i++) region[i] = black[i] < mean * 0.85 ? 1 : 0;
+  // whole frame except saturated spots (lamps): screen glare made a darkness-based
+  // region drop the bottom corners. The appear/disappear handshake handles drift.
+  for (let i = 0; i < region.length; i++) region[i] = black[i] < 235 ? 1 : 0;
   const cam = [], strength = [];
   let regionFrac = 0; for (const v of region) regionFrac += v; regionFrac /= region.length;
   for (const [x, y] of MARK) {
-    const df = await blinkDiff(x, y);
+    const df = await blinkDiff(x, y, black, region);
     let mIn = 0, mAll = 0, at = 0; for (let i = 0; i < df.length; i++) { if (df[i] > mAll) { mAll = df[i]; at = i; } if (region[i] && df[i] > mIn) mIn = df[i]; }
     post({ kind: 'corner-debug', marker: [x, y], maxInRegion: Math.round(mIn), maxAll: Math.round(mAll), maxAt: [at % PW, (at / PW) | 0], regionFrac: Math.round(regionFrac * 100) / 100, mean: Math.round(mean) });
     const c = centroid(df, region);
@@ -148,8 +186,31 @@ export async function testCorners() {
 // screen-quad mask in camera px (a little inside the edges)
 function quadMask(S2C) {
   const m = new Uint8Array(PW * PH), C2S = homography(MARK.map(([x, y]) => apply(S2C, x, y)), MARK);
-  for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) { const [u, v] = apply(C2S, x, y); if (u > -40 && u < W + 40 && v > -40 && v < H + 40) m[y * PW + x] = 1; }
+  for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+    const [u, v] = apply(C2S, x, y);
+    const inFeed = u > FEED[0] - 20 && u < FEED[2] + 20 && v > FEED[1] - 20 && v < FEED[3] + 20; // the on-screen preview changes live — ignore it
+    if (u > -40 && u < W + 40 && v > -40 && v < H + 40 && !inFeed) m[y * PW + x] = 1;
+  }
   return m;
+}
+
+// ---- live feed preview (realtime camera + detected screen outline + tip) -----------
+let feedTip = null;
+function showFeed(cal) {
+  const box = document.createElement('div'); box.className = 'tc-feed';
+  video.className = 'tc-video'; box.appendChild(video);
+  const ov = document.createElement('canvas'); ov.width = PW; ov.height = PH; ov.className = 'tc-ov'; box.appendChild(ov);
+  root.appendChild(box);
+  const g = ov.getContext('2d');
+  const quad = MARK.map(() => 0) && [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => apply(cal.S2C, x, y));
+  const draw = () => {
+    if (!box.isConnected) return;
+    g.clearRect(0, 0, PW, PH);
+    g.strokeStyle = '#74f7b0'; g.lineWidth = 2; g.beginPath(); quad.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
+    if (feedTip) { const [x, y] = apply(cal.S2C, feedTip[0], feedTip[1]); g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+    requestAnimationFrame(draw);
+  };
+  draw();
 }
 
 // ---- 2. foreground blob + tip -----------------------------------------------------
@@ -189,7 +250,7 @@ async function targetRun(cal, mask) {
     clearDots();
     const ring = dot(tx, ty, 'target wait', 44);
     msg(`Target ${k + 1} of 9 — hands away…`);
-    await sleep(700);
+    await sleep(1100); // > the display delay, so the reference shows this ring
     const ref = await grabAvg(5);
     post({ kind: 'ref', k, frame: jpeg() }); // the clean reference (for offline analysis)
     ring.classList.remove('wait');
@@ -198,6 +259,7 @@ async function targetRun(cal, mask) {
     const hist = []; const samples = []; let done = null; const t0 = performance.now();
     while (!done && performance.now() - t0 < 20000) {
       const f = grab(); const r = detect(f, ref, mask, cal.C2S); const now = performance.now();
+      feedTip = r ? r.tip : null;
       if (r) {
         tipEl.style.display = 'block'; tipEl.style.left = `${r.tip[0] - 10}px`; tipEl.style.top = `${r.tip[1] - 10}px`;
         hist.push({ t: now, p: r.tip }); samples.push({ t: Math.round(now - t0), tip: r.tip.map(Math.round), area: r.area });
@@ -248,6 +310,7 @@ export async function runSession() {
     post({ kind: 'start', camera: `${s.width}x${s.height}@${Math.round(s.frameRate || 0)}`, screen: [W, H] });
     const cal = await calibrateCorners();
     const mask = quadMask(cal.S2C);
+    showFeed(cal); // live camera view (with the screen outline) during the targets
     const results = await targetRun(cal, mask);
     const ok = results.filter((r) => r.tip);
     const errs = ok.map((r) => Math.hypot(r.err[0], r.err[1]));
