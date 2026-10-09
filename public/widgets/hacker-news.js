@@ -131,7 +131,7 @@ export default {
          two-line title used to squeeze its meta line out past the row's border.
          If the stories don't all fit, fitRows() drops the last one instead. */
       .hn-item { position:relative; display:flex; gap:12px; align-items:center; flex:1 0 auto;
-        padding:8px 0; background:none; border:none; border-radius:0;
+        padding:6px 0; background:none; border:none; border-radius:0;
         border-bottom:1px solid var(--stroke); }
       /* open card (2026-10-06): no boxed rows — hairline dividers like Out in SF */
       .hn-item:last-child { border-bottom:none; }

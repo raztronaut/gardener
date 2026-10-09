@@ -81,7 +81,7 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; height:100%; gap:8px; }
+      .wx { display:flex; flex-direction:column; height:100%; gap:6px; }
       .wx-sec { font-size:12.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
 
       /* 1 · now */
@@ -115,11 +115,12 @@ export default {
       .wx-days { display:grid; grid-template-columns:minmax(0,1fr) 26px auto auto; column-gap:12px; row-gap:0; align-items:center; }
       .wx-days .h { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); text-align:right; }
       .wx-days .wx-sec { margin:0; text-align:left; grid-column:1 / 3; }
-      .wx-days .dn { font-size:16px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .wx-days .dn { font-size:16px; line-height:27px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .wx-days .dn.tm { color:var(--ink); font-weight:600; }
       .wx-days .dn .pp { color:#9cc0ff; font-size:13px; font-weight:600; margin-left:6px; }
       .wx-days img { display:block; width:26px; height:26px; }
-      .wx-days .t { text-align:right; white-space:nowrap; }
+      .wx-days .t { text-align:right; white-space:nowrap; line-height:27px; }
+      .wx-days .t span { line-height:1; }
       .wx-days .t .f { font-family:var(--font-display); font-size:20px; color:var(--ink); }
       .wx-days .t.lo .f { color:var(--ink-soft); }
       .wx-days .t .c { font-size:13.5px; color:var(--ink-faint); margin-left:5px; }
@@ -130,8 +131,8 @@ export default {
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-plot .now { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
         background:#fff; box-shadow:0 0 0 2px #10261f; }
-      .wx-axis { display:flex; margin-top:6px; }
-      .wx-axis .hr { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; }
+      .wx-axis { display:flex; margin-top:5px; }
+      .wx-axis .hr { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
       .wx-axis .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
       .wx-axis .hr:first-child .tt { color:#fff; }
       .wx-axis img { display:block; }
@@ -242,7 +243,7 @@ export default {
             const wet = p.pop != null && p.pop >= 25;
             return h('div', { class: 'hr' },
               h('div', { class: 'tt' }, `${p.t}°`),
-              icon(nightSlug(WMO(p.code)[1], p.isDay), 28),
+              icon(nightSlug(WMO(p.code)[1], p.isDay), 26),
               h('div', { class: 't' }, i === 0 ? 'now' : hr12(p.hr)),
               anyWet ? h('div', { class: 'p' }, wet ? `💧${p.pop}%` : '') : null);
           })));

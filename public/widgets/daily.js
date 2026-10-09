@@ -748,7 +748,11 @@ export default {
       @keyframes dlyfade { from{opacity:0} to{opacity:1} }
       @media (prefers-reduced-motion: reduce) { .dly { animation:none; } }
       .dly-sec { display:flex; flex-direction:column; justify-content:center;
-        min-height:0; overflow:hidden; padding:8px 0; }
+        min-height:0; overflow:hidden; padding:4px 0; }
+      /* Never squash a line mid-glyph (2026-10-09): the flex children inside a
+         region keep their natural height — clamped blocks end in a clean
+         ellipsis instead of being shrunk and sliced through the middle. */
+      .dly-sec > *, .dly-sec > * > * { flex-shrink:0; }
       /* basis:auto → each region is sized by its own content (so the card keeps
          its generous 'tall' height and stays full); grow shares any extra space,
          shrink lets a region give way gracefully if the grid ever forces the card
@@ -758,7 +762,7 @@ export default {
       .dly-quote-sec { flex:1 1 auto; }
       .dly-sec + .dly-sec { border-top:1px solid var(--stroke); }
       .dly-lbl { font-family:var(--font-mono); font-size:12.5px; font-weight:600; letter-spacing:.2em;
-        text-transform:uppercase; color:var(--ink-faint); margin-bottom:6px; flex:none; }
+        text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px; flex:none; }
 
       /* WORD — the hero. Wraps to a 2nd line for long entries, then ellipsizes. */
       .dly-word { font-family:var(--font-display); font-weight:600; font-size:26px; line-height:1.1;
@@ -782,14 +786,14 @@ export default {
         color:var(--ink-faint); letter-spacing:.01em; flex:none;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
       .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
-      .dly-def { margin-top:6px; font-size:14px; line-height:1.34; color:var(--ink);
+      .dly-def { margin-top:4px; font-size:14px; line-height:1.34; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* synonyms & antonyms — a quiet "kindred + opposite" line beneath the
          definition: a mint "≈" leads a few near-synonyms, and (when the word has
          a clean opposite) a cool blue "≠" leads a few antonyms on the SAME line.
          One line, ellipsised, so it can never push the example out of the region;
          adds no height. Hidden entirely when the word has neither. */
-      .dly-syn { margin-top:5px; font-size:12.5px; line-height:1.25; color:var(--ink-soft);
+      .dly-syn { margin-top:4px; font-size:12.5px; line-height:1.25; color:var(--ink-soft);
         flex:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
       .dly-syn .eq { color:var(--mint); font-weight:700; margin-right:7px; }
       .dly-syn .sw + .sw::before { content:'·'; color:var(--ink-faint); margin:0 6px; }
@@ -845,7 +849,7 @@ export default {
          today's notable moments over the day (advances every half-hour). Bounded
          width + fixed tiny height (flex:none), so it never grows the region or
          clips; static, no animation. Hidden entirely in the offline fact fallback. */
-      .dly-otd-nav { display:flex; align-items:center; gap:9px; margin-top:10px; flex:none; }
+      .dly-otd-nav { display:flex; align-items:center; gap:9px; margin-top:7px; flex:none; }
       .dly-otd-nav .rail { position:relative; flex:1 1 auto; height:2px; border-radius:2px;
         background:rgba(255,255,255,.08); overflow:hidden; }
       .dly-otd-nav .rail .fill { position:absolute; left:0; top:0; bottom:0; border-radius:2px;
@@ -862,11 +866,11 @@ export default {
          and mint-tinted quotation marks give the day's quote its own presence, so
          it reads distinctly from the word/fact sections above rather than as one
          more label-plus-text block. Purely decorative — static, adds no height. */
-      .dly-quote { font-family:var(--font-display); font-style:normal; font-size:17px; line-height:1.32;
+      .dly-quote { font-family:var(--font-display); font-style:normal; font-size:16.5px; line-height:1.3;
         color:var(--ink); min-height:0; text-wrap:balance; /* no lone last word */
         display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; padding-bottom:3px; }
       .dly-quote .qm { color:var(--mint); font-weight:600; font-style:normal; }
-      .dly-auth { margin-top:8px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
+      .dly-auth { margin-top:5px; text-align:right; font-family:var(--font-mono); font-size:12.5px;
         color:var(--mint); letter-spacing:.02em; flex:none;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       /* author's role/era — a hushed caption trailing the attribution ("· poet"),
