@@ -143,32 +143,32 @@ export default {
       .aqs > * { flex-shrink:0; }
       .aqs .numrow { display:flex; align-items:baseline; gap:8px; }
       .aqs .numrow .pm { margin-left:auto; min-width:0; }
-      .aqs .num { font-family:var(--font-display); font-weight:700; font-size:40px; line-height:.85;
+      .aqs .num { font-family:var(--font-display); font-weight:400; font-size:64px; line-height:.85;
         color:var(--aqs-c, var(--ink)); }
       /* trend arrow beside the number — glanceable sense of where the air is headed */
       .aqs .trend { display:inline-flex; align-items:baseline; gap:3px; line-height:1; }
-      .aqs .trend .ar { font-size:22px; font-weight:700; color:var(--ink-faint); }
-      .aqs .trend .tl { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.05em;
+      .aqs .trend .ar { font-size:26px; font-weight:700; color:var(--ink-faint); }
+      .aqs .trend .tl { font-family:var(--font-mono); font-size:13px; letter-spacing:.05em;
         color:var(--ink-faint); text-transform:lowercase; }
-      .aqs .cat { font-size:14px; font-weight:700; color:var(--aqs-c, var(--ink)); line-height:1;
+      .aqs .cat { font-family:var(--font-display); font-weight:400; font-size:22px; font-weight:700; color:var(--aqs-c, var(--ink)); line-height:1;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       /* quiet health cue under the category — clamped to 2 lines so it never
          pushes the scale/PM rows out of the small square tile. */
-      .aqs .tip { font-size:12.5px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
+      .aqs .tip { font-size:14px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
         display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
       /* "vs. yesterday" cue — a compact coloured line that sits ABOVE the health
          tip only when the air shifted notably from the same hour yesterday. When
          it shows, the tip below drops to a single line (.one), so the two together
          occupy the SAME two-line box the tip used alone — no added height, no clip.
          A mint ↓ reads "cleared overnight"; a warm ↑ reads "smokier than yesterday". */
-      .aqs .vsy { font-size:12.5px; line-height:1.28; font-weight:700; letter-spacing:.01em;
+      .aqs .vsy { font-size:13.5px; line-height:1.28; font-weight:700; letter-spacing:.01em;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex;
         align-items:baseline; gap:4px; }
       .aqs .vsy .ar { font-weight:700; flex:0 0 auto; }
       .aqs .tip.one { -webkit-line-clamp:1; }
       /* static gradient AQI scale (0→300+) with a marker showing today's position —
          a glanceable sense of how close we are to unhealthy. No animation. */
-      .aqs .scale { position:relative; height:6px; border-radius:3px; margin:3px 0 2px;
+      .aqs .scale { position:relative; height:7px; border-radius:4px; margin:8px 0 0;
         background:linear-gradient(90deg,
           #74f7b0 0%, #74f7b0 13%,
           #f7d774 21%, #f7d774 30%,
@@ -188,10 +188,17 @@ export default {
       .aqs .scale .peak::after { content:''; position:absolute; left:50%; top:-4px;
         width:5px; height:5px; border-radius:50%; transform:translateX(-50%);
         background:var(--aqs-peak, #fff); box-shadow:0 0 5px var(--aqs-peak, rgba(255,255,255,.7)); }
+      /* band ticks under the scale — the category boundaries named in quiet
+         numerals, so the white marker's position reads as a number at a glance. */
+      .aqs .ticks { position:relative; height:13px; margin-top:3px; }
+      .aqs .ticks span { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font-mono);
+        font-size:11.5px; line-height:1; color:var(--ink-faint); letter-spacing:.02em; white-space:nowrap; }
+      .aqs .ticks span:first-child { transform:none; }
+      .aqs .ticks span:last-child { transform:translateX(-100%); }
       /* footer: PM2.5 concentration, plus a quiet tag naming the pollutant that
          actually drives today's reading — but only when it ISN'T PM2.5, so the line
          stays calm on ordinary days and speaks up only when there's a reason to. */
-      .aqs .pm { font-family:var(--font-mono); font-size:12px; color:var(--ink-faint);
+      .aqs .pm { font-family:var(--font-mono); font-size:13.5px; color:var(--ink-faint);
         letter-spacing:.06em; display:flex; align-items:baseline; gap:6px; white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis; }
       .aqs .pm .lead { color:var(--aqs-c, var(--ink-soft)); font-weight:700; letter-spacing:.04em; flex:0 0 auto; }
@@ -305,6 +312,9 @@ export default {
               style: { left: `${posOf(peak.val)}%` },
             }) : null,
             h('div', { class: 'mark', style: { left: `${pos}%` } })),
+          h('div', { class: 'ticks', 'aria-hidden': 'true' },
+            ...[0, 50, 100, 150, 200, 300].map((v) => h('span', { style: { left: `${(v / 300) * 100}%` } },
+              v === 300 ? '300+' : String(v)))),
           // (12-hour outlook bars removed 2026-10-07 at the humans' request)
         ].filter(Boolean));
         body.dataset.loaded = '1';
