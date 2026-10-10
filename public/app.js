@@ -710,28 +710,130 @@ async function showEvents() {
   if (showEvents.tok !== tok || !panelOpen()) return; // closed meanwhile — don't reopen
   renderEvents(evs);
 }
+// Today's events get a map (numbered pins + home at 408 Quintara) and a drive
+// column: free-flow drive minutes and the latest time to leave to arrive by the
+// start (server: /api/sf-travel → src/travel.mjs, geocodes + routes cached on disk).
+// The map box and the drive column are reserved up front and filled in place —
+// the panel never grows or reflows when the travel data lands.
+const TRAVEL = new Map(); // event name → { lat, lon, mins, km } | null
+const EV_MAP_BOX = [37.695, -122.525, 37.845, -122.245]; // SF + Oakland's edge
 function renderEvents(evs) {
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const TZ = (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles';
   const timeFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
   const dayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
+  const keyFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ });
+  const todayKey = keyFmt.format(new Date());
+  const isToday = (e) => !!e.when && keyFmt.format(e.when) <= todayKey;
+  const today = evs.filter(isToday);
+  const drives = new Map(); // event → its drive cell
+  let n = 0;
+  const pinNo = new Map();
   const rows = evs.map((e) => {
     let when = 'Soon';
     if (e.when) {
       when = `${dayFmt.format(e.when)} ${MON[e.when.getMonth()]} ${e.when.getDate()}`;
       if (!e.allDay) when += ` · ${timeFmt.format(e.when).replace(' ', '')}`; // all-day rows have no real clock time
     }
-    return h('div', { class: 'cl-row ev-row clickable', onclick: () => showEventDetail(e) },
+    const t = isToday(e);
+    if (t) pinNo.set(e, ++n);
+    const drive = t ? h('div', { class: 'ev-drive' }) : null;
+    if (drive) drives.set(e, drive);
+    return h('div', { class: `cl-row ev-row clickable${t ? ' today' : ''}`, onclick: () => showEventDetail(e) },
       h('div', { class: 'ev-when' }, when),
       h('div', { class: 'cl-main' },
-        h('div', { class: 'cl-phrase' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
-        e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null));
+        h('div', { class: 'cl-phrase' }, t ? h('span', { class: 'ev-no' }, String(pinNo.get(e))) : null, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
+        e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null),
+      drive);
   });
+  const list = h('div', { class: 'cl ev-list' }, ...rows);
+  const mapBox = h('div', { class: 'ev-map' });
+  const wrap = h('div', { class: 'ev-wrap' }, today.length ? mapBox : null, list);
   // Re-render in place if the events panel is already showing (keeps scroll position).
-  const cur = document.querySelector('#panel.open .cl.ev-list');
-  if (cur) cur.replaceChildren(...rows);
-  else openPanel(`Out in SF — ${evs.length} upcoming events`, h('div', { class: 'cl ev-list' }, ...rows));
+  const cur = document.querySelector('#panel.open .ev-wrap');
+  if (cur) cur.replaceWith(wrap);
+  else openPanel(`Out in SF — ${evs.length} upcoming events`, wrap);
+  if (!today.length) return;
+
+  const fill = () => {
+    for (const [e, cell] of drives) {
+      const r = TRAVEL.get(e.name);
+      if (!r || r.mins == null) { cell.replaceChildren(); continue; }
+      const kids = [h('div', { class: 'ev-mins' }, CAR_SVG(), `${r.mins} min`)];
+      if (e.when && !e.allDay) {
+        const leave = new Date(e.when.getTime() - r.mins * 60000);
+        leave.setMinutes(Math.floor(leave.getMinutes() / 5) * 5, 0, 0); // round down to 5 min
+        const past = leave < new Date() && e.when > new Date();
+        kids.push(h('div', { class: `ev-leave${past ? ' late' : ''}` }, past ? 'leave now' : `leave ${timeFmt.format(leave).replace(' ', '').toLowerCase()}`));
+      }
+      cell.replaceChildren(...kids);
+      cell.classList.add('on');
+    }
+  };
+  const drawMap = async () => {
+    const W = Math.round(mapBox.clientWidth) || 780, H = Math.round(mapBox.clientHeight) || 520;
+    const { staticMap, svgEl } = await import('/lib/staticmap.js');
+    // Fit home + today's in-city venues (padded), so the pins spread over the frame;
+    // venues outside SF/Oakland (Mountain View…) keep their drive time but no pin.
+    const HOME = [37.74838, -122.47659];
+    const pts = [HOME];
+    for (const e of today) { const r = TRAVEL.get(e.name); if (r && r.lat >= EV_MAP_BOX[0] && r.lat <= EV_MAP_BOX[2] && r.lon >= EV_MAP_BOX[1] && r.lon <= EV_MAP_BOX[3]) pts.push([r.lat, r.lon]); }
+    let [s0, w0, n0, e0] = [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
+    const padLat = Math.max(0.012, (n0 - s0) * 0.14), padLon = Math.max(0.015, (e0 - w0) * 0.1);
+    const m = staticMap({ bbox: [s0 - padLat, w0 - padLon, n0 + padLat, e0 + padLon], width: W, height: H });
+    const home = m.project(...HOME);
+    const g = svgEl('g', { transform: `translate(${home[0].toFixed(1)},${home[1].toFixed(1)})` });
+    g.append(svgEl('circle', { r: 17, fill: 'rgba(116,247,176,.18)' }),
+      svgEl('path', { d: 'M-8 1 L0 -7 L8 1 M-6 -1 V8 H6 V-1', fill: 'none', stroke: '#74f7b0', 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    const pins = [];
+    for (const e of today) {
+      const r = TRAVEL.get(e.name);
+      if (!r) continue;
+      const [x, y] = m.project(r.lat, r.lon);
+      if (x < 12 || y < 12 || x > W - 12 || y > H - 12) continue; // off the city map (Mountain View etc.)
+      pins.push({ x, y, no: pinNo.get(e) });
+    }
+    // co-located venues (same block) fan out so every number stays readable
+    // (a few relaxation passes push overlapping pins apart; a hairline ties each moved
+    // pin back to its true spot)
+    pins.forEach((p, i) => { p.ox = p.x; p.oy = p.y; p.x += Math.cos(i * 2.4) * 0.5; p.y += Math.sin(i * 2.4) * 0.5; });
+    for (let it = 0; it < 60; it++) {
+      for (let i = 0; i < pins.length; i++) for (let j = i + 1; j < pins.length; j++) {
+        const a = pins[i], b = pins[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+        if (d < 27) { const f = (27 - d) / 2 / d; a.x -= dx * f; a.y -= dy * f; b.x += dx * f; b.y += dy * f; }
+      }
+    }
+    for (const p of pins) if (Math.hypot(p.x - p.ox, p.y - p.oy) > 6) {
+      m.svg.append(svgEl('line', { x1: p.ox.toFixed(1), y1: p.oy.toFixed(1), x2: p.x.toFixed(1), y2: p.y.toFixed(1), stroke: 'rgba(116,247,176,.55)', 'stroke-width': 1.2 }),
+        svgEl('circle', { cx: p.ox.toFixed(1), cy: p.oy.toFixed(1), r: 2.2, fill: '#74f7b0' }));
+    }
+    for (const p of pins) {
+      const pg = svgEl('g', { transform: `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})` });
+      const label = svgEl('text', { y: 4.5, 'text-anchor': 'middle', class: 'ev-pin-t' }); label.textContent = String(p.no);
+      pg.append(svgEl('circle', { r: 12, class: 'ev-pin' }), label);
+      m.svg.append(pg);
+    }
+    m.svg.append(g);
+    await m.ready;
+    mapBox.replaceChildren(m.el);
+    mapBox.classList.add('on');
+  };
+  const missing = today.filter((e) => !TRAVEL.has(e.name));
+  if (!missing.length) { fill(); drawMap(); return; }
+  fetch('/api/sf-travel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events: missing.map((e) => ({ key: e.name, name: e.name, placeFull: e.placeFull, description: e.description })) }) })
+    .then((r) => r.json()).then((j) => {
+      for (const e of missing) TRAVEL.set(e.name, j.results ? j.results[e.name] ?? null : null);
+      if (!wrap.isConnected) return;
+      fill(); drawMap();
+    }).catch(() => {});
 }
+const CAR_SVG = () => {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'ev-car');
+  s.innerHTML = '<path d="M3 15.5v-3l2.2-4.6A2 2 0 0 1 7 6.8h10a2 2 0 0 1 1.8 1.1L21 12.5v3a1 1 0 0 1-1 1h-1M3 15.5a1 1 0 0 0 1 1h1M9 16.5h6M3.5 12.5h17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="16.8" r="1.9" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="17" cy="16.8" r="1.9" fill="none" stroke="currentColor" stroke-width="1.7"/>';
+  return s;
+};
 
 // Full Hacker News front page in a panel (the /hn command; controller: Y).
 // Stale-while-revalidate: the last front page is kept in memory (prefetched on

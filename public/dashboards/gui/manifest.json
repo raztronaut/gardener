@@ -1,22 +1,8 @@
 {
   "widgets": [
-    {
-      "id": "declaration",
-      "file": "/dashboards/gui/widgets/declaration.js",
-      "enabled": true,
-      "order": 1
-    },
-    {
-      "id": "reasons",
-      "file": "/dashboards/gui/widgets/reasons.js",
-      "enabled": true,
-      "order": 2
-    },
-    {
-      "id": "promises",
-      "file": "/dashboards/gui/widgets/promises.js",
-      "enabled": true,
-      "order": 3
-    }
+    { "id": "declaration", "file": "/dashboards/gui/widgets/declaration.js", "enabled": true, "order": 1 },
+    { "id": "haiku", "file": "/dashboards/gui/widgets/haiku.js", "enabled": true, "order": 2 },
+    { "id": "dictionary", "file": "/dashboards/gui/widgets/dictionary.js", "enabled": true, "order": 3 },
+    { "id": "vouchers", "file": "/dashboards/gui/widgets/vouchers.js", "enabled": true, "order": 4 }
   ]
 }

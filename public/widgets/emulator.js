@@ -17,6 +17,11 @@
 // The EmulatorJS data dir + the actual EJS_* boot setup live SERVER-side in
 // /emu-frame.html (src/server.mjs serveEmuFrame); the widget just points an
 // iframe there. EmulatorJS core ids keyed by the system our server infers.
+// Only ONE emulator may run: the Arcade can be open both as the dashboard card and
+// as a panel, each with its own boot machinery. Booting a game first stops the other
+// instance's game (two cores at once halved both to ~40 fps — 2026-10-08).
+let activeTeardown = null;
+
 const CORE = {
   nes: 'nes', snes: 'snes', gb: 'gb', gbc: 'gb', gba: 'gba',
   n64: 'n64', segaMD: 'segaMD', segaMS: 'segaMS', pce: 'pce',
@@ -609,6 +614,8 @@ export default {
       recordPlay(rom); // bump play count + last-played for the detail panel
       mode = 'game';
       document.body.classList.add('arcade-full'); // the game takes the whole screen
+      if (activeTeardown && activeTeardown !== teardownGame) activeTeardown(); // another instance's game
+      activeTeardown = teardownGame;
       teardownGame(); // remove any prior iframe
 
       const stage = h('div', { class: 'eg-stage' });

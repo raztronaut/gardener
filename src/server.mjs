@@ -15,6 +15,7 @@ import {
   recentIterations, latestCommitted, getEdits, setEdit, isIterating,
 } from './db.mjs';
 import { recover } from './recover.mjs';
+import { travelFor } from './travel.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
 import { agentModel } from './models.mjs';
@@ -740,6 +741,25 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/emu-frame.html') return serveEmuFrame(req, res, u);
     // List the ROMs the user dropped in data/roms/ (localhost-only server).
     if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
+    // Basemap tiles for the wall's static maps (public/lib/staticmap.js): Esri's keyless
+    // Dark Gray Canvas (base + a separate labels layer; attribution drawn on the map),
+    // fetched once and cached on disk forever. (CARTO's tiles now watermark without a key.)
+    // Out in SF: venue coordinates + drive time from home for today's events (src/travel.mjs).
+    if (req.method === 'POST' && p === '/api/sf-travel') {
+      let evs; try { evs = JSON.parse(await readBody(req, 256 * 1024)).events; } catch { return json(res, 400, { error: 'bad json' }); }
+      if (!Array.isArray(evs)) return json(res, 400, { error: 'events[] required' });
+      return json(res, 200, await travelFor(evs.map((e) => ({ key: String(e.key || ''), name: String(e.name || '').slice(0, 300),
+        placeFull: String(e.placeFull || '').slice(0, 300), description: String(e.description || '').slice(0, 2000) }))));
+    }
+    if (req.method === 'GET' && p.startsWith('/api/tile/')) {
+      const m = /^\/api\/tile\/(dark|labels)\/(\d{1,2})\/(\d{1,7})\/(\d{1,7})\.png$/.exec(p);
+      if (!m) return json(res, 400, { error: 'bad tile' });
+      const png = await mapTile(m[1], +m[2], +m[3], +m[4]).catch(() => null);
+      if (!png) return json(res, 404, { error: 'no tile' });
+      const type = png[0] === 0xff ? 'image/jpeg' : 'image/png';
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': png.length, 'Cache-Control': 'public, max-age=2592000' });
+      return res.end(png);
+    }
     if (req.method === 'GET' && p === '/api/rom-cover') {
       const file = basename(u.searchParams.get('file') || '');
       if (!file || file.startsWith('.')) return json(res, 400, { error: 'bad file' });
@@ -783,6 +803,20 @@ process.on('unhandledRejection', (e) => log(`unhandledRejection: ${e}`));
 
 // Screenshot the kiosk's wall page through its Chrome debug port (scripts/gardener.sh
 // starts the kiosk with --remote-debugging-port=9223).
+async function mapTile(style, z, x, y) {
+  if (z > 18 || x >= 2 ** z || y >= 2 ** z) return null;
+  const file = join(paths.DATA, 'tiles', style, String(z), String(x), `${y}`);
+  try { return await fs.readFile(file); } catch { /* not cached yet */ }
+  const svc = style === 'labels' ? 'World_Dark_Gray_Reference' : 'World_Dark_Gray_Base';
+  const r = await fetch(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${svc}/MapServer/tile/${z}/${y}/${x}`, {
+    headers: { 'User-Agent': 'TheGardener-wall/1.0 (personal kiosk)' }, signal: AbortSignal.timeout(10000) });
+  if (!r.ok) return null;
+  const buf = Buffer.from(await r.arrayBuffer());
+  await fs.mkdir(join(file, '..'), { recursive: true });
+  await fs.writeFile(file, buf);
+  return buf;
+}
+
 async function kioskSnapshot() {
   const port = process.env.GARDENER_KIOSK_DEBUG_PORT || '9223';
   const list = await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(1500) })).json();

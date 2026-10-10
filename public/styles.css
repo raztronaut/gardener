@@ -715,3 +715,17 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 #touchcal .tc-video { display: block; width: 100%; height: auto; }
 #touchcal .tc-ov { position: absolute; inset: 0; width: 100%; height: 100%; }
 #touchcal.cal-phase .tc-feed { opacity: .18; }
+
+/* Out in SF fullscreen: today's map + drive column (app.js renderEvents) */
+.ev-map { height: 520px; border-radius: 18px; overflow: hidden; margin-bottom: 14px; opacity: 0; transition: opacity .5s ease; }
+.ev-map.on { opacity: 1; }
+.ev-pin { fill: #74f7b0; stroke: #06140f; stroke-width: 2; }
+.ev-pin-t { fill: #06140f; font: 700 13px var(--font); }
+.ev-row .ev-drive { flex: 0 0 104px; text-align: right; padding-top: 2px; opacity: 0; transition: opacity .4s ease; }
+.ev-row .ev-drive.on { opacity: 1; }
+.ev-drive .ev-mins { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.ev-drive .ev-car { width: 17px; height: 17px; color: var(--ink-faint); }
+.ev-drive .ev-leave { margin-top: 3px; font-size: 13px; color: var(--mint); white-space: nowrap; }
+.ev-drive .ev-leave.late { color: var(--gold); }
+.ev-no { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; margin-right: 8px; border-radius: 11px;
+  background: #74f7b0; color: #06140f; font: 700 12.5px var(--font); vertical-align: 2px; }

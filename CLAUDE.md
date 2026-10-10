@@ -61,8 +61,18 @@ Measured on the kiosk: panel opens 33 ms, glass appears ~250 ms later, 60 fps.
 The snap chromium can't see the Tegra NVIDIA libs (snap confinement) → SwiftShader.
 `scripts/gardener.sh kiosk` runs a non-snap Chromium (Chrome for Testing arm64 in
 `~/.local/share/gardener-chrome/`, from Playwright) with `--ignore-gpu-blocklist
---use-gl=angle --use-angle=gles-egl` → "NVIDIA Tegra Orin (nvgpu), OpenGL ES 3.2",
-GPU compositing/raster/WebGL on. `GARDENER_KIOSK=snap` falls back to the snap. Also: never use animated SVG icons on the wall (the Meteocons'
+--use-gl=angle --use-angle=$GARDENER_ANGLE` (.env; now `gl` → OpenGL 4.5 via GLX —
+`gles-egl` stalled presentation for seconds under load), GPU compositing/raster/WebGL
+on; `GARDENER_CHROME_EXTRA` (.env) appends experiment flags. `GARDENER_KIOSK=snap`
+falls back to the snap. The launcher deletes the profile's `Sessions/` first: the
+kiosk is killed, not quit, so Chrome otherwise restores every old tab — hidden wall
+copies that all obey the pad (each toggling dashboards, each running an emulator).
+**Measure the screen, not the page:** in-page fps / CDP screenshots / x11grab all
+looked fine while the glass was frozen. Ground truth = the camera watching a
+CDP-injected blink (plain-X baseline ≈75 ms incl. camera). GPU-composited frames
+can sit unpresented until the next frame pushes them out (idle wall: 0–1 s late;
+animating game: ~100–190 ms steady). `--disable-gpu-compositing` fixes idle lag
+but caps WebGL games at ~33 fps — don't. Also: never use animated SVG icons on the wall (the Meteocons'
 SMIL animation kept the kiosk's GPU process at ~100% CPU; weather uses
 `assets/weather/still/`). `#panel` must NOT animate
 opacity/filter — that makes it a backdrop root and the glass would only see the veil.

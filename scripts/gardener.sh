@@ -111,16 +111,25 @@ case "$cmd" in
     # (Chrome for Testing arm64, copied to ~/.local/share/gardener-chrome) with
     # ANGLE on GLES/EGL gets the real GPU: "NVIDIA Tegra Orin (nvgpu), OpenGL ES 3.2".
     GPUCHROME="${GARDENER_GPU_CHROME:-$HOME/.local/share/gardener-chrome/chrome-linux-arm64/chrome}"
+    # GARDENER_ANGLE (.env) picks ANGLE's backend: gles-egl | gl (GLX) | vulkan.
+    ANGLE="$(grep -E '^GARDENER_ANGLE=' .env 2>/dev/null | cut -d= -f2 || true)"
+    # GARDENER_CHROME_EXTRA (.env): extra space-separated Chrome flags (experiments).
+    read -r -a EXTRA <<< "$(grep -E '^GARDENER_CHROME_EXTRA=' .env 2>/dev/null | cut -d= -f2- || true)"
     if [ "$ENGINE" != "snap" ] && [ -x "$GPUCHROME" ]; then
+      # Never restore tabs: the kiosk is killed (not quit), so Chrome otherwise reopens
+      # every previous tab on restart — N hidden copies of the wall, each listening to
+      # the pad and running its own emulator (that was the Arcade stutter, 2026-10-08).
+      rm -rf "$HOME/.config/gardener-kiosk-gpu/Default/Sessions"
+      sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' "$HOME/.config/gardener-kiosk-gpu/Default/Preferences" 2>/dev/null || true
       exec "$GPUCHROME" --kiosk "http://127.0.0.1:$PORT" \
         --user-data-dir="$HOME/.config/gardener-kiosk-gpu" \
-        --ignore-gpu-blocklist --use-gl=angle --use-angle=gles-egl \
-        --use-fake-ui-for-media-stream \
-        --enable-gpu-rasterization --enable-zero-copy \
+        --ignore-gpu-blocklist --use-gl=angle --use-angle="${ANGLE:-gles-egl}" \
+        --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required \
+        --enable-gpu-rasterization \
         --noerrdialogs --disable-session-crashed-bubble --disable-infobars --test-type \
         --no-first-run --password-store=basic --disable-features=OverlayScrollbar \
         --remote-debugging-port=9223 \
-        --window-position=0,0 --window-size=900,1600
+        --window-position=0,0 --window-size=900,1600 "${EXTRA[@]}"
     fi
     exec /snap/bin/chromium --kiosk "http://127.0.0.1:$PORT" \
       --user-data-dir="$HOME/.config/gardener-kiosk-chrome" \

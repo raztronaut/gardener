@@ -9,6 +9,25 @@
 //   4. Next days  — Tomorrow + the two days after: icon, high & low in °F and °C
 //   5. Hourly     — a smooth temperature curve with temps / icons / times beneath
 // Icons are self-hosted Meteocons SVGs in public/assets/weather/.
+//
+// Fullscreen (openFull): the tile's reading reflowed into two columns, then a
+// RAIN & SUN map of the city — Open-Meteo sampled on an 8×10 grid over the map,
+// bicubic-smoothed into one field: gold = sun, grey haze = fog/cloud, blue = rain.
+// Static (Now / +3h / +6h / +12h toggles, no animation); fetched only when opened.
+import { staticMap, svgEl } from '/lib/staticmap.js';
+
+const HOME = [37.7484, -122.4766]; // 408 Quintara St
+const GRID_C = 8, GRID_R = 10, HOURS_AHEAD = [0, 3, 6, 12];
+let GRID_CACHE = null; // { key, t, pts } — re-opening within 20 min reuses it
+
+// Catmull-Rom bicubic sample of a cols×rows grid at fractional (gx, gy), clamped.
+function bicubic(g, cols, rows, gx, gy) {
+  const cr = (p0, p1, p2, p3, t) => p1 + 0.5 * t * (p2 - p0 + t * (2 * p0 - 5 * p1 + 4 * p2 - p3 + t * (3 * (p1 - p2) + p3 - p0)));
+  const ix = Math.floor(gx), iy = Math.floor(gy), tx = gx - ix, ty = gy - iy;
+  const at = (i, j) => g[Math.min(rows - 1, Math.max(0, j)) * cols + Math.min(cols - 1, Math.max(0, i))];
+  const row = (j) => cr(at(ix - 1, j), at(ix, j), at(ix + 1, j), at(ix + 2, j), tx);
+  return cr(row(iy - 1), row(iy), row(iy + 1), row(iy + 2), ty);
+}
 
 const WMO = (c) => c === 0 ? ['Clear', 'clear-day'] : (c <= 2) ? ['Partly cloudy', 'partly-cloudy-day'] : c === 3 ? ['Overcast', 'overcast']
   : (c >= 45 && c <= 48) ? ['Fog', 'fog'] : (c >= 51 && c <= 57) ? ['Drizzle', 'drizzle']
@@ -78,6 +97,162 @@ export default {
   title: 'Weather',
   icon: '🌤',
   size: 'tall', // half width × 2 rows — sits beside the Daily Almanac
+  async openFull(body, ctx) {
+    const h = ctx.h;
+    if (!document.getElementById('style-weather-full')) {
+      const st = document.createElement('style'); st.id = 'style-weather-full'; st.textContent = `
+      .wxf { display:flex; flex-direction:column; gap:16px; padding:6px 0 0; opacity:0; transition:opacity .25s linear; }
+      .wxf.on { opacity:1; }
+      /* the tile's reading, reflowed: now/sun/stats left, next days right, hours beneath */
+      .wxf-top { flex:none; height:292px; }
+      .wxf-top .wx { display:grid; grid-template-columns:1fr 1fr; column-gap:44px; row-gap:10px; height:100%;
+        grid-template-areas:"now days" "sun days" "stats days" "hours hours"; grid-template-rows:auto auto 1fr auto; }
+      .wxf-top .wx-now { grid-area:now; } .wxf-top .wx-sun { grid-area:sun; margin:0; }
+      .wxf-top .wx-stats { grid-area:stats; align-self:start; }
+      .wxf-top .wx > div:not([class]) { grid-area:days; align-self:center; }
+      .wxf-top .wx-hours { grid-area:hours; margin:0; }
+      .wxf-hd { flex:none; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; }
+      .wxf-hd .wx-sec { margin:0 0 4px; }
+      .wxf-cap { font-size:19px; color:var(--ink); line-height:1.2; }
+      .wxf-cap .dim { color:var(--ink-soft); }
+      .wxf-tg { display:flex; gap:4px; flex:none; }
+      .wxf-tg .gbtn { font-size:15px; padding:6px 12px; border-radius:999px; color:var(--ink-soft); }
+      .wxf-tg .gbtn.sel { color:var(--mint); background:rgba(116,247,176,.10); font-weight:600; }
+      .wxf-map { flex:none; position:relative; border-radius:18px; overflow:hidden; isolation:isolate; }
+      /* screen blend: the field LIGHTS the map (sun glows, fog hazes) instead of tinting it mud */
+      .wxf-map canvas { position:absolute; inset:0; mix-blend-mode:screen; }
+      .wxf-map .smap > svg text { font-family:var(--font); font-size:14px; font-weight:600; fill:#fff;
+        paint-order:stroke; stroke:rgba(0,0,0,.65); stroke-width:3px; }
+      .wxf-ft { flex:none; display:flex; align-items:center; justify-content:space-between; gap:16px;
+        font-size:14px; color:var(--ink-soft); }
+      .wxf-lg { display:flex; gap:18px; }
+      .wxf-lg i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:7px; vertical-align:0; }
+    `; document.head.appendChild(st);
+    }
+    const W = Math.floor(body.clientWidth) || 786;
+    // Fill the panel exactly: the card may grow to #panel's inner height; the map
+    // takes whatever the fixed rows leave (no scroll, no empty band).
+    const TOP = 292, HD = 50, FT = 22, GAPS = 3 * 16 + 6;
+    let mapH = 900;
+    try {
+      const pnl = document.getElementById('panel'), pcs = getComputedStyle(pnl);
+      const card = pnl.querySelector('.panel-card'), pb = card.querySelector('.panel-body'), bcs = getComputedStyle(pb);
+      const head = card.querySelector('.panel-head');
+      const avail = pnl.clientHeight - parseFloat(pcs.paddingTop) - parseFloat(pcs.paddingBottom)
+        - (head ? head.offsetHeight : 80) - parseFloat(bcs.paddingTop) - parseFloat(bcs.paddingBottom) - 4;
+      if (avail > 500) mapH = Math.floor(avail - TOP - HD - FT - GAPS);
+    } catch { /* keep the default */ }
+
+    const top = h('div', { class: 'wxf-top' });
+    const cap = h('div', { class: 'wxf-cap' });
+    const tg = h('div', { class: 'wxf-tg' });
+    const mapBox = h('div', { class: 'wxf-map', style: { width: `${W}px`, height: `${mapH}px` } });
+    const home = h('span', {});
+    const wrap = h('div', { class: 'wxf' }, top,
+      h('div', { class: 'wxf-hd' }, h('div', {}, h('div', { class: 'wx-sec' }, 'Rain & sun'), cap), tg),
+      mapBox,
+      h('div', { class: 'wxf-ft' },
+        h('div', { class: 'wxf-lg' },
+          h('span', {}, h('i', { style: { background: '#f7c948' } }), 'Sun'),
+          h('span', {}, h('i', { style: { background: '#c8d4dc' } }), 'Fog & cloud'),
+          h('span', {}, h('i', { style: { background: '#5aa9ff' } }), 'Rain')),
+        home));
+    body.replaceChildren(wrap);
+
+    // Basemap → the data field → labels on top (readable through the colour).
+    // Fractional zoom: the city's width (Ocean Beach → the Bay shore) fills the frame.
+    const base = staticMap({ bbox: [37.70, -122.525, 37.82, -122.355], width: W, height: mapH, labels: true });
+    const FS = 4; // field resolution: 1 value per 4 px, scaled up smoothly
+    const cv = h('canvas', { width: Math.ceil(W / FS), height: Math.ceil(mapH / FS), style: { width: `${W}px`, height: `${mapH}px` } });
+    base.el.insertBefore(cv, base.labels || base.svg);
+    const [hx, hy] = base.project(...HOME);
+    const house = svgEl('g', { transform: `translate(${hx.toFixed(1)},${hy.toFixed(1)})` });
+    house.append(
+      svgEl('circle', { r: 15, fill: 'rgba(8,20,16,.85)', stroke: '#74f7b0', 'stroke-width': 2 }),
+      svgEl('path', { d: 'M-7,1 L0,-6 L7,1 M-5,-1 V7 H5 V-1', fill: 'none', stroke: '#fff', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }),
+      Object.assign(svgEl('text', { x: 21, y: 5 }), { textContent: 'Home' }));
+    base.svg.append(house);
+    mapBox.append(base.el);
+
+    // Grid sample points at the centres of an 8×10 lattice over the visible map.
+    const pts = [];
+    for (let j = 0; j < GRID_R; j++) for (let i = 0; i < GRID_C; i++) pts.push(base.unproject((i + 0.5) * W / GRID_C, (j + 0.5) * mapH / GRID_R).map((v) => +v.toFixed(3)));
+    let hi = 0; // home's nearest grid cell
+    pts.forEach((p, k) => { if (Math.hypot(p[0] - HOME[0], p[1] - HOME[1]) < Math.hypot(pts[hi][0] - HOME[0], pts[hi][1] - HOME[1])) hi = k; });
+    const { tz = 'America/Los_Angeles' } = ctx.config || {};
+    const key = pts.map((p) => p.join(',')).join(';');
+    const loadGrid = async () => {
+      if (GRID_CACHE && GRID_CACHE.key === key && Date.now() - GRID_CACHE.t < 20 * 60 * 1000) return GRID_CACHE.d;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${pts.map((p) => p[0]).join(',')}&longitude=${pts.map((p) => p[1]).join(',')}`
+        + `&hourly=precipitation,precipitation_probability,cloud_cover,shortwave_radiation,is_day&timezone=${encodeURIComponent(tz)}&forecast_hours=13`;
+      const d = await ctx.fetchJSON(url);
+      if (!Array.isArray(d) || d.length !== pts.length) throw new Error('bad grid');
+      GRID_CACHE = { key, t: Date.now(), d };
+      return d;
+    };
+
+    const draw = (d, k) => {
+      const col = (name) => d.map((p) => { const v = p.hourly?.[name]?.[k]; return Number.isFinite(v) ? v : 0; });
+      const rain = col('precipitation'), cloud = col('cloud_cover'), prob = col('precipitation_probability');
+      const day = (d[hi].hourly?.is_day?.[k] ?? 1) === 1;
+      const c2 = cv.getContext('2d'), fw = cv.width, fh = cv.height, img = c2.createImageData(fw, fh), px = img.data;
+      for (let y = 0; y < fh; y++) {
+        const gy = ((y + 0.5) / fh) * GRID_R - 0.5;
+        for (let x = 0; x < fw; x++) {
+          const gx = ((x + 0.5) / fw) * GRID_C - 0.5;
+          const c = Math.min(1, Math.max(0, bicubic(cloud, GRID_C, GRID_R, gx, gy) / 100));
+          const p = Math.max(0, bicubic(rain, GRID_C, GRID_R, gx, gy));
+          // layers (premultiplied "over"): sun (day only) → cloud haze → rain
+          let r = 0, g = 0, b = 0, a = 0;
+          const over = (cr, cg, cb, ca) => { r = cr * ca + r * (1 - ca); g = cg * ca + g * (1 - ca); b = cb * ca + b * (1 - ca); a = ca + a * (1 - ca); };
+          if (day) over(255, 205, 110, 0.085 * Math.pow(1 - c, 1.3)); // faint: a clear day should warm the map, not wash it sepia
+          over(190, 205, 215, 0.40 * c);
+          if (p > 0.02) { // soft edge: fades in over 0.02–0.3 mm/h, then deepens with intensity
+            const e = Math.min(1, (p - 0.02) / 0.28), soft = e * e * (3 - 2 * e);
+            over(70, 150, 255, soft * Math.min(0.9, 0.35 + 0.25 * Math.log1p(p * 4)));
+          }
+          const o = (y * fw + x) * 4;
+          px[o] = a ? r / a : 0; px[o + 1] = a ? g / a : 0; px[o + 2] = a ? b / a : 0; px[o + 3] = a * 255;
+        }
+      }
+      c2.putImageData(img, 0, 0);
+
+      // One plain sentence: rain first (it matters most), then the sky's shape.
+      const maxP = Math.max(...rain), wetFrac = rain.filter((v) => v >= 0.1).length / rain.length, maxProb = Math.max(...prob);
+      const half = (side) => { const v = cloud.filter((_, n) => (n % GRID_C < GRID_C / 2) === (side === 'w')); return v.reduce((s, x) => s + x, 0) / v.length; };
+      const cw = half('w'), ce = half('e'), cm = (cw + ce) / 2;
+      const rainTxt = maxP < 0.1 ? (maxProb >= 30 ? `Dry · ${Math.round(maxProb)}% chance of rain` : 'Dry across the city')
+        : `${wetFrac > 0.6 ? 'Rain over most of the city' : 'Showers in parts of the city'} · up to ${maxP.toFixed(1)} mm/h`;
+      const skyTxt = day
+        ? (cm < 25 ? 'sunny everywhere' : cm > 75 ? 'grey skies' : cw > ce + 30 ? 'fog in the west, sun in the east'
+          : ce > cw + 30 ? 'sun in the west, cloud in the east' : 'patchy sun')
+        : (cm < 25 ? 'clear night' : cm > 75 ? 'cloudy night' : cw > ce + 30 ? 'fog rolling in from the west' : 'patchy cloud tonight');
+      cap.replaceChildren(rainTxt, h('span', { class: 'dim' }, ` · ${skyTxt}`));
+      const rad = d[hi].hourly?.shortwave_radiation?.[k];
+      home.textContent = `Home · ${Math.round(cloud[hi])}% cloud${day && Number.isFinite(rad) ? ` · ${Math.round(rad)} W/m²` : ''} · ${rain[hi].toFixed(1)} mm`;
+    };
+
+    const mounted = this.mount(top, ctx); // the tile's reading (own fetch + 15-min refresh)
+    let grid = null;
+    try { grid = await loadGrid(); }
+    catch { cap.textContent = 'The rain & sun map is unavailable right now'; }
+    if (grid) {
+      const times = grid[hi].hourly?.time || [];
+      let sel = 0;
+      const btns = HOURS_AHEAD.filter((k) => times[k]).map((k, n) => {
+        const hh = hourOf(times[k]);
+        const b = h('button', { class: `gbtn${n === 0 ? ' sel' : ''}`, type: 'button',
+          onclick: () => { if (sel === n) return; sel = n; btns.forEach((x, m) => x.classList.toggle('sel', m === n)); draw(grid, k); } },
+          k === 0 ? 'Now' : `${((hh + 11) % 12) + 1} ${hh < 12 ? 'am' : 'pm'}`);
+        return b;
+      });
+      tg.replaceChildren(...btns);
+      draw(grid, 0);
+    }
+    // glass + content together: reveal once the reading, the tiles and the field are all in
+    await Promise.all([mounted.catch(() => {}), base.ready]);
+    wrap.classList.add('on');
+  },
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
