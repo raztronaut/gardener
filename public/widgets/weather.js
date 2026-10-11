@@ -277,6 +277,9 @@ export default {
       /* 2 · sun */
       .wx-sun { display:flex; gap:16px; font-size:14px; color:var(--ink-soft); margin-top:-4px; }
       .wx-sun b { color:var(--ink); font-weight:600; }
+      .wx-sun .dl { margin-left:auto; color:var(--ink-faint); white-space:nowrap; }
+      .wx-sun .dl b { color:var(--ink-soft); }
+      .wx-sun .dl i { font-style:normal; color:var(--mint); }
 
       /* 3 · stats — open columns, no boxes */
       .wx-stats { display:flex; }
@@ -337,6 +340,24 @@ export default {
     // in the display tz) — read the hour in that tz, not the host's.
     const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' });
     const nowHour = () => parseInt(hourFmt.format(new Date()), 10) || 0;
+
+    // Hours of daylight today and how it shifts by tomorrow ("11h 23m ↓2m") —
+    // a quiet seasonal cue on the existing sunrise/sunset line. Both times are
+    // local ISO strings, so their difference is the day length. Null-safe.
+    const dayLen = (dd, i) => {
+      const a = Date.parse(dd?.sunrise?.[i]), b = Date.parse(dd?.sunset?.[i]);
+      return isFinite(a) && isFinite(b) && b > a ? Math.round((b - a) / 60000) : null;
+    };
+    const daylight = (dd) => {
+      const m0 = dayLen(dd, 0);
+      if (m0 == null) return null;
+      const m1 = dayLen(dd, 1);
+      const dm = m1 == null ? 0 : m1 - m0;
+      const trend = dm ? h('i', { title: `${Math.abs(dm)} min ${dm < 0 ? 'shorter' : 'longer'} tomorrow` },
+        ` ${dm < 0 ? '↓' : '↑'}${Math.abs(dm)}m`) : null;
+      return h('span', { class: 'dl', title: 'Daylight today' },
+        h('b', {}, `${Math.floor(m0 / 60)}h ${String(m0 % 60).padStart(2, '0')}m`), ' light', trend);
+    };
 
     const render = (d) => {
       const cur = d.current;
@@ -436,7 +457,8 @@ export default {
               `High ${hi}° · Low ${lo}°`))),
         h('div', { class: 'wx-sun' },
           h('span', {}, 'Sunrise ', h('b', {}, fmtClock(d.daily.sunrise?.[0]))),
-          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0])))),
+          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0]))),
+          daylight(d.daily)),
           // (no wind — the humans removed it twice; see GARDEN_RULES.md)
         h('div', { class: 'wx-stats' },
           h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Feels like'),
