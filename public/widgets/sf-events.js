@@ -11,7 +11,7 @@
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
 // no network), so a glance across the room answers "what can we do tonight?".
-import { fetchEvents, splitTitle, TZ, MON } from '/lib/events.js';
+import { fetchEvents, splitTitle, localeRank, TZ, MON } from '/lib/events.js';
 
 export default {
   id: 'sf-events',
@@ -110,14 +110,17 @@ export default {
         ctx.h('span', { class: 'all' }, `${picks.length} EVENT${picks.length === 1 ? '' : 'S'}`));
       head.style.display = '';
 
-      let prevAllDay = false;
       rows = picks.map((e) => {
         const isT = (() => { const o = dayOffset(e.when); return o != null && o <= 0; })();
         const live = liveCountdown(e.when, e.allDay, isT);
         // Tidy the scraped title: its trailing "(SF)" / "(2026)" / "(7p + 9p)" /
         // "(Yerba Buena Gardens)" tags move to the time column and venue line.
         const t = splitTitle(e.name);
-        const sub = [e.place || t.where, t.note].filter(Boolean).join(' · ');
+        // Street addresses arrive in full ("1310 Haight Street, San Francisco, CA
+        // 94117"); on an SF card the city/state/ZIP tail is noise, so drop it.
+        const place = String(e.place || '').replace(/,?\s*(San Francisco,?\s*)?CA\s*\d{5}(-\d{4})?\s*$/i, '')
+          .replace(/,\s*San Francisco\s*$/i, '').trim();
+        const sub = [place || t.where, t.note].filter(Boolean).join(' · ');
         let tm;
         if (timed(e)) {
           const clock = timeFmt.format(e.when).replace(':00', '');
@@ -128,30 +131,52 @@ export default {
         } else if (t.time) {
           tm = ctx.h('div', { class: 'tm' }, t.time);
         } else {
-          // Say "ALL DAY" once for the run of all-day events, not on every row —
-          // the repeated label read as noise down the time column.
-          tm = ctx.h('div', { class: 'tm all' }, prevAllDay ? '' : 'ALL DAY');
+          // The "ALL DAY" label is written in fit(), once for the run of
+          // all-day rows that actually survive the trim (not on every row —
+          // the repeated label read as noise down the time column).
+          tm = ctx.h('div', { class: 'tm all' });
         }
-        prevAllDay = !timed(e) && !t.time;
-        return ctx.h('div', { class: 'won-ag', title: e.name },
+        const row = ctx.h('div', { class: 'won-ag', title: e.name },
           tm,
           ctx.h('div', { style: 'min-width:0' },
             ctx.h('div', { class: 'nm' }, t.name || e.name),
             sub ? ctx.h('div', { class: 'pl' }, sub) : null));
+        // Which rows earn the card's few slots: tonight's TIMED plans first (they
+        // are what "what can we do tonight?" is really asking, and sorting all-day
+        // listings ahead of them used to trim every timed event off the card),
+        // then San Francisco over unstated over elsewhere-in-the-Bay. Survivors
+        // are still SHOWN chronologically — this only decides who is kept.
+        const pr = (timed(e) || t.time ? 0 : 3) + localeRank(e);
+        return { el: row, tm, allDay: tm.classList.contains('all'), pr };
       });
+      rows.forEach((r, i) => { r.idx = i; });
       fit();
     };
 
-    // Fit: lay out EVERY row, then drop trailing rows until the list no longer
-    // overflows. Re-run whenever the card's height changes — the grid settles as
+    // Fit: keep as many rows as fit, chosen by priority (timed tonight → SF →
+    // elsewhere) rather than by trimming the chronological tail. Re-run whenever the card's height changes — the grid settles as
     // neighbouring widgets load, and fitting only once (against an early, shorter
     // card) used to strand the list at 3–4 rows above a tall empty gap.
     let rows = [];
     const fit = () => {
       if (!rows.length) return;
       list.style.removeProperty('--sp');
-      list.replaceChildren(...rows);
-      while (list.children.length > 1 && list.scrollHeight > list.clientHeight + 1) list.lastChild.remove();
+      // Grow the kept set in priority order (stable on ties) until the next row
+      // would overflow, laying the survivors out chronologically each time.
+      const byPrio = rows.slice().sort((a, b) => a.pr - b.pr || a.idx - b.idx);
+      const show = (k) => {
+        const kept = byPrio.slice(0, k).sort((a, b) => a.idx - b.idx);
+        let labelled = false;
+        for (const r of kept) if (r.allDay) { r.tm.textContent = labelled ? '' : 'ALL DAY'; labelled = true; }
+        list.replaceChildren(...kept.map((r) => r.el));
+      };
+      let k = 1;
+      while (k < byPrio.length) {
+        show(k + 1);
+        if (list.scrollHeight > list.clientHeight + 1) break;
+        k++;
+      }
+      show(k);
       // When rows were trimmed, share the leftover height out as extra spacing
       // between the survivors (gap + rule padding), so the agenda fills the card
       // to its foot instead of stopping short above an empty band.
