@@ -3,7 +3,8 @@
 // the /events command (and opening this card fullscreen).
 //
 // The card is TALL (half width, two rows) and reads like a day agenda: every
-// event today in time order — a fixed time column (or ALL DAY), the full event
+// event today: timed plans first beside a fixed time column, then all-day listings
+// full-width under one "ALL DAY" sub-heading — the full event
 // name over up to two lines, and its venue beneath. As many as fit are shown;
 // overflow rows are trimmed, never clipped. With nothing left today it falls
 // back to the next upcoming events.
@@ -40,9 +41,18 @@ export default {
       .won-ag { flex:0 0 auto; display:grid; grid-template-columns:62px 1fr; column-gap:12px; min-width:0;
         padding-bottom:var(--sp); border-bottom:1px solid var(--stroke); }
       .won-ag:last-child { border-bottom:none; }
+      /* All-day listings: no time column (it only ever held an empty cell or a
+         repeated label) — the name takes the full width under one small
+         "ALL DAY" sub-heading, so the group reads as "also on today". */
+      .won-ag.wide { grid-template-columns:1fr; }
+      .won-sub { flex:0 0 auto; display:flex; align-items:center; gap:9px; margin-top:2px;
+        font-family:var(--font-mono); font-size:11.5px; letter-spacing:.13em;
+        color:var(--ink-faint); white-space:nowrap; }
+      .won-sub .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
+      .won-ag.wide .nm { font-size:14px; }
+      .won-ag.pre { border-bottom:none; }
       .won-ag .tm { font-family:var(--font-mono); font-size:13px; font-weight:600; color:var(--ink);
         letter-spacing:.02em; padding-top:2px; white-space:nowrap; }
-      .won-ag .tm.all { font-size:12px; color:var(--ink-faint); letter-spacing:.08em; }
       .won-ag .tm .lv { display:block; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--gold); letter-spacing:.04em; }
       .won-ag .tm .lv.soon { color:var(--mint); font-weight:600; }
       .won-ag .nm { font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink); min-width:0;
@@ -131,12 +141,11 @@ export default {
         } else if (t.time) {
           tm = ctx.h('div', { class: 'tm' }, t.time);
         } else {
-          // The "ALL DAY" label is written in fit(), once for the run of
-          // all-day rows that actually survive the trim (not on every row —
-          // the repeated label read as noise down the time column).
-          tm = ctx.h('div', { class: 'tm all' });
+          // All-day: no time cell — the row goes full width and fit() puts one
+          // "ALL DAY" sub-heading above the surviving group.
+          tm = null;
         }
-        const row = ctx.h('div', { class: 'won-ag', title: e.name },
+        const row = ctx.h('div', { class: `won-ag${tm ? '' : ' wide'}`, title: e.name },
           tm,
           ctx.h('div', { style: 'min-width:0' },
             ctx.h('div', { class: 'nm' }, t.name || e.name),
@@ -147,7 +156,7 @@ export default {
         // then San Francisco over unstated over elsewhere-in-the-Bay. Survivors
         // are still SHOWN chronologically — this only decides who is kept.
         const pr = (timed(e) || t.time ? 0 : 3) + localeRank(e);
-        return { el: row, tm, allDay: tm.classList.contains('all'), pr };
+        return { el: row, allDay: !tm, pr };
       });
       rows.forEach((r, i) => { r.idx = i; });
       fit();
@@ -164,23 +173,36 @@ export default {
       // Grow the kept set in priority order (stable on ties) until the next row
       // would overflow, laying the survivors out chronologically each time.
       const byPrio = rows.slice().sort((a, b) => a.pr - b.pr || a.idx - b.idx);
-      const show = (k) => {
-        const kept = byPrio.slice(0, k).sort((a, b) => a.idx - b.idx);
-        let labelled = false;
-        for (const r of kept) if (r.allDay) { r.tm.textContent = labelled ? '' : 'ALL DAY'; labelled = true; }
-        list.replaceChildren(...kept.map((r) => r.el));
+      const show = (set) => {
+        // Tonight's timed plans lead (chronological); the all-day group follows
+        // under its own sub-heading.
+        const kept = set.slice().sort((a, b) => (a.allDay - b.allDay) || a.idx - b.idx);
+        const els = [];
+        kept.forEach((r, i) => {
+          // The row just above the sub-heading drops its rule (the heading
+          // carries its own), so the hairlines never double up.
+          const next = kept[i + 1];
+          r.el.classList.toggle('pre', !r.allDay && !!next && next.allDay);
+          if (r.allDay && (i === 0 || !kept[i - 1].allDay)) {
+            els.push(ctx.h('div', { class: 'won-sub' }, 'ALL DAY', ctx.h('span', { class: 'rule' })));
+          }
+          els.push(r.el);
+        });
+        list.replaceChildren(...els);
       };
-      let k = 1;
-      while (k < byPrio.length) {
-        show(k + 1);
-        if (list.scrollHeight > list.clientHeight + 1) break;
-        k++;
+      // Greedy in priority order: a row that would overflow is skipped (not a
+      // full stop), so a shorter, lower-priority listing can still use the
+      // space a long two-line title couldn't.
+      let kept = [byPrio[0]];
+      for (const r of byPrio.slice(1)) {
+        show([...kept, r]);
+        if (list.scrollHeight <= list.clientHeight + 1) kept.push(r);
       }
-      show(k);
+      show(kept);
       // When rows were trimmed, share the leftover height out as extra spacing
       // between the survivors (gap + rule padding), so the agenda fills the card
       // to its foot instead of stopping short above an empty band.
-      const n = list.children.length;
+      const n = list.querySelectorAll('.won-ag').length;
       if (n > 1 && n < rows.length) {
         const slack = list.getBoundingClientRect().bottom - list.lastChild.getBoundingClientRect().bottom;
         if (slack > 2) list.style.setProperty('--sp', `${(9 + Math.min(14, (slack - 2) / (2 * n - 1))).toFixed(1)}px`);
