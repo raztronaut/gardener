@@ -2,6 +2,7 @@
   "_comment": "Hostnames widgets may reach through GET /api/proxy. The Gardener agent may ADD keyless public-API hosts here when building widgets. Matching is exact-or-subdomain. Keep it to reputable, keyless, read-only public APIs.",
   "allow": [
     "api.open-meteo.com",
+    "query.wikidata.org",
     "air-quality-api.open-meteo.com",
     "geocoding-api.open-meteo.com",
     "api.sunrise-sunset.org",

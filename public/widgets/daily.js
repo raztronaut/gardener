@@ -1026,6 +1026,29 @@ export default {
 
     // Network fetchers — each returns parsed content or throws. Never touch the DOM
     // until we have a good value, so a failure simply keeps the last good render.
+    // Notability for the day's people: ONE Wikidata SPARQL call returns each
+    // person's sitelink count (number of Wikipedia language editions with an
+    // article) — a calm, durable fame signal that favours Eisenhower and Hannah
+    // Arendt over this week's trending names. Cached per date in memory so the
+    // half-hourly refresh doesn't repeat it. Resolves to Map(Qid → count).
+    let fameCache = { key: '', map: null };
+    const fameOf = async (ids) => {
+      const key = todayKey();
+      if (fameCache.key === key && fameCache.map) return fameCache.map;
+      const uniq = [...new Set(ids.filter(Boolean))].slice(0, 400);
+      if (!uniq.length) return null;
+      const q = `SELECT ?i ?n WHERE { VALUES ?i { ${uniq.map((x) => `wd:${x}`).join(' ')} } ?i wikibase:sitelinks ?n }`;
+      const r = await ctx.fetchJSON(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(q)}`);
+      const rows = r && r.results && Array.isArray(r.results.bindings) ? r.results.bindings : [];
+      const map = new Map();
+      for (const b of rows) {
+        const id = b && b.i && String(b.i.value || '').split('/').pop();
+        const n = b && b.n ? Number(b.n.value) : NaN;
+        if (id && Number.isFinite(n)) map.set(id, n);
+      }
+      if (map.size) fameCache = { key, map };
+      return map;
+    };
     const fetchOnThisDay = async () => {
       const now = new Date();
       // The combined "all" feed carries events, curated highlights, and notable
@@ -1036,6 +1059,7 @@ export default {
       const clean = (arr, kind) => (Array.isArray(arr) ? arr : [])
         .filter((e) => e && e.text && Number.isFinite(e.year))
         .map((e) => ({ kind, year: e.year,
+          wid: Array.isArray(e.pages) && e.pages[0] && /^Q\d+$/.test(e.pages[0].wikibase_item || '') ? e.pages[0].wikibase_item : '',
           // Wikipedia's "(pictured)" / "(pictured right)" caption cues point at a photo
           // the wall never shows — drop them so the line reads as plain prose.
           text: e.text.toString().replace(/\s*\((?:also\s+)?pictured(?:[^()]{0,24})?\)/gi, '').replace(/\s+([,.;])/g, '$1').trim() }))
@@ -1044,8 +1068,24 @@ export default {
       // (the day's most notable moments); fall back to the raw events list.
       const selected = clean(d.selected, 'event');
       const events = (selected.length ? selected : clean(d.events, 'event')).slice(0, 12);
-      const births = clean(d.births, 'born').slice(0, 8);
-      const deaths = clean(d.deaths, 'died').slice(0, 8);
+      // Births/deaths arrive newest-first, so a plain slice was all recent
+      // athletes ("Quinn Hughes, 1999"). Rank them by lasting notability instead
+      // (how many language Wikipedias cover the person — see fameOf); if that
+      // lookup fails, fall back to the old newest-first slice.
+      let births = clean(d.births, 'born');
+      let deaths = clean(d.deaths, 'died');
+      const fame = await fameOf([...births, ...deaths].map((e) => e.wid)).catch(() => null);
+      if (fame && fame.size) {
+        const nowY = now.getFullYear();
+        const byFame = (a, b) => (fame.get(b.wid) || 0) - (fame.get(a.wid) || 0) || b.year - a.year;
+        // An almanac reads best with lives that have settled into history: prefer
+        // births at least 40 years back (fills from the rest only if it runs short).
+        const settled = births.filter((e) => e.year <= nowY - 40);
+        births = (settled.length >= 8 ? settled : births).slice().sort(byFame);
+        deaths = deaths.slice().sort(byFame);
+      }
+      births = births.slice(0, 8).sort((a, b) => b.year - a.year);
+      deaths = deaths.slice(0, 8).sort((a, b) => b.year - a.year);
       if (!events.length && !births.length && !deaths.length) throw new Error('no entries');
       // Interleave the three kinds so the half-hourly rotation alternates
       // event → born → died for varied texture, rather than a long run of one.

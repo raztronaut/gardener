@@ -51,6 +51,22 @@ async function main() {
       const src = readFileSync(wf, 'utf8');
       check(`widget exports default: ${w.file}`, /export\s+default/.test(src), 'no `export default`');
     }
+    // Every external host a main-wall widget fetches through the proxy (literal
+    // `fetchJSON('https://host…` / fetchText) must be allowlisted, or that data
+    // silently never arrives (e.g. daily.js's Wikidata notability ranking).
+    try {
+      const allow = JSON.parse(readFileSync(join(ROOT, 'src', 'proxy-allowlist.json'), 'utf8')).allow || [];
+      const okHost = (h) => allow.some((a) => h === a || h.endsWith('.' + a));
+      const missing = [];
+      for (const w of (manifest.widgets || []).filter((x) => x.enabled)) {
+        const wf = join(PUBLIC, 'widgets', w.file);
+        if (!existsSync(wf)) continue;
+        for (const m of readFileSync(wf, 'utf8').matchAll(/fetch(?:JSON|Text)\(\s*[`'"]https:\/\/([a-z0-9.-]+)/gi)) {
+          if (!okHost(m[1].toLowerCase())) missing.push(`${w.file}→${m[1]}`);
+        }
+      }
+      check('widget fetch hosts are proxy-allowlisted', missing.length === 0, missing.join(', '));
+    } catch (e) { bad('widget fetch hosts are proxy-allowlisted', e.message); }
     // Dashboards: registry parses, every combo is unique and 3+ shoulders, every
     // dashboard manifest lists real widget files with a default export.
     try {
