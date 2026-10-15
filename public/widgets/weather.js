@@ -43,6 +43,19 @@ const nightSlug = (slug, isDay) => isDay !== 0 ? slug
 
 const fToC = (f) => Math.round((f - 32) * 5 / 9);
 
+// Warmth tint (2026-10-15) — colour on the NUMBER itself (no bars/badges) so an
+// unusual day jumps out from across the room. Keyed to San Francisco norms: most
+// days (46–79°F) stay neutral ink, so the card is calm; a heat spike reads warm
+// amber, a scorcher coral, and a genuinely cold reading icy blue. Returns a
+// class suffix ('' when ordinary) plus a plain-English hint for the tooltip.
+export function warmth(f) {
+  if (!Number.isFinite(f)) return { cls: '', hint: '' };
+  if (f >= 90) return { cls: 'hot2', hint: 'a scorcher for San Francisco' };
+  if (f >= 80) return { cls: 'hot', hint: 'unusually warm for San Francisco' };
+  if (f <= 45) return { cls: 'cold', hint: 'a cold one for San Francisco' };
+  return { cls: '', hint: '' };
+}
+
 // UV index → [label, colour] (WHO bands).
 const uvBand = (u) => u == null ? ['—', 'var(--ink-faint)']
   : u < 3 ? ['Low', '#74f7b0'] : u < 6 ? ['Moderate', '#f7d774']
@@ -313,6 +326,10 @@ export default {
       .wx-axis .hr { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
       .wx-axis .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
       .wx-axis .hr:first-child .tt { color:#fff; }
+      /* warmth tint (see warmth()) — static colour on the number only */
+      .wx .w-hot { color:#f7b074 !important; }
+      .wx .w-hot2 { color:#ff8a6b !important; }
+      .wx .w-cold { color:#9cc0ff !important; }
       .wx-axis img { display:block; }
       .wx-axis .t { font-size:12.5px; color:var(--ink-faint); line-height:1; }
       .wx-axis .p { font-size:12px; color:#9cc0ff; line-height:1; }
@@ -381,8 +398,9 @@ export default {
         days.push({ i, iso, code: d.daily.weather_code?.[i], hi: Math.round(dhi), lo: Math.round(dlo),
           pp: Number.isFinite(pp) ? Math.round(pp) : null });
       }
-      const tempCell = (f, cls) => h('div', { class: `t ${cls}` },
-        h('span', { class: 'f' }, `${f}°F`), h('span', { class: 'c' }, `${fToC(f)}°C`));
+      const wcls = (f) => { const w = warmth(f); return w.cls ? ` w-${w.cls}` : ''; };
+      const tempCell = (f, cls) => h('div', { class: `t ${cls}`, title: warmth(f).hint || null },
+        h('span', { class: `f${wcls(f)}` }, `${f}°F`), h('span', { class: 'c' }, `${fToC(f)}°C`));
       const dayRows = days.flatMap((x) => {
         const wd = weekdayIdx(x.iso);
         const [lbl, s] = WMO(x.code);
@@ -438,7 +456,7 @@ export default {
           h('div', { class: 'wx-axis' }, ...pts.map((p, i) => {
             const wet = p.pop != null && p.pop >= 25;
             return h('div', { class: 'hr' },
-              h('div', { class: 'tt' }, `${p.t}°`),
+              h('div', { class: `tt${wcls(p.t)}` }, `${p.t}°`),
               icon(nightSlug(WMO(p.code)[1], p.isDay), 26),
               h('div', { class: 't' }, i === 0 ? 'now' : hr12(p.hr)),
               anyWet ? h('div', { class: 'p' }, wet ? `💧${p.pop}%` : '') : null);
@@ -449,12 +467,13 @@ export default {
         h('div', { class: 'wx-now' },
           h('div', { class: 'ic' }, icon(nightSlug(slug, cur.is_day), 56)),
           h('div', { class: 'tmp' },
-            h('div', { class: 'f' }, `${tF}°F`),
+            h('div', { class: `f${wcls(tF)}`, title: warmth(tF).hint || null }, `${tF}°F`),
             h('div', { class: 'c' }, `${fToC(tF)}°C`)),
           h('div', { class: 'meta' },
             h('div', { class: 'cond' }, cond),
             h('div', { class: 'rng', title: `High ${hi}°F / ${fToC(hi)}°C · Low ${lo}°F / ${fToC(lo)}°C` },
-              `High ${hi}° · Low ${lo}°`))),
+              'High ', h('span', { class: wcls(hi).trim() }, `${hi}°`),
+              ' · Low ', h('span', { class: wcls(lo).trim() }, `${lo}°`)))),
         h('div', { class: 'wx-sun' },
           h('span', {}, 'Sunrise ', h('b', {}, fmtClock(d.daily.sunrise?.[0]))),
           h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0]))),
