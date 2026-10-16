@@ -55,6 +55,11 @@ export default {
         letter-spacing:.02em; padding-top:2px; white-space:nowrap; }
       .won-ag .tm .lv { display:block; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--gold); letter-spacing:.04em; }
       .won-ag .tm .lv.soon { color:var(--mint); font-weight:600; }
+      /* Same start time as the row above: the time is said once — repeats fade to
+         a hushed echo and drop their countdown, so three "5 PM · in 10h 59m"
+         stacks read as one group instead of a stutter. */
+      .won-ag.dup .tm { color:var(--ink-faint); font-weight:500; }
+      .won-ag.dup .tm .lv { display:none; }
       .won-ag .nm { font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink); min-width:0;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .won-ag .pl { margin-top:3px; font-size:13px; color:var(--ink-faint); white-space:nowrap;
@@ -156,7 +161,8 @@ export default {
         // then San Francisco over unstated over elsewhere-in-the-Bay. Survivors
         // are still SHOWN chronologically — this only decides who is kept.
         const pr = (timed(e) || t.time ? 0 : 3) + localeRank(e);
-        return { el: row, allDay: !tm, pr };
+        const tkey = tm ? tm.firstChild && tm.firstChild.textContent : null;
+        return { el: row, allDay: !tm, pr, tkey };
       });
       rows.forEach((r, i) => { r.idx = i; });
       fit();
@@ -183,6 +189,8 @@ export default {
           // carries its own), so the hairlines never double up.
           const next = kept[i + 1];
           r.el.classList.toggle('pre', !r.allDay && !!next && next.allDay);
+          const prevR = kept[i - 1];
+          r.el.classList.toggle('dup', !r.allDay && !!r.tkey && !!prevR && !prevR.allDay && prevR.tkey === r.tkey);
           if (r.allDay && (i === 0 || !kept[i - 1].allDay)) {
             els.push(ctx.h('div', { class: 'won-sub' }, 'ALL DAY', ctx.h('span', { class: 'rule' })));
           }

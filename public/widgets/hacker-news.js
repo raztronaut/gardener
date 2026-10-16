@@ -149,7 +149,7 @@ export default {
          movement cue so the meta line stays uncrowded. */
       .hn-rank { display:flex; flex-direction:column; align-items:center; gap:3px;
         min-width:28px; margin-top:1px; }
-      .hn-rank .n { font-family:var(--font-display); font-size:23px; font-weight:700;
+      .hn-rank .n { font-family:var(--font-display); font-size:26px; font-weight:700;
         line-height:1; color:var(--mint); filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
       /* movement cue — a story CLIMBING the shown front page since the last refresh
          wears a quiet gold "▲2"; a fresh arrival wears a small mint "new" chip. Held
@@ -162,7 +162,7 @@ export default {
         border-radius:999px; padding:1.5px 4px; letter-spacing:.08em; text-transform:uppercase;
         font-size:11px; }
       .hn-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
-      .hn-title { font-size:14.5px; line-height:1.2; color:var(--ink);
+      .hn-title { font-size:16.5px; line-height:1.18; font-weight:500; letter-spacing:-.005em; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .hn-meta { display:flex; align-items:center; gap:7px; flex-wrap:nowrap;
         min-width:0; overflow:hidden;
