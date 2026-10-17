@@ -45,7 +45,7 @@ export const PLANTS = [
     note: 'Dwarf and pollen-free — keep just 1 sprout. Gives 20+ blooms over 3–4 waves.' },
   { n: 'Celosia Mix', k: 'flower', sp: [7, 14], m: [75, 100], pos: ['L7'], ht: '2 ft',
     note: 'Feathery magenta, orange and yellow plumes. Watch for aphids.' },
-  { n: 'Purple Snapdragon', k: 'flower', sp: [7, 20], m: [80, 115], pos: ['R4'], ht: '8–10 in',
+  { n: 'Purple Snapdragon', short: 'Snapdragon', k: 'flower', sp: [7, 20], m: [80, 115], pos: ['R4'], ht: '8–10 in',
     note: 'Blooms in several waves — deadhead to keep them coming. Cut at 45° above a leaf node, leaving a third of the plant.' },
   { n: 'Bull’s Blood Beet', k: 'green', sp: [5, 10], m: [21, 35], pos: ['R7'], ht: '1 ft',
     note: 'Deep-red leaves; harvest for 4–5 weeks.' },
@@ -331,33 +331,33 @@ const STYLE = `
   .gd-today.due .ic { color:var(--gold); }
   /* the next two steps — an agenda (hairlines, no boxes), like Out in SF */
   .gd-agenda { flex:0 0 auto; display:flex; flex-direction:column; }
-  .gd-ag { display:grid; grid-template-columns:18px 1fr auto 34px; align-items:center; column-gap:9px; padding:5px 0;
-    border-bottom:1px solid var(--stroke); font-size:14px; color:var(--ink); }
+  .gd-ag { display:grid; grid-template-columns:20px 1fr auto 34px; align-items:center; column-gap:9px; padding:5px 0;
+    border-bottom:1px solid var(--stroke); font-size:16.5px; color:var(--ink); }
   .gd-ag:first-child { border-top:1px solid var(--stroke); }
-  .gd-ag .ic { font-size:16px; align-self:start; margin-top:2px; }
+  .gd-ag .ic { font-size:18px; align-self:start; margin-top:2px; }
   .gd-ag .lb { min-width:0; }
   /* the explanation runs under the whole row (all columns after the icon), up to 2 lines */
-  .gd-ag .wh { grid-column:2 / -1; grid-row:2; font-size:12.5px; line-height:1.3; color:var(--ink-soft);
+  .gd-ag .wh { grid-column:2 / -1; grid-row:2; font-size:14.5px; line-height:1.25; color:var(--ink-soft);
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-top:2px; }
   .gd-ag .dt, .gd-ag .in { align-self:start; margin-top:1px; }
   .gd-ag.water .ic { color:#5fb6ff; }
   .gd-ag.task .ic { color:var(--gold); }
-  .gd-ag .dt { font-size:13px; color:var(--ink-soft); }
-  .gd-ag .in { font-size:13px; color:var(--ink-faint); text-align:right; }
+  .gd-ag .dt { font-size:15px; color:var(--ink-soft); }
+  .gd-ag .in { font-size:15px; color:var(--ink-faint); text-align:right; }
   /* axis care icons — WHAT happens on that date */
   .gd-axis .am { position:absolute; top:15px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:1px; }
-  .gd-axis .am .ics { display:flex; gap:1px; font-size:12px; }
+  .gd-axis .am .ics { display:flex; gap:1px; font-size:13px; }
   .gd-axis .am .ic.w { color:#5fb6ff; }
   .gd-axis .am .ic.t { color:var(--gold); }
-  .gd-axis .am .dn { font-size:11px; line-height:1; color:var(--ink-soft); }
+  .gd-axis .am .dn { font-size:12.5px; line-height:1; color:var(--ink-soft); }
 
   .gd-chart { flex:1; min-height:0; display:flex; flex-direction:column; }
-  .gd-row, .gd-axis, .gd-mlines { display:grid; grid-template-columns: 122px 1fr 36px; align-items:center; column-gap:10px; }
+  .gd-row, .gd-axis, .gd-mlines { display:grid; grid-template-columns: 146px 1fr 44px; align-items:center; column-gap:10px; }
   .gd-rows { position:relative; }
   .gd-mlines { position:absolute; inset:0; pointer-events:none; align-items:stretch; }
   .gd-mlines .trk { position:relative; }
   .gd-mlines .ml { position:absolute; top:0; bottom:0; border-left:1px dashed rgba(140,240,195,.22); }
-  .gd-axis { height:40px; flex:0 0 auto; }
+  .gd-axis { height:44px; flex:0 0 auto; }
   .gd-axis .wk { position:absolute; bottom:0; width:1px; height:3px; background:var(--stroke-strong); }
   .gd-axis .cm { position:absolute; bottom:0; width:2px; height:6px; margin-left:-1px; border-radius:1px; }
   .gd-axis .cm.w { background:#5fb6ff; }
@@ -379,18 +379,18 @@ const STYLE = `
   .gd-row.rail .rt.due { font-weight:600; }
   .gd-axis .ticks { position:relative; height:100%; }
   .gd-axis .tk { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font);
-    font-size:11px; letter-spacing:.08em; color:var(--ink-faint); }
+    font-size:12.5px; letter-spacing:.08em; color:var(--ink-soft); }
   .gd-rows { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-evenly; }
-  .gd-row { flex:0 0 auto; height:18px; }
-  .gd-row .nm { font-size:13px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gd-row { flex:0 0 auto; height:21px; }
+  .gd-row .nm { font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .gd-row.grp .nm { color:var(--ink-soft); }
   .gd-row .tr { position:relative; height:100%; }
   .gd-row .tr::before { content:''; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--stroke); }
-  .gd-row .sp { position:absolute; top:50%; height:4px; margin-top:-2px; border-radius:2px; opacity:.35; }
-  .gd-row .mw { position:absolute; top:50%; height:8px; margin-top:-4px; border-radius:4px; min-width:6px; }
+  .gd-row .sp { position:absolute; top:50%; height:5px; margin-top:-2.5px; border-radius:2px; opacity:.35; }
+  .gd-row .mw { position:absolute; top:50%; height:10px; margin-top:-5px; border-radius:5px; min-width:6px; }
   .gd-row.grp .mw { opacity:.5; }
   .gd-row .now { position:absolute; top:-3px; bottom:-3px; width:1.5px; margin-left:-.75px; background:var(--gold); }
-  .gd-row .rt { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
+  .gd-row .rt { font-family:var(--font-mono); font-size:15px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
   .gd-row.ready .rt { color:var(--mint); font-weight:600; }
   .ic { display:inline-flex; width:1em; height:1em; flex:0 0 auto; }
   .ic svg { width:100%; height:100%; }
@@ -398,8 +398,8 @@ const STYLE = `
   /* flex kills text-overflow on bare text, so the label lives in its own span:
      the name ellipsizes while the ×N count always stays visible. */
   .gd-row .nm .lb { flex:0 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .gd-row .nm .ct { flex:none; font-size:11.5px; color:var(--ink-faint); }
-  .gd-row .ic.kind { font-size:13px; }
+  .gd-row .nm .ct { flex:none; font-size:13px; color:var(--ink-faint); }
+  .gd-row .ic.kind { font-size:15px; }
 `;
 
 const kindIcon = (k) => { const e = icon(KIND_ICON[k], 'kind'); e.style.color = KINDS[k].color; return e; };
@@ -408,12 +408,12 @@ const tip = (p) => `${p.n}${p.pos.length > 1 ? ' ×2' : ''} · pod ${p.pos.join(
 const bar = (h, cls, a, b, c) => h('div', { class: cls, style: { left: pct(a), width: `calc(${pct(b)} - ${pct(a)})`, background: c } });
 
 // One plant = one row (sprout window faint, first bloom / cut window solid).
-function row(h, p, day) {
+function row(h, p, day, compact = false) {
   const c = KINDS[p.k].color;
   const st = plantStatus(p, day);
   const ready = st.phase === 'ready' || st.phase === 'ongoing';
   return h('div', { class: `gd-row${ready ? ' ready' : ''}`, title: tip(p) },
-    h('div', { class: 'nm' }, kindIcon(p.k), h('span', { class: 'lb' }, p.n),
+    h('div', { class: 'nm' }, kindIcon(p.k), h('span', { class: 'lb' }, (compact && p.short) || p.n),
       p.pos.length > 1 ? h('span', { class: 'ct' }, '×2') : null),
     h('div', { class: 'tr' },
       bar(h, 'sp', p.sp[0], p.sp[1], c),
@@ -492,7 +492,7 @@ function chart(h, day, detailed, log = DEFAULT_LOG) {
   const first = (ps) => ({ m: [Math.min(...ps.map((p) => p.m[0])), Math.min(...ps.map((p) => p.m[1]))] });
   const rows = detailed
     ? [...PLANTS].sort(soon).map((p) => row(h, p, day))
-    : [...of('flower').map((p) => ({ ...p, el: () => row(h, p, day) })),
+    : [...of('flower').map((p) => ({ ...p, el: () => row(h, p, day, true) })),
       ...['green', 'herb'].map((k) => ({ ...first(of(k)), el: () => groupRow(h, k, of(k), day) }))]
       .sort(soon).map((r) => r.el());
   // Axis marks carry meaning: an icon at each notable care date (tank refresh,
