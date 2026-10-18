@@ -284,12 +284,18 @@ async function boot() {
       const f = document.getElementById('feedbackForm');
       if (gb && f) gb.bakeCards([f]);
     });
-    // Panel glass: a wall snapshot refreshed every minute while no panel is open.
+    // Panel glass: a wall snapshot refreshed every 10 min while no panel is open.
     // (Card glass is baked as the cards are created — see loadWidgets.)
     setTimeout(() => GB_READY.then((gb) => {
       if (!SCREENSHOT) {
-        const snapNow = () => { if (!panelOpen()) gb.refreshSnapshot(); };
-        setTimeout(snapNow, 2500); setInterval(snapNow, 60 * 1000);
+        // Every 10 min (each snapshot is a GPU readback on the kiosk), then pre-bake the
+        // glass for every panel size the wall remembers, so panels open with it ready.
+        const snapNow = async () => {
+          if (panelOpen() || document.body.classList.contains('arcade-full')) return;
+          await gb.refreshSnapshot();
+          gb.prebakePanels(panelRects(), () => panelOpen() || document.body.classList.contains('arcade-full'));
+        };
+        setTimeout(snapNow, 2500); setInterval(snapNow, 10 * 60 * 1000);
       }
     }), 800);
     // QA: ?open=<widget id> opens that widget's fullscreen view (headless captures only).
@@ -442,6 +448,17 @@ function setPadMode(on) { if (padMode !== on) { padMode = on; updateCloseHint();
 // Each panel (keyed by its title's first part) remembers its settled height and
 // opens at it, so content arriving never grows the panel; then it fits content.
 const PANEL_KEY = (t) => `garden.panelH.${String(t).split(' — ')[0].replace(/\s+\d+.*$/, '').trim()}`;
+// The rect a panel of height h occupies (bottom-aligned in #panel's padding box,
+// full width, capped at the available height) — what bakePanel() will measure.
+function panelRects() {
+  const p = document.getElementById('panel'), root = p && p.parentElement; if (!root) return [];
+  const cs = getComputedStyle(p), rb = root.getBoundingClientRect(), z = rb.width / (root.offsetWidth || rb.width) || 1;
+  const pt = parseFloat(cs.paddingTop) * z, pr = parseFloat(cs.paddingRight) * z, pb = parseFloat(cs.paddingBottom) * z, pl = parseFloat(cs.paddingLeft) * z;
+  const maxH = rb.height - pt - pb, bottom = rb.top + rb.height - pb, hs = new Set();
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(PANEL_KEY(''))) { const v = parseInt(localStorage.getItem(k), 10); if (v > 120) hs.add(Math.min(maxH, v * z)); } } } catch { /* ignore */ }
+  hs.add(maxH); // fullscreen widgets
+  return [...hs].map((h) => ({ left: rb.left + pl, top: bottom - h, width: rb.width - pl - pr, height: h }));
+}
 function reservePanelSize(title) {
   const card = document.querySelector('#panel .panel-card'); if (!card || SCREENSHOT) return;
   let hgt = 0; try { hgt = parseInt(localStorage.getItem(PANEL_KEY(title)) || '0', 10); } catch { /* ignore */ }
@@ -478,8 +495,13 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const pc = p.querySelector('.panel-card');
   if (GB) {
     GB.glassLayers(pc);
-    clearTimeout(openPanel.gbT);
-    openPanel.gbT = setTimeout(() => GB.bakePanel(pc).then((ok) => pc.classList.toggle('nosnap', !ok)), 30);
+    clearTimeout(openPanel.gbT); clearTimeout(openPanel.gbMax);
+    // Glass + content appear TOGETHER: a fresh panel stays hidden until its baked glass
+    // is decoded, then both fade in over the same .15 s (capped — never held > 500 ms).
+    // Stacked views (keepStack) keep the visible glass until the new bake swaps in.
+    const reveal = () => { clearTimeout(openPanel.gbMax); p.classList.remove('gb-wait'); };
+    if (!keepStack) { p.classList.add('gb-wait'); openPanel.gbMax = setTimeout(reveal, 500); }
+    openPanel.gbT = setTimeout(() => GB.bakePanel(pc).then((ok) => { pc.classList.toggle('nosnap', !ok); requestAnimationFrame(reveal); }, reveal), 30);
   }
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
   // works without clicking first. surf/WebKitGTK doesn't route key events to the
@@ -1639,7 +1661,7 @@ function openReader(url, title) {
     // page runs in an opaque/null origin and can't touch our origin, cookies,
     // localStorage or APIs. (No top-navigation/popups either — read-only.)
     sandbox: 'allow-scripts',
-    src: `/api/readable?read=1&url=${encodeURIComponent(url)}`, // clean reader by default
+    src: `/api/readable?read=1&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`, // clean reader by default
     referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
   });
   frame.addEventListener('load', () => { document.getElementById('panelClose')?.focus(); });
@@ -1654,7 +1676,7 @@ function openReader(url, title) {
   const toggle = h('button', { class: 'gbtn quiet rd-toggle', type: 'button' }, 'Original page');
   toggle.addEventListener('click', () => {
     raw = !raw;
-    frame.src = `/api/readable?${raw ? 'raw' : 'read'}=1&url=${encodeURIComponent(url)}`;
+    frame.src = `/api/readable?${raw ? 'raw' : 'read'}=1&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`;
     toggle.textContent = raw ? 'Reader view' : 'Original page';
   });
   const box = h('div', { class: 'reader-frame-wrap' },

@@ -562,7 +562,9 @@ body.screenshot #plantalarm { display: none !important; }
      clipping; the radius here is purely visual. */
   overflow: visible; }
 /* Opens in place instantly; only the content fades (no slide-up — it showed the fps). */
-.panel-card .panel-body { animation: panelVeil .15s linear both; }
+#panel:not(.gb-wait) .panel-card .panel-body { animation: panelVeil .15s linear both; } /* starts at reveal */
+#panel.gb-wait { visibility: hidden; } /* until the panel's glass is baked + decoded (app.js openPanel) */
+#panel.gb-wait .gb-img { opacity: 0; transition: none; } /* …then glass fades in with the content */
 @keyframes panelVeil { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   #panel.open, .panel-card { animation-duration: .01ms; }

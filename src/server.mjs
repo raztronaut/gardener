@@ -16,6 +16,7 @@ import {
 } from './db.mjs';
 import { recover } from './recover.mjs';
 import { travelFor } from './travel.mjs';
+import { extractReadable, readerResolve } from './reader.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
 import { agentModel } from './models.mjs';
@@ -168,31 +169,18 @@ function htmlEsc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;
 // text. Also a proxy for "will the original render?" — a content-rich page yields
 // lots of text (so its HTML is server-rendered and renders fine in the iframe);
 // a sparse result means an SPA/JS-only page that would render BLANK.
-function readerExtractText(html) {
-  let body = (html.match(/<article[\s\S]*?<\/article>/i) || [html])[0];
-  return body
-    .replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(nav|header|footer|aside|form|svg|noscript)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<(h[1-3])[^>]*>/gi, '\n\n## ').replace(/<li[^>]*>/gi, '\n• ')
-    .replace(/<\/(p|div|section|blockquote|li|h[1-6]|tr)>/gi, '\n')
-    .replace(/<br[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&#(\d+);/g, (m_, n) => String.fromCharCode(n)).replace(/&quot;/g, '"').replace(/&#x27;|&apos;/g, "'")
-    .split('\n').map((l) => l.trim().replace(/\s+/g, ' ')).filter((l) => l.length > 1)
-    .join('\n').replace(/\n{3,}/g, '\n\n').slice(0, 60000);
-}
+function readerExtractText(html) { return extractReadable(html); } // src/reader.mjs: richest <article>/<main>, else the whole page
 // A self-contained, on-brand dark "reader text" page (the fallback when the
 // original would render blank). Includes the same postMessage scroll bridge.
-function readerTextPage(title, text, url) {
+function readerTextPage(title, text, url, { source = null, desc = '' } = {}) {
   let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
   // Treat near-empty results (SPAs, Cloudflare "Just a moment…" walls, paywalls)
   // as "no content" → show the open-on-phone message rather than a useless stub.
   const usable = String(text || '').replace(/just a moment\W*/i, '').trim();
   const paras = usable.length >= 40 ? String(text).split(/\n+/).filter((s) => s.trim())
     .map((s) => (s.startsWith('## ') ? `<h2>${htmlEsc(s.slice(3))}</h2>` : `<p>${htmlEsc(s)}</p>`)).join('') : '';
-  const bodyHtml = paras || `<p class="empty">No readable text here — this page is a JavaScript app, paywalled, or bot-protected, so it can’t be rendered on the wall. Open it on your phone:</p><p class="empty" style="color:#74f7b0;word-break:break-all">${htmlEsc(url)}</p>`;
+  const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=220&format=png`)}`;
+  const bodyHtml = paras || `${desc ? `<p>${htmlEsc(desc)}</p>` : ''}<p class="empty">This site blocks automated readers and has no archived copy yet, so the wall can’t show the article. Scan to read it on your phone:</p><img class="qr" src="${qr}" alt="article link" width="220" height="220">`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     html{scrollbar-width:thin;scrollbar-color:#43e6c6 transparent}
     ::-webkit-scrollbar{width:12px}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#74f7b0,#43e6c6);border-radius:999px;border:3px solid transparent;background-clip:padding-box;min-height:48px}
@@ -200,9 +188,10 @@ function readerTextPage(title, text, url) {
     h1{font:700 27px/1.25 "Space Grotesk",Inter,sans-serif;color:#eafff4;margin:0 0 18px}
     h2{font:600 19px/1.3 "Space Grotesk",Inter,sans-serif;color:#eafff4;margin:26px 0 8px}
     p{margin:0 0 14px;max-width:62ch}.empty{color:#6f9388}
+    .qr{display:block;margin:18px 0 0;width:220px;height:220px}
     .src{font:600 11px/1 ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;color:#6f9388;margin:0 0 16px}
   </style></head><body>
-    <div class="src">reader${host ? ' · ' + htmlEsc(host) : ''}</div>
+    <div class="src">reader${host ? ' · ' + htmlEsc(host) : ''}${source && source !== 'rendered' ? ' · via ' + htmlEsc(source) : ''}</div>
     <h1>${htmlEsc(title)}</h1>${bodyHtml}
     <script>addEventListener('message',function(e){var d=e&&e.data;if(d&&typeof d.__readerScroll==='number'){try{scrollBy({top:d.__readerScroll,behavior:'smooth'})}catch(_){scrollBy(0,d.__readerScroll)}}});<\/script>
   </body></html>`;
@@ -645,19 +634,24 @@ const server = http.createServer(async (req, res) => {
         // read=1 → always the clean reader page (the wall's default: modern sites
         // often keep their content hidden until scripts run, and scripts are crippled
         // in the null-origin sandbox, so the ORIGINAL frequently rendered blank).
-        if (u.searchParams.get('read') === '1') {
+        // Sparse pages (JS apps, bot walls) go through src/reader.mjs: a headless render,
+        // then the Internet Archive; `app` = loads fine but has no article (a demo) →
+        // the original page is the right view. hnTitle: the story's own title (walls
+        // only offer "Just a moment…").
+        const wantRead = u.searchParams.get('read') === '1', wantRaw = u.searchParams.get('raw') === '1';
+        const hnTitle = (u.searchParams.get('title') || '').slice(0, 300);
+        const resolved = (wantRead || wantRaw) ? await readerResolve({ target, status: r.status, html, finalUrl: r.url || target, title }) : null;
+        const textPage = () => {
+          const tt = (resolved.title || '').replace(/\s*[\\|–—-]\s*[^\\|–—-]*$/, '') || resolved.title;
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-          return res.end(readerTextPage(title.replace(/\s*[\\|–—-]\s*[^\\|–—-]*$/, '') || title, readerExtractText(html), r.url || target));
-        }
-        if (u.searchParams.get('raw') === '1') {
-          // AUTO mode: if the page is content-rich, render the ORIGINAL; if it's a
-          // sparse SPA/JS-only shell (would render blank), serve our clean text
-          // page instead so the reader is NEVER blank.
-          const extracted = readerExtractText(html);
-          if (extracted.length < 900) {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-            return res.end(readerTextPage(title, extracted, r.url || target));
-          }
+          return res.end(readerTextPage(hnTitle || tt || t.hostname, resolved.text, resolved.url || target, { source: resolved.source, desc: resolved.desc }));
+        };
+        if (wantRead && !resolved.app) return textPage();
+        if (wantRaw || (wantRead && resolved.app)) {
+          // AUTO mode: if the page is content-rich (or an app), render the ORIGINAL; if
+          // it's a sparse shell / bot wall, serve the resolved clean text page instead
+          // so the reader is NEVER blank.
+          if (!resolved.app && readerExtractText(html).length < 900) return textPage();
           const origin = (r.url || t.toString());
           let doc = html; // scripts preserved on purpose (safe: null-origin sandbox)
           const baseTag = `<base href="${origin.replace(/"/g, '&quot;')}">`;
@@ -857,9 +851,11 @@ function kickFractal() {
 }
 // Turntable (the card's slow rotation): TURN_N orbit frames of the same scene, rendered
 // in a separate `nice -n 15` process so the wall and the Arcade always win the CPU.
-let turnChild = null;
+let turnChild = null, turnSlot = null;
 function kickTurntable(slot) {
+  if (turnChild && turnSlot < slot - 1) turnChild.kill(); // a stale slot's render yields to the current one
   if (turnChild) return;
+  turnSlot = slot;
   const t0 = Date.now();
   turnChild = spawn('nice', ['-n', '15', process.execPath, join(paths.SRC, 'fractal.mjs'), '--turntable', FRACTAL_DIR, String(slot)], { stdio: 'ignore' });
   turnChild.on('exit', (code) => { turnChild = null; log(`fractal: turntable slot ${slot} ${code === 0 ? 'done' : `exit ${code}`} in ${Math.round((Date.now() - t0) / 1000)}s`); if (code === 0) kickFractal(); });
