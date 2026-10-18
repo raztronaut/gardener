@@ -115,20 +115,6 @@ function aqiPeak(hourly, tz) {
   return { val: peak, hour: new Date(times[peakIdx]).getHours() };
 }
 
-// The next 12 hours of US AQI from the hourly series, for the tile's little
-// outlook strip. Returns [{ v, hour }] (finite readings only) or null.
-function aqiOutlook(hourly, tz) {
-  const times = hourly && hourly.time;
-  const vals = hourly && hourly.us_aqi;
-  if (!Array.isArray(times) || !Array.isArray(vals)) return null;
-  const i = nowIndex(times, tz);
-  const out = [];
-  for (let j = i; j < Math.min(i + 12, vals.length); j++) {
-    if (Number.isFinite(vals[j])) out.push({ v: vals[j], hour: Number(String(times[j]).slice(11, 13)) });
-  }
-  return out.length >= 6 ? out : null;
-}
-
 export default {
   id: 'air-quality',
   title: 'Air',
@@ -203,35 +189,7 @@ export default {
         overflow:hidden; text-overflow:ellipsis; }
       .aqs .pm .lead { color:var(--aqs-c, var(--ink-soft)); font-weight:700; letter-spacing:.04em; flex:0 0 auto; }
       .aqs .pm .val { overflow:hidden; text-overflow:ellipsis; }
-      /* Next-12h outlook — a row of slim hour columns, each tinted to its AQI
-         band and scaled to its value, so "will it get smoky tonight?" reads at a
-         glance. Static, no animation; hour ticks sit beneath every few columns. */
-      .aqs .ol { display:grid; grid-template-columns:auto 1fr; column-gap:10px; align-items:end; margin-top:2px; }
-      .aqs .ol .k { font-family:var(--font-mono); font-size:11.5px; letter-spacing:.1em; color:var(--ink-faint);
-        text-transform:uppercase; line-height:1; padding-bottom:0; white-space:nowrap; }
-      .aqs .ol .bars { display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:3px; align-items:end; height:16px; }
-      .aqs .ol .b { border-radius:2px 2px 1px 1px; min-height:3px; opacity:.85; }
-      .aqs .ol .b:first-child { opacity:1; }
-      .aqs .ol .hrs { grid-column:2; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:3px; margin-top:4px; }
-      .aqs .ol .hrs span { font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); line-height:1;
-        white-space:nowrap; overflow:visible; }
     `);
-    // Build the 12h outlook strip (or null when the hourly series is missing).
-    // Column height is scaled against max(150, the window's peak) so a calm day
-    // reads as low, even columns rather than exaggerated noise.
-    const outlookEl = (ol, hr12) => {
-      if (!ol) return null;
-      const top = Math.max(150, ...ol.map((o) => o.v));
-      return h('div', { class: 'ol', title: 'US AQI · next 12 hours' },
-        h('div', { class: 'k' }, '12h'),
-        h('div', { class: 'bars' }, ...ol.map((o) => h('div', {
-          class: 'b',
-          title: `${hr12(o.hour)} · AQI ${Math.round(o.v)} (${aqiCat(o.v).short})`,
-          style: { height: `${Math.max(20, Math.round((o.v / top) * 100))}%`, background: aqiCat(o.v).color },
-        }))),
-        h('div', { class: 'hrs' }, ...ol.map((o, k) => h('span', {},
-          k === 0 ? 'now' : (k % 3 === 0 ? hr12(o.hour) : '')))));
-    };
     body.classList.add('aqs');
     body.appendChild(ctx.loading('air…'));
 

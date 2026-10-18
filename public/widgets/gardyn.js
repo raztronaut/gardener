@@ -364,7 +364,7 @@ const STYLE = `
   .gd-axis .cm.t { background:var(--gold); }
   /* care rails — icons on the shared time axis */
   .gd-rails { flex:0 0 auto; display:flex; flex-direction:column; gap:4px; margin:6px 0 8px; }
-  .gd-row.rail { height:20px; }
+  .gd-row.rail { flex:0 0 20px; height:20px; min-height:0; }
   .gd-row.rail.water { --c:#5fb6ff; }
   .gd-row.rail.task { --c:var(--gold); }
   .gd-row.rail .nm { color:var(--c); font-weight:600; }
@@ -381,7 +381,9 @@ const STYLE = `
   .gd-axis .tk { position:absolute; top:0; transform:translateX(-50%); font-family:var(--font);
     font-size:12.5px; letter-spacing:.08em; color:var(--ink-soft); }
   .gd-rows { flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-evenly; }
-  .gd-row { flex:0 0 auto; height:21px; }
+  /* rows give up a couple of px each (never below 17px) when both agenda steps run
+     to two lines, instead of pushing the last plant out of the card */
+  .gd-row { flex:0 1 21px; height:21px; min-height:17px; }
   .gd-row .nm { font-size:16px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .gd-row.grp .nm { color:var(--ink-soft); }
   .gd-row .tr { position:relative; height:100%; }
@@ -742,7 +744,7 @@ const FULL_STYLE = `
   .fx-feed { display:flex; gap:12px; font-size:17px; line-height:1.45; color:var(--ink-soft); }
   .fx-feed .ic { font-size:22px; color:#5fb6ff; margin-top:2px; }
   .fx-feed b { color:var(--ink); font-weight:600; }
-  .fx .gf-chart .gd-row { height:19px; }
+  .fx .gf-chart .gd-row { flex-basis:19px; height:19px; }
   .fx .gx-pod { height:24px; }
   .fx-pair { display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:28px; align-items:start; }
   .fx-pair .gx-tower { max-width:none; margin:0; }
@@ -778,7 +780,7 @@ const FULL_STYLE = `
   .gx-h .key i.k2 { height:8px; }
 
   .gf-chart .gd-rows { gap:4px; }
-  .gf-chart .gd-row { height:24px; }
+  .gf-chart .gd-row { flex-basis:24px; height:24px; }
   .gf-chart .gd-row .nm { font-size:16px; }
   .gf-chart .gd-row, .gf-chart .gd-axis, .gf-chart .gd-mlines { grid-template-columns: 170px 1fr 52px; }
   .gf-chart .gd-row .rt { font-size:13px; }
