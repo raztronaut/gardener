@@ -6,14 +6,20 @@
 // Each 3-hour slot is a deterministic seed → fractal family (Mandelbulb, Mandelbox,
 // quaternion Julia, Menger sponge) + its parameters, camera orbit, light and a
 // palette drawn from the wall's own colours. Same slot ⇒ same picture.
+//
+// Turntable: once the still is out, a low-priority child process (`nice node
+// src/fractal.mjs --turntable <dir> <slot>`) renders TURN_N frames of the same scene
+// with the camera orbiting a full 360° — the card then turns the fractal very slowly.
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { deflateSync } from 'node:zlib';
-import { writeFileSync, renameSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, renameSync, existsSync, readFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SLOT_MS = 3 * 60 * 60 * 1000;
 export const W = 900, H = 700;
+// turntable: frames per revolution, frame size (the card shows ~400 px wide)
+export const TURN_N = 240, TURN_W = 640, TURN_H = 498;
 export const slotOf = (t = Date.now()) => Math.floor(t / SLOT_MS);
 
 // ---- tiny vec3 helpers (plain arrays; hot loops inline the maths) ------------
@@ -37,7 +43,7 @@ const PALETTES = [
 ];
 
 // Fractal families: distance estimator + orbit trap + framing.
-function makeScene(seed) {
+function makeScene(seed, turn = 0) {
   const r = rng(seed);
   const pick = (arr) => arr[Math.floor(r() * arr.length) % arr.length];
   const fam = ['bulb', 'bulb', 'julia', 'box', 'menger'][seed % 5];
@@ -125,15 +131,15 @@ function makeScene(seed) {
     };
   }
   // Camera on a sphere around the origin, light from upper-left of the camera.
-  const yaw = r() * Math.PI * 2, pitch = 0.15 + r() * 0.6;
+  const yaw = r() * Math.PI * 2 + turn * Math.PI * 2, pitch = 0.15 + r() * 0.6; // turn ∈ [0,1): orbit
   const cam = [dist * Math.cos(pitch) * Math.cos(yaw), dist * Math.sin(pitch), dist * Math.cos(pitch) * Math.sin(yaw)];
   const hue = r();
   return { fam, name, pal, de, cam, fov, hue, palName: pal.name };
 }
 
 // Render the scene into an RGBA buffer (rows [y0, y1) only — lets workers split it).
-function renderRows(seed, w, h, y0, y1) {
-  const S = makeScene(seed);
+function renderRows(seed, w, h, y0, y1, turn = 0) {
+  const S = makeScene(seed, turn);
   const { de, cam, fov, pal } = S;
   // camera basis (look at origin, world up y)
   let fx = -cam[0], fy = -cam[1], fz = -cam[2];
@@ -226,14 +232,14 @@ export function encodePNG(w, h, rgba) {
 export function sceneInfo(seed) { const s = makeScene(seed); return { name: s.name, palette: s.palName, family: s.fam }; }
 
 // Render a slot using N worker threads (row bands), resolve to a PNG buffer.
-export async function renderSlot(seed, { w: ow = W, h: oh = H, threads = 4, ss = 2 } = {}) {
+export async function renderSlot(seed, { w: ow = W, h: oh = H, threads = 4, ss = 2, turn = 0 } = {}) {
   const self = fileURLToPath(import.meta.url);
   // Supersample: render ss× larger, then box-filter down (smooth fractal edges).
   const w = ow * ss, h = oh * ss;
   const band = Math.ceil(h / threads);
   const parts = await Promise.all(Array.from({ length: threads }, (_, i) => new Promise((resolve, reject) => {
     const y0 = i * band, y1 = Math.min(h, y0 + band);
-    const wk = new Worker(self, { workerData: { seed, w, h, y0, y1 }, execArgv: [] });
+    const wk = new Worker(self, { workerData: { seed, w, h, y0, y1, turn }, execArgv: [] });
     wk.once('message', (buf) => resolve({ y0, buf }));
     wk.once('error', reject);
   })));
@@ -279,7 +285,32 @@ export function ensureFractal(dir, now = Date.now()) {
 
 // Worker entry: render one band and post the pixels back.
 if (!isMainThread && workerData && workerData.seed != null) {
-  const { seed, w, h, y0, y1 } = workerData;
-  const px = renderRows(seed, w, h, y0, y1);
+  const { seed, w, h, y0, y1, turn } = workerData;
+  const px = renderRows(seed, w, h, y0, y1, turn);
   parentPort.postMessage(px.buffer, [px.buffer]);
+}
+
+// ---- turntable --------------------------------------------------------------
+// <dir>/turn/<slot>/<i>.png for i < TURN_N, then <dir>/turn/<slot>/done.json.
+// Resumable (existing frames are kept); slots older than slot-1 are deleted.
+export async function renderTurntable(dir, slot, { threads = 4 } = {}) {
+  const tdir = join(dir, 'turn', String(slot));
+  mkdirSync(tdir, { recursive: true });
+  // keep this slot and the one before it (the server pre-renders the NEXT slot while the current one shows)
+  for (const old of readdirSync(join(dir, 'turn'))) if (Number(old) < slot - 1) rmSync(join(dir, 'turn', old), { recursive: true, force: true });
+  const t0 = Date.now();
+  for (let i = 0; i < TURN_N; i++) {
+    const f = join(tdir, `${i}.png`);
+    if (existsSync(f)) continue;
+    const png = await renderSlot(slot, { w: TURN_W, h: TURN_H, threads, turn: i / TURN_N });
+    writeFileSync(f + '.tmp', png); renameSync(f + '.tmp', f);
+  }
+  writeFileSync(join(tdir, 'done.json'), JSON.stringify({ slot, n: TURN_N, w: TURN_W, h: TURN_H, renderMs: Date.now() - t0 }));
+}
+export function turntableInfo(dir, slot) {
+  try { return JSON.parse(readFileSync(join(dir, 'turn', String(slot), 'done.json'), 'utf8')); } catch { return null; }
+}
+// CLI (spawned niced by the server): node src/fractal.mjs --turntable <dir> <slot>
+if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '--turntable') {
+  renderTurntable(process.argv[3], Number(process.argv[4])).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
 }

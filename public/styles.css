@@ -718,8 +718,17 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 #touchcal.cal-phase .tc-feed { opacity: .18; }
 
 /* Out in SF fullscreen: today's map + drive column (app.js renderEvents) */
-.ev-map { height: 520px; border-radius: 18px; overflow: hidden; margin-bottom: 14px; opacity: 0; transition: opacity .5s ease; }
-.ev-map.on { opacity: 1; }
+.ev-map { position: relative; height: 520px; border-radius: 18px; overflow: hidden; margin-bottom: 14px; background: #070b0a; }
+.ev-map .ev-mapimg { position: absolute; inset: 0; opacity: 0; transition: opacity .6s ease; }
+.ev-map .ev-mapimg.on { opacity: 1; }
+/* loading: a calm ping from home (rings scale+fade only — nothing slides) */
+.ev-load { position: absolute; inset: 0; display: grid; place-items: center; }
+.ev-load > * { grid-area: 1 / 1; }
+.ev-load svg { width: 30px; height: 30px; }
+.ev-load .ring { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid rgba(116,247,176,.5);
+  animation: evping 2.4s cubic-bezier(.2,.6,.3,1) infinite; opacity: 0; }
+.ev-load .r2 { animation-delay: .8s; } .ev-load .r3 { animation-delay: 1.6s; }
+@keyframes evping { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(9); opacity: 0; } }
 .ev-pin { fill: #74f7b0; stroke: #06140f; stroke-width: 2; }
 .ev-pin-t { fill: #06140f; font: 700 13px var(--font); }
 .ev-row .ev-drive { flex: 0 0 104px; text-align: right; padding-top: 2px; opacity: 0; transition: opacity .4s ease; }

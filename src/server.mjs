@@ -19,7 +19,7 @@ import { travelFor } from './travel.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
 import { agentModel } from './models.mjs';
-import { ensureFractal, SLOT_MS } from './fractal.mjs';
+import { ensureFractal, SLOT_MS, turntableInfo } from './fractal.mjs';
 
 const START = Date.now();
 
@@ -562,7 +562,16 @@ const server = http.createServer(async (req, res) => {
     // ---- Fractal art (widget "Fractal"): current 3-hour slot's raymarched still.
     if (req.method === 'GET' && p === '/api/fractal') {
       let meta = null; try { meta = JSON.parse(readFileSync(join(FRACTAL_DIR, 'fractal.json'), 'utf8')); } catch { /* not rendered yet */ }
-      return json(res, 200, { meta, now: Date.now(), slotMs: SLOT_MS });
+      const turn = meta ? turntableInfo(FRACTAL_DIR, meta.slot) : null; // { n, w, h } once all orbit frames exist
+      return json(res, 200, { meta, turn, now: Date.now(), slotMs: SLOT_MS });
+    }
+    // one turntable frame: /api/fractal/turn/<slot>/<i>.png (immutable → cached hard)
+    if (req.method === 'GET' && p.startsWith('/api/fractal/turn/')) {
+      const m = /^\/api\/fractal\/turn\/(\d{1,9})\/(\d{1,4})\.png$/.exec(p);
+      if (!m) return json(res, 400, { error: 'bad frame' });
+      let png; try { png = readFileSync(join(FRACTAL_DIR, 'turn', m[1], `${m[2]}.png`)); } catch { return json(res, 404, { error: 'no frame' }); }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': png.length, 'Cache-Control': 'public, max-age=86400, immutable' });
+      return res.end(png);
     }
     if (req.method === 'GET' && p === '/api/fractal.png') {
       let png; try { png = readFileSync(join(FRACTAL_DIR, 'fractal.png')); } catch { kickFractal(); return json(res, 503, { error: 'rendering' }); }
@@ -839,8 +848,21 @@ async function kioskSnapshot() {
 const FRACTAL_DIR = join(paths.DATA, 'fractal');
 function kickFractal() {
   if (process.env.GARDENER_FRACTAL === '0') return;
-  ensureFractal(FRACTAL_DIR).then((m) => { if (m?.renderMs) log(`fractal: rendered slot ${m.slot} "${m.name}" in ${m.renderMs}ms`); })
-    .catch((e) => log(`fractal: render failed: ${e.message}`));
+  ensureFractal(FRACTAL_DIR).then((m) => {
+    if (m?.renderMs) log(`fractal: rendered slot ${m.slot} "${m.name}" in ${m.renderMs}ms`);
+    // this slot's turntable first; then pre-render the NEXT slot's, so a new fractal turns from its first second
+    if (m && !turntableInfo(FRACTAL_DIR, m.slot)) kickTurntable(m.slot);
+    else if (m && !turntableInfo(FRACTAL_DIR, m.slot + 1)) kickTurntable(m.slot + 1);
+  }).catch((e) => log(`fractal: render failed: ${e.message}`));
+}
+// Turntable (the card's slow rotation): TURN_N orbit frames of the same scene, rendered
+// in a separate `nice -n 15` process so the wall and the Arcade always win the CPU.
+let turnChild = null;
+function kickTurntable(slot) {
+  if (turnChild) return;
+  const t0 = Date.now();
+  turnChild = spawn('nice', ['-n', '15', process.execPath, join(paths.SRC, 'fractal.mjs'), '--turntable', FRACTAL_DIR, String(slot)], { stdio: 'ignore' });
+  turnChild.on('exit', (code) => { turnChild = null; log(`fractal: turntable slot ${slot} ${code === 0 ? 'done' : `exit ${code}`} in ${Math.round((Date.now() - t0) / 1000)}s`); if (code === 0) kickFractal(); });
 }
 setTimeout(kickFractal, 5000);
 setInterval(kickFractal, 5 * 60 * 1000);

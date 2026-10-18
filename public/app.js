@@ -683,7 +683,7 @@ let EVENTS_CACHE = null;
 if (!SCREENSHOT) {
   const pre = async () => { try { const lib = await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`);
     const evs = await lib.fetchEvents((url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }));
-    if (evs.length) EVENTS_CACHE = evs; } catch { /* keep last */ } };
+    if (evs.length) { EVENTS_CACHE = evs; ensureTravel(evs); } } catch { /* keep last */ } };
   setTimeout(pre, 10000); setInterval(pre, 15 * 60 * 1000);
 }
 async function showEvents() {
@@ -717,6 +717,20 @@ async function showEvents() {
 // The map box and the drive column are reserved up front and filled in place —
 // the panel never grows or reflows when the travel data lands.
 const TRAVEL = new Map(); // event name → { lat, lon, mins, km } | null
+const isTodayEv = (e) => { const f = new Intl.DateTimeFormat('en-CA', { timeZone: (window.__GARDEN_STATE && window.__GARDEN_STATE.tz) || 'America/Los_Angeles' }); return !!e.when && f.format(e.when) <= f.format(new Date()); };
+// Venue lookups are 1 req/s on the server (Nominatim), so they're fetched in the
+// background whenever the event list refreshes — opening the panel is then instant.
+let travelInFlight = null;
+function ensureTravel(evs) {
+  const missing = evs.filter((e) => isTodayEv(e) && !TRAVEL.has(e.name));
+  if (!missing.length) return Promise.resolve();
+  if (travelInFlight) return travelInFlight.then(() => ensureTravel(evs));
+  travelInFlight = fetch('/api/sf-travel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events: missing.map((e) => ({ key: e.name, name: e.name, placeFull: e.placeFull, description: e.description })) }) })
+    .then((r) => r.json()).then((j) => { for (const e of missing) TRAVEL.set(e.name, j.results ? j.results[e.name] ?? null : null); })
+    .catch(() => {}).finally(() => { travelInFlight = null; });
+  return travelInFlight;
+}
 const EV_MAP_BOX = [37.695, -122.525, 37.845, -122.245]; // SF + Oakland's edge
 function renderEvents(evs) {
   const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -816,18 +830,22 @@ function renderEvents(evs) {
     }
     m.svg.append(g);
     await m.ready;
-    mapBox.replaceChildren(m.el);
-    mapBox.classList.add('on');
+    m.el.classList.add('ev-mapimg');
+    mapBox.append(m.el);
+    requestAnimationFrame(() => { m.el.classList.add('on'); mapBox.classList.add('on'); });
+    setTimeout(() => mapBox.querySelector('.ev-load')?.remove(), 700);
   };
-  const missing = today.filter((e) => !TRAVEL.has(e.name));
-  if (!missing.length) { fill(); drawMap(); return; }
-  fetch('/api/sf-travel', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ events: missing.map((e) => ({ key: e.name, name: e.name, placeFull: e.placeFull, description: e.description })) }) })
-    .then((r) => r.json()).then((j) => {
-      for (const e of missing) TRAVEL.set(e.name, j.results ? j.results[e.name] ?? null : null);
-      if (!wrap.isConnected) return;
-      fill(); drawMap();
-    }).catch(() => {});
+  if (today.every((e) => TRAVEL.has(e.name))) { fill(); drawMap(); return; }
+  mapBox.append(mapLoader()); // a soft ping from home while the venues are looked up
+  ensureTravel(today).then(() => { if (wrap.isConnected) { fill(); drawMap(); } });
+}
+// Loading state for the reserved map box: the house, and slow rings radiating from it
+// (no text, no sliding — just a calm pulse until the map fades in over it).
+function mapLoader() {
+  const el = h('div', { class: 'ev-load' });
+  el.innerHTML = '<span class="ring"></span><span class="ring r2"></span><span class="ring r3"></span>'
+    + '<svg viewBox="-12 -12 24 24"><path d="M-8 1 L0 -7 L8 1 M-6 -1 V8 H6 V-1" fill="none" stroke="#74f7b0" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  return el;
 }
 const CAR_SVG = () => {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
