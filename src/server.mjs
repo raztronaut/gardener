@@ -473,6 +473,17 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const p = u.pathname;
 
+    // CSRF / local-network guard: a state-changing request carrying a FOREIGN Origin
+    // (a web page — e.g. an article rendered by the headless reader, or a sandboxed
+    // iframe with Origin "null") is refused. The wall sends its own origin; the pad
+    // bridge and other local tools send none. The Host must be localhost or an IP
+    // literal, so a DNS-rebinding domain (attacker name → 127.0.0.1) can't pass as us.
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS' && req.headers.origin !== undefined) {
+      const host = String(req.headers.host || ''), hn = host.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
+      const hostOk = hn === 'localhost' || isIP(hn) !== 0;
+      if (!hostOk || req.headers.origin !== `http://${host}`) { log(`refused ${req.method} ${p} from origin ${String(req.headers.origin).slice(0, 80)}`); return json(res, 403, { error: 'cross-origin request refused' }); }
+    }
+
     if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, version: getUiVersion(), night: getNight(), uptime: Math.round((Date.now() - START) / 1000) });
     if (req.method === 'GET' && p === '/api/version') return json(res, 200, { version: getUiVersion() });
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, stateObject());
