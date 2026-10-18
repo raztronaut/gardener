@@ -7,19 +7,16 @@
 // quaternion Julia, Menger sponge) + its parameters, camera orbit, light and a
 // palette drawn from the wall's own colours. Same slot ⇒ same picture.
 //
-// Turntable: once the still is out, a low-priority child process (`nice node
-// src/fractal.mjs --turntable <dir> <slot>`) renders TURN_N frames of the same scene
-// with the camera orbiting a full 360° — the card then turns the fractal very slowly.
+// The still is the first paint; the wall then renders the same scene LIVE on its GPU
+// (public/lib/fractal-gl.js, params from sceneParams) and orbits it very slowly.
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { deflateSync } from 'node:zlib';
-import { writeFileSync, renameSync, existsSync, readFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { writeFileSync, renameSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SLOT_MS = 3 * 60 * 60 * 1000;
 export const W = 900, H = 700;
-// turntable: frames per revolution, frame size (the card shows ~400 px wide)
-export const TURN_N = 240, TURN_W = 640, TURN_H = 498;
 export const slotOf = (t = Date.now()) => Math.floor(t / SLOT_MS);
 
 // ---- tiny vec3 helpers (plain arrays; hot loops inline the maths) ------------
@@ -48,10 +45,10 @@ function makeScene(seed, turn = 0) {
   const pick = (arr) => arr[Math.floor(r() * arr.length) % arr.length];
   const fam = ['bulb', 'bulb', 'julia', 'box', 'menger'][seed % 5];
   const pal = PALETTES[Math.floor(r() * PALETTES.length) % PALETTES.length];
-  let de, dist, name, fov = 0.9, maxIt;
+  let de, dist, name, fov = 0.9, maxIt, P = {};
   if (fam === 'bulb') {
     const power = pick([3, 4, 5, 6, 7, 8, 8, 9]);
-    maxIt = 10;
+    maxIt = 10; P = { power };
     name = `Mandelbulb · power ${power}`;
     dist = 1.75 + r() * 0.45;
     de = (px, py, pz, out) => {
@@ -72,7 +69,7 @@ function makeScene(seed, turn = 0) {
     };
   } else if (fam === 'julia') {
     const c = [-0.2 + r() * -0.25, 0.6 + r() * 0.25, 0.2 * (r() - 0.5), 0.15 * (r() - 0.5)];
-    maxIt = 11;
+    maxIt = 11; P = { c };
     name = 'Quaternion Julia';
     dist = 1.9 + r() * 0.4;
     de = (px, py, pz, out) => {
@@ -95,7 +92,7 @@ function makeScene(seed, turn = 0) {
     };
   } else if (fam === 'box') {
     const scale = pick([-1.5, -1.75, -2.0, 2.0, 2.4]);
-    maxIt = 11;
+    maxIt = 11; P = { scale };
     name = `Mandelbox · scale ${scale}`;
     dist = scale < 0 ? 3.4 + r() * 0.8 : 6.2 + r() * 1.0;
     fov = 0.85;
@@ -134,7 +131,7 @@ function makeScene(seed, turn = 0) {
   const yaw = r() * Math.PI * 2 + turn * Math.PI * 2, pitch = 0.15 + r() * 0.6; // turn ∈ [0,1): orbit
   const cam = [dist * Math.cos(pitch) * Math.cos(yaw), dist * Math.sin(pitch), dist * Math.cos(pitch) * Math.sin(yaw)];
   const hue = r();
-  return { fam, name, pal, de, cam, fov, hue, palName: pal.name };
+  return { fam, name, pal, de, cam, fov, hue, palName: pal.name, P, maxIt, yaw: yaw - turn * Math.PI * 2, pitch, dist };
 }
 
 // Render the scene into an RGBA buffer (rows [y0, y1) only — lets workers split it).
@@ -229,6 +226,12 @@ export function encodePNG(w, h, rgba) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw, { level: 8 })), chunk('IEND', Buffer.alloc(0))]);
 }
 
+// Everything the wall's live WebGL renderer (public/lib/fractal-gl.js) needs to draw
+// the SAME scene as the still — it then orbits the camera slowly in real time.
+export function sceneParams(seed) {
+  const s = makeScene(seed);
+  return { fam: s.fam, maxIt: s.maxIt, ...s.P, yaw: s.yaw, pitch: s.pitch, dist: s.dist, fov: s.fov, pal: { a: s.pal.a, b: s.pal.b, c: s.pal.c } };
+}
 export function sceneInfo(seed) { const s = makeScene(seed); return { name: s.name, palette: s.palName, family: s.fam }; }
 
 // Render a slot using N worker threads (row bands), resolve to a PNG buffer.
@@ -288,29 +291,4 @@ if (!isMainThread && workerData && workerData.seed != null) {
   const { seed, w, h, y0, y1, turn } = workerData;
   const px = renderRows(seed, w, h, y0, y1, turn);
   parentPort.postMessage(px.buffer, [px.buffer]);
-}
-
-// ---- turntable --------------------------------------------------------------
-// <dir>/turn/<slot>/<i>.png for i < TURN_N, then <dir>/turn/<slot>/done.json.
-// Resumable (existing frames are kept); slots older than slot-1 are deleted.
-export async function renderTurntable(dir, slot, { threads = 4 } = {}) {
-  const tdir = join(dir, 'turn', String(slot));
-  mkdirSync(tdir, { recursive: true });
-  // keep this slot and the one before it (the server pre-renders the NEXT slot while the current one shows)
-  for (const old of readdirSync(join(dir, 'turn'))) if (Number(old) < slot - 1) rmSync(join(dir, 'turn', old), { recursive: true, force: true });
-  const t0 = Date.now();
-  for (let i = 0; i < TURN_N; i++) {
-    const f = join(tdir, `${i}.png`);
-    if (existsSync(f)) continue;
-    const png = await renderSlot(slot, { w: TURN_W, h: TURN_H, threads, turn: i / TURN_N });
-    writeFileSync(f + '.tmp', png); renameSync(f + '.tmp', f);
-  }
-  writeFileSync(join(tdir, 'done.json'), JSON.stringify({ slot, n: TURN_N, w: TURN_W, h: TURN_H, renderMs: Date.now() - t0 }));
-}
-export function turntableInfo(dir, slot) {
-  try { return JSON.parse(readFileSync(join(dir, 'turn', String(slot), 'done.json'), 'utf8')); } catch { return null; }
-}
-// CLI (spawned niced by the server): node src/fractal.mjs --turntable <dir> <slot>
-if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '--turntable') {
-  renderTurntable(process.argv[3], Number(process.argv[4])).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
 }
