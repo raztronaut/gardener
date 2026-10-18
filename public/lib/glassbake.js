@@ -188,36 +188,3 @@ export async function bakePanel(card) {
   return true;
 }
 
-// ---- note bar: the TEXT you type lights the glass ---------------------------
-// While typing, each keystroke (rAF-throttled) re-bakes the bar with the input's
-// text drawn as a soft mint glow inside the glass — blurred and refracted at the
-// rim like light passing through it. ~a few ms per bake (the bar is ~840×60);
-// canvases are throwaway and the previous image URL is revoked, so memory stays
-// flat. Leaving the box restores the cached idle glass.
-export function liveTextGlass(form, input) {
-  let pending = false, idleUrl = null;
-  const render = async () => {
-    pending = false;
-    aurora ||= await loadImg('/assets/aurora-blur.jpg');
-    const r = form.getBoundingClientRect(), z = r.width / form.offsetWidth || 1;
-    const ir = input.getBoundingClientRect(), cs = getComputedStyle(input);
-    const text = input.value;
-    const tx = (ir.left - r.left) / z + parseFloat(cs.paddingLeft || 0), ty = (ir.top - r.top + ir.height / 2) / z;
-    const light = (g, ox, oy) => {
-      if (!text) return;
-      g.save();
-      g.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-      g.textBaseline = 'middle';
-      // the text as a light source; only the refracting rims pick it up (see bake)
-      g.fillStyle = '#e9fff4';
-      g.fillText(text, ox + tx, oy + ty);
-      g.restore();
-    };
-    const url = await bake(aurora, { left: r.left / z, top: r.top / z, width: form.offsetWidth, height: form.offsetHeight }, { light, scale: 1.0 });
-    if (document.activeElement === input) setGlass(form, url); else URL.revokeObjectURL(url);
-  };
-  const queue = () => { if (!pending) { pending = true; requestAnimationFrame(render); } };
-  input.addEventListener('focus', () => { if (form._gb) { idleUrl = form._gb._url; form._gb._own = false; } queue(); }); // keep the idle image alive
-  input.addEventListener('input', queue);
-  input.addEventListener('blur', () => { if (idleUrl) setGlass(form, idleUrl, { own: false }); });
-}
