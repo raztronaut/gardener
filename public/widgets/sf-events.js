@@ -7,7 +7,8 @@
 // full-width under one "ALL DAY" sub-heading — the full event
 // name over up to two lines, and its venue beneath. As many as fit are shown;
 // overflow rows are trimmed, never clipped. With nothing left today it falls
-// back to the next upcoming events.
+// back to the next upcoming events. On a light day, the room left under today's
+// rows carries on into the coming days under small "TOMORROW · TUE" headings.
 //
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
@@ -48,6 +49,7 @@ export default {
       .won-sub { flex:0 0 auto; display:flex; align-items:center; gap:9px; margin-top:2px;
         font-family:var(--font-mono); font-size:11.5px; letter-spacing:.13em;
         color:var(--ink-faint); white-space:nowrap; }
+      .won-sub.later { margin-top:6px; color:var(--mint); opacity:.85; }
       .won-sub .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
       .won-ag.wide .nm { font-size:14px; }
       .won-ag.pre { border-bottom:none; }
@@ -125,7 +127,7 @@ export default {
         ctx.h('span', { class: 'all' }, `${picks.length} EVENT${picks.length === 1 ? '' : 'S'}`));
       head.style.display = '';
 
-      rows = picks.map((e) => {
+      const makeRow = (e) => {
         const isT = (() => { const o = dayOffset(e.when); return o != null && o <= 0; })();
         const live = liveCountdown(e.when, e.allDay, isT);
         // Tidy the scraped title: its trailing "(SF)" / "(2026)" / "(7p + 9p)" /
@@ -163,8 +165,24 @@ export default {
         const pr = (timed(e) || t.time ? 0 : 3) + localeRank(e);
         const tkey = tm ? tm.firstChild && tm.firstChild.textContent : null;
         return { el: row, allDay: !tm, pr, tkey };
-      });
+      };
+      rows = picks.map(makeRow);
       rows.forEach((r, i) => { r.idx = i; });
+      // A light day leaves the tall card mostly empty — so after today's plans
+      // the agenda carries on into the next days, each under a small day
+      // sub-heading ("TOMORROW", "WED 21 OCT"). fit() only appends these while
+      // they fit, chronologically, after every one of today's rows is kept.
+      later = [];
+      if (showingToday) {
+        const ahead = all.filter((e) => { const o = dayOffset(e.when); return o != null && o >= 1; })
+          .sort((x, y) => x.when - y.when).slice(0, 14);
+        ahead.forEach((e) => {
+          const o = dayOffset(e.when);
+          const label = o === 1 ? `TOMORROW · ${wdayFmt.format(e.when).toUpperCase()}`
+            : `${wdayFmt.format(e.when).toUpperCase()} ${e.when.getDate()} ${MON[e.when.getMonth()]}`;
+          later.push({ ...makeRow(e), label });
+        });
+      }
       fit();
     };
 
@@ -173,13 +191,14 @@ export default {
     // neighbouring widgets load, and fitting only once (against an early, shorter
     // card) used to strand the list at 3–4 rows above a tall empty gap.
     let rows = [];
+    let later = [];
     const fit = () => {
       if (!rows.length) return;
       list.style.removeProperty('--sp');
       // Grow the kept set in priority order (stable on ties) until the next row
       // would overflow, laying the survivors out chronologically each time.
       const byPrio = rows.slice().sort((a, b) => a.pr - b.pr || a.idx - b.idx);
-      const show = (set) => {
+      const show = (set, ext = []) => {
         // Tonight's timed plans lead (chronological); the all-day group follows
         // under its own sub-heading.
         const kept = set.slice().sort((a, b) => (a.allDay - b.allDay) || a.idx - b.idx);
@@ -196,6 +215,18 @@ export default {
           }
           els.push(r.el);
         });
+        if (ext.length && kept.length) kept[kept.length - 1].el.classList.add('pre');
+        ext.forEach((r, i) => {
+          r.el.classList.remove('pre', 'dup');
+          const prevR = ext[i - 1];
+          if (!prevR || prevR.label !== r.label) {
+            els.push(ctx.h('div', { class: 'won-sub later' }, r.label, ctx.h('span', { class: 'rule' })));
+          }
+          const nextR = ext[i + 1];
+          if (nextR && nextR.label !== r.label) r.el.classList.add('pre');
+          else if (!r.allDay && r.tkey && prevR && prevR.label === r.label && !prevR.allDay && prevR.tkey === r.tkey) r.el.classList.add('dup');
+          els.push(r.el);
+        });
         list.replaceChildren(...els);
       };
       // Greedy in priority order: a row that would overflow is skipped (not a
@@ -206,7 +237,17 @@ export default {
         show([...kept, r]);
         if (list.scrollHeight <= list.clientHeight + 1) kept.push(r);
       }
-      show(kept);
+      // Every one of today's rows fit → carry on into the coming days while
+      // there's room, chronologically; a row too tall to fit is skipped so a
+      // shorter one can take the space.
+      let ext = [];
+      if (kept.length === rows.length && later.length) {
+        for (const r of later) {
+          show(kept, [...ext, r]);
+          if (list.scrollHeight <= list.clientHeight + 1) ext.push(r);
+        }
+      }
+      show(kept, ext);
       // When rows were trimmed, share the leftover height out as extra spacing
       // between the survivors (gap + rule padding), so the agenda fills the card
       // to its foot instead of stopping short above an empty band.
