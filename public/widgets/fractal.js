@@ -7,7 +7,7 @@
 //
 // It turns, very slowly — and smoothly: the wall renders the SAME scene live on its
 // GPU (lib/fractal-gl.js, params from /api/fractal `scene`), orbiting one revolution
-// every 8 minutes at ~30 fps. The PNG still is the first paint (and the fallback with
+// every 6m40s at ~30 fps. The PNG still is the first paint (and the fallback with
 // no WebGL); the live canvas fades in over it on its first frame. Rendering pauses
 // whenever the card can't be seen: a game is running, a panel covers it, night.
 

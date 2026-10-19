@@ -7,7 +7,7 @@
 //
 //   const r = fractalGL(canvas, scene);   // null → no WebGL (keep the still)
 //   r.start(); r.stop();                  // the caller pauses it when it can't be seen
-export const REV_MS = 8 * 60 * 1000;
+export const REV_MS = 400 * 1000; // 6m40s — 20% faster than the original 8 min (humans, 2026-10-19)
 const FPS = 30;
 
 const VS = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }';
