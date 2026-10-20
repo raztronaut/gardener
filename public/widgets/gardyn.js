@@ -536,6 +536,22 @@ async function record(body) {
   window.dispatchEvent(new Event('gardyn:log'));
 }
 
+// The tile's two "coming up" rows: routine weekly water checks repeat with the
+// same title + how-to, so after the first one (or after one already due today)
+// they're noise — prefer the next DISTINCT steps (tank refresh, a task). Tops up
+// with the skipped checks only if there's nothing else to show.
+function tileNext(due, next) {
+  let seenWater = due.some((e) => e.k === 'water');
+  const keep = next.filter((e) => {
+    if (e.k !== 'water' || !e.minor) return true;
+    if (seenWater) return false;
+    seenWater = true;
+    return true;
+  });
+  return (keep.length >= 2 ? keep : [...keep, ...next.filter((e) => !keep.includes(e))]).slice(0, 2)
+    .sort((a, b) => a.d - b.d);
+}
+
 function build(h, body, tz, log = LOG) {
   const day = todayIndex(tz);
   const { due, next } = agenda(day, log);
@@ -552,7 +568,7 @@ function build(h, body, tz, log = LOG) {
       h('div', { class: 'gd-day' }, `Day ${Math.max(0, day)}`),
       h('div', { class: 'gd-st' }, gardenStage(day)),
       today),
-    h('div', { class: 'gd-agenda' }, ...next.slice(0, 2).map(line)),
+    h('div', { class: 'gd-agenda' }, ...tileNext(due, next).map(line)),
     chart(h, day, false, log)));
 }
 
