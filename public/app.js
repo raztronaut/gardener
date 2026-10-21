@@ -378,7 +378,19 @@ function checkOverflow() {
   // the names of clipped widgets — smoke fails on this so clipping can't ship.
   let maxClip = 0; const clipped = [];
   for (const card of garden.querySelectorAll(':scope > .card')) {
-    const clip = Math.round(card.scrollHeight - card.clientHeight);
+    let clip = Math.round(card.scrollHeight - card.clientHeight);
+    // scrollHeight can't see UPWARD spill: a vertically-centred body whose content
+    // outgrows it overflows both ways, sliding under the card title (the Air card
+    // hid its "AIR" title behind the big number this way, 2026-10-21). Count how
+    // far the body's direct children rise above the body's own top edge too.
+    const cbody = card.querySelector(':scope > .card-body');
+    if (cbody && card.querySelector(':scope > .card-title')) {
+      const top = cbody.getBoundingClientRect().top;
+      for (const kid of cbody.children) {
+        const r = kid.getBoundingClientRect();
+        if (r.height > 0) clip = Math.max(clip, Math.round(top - r.top));
+      }
+    }
     if (clip > maxClip) maxClip = clip;
     if (clip > 8) {
       const name = (card.querySelector('.card-title')?.textContent || 'widget').trim().replace(/\s+/g, ' ').slice(0, 24);

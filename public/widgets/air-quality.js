@@ -125,29 +125,33 @@ export default {
     const { h } = ctx;
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .aqs { display:flex; flex-direction:column; justify-content:center; gap:5px; height:100%; min-height:0; }
+      .aqs { display:flex; flex-direction:column; justify-content:safe center; gap:5px; height:100%; min-height:0; }
       .aqs > * { flex-shrink:0; }
-      .aqs .numrow { display:flex; align-items:baseline; gap:8px; }
+      .aqs .numrow { display:flex; align-items:center; gap:12px; }
+      /* category word + trend stacked beside the number (2026-10-21) — folds the
+         old standalone category row into the number row so the tile fits its
+         frame instead of spilling up under the "AIR" title. */
+      .aqs .side { display:flex; flex-direction:column; gap:5px; min-width:0; }
+      .aqs .numrow .pm { align-self:flex-start; margin-top:4px; }
       .aqs .numrow .pm { margin-left:auto; min-width:0; }
-      .aqs .num { font-family:var(--font-display); font-weight:400; font-size:64px; line-height:.85;
+      .aqs .num { font-family:var(--font-display); font-weight:400; font-size:60px; line-height:.85;
         color:var(--aqs-c, var(--ink)); }
       /* trend arrow beside the number — glanceable sense of where the air is headed */
       .aqs .trend { display:inline-flex; align-items:baseline; gap:3px; line-height:1; }
       .aqs .trend .ar { font-size:26px; font-weight:700; color:var(--ink-faint); }
       .aqs .trend .tl { font-family:var(--font-mono); font-size:13px; letter-spacing:.05em;
         color:var(--ink-faint); text-transform:lowercase; }
-      .aqs .cat { font-family:var(--font-display); font-weight:400; font-size:22px; font-weight:700; color:var(--aqs-c, var(--ink)); line-height:1;
+      .aqs .cat { font-family:var(--font-display); font-weight:400; font-size:24px; color:var(--aqs-c, var(--ink)); line-height:1;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      /* quiet health cue under the category — clamped to 2 lines so it never
-         pushes the scale/PM rows out of the small square tile. */
-      .aqs .tip { font-size:14px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
+      /* quiet health cue — one ellipsized line so it never pushes the scale out
+         of the tile. */
+      .aqs .tip { font-size:14.5px; line-height:1.28; color:var(--ink-soft); margin-top:-1px;
         display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
-      /* "vs. yesterday" cue — a compact coloured line that sits ABOVE the health
-         tip only when the air shifted notably from the same hour yesterday. When
-         it shows, the tip below drops to a single line (.one), so the two together
-         occupy the SAME two-line box the tip used alone — no added height, no clip.
+      /* "vs. yesterday" cue — a compact coloured line shown only when the air
+         shifted notably from the same hour yesterday. It REPLACES the health tip
+         (which moves to its tooltip) so the tile always has exactly one cue line.
          A mint ↓ reads "cleared overnight"; a warm ↑ reads "smokier than yesterday". */
-      .aqs .vsy { font-size:13.5px; line-height:1.28; font-weight:700; letter-spacing:.01em;
+      .aqs .vsy { font-size:14.5px; line-height:1.28; font-weight:700; letter-spacing:.01em;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex;
         align-items:baseline; gap:4px; }
       .aqs .vsy .ar { font-weight:700; flex:0 0 auto; }
@@ -229,7 +233,8 @@ export default {
         // (which is already shown) and the air is at least worth a glance.
         const lead = dominant(d.current);
         const showLead = lead && lead.label !== 'PM2.5' && aqi >= 40;
-        const numrow = h('div', { class: 'numrow' }, h('div', { class: 'num' }, String(Math.round(aqi))));
+        const side = h('div', { class: 'side' }, h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short));
+        const numrow = h('div', { class: 'numrow' }, h('div', { class: 'num' }, String(Math.round(aqi))), side);
         const pmEl = h('div', {
             class: 'pm',
             title: showLead
@@ -239,7 +244,7 @@ export default {
             showLead ? h('span', { class: 'lead' }, `${lead.label} lead`) : null,
             h('span', { class: 'val' }, pm == null ? 'PM2.5 —' : `PM2.5 ${pm.toFixed(1)}`));
         if (trend) {
-          numrow.appendChild(h('div', {
+          side.appendChild(h('div', {
             class: 'trend',
             title: `Air quality ${trend.label} over the next 6 hours`,
           }, h('span', { class: 'ar', style: { color: trend.color } }, trend.arrow),
@@ -252,13 +257,14 @@ export default {
         // the calm-air day (no "vs. yesterday" cue) prints a stray "null" line.
         body.replaceChildren(...[
           numrow,
-          h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short),
           vsy ? h('div', {
             class: 'vsy',
             style: { color: vsy.color },
-            title: `AQI ${Math.round(aqi)} now vs ~${Math.round(aqi - (vsy.arrow === '↓' ? -vsy.delta : vsy.delta))} at this hour yesterday`,
+            title: `${cat.tip} · AQI ${Math.round(aqi)} now vs ~${Math.round(aqi - (vsy.arrow === '↓' ? -vsy.delta : vsy.delta))} at this hour yesterday`,
           }, h('span', { class: 'ar' }, vsy.arrow), `${vsy.word} (${vsy.delta})`) : null,
-          h('div', { class: `tip${vsy ? ' one' : ''}`, title: cat.tip }, cat.tip),
+          // One cue line: the overnight shift when there is one (the health tip
+          // then lives in its tooltip), otherwise the plain health tip.
+          vsy ? null : h('div', { class: 'tip one', title: cat.tip }, cat.tip),
           h('div', {
             class: 'scale',
             title: showPeak
