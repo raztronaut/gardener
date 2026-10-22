@@ -747,8 +747,8 @@ export default {
         animation:dlyfade .22s linear both; }
       @keyframes dlyfade { from{opacity:0} to{opacity:1} }
       @media (prefers-reduced-motion: reduce) { .dly { animation:none; } }
-      .dly-sec { display:flex; flex-direction:column; justify-content:center;
-        min-height:0; overflow:hidden; padding:4px 0; }
+      .dly-sec { display:flex; flex-direction:column; justify-content:safe center;
+        min-height:0; overflow:hidden; padding:3px 0; }
       /* Never squash a line mid-glyph (2026-10-09): the flex children inside a
          region keep their natural height — clamped blocks end in a clean
          ellipsis instead of being shrunk and sliced through the middle. */
@@ -757,7 +757,7 @@ export default {
          its generous 'tall' height and stays full); grow shares any extra space,
          shrink lets a region give way gracefully if the grid ever forces the card
          shorter — clamping within its region instead of at the card's edge. */
-      .dly-word-sec { flex:1.15 1 auto; }
+      .dly-word-sec { flex:1.15 0 auto; }
       .dly-fact-sec { flex:1 1 auto; }
       .dly-quote-sec { flex:1 1 auto; }
       .dly-sec + .dly-sec { border-top:1px solid var(--stroke); }
@@ -786,6 +786,10 @@ export default {
         color:var(--ink-faint); letter-spacing:.01em; flex:none;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
       .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
+      .dly-theme { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+      .dly-theme::before { content:'·'; margin-right:10px; color:var(--ink-faint); }
+      .dly-theme .rt { color:var(--mint-2); margin-right:5px; }
       .dly-def { margin-top:4px; font-size:14px; line-height:1.34; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       /* synonyms & antonyms — a quiet "kindred + opposite" line beneath the
@@ -884,6 +888,7 @@ export default {
     const wordEl = h('div', { class: 'dly-word' });
     const pronEl = h('span', { class: 'dly-pron' });
     const posEl = h('span', { class: 'dly-pos' });
+    const themeEl = h('span', { class: 'dly-theme' });
     const origEl = h('div', { class: 'dly-orig' });
     const defEl = h('div', { class: 'dly-def' });
     const synEl = h('div', { class: 'dly-syn' });
@@ -891,7 +896,7 @@ export default {
     const wordSec = h('div', { class: 'dly-sec dly-word-sec' },
       h('div', { class: 'dly-lbl' }, 'Word of the Day'),
       wordEl,
-      h('div', { class: 'dly-wmeta' }, pronEl, posEl),
+      h('div', { class: 'dly-wmeta' }, pronEl, posEl, themeEl),
       origEl,
       defEl, synEl, exEl);
     // Render the example with the headword emphasised in mint, matching case-
@@ -931,7 +936,13 @@ export default {
       // Caption (optional): "origin · <etymology>" for a curated word, or
       // "theme · <seed>" for a live word placing it by the day's mood. Hidden when
       // absent, so no empty caption line is ever left behind.
-      if (n.originText) {
+      // A live word's one-word "theme" rides on the pronunciation line (it's
+      // short), saving a whole row so the ≈ line, On This Day nav and the quote's
+      // author all fit; a curated word's longer etymology keeps its own line.
+      const inlineTheme = n.originText && n.originLabel === 'theme';
+      themeEl.style.display = inlineTheme ? '' : 'none';
+      themeEl.replaceChildren(...(inlineTheme ? [h('span', { class: 'rt' }, 'theme'), n.originText] : []));
+      if (n.originText && !inlineTheme) {
         origEl.style.display = '';
         const lbl = n.originLabel || 'origin';
         origEl.title = `${lbl.charAt(0).toUpperCase() + lbl.slice(1)} — ${n.originText}`;
