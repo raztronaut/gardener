@@ -75,8 +75,8 @@ function vsYesterday(hourly, current, tz) {
   const delta = Math.round(current - y);
   if (Math.abs(delta) < 10) return null;
   return delta < 0
-    ? { word: 'Clearer than yesterday', arrow: '↓', color: '#74f7b0', delta: -delta }
-    : { word: 'Hazier than yesterday', arrow: '↑', color: '#f7a374', delta };
+    ? { word: 'Clearer than yesterday', arrow: '↓', color: '#74f7b0', delta: -delta, was: Math.round(y) }
+    : { word: 'Hazier than yesterday', arrow: '↑', color: '#f7a374', delta, was: Math.round(y) };
 }
 
 // Trend over the next ~6h from the hourly US-AQI series. Semantic colours: air
@@ -155,6 +155,7 @@ export default {
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex;
         align-items:baseline; gap:4px; }
       .aqs .vsy .ar { font-weight:700; flex:0 0 auto; }
+      .aqs .vsy .was { font-weight:500; opacity:.72; flex:0 0 auto; }
       .aqs .tip.one { -webkit-line-clamp:1; }
       /* static gradient AQI scale (0→300+) with a marker showing today's position —
          a glanceable sense of how close we are to unhealthy. No animation. */
@@ -260,8 +261,8 @@ export default {
           vsy ? h('div', {
             class: 'vsy',
             style: { color: vsy.color },
-            title: `${cat.tip} · AQI ${Math.round(aqi)} now vs ~${Math.round(aqi - (vsy.arrow === '↓' ? -vsy.delta : vsy.delta))} at this hour yesterday`,
-          }, h('span', { class: 'ar' }, vsy.arrow), `${vsy.word} (${vsy.delta})`) : null,
+            title: `${cat.tip} · AQI ${Math.round(aqi)} now vs ~${vsy.was} at this hour yesterday (${vsy.arrow === '↓' ? '−' : '+'}${vsy.delta})`,
+          }, h('span', { class: 'ar' }, vsy.arrow), vsy.word, h('span', { class: 'was' }, `· was ${vsy.was}`)) : null,
           // One cue line: the overnight shift when there is one (the health tip
           // then lives in its tooltip), otherwise the plain health tip.
           vsy ? null : h('div', { class: 'tip one', title: cat.tip }, cat.tip),
