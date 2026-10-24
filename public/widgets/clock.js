@@ -128,6 +128,13 @@ export default {
         font-family:var(--font-mono); font-size:12.5px; letter-spacing:.06em; color:var(--ink-faint); }
       .clk .year .yr-head .doy { color:var(--ink-soft); }
       .clk .year .yr-head .pct { color:var(--mint); font-weight:600; letter-spacing:.02em; }
+      /* Clock-change heads-up — appears in the middle of the year line only in the
+         ~10 days before a daylight-saving switch in the home zone ("Clocks fall back
+         Sun · 8d"), warming to gold on the eve/day itself. Text only, no motion. */
+      .clk .year .yr-head .dst { flex:1 1 auto; min-width:0; text-align:center; padding:0 10px;
+        color:var(--ink-soft); letter-spacing:.03em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .clk .year .yr-head .dst b { color:var(--mint); font-weight:600; }
+      .clk .year .yr-head .dst.soon b { color:var(--gold); }
     `);
     const topline = root.appendChild(ctx.h('div', { class: 'topline' }));
     const greet = topline.appendChild(ctx.h('div', { class: 'greet' }));
@@ -170,6 +177,7 @@ export default {
     const year = root.appendChild(ctx.h('div', { class: 'year' }));
     const yrHead = year.appendChild(ctx.h('div', { class: 'yr-head' }));
     const doyEl = yrHead.appendChild(ctx.h('span', { class: 'doy' }));
+    const dstEl = yrHead.appendChild(ctx.h('span', { class: 'dst', style: 'display:none' }));
     const pctEl = yrHead.appendChild(ctx.h('span', { class: 'pct' }));
     root.parentElement?.classList.add('clk-wrap');
     root.classList.add('clk');
@@ -181,6 +189,46 @@ export default {
     // Y/M/D in the display timezone, for a correct seasonal marker regardless of
     // the host clock's own zone.
     const fmtYMD = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+    // Daylight-saving heads-up. The home zone's UTC offset (minutes) at instant t,
+    // read from Intl parts — no shortOffset dependency, works on older WebKit.
+    const offFmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23',
+      year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+    const offsetAt = (t) => {
+      const p = {}; for (const x of offFmt.formatToParts(new Date(t))) p[x.type] = +x.value;
+      const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute);
+      return Math.round((asUTC - Math.floor(t / 60000) * 60000) / 60000);
+    };
+    // Next offset change within `days` (or one that happened in the last 20 h, so
+    // the day itself can say "Clocks fell back today"). Day-steps, then a binary
+    // search to the minute. Cached per local day — ~25 formats, once a day.
+    const findShift = (now, days = 10) => {
+      const H = 3600000, start = now - 20 * H;
+      let a = start, oa = offsetAt(a);
+      for (let t = start + 6 * H; t <= now + days * 24 * H; t += 6 * H) {
+        const ot = offsetAt(t);
+        if (ot !== oa) {
+          let lo = a, hi = t;
+          while (hi - lo > 60000) { const m = (lo + hi) / 2; if (offsetAt(m) === oa) lo = m; else hi = m; }
+          return { at: hi, back: ot < oa, mins: Math.abs(ot - oa) };
+        }
+        a = t; oa = ot;
+      }
+      return null;
+    };
+    const fmtShiftDay = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' });
+    const fmtShiftFull = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' });
+    let shift = null, shiftDay = '', lastDst = '';
+    const dstLabel = (now, homeDay) => {
+      if (!shift) return null;
+      const verb = shift.back ? 'fall back' : 'spring forward';
+      const d = dayNum(fmtYMD.format(new Date(shift.at))) - homeDay;
+      const h = parseInt(hourOf.format(now), 10);
+      if (shift.at <= now) return d === 0 ? { pre: 'Clocks ', b: shift.back ? 'fell back' : 'sprang forward', post: ' today', soon: true } : null;
+      if (d <= 0 || (d === 1 && h >= 17)) return { pre: 'Clocks ', b: verb, post: ' tonight', soon: true };
+      if (d === 1) return { pre: 'Clocks ', b: verb, post: ' tomorrow', soon: true };
+      return { pre: 'Clocks ', b: verb, post: ` ${fmtShiftDay.format(new Date(shift.at))} · ${d}d`, soon: false };
+    };
 
     // We show HH:MM (no seconds), so only TOUCH THE DOM when a value actually
     // changes — i.e. ~once a minute, not 60×. Repainting the 96px gradient-clipped
@@ -305,6 +353,21 @@ export default {
         doyEl.textContent = daysLeft > 0 ? `Day ${doy} · ${daysLeft} left` : `Day ${doy} · last day`;
         pctEl.textContent = `${pct}%`;
         year.title = `Day ${doy} of ${totalDays} · ${daysLeft} left · ${pct}% through ${yy}`;
+      }
+      // Clock-change heads-up (recompute the transition once per local day).
+      if (yKey !== shiftDay) { shiftDay = yKey; try { shift = findShift(now.getTime()); } catch { shift = null; } }
+      const lab = dstLabel(now, homeDayNum);
+      const dKey = lab ? `${lab.b}|${lab.post}` : '';
+      if (dKey !== lastDst) {
+        lastDst = dKey;
+        if (!lab) { dstEl.style.display = 'none'; dstEl.replaceChildren(); }
+        else {
+          dstEl.style.display = '';
+          dstEl.classList.toggle('soon', lab.soon);
+          dstEl.replaceChildren(lab.pre, ctx.h('b', {}, lab.b), lab.post);
+          const when = fmtShiftFull.format(new Date(shift.at));
+          dstEl.title = `Daylight saving ${shift.back ? 'ends' : 'begins'} ${when} — clocks go ${shift.back ? 'back' : 'forward'} ${shift.mins === 60 ? 'an hour' : `${shift.mins} min`}`;
+        }
       }
     };
     ctx.interval(tick, 10000);
