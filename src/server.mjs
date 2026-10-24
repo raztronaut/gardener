@@ -226,6 +226,13 @@ async function serveEmuFrame(req, res, u) {
      half-size + 2× CSS scale workaround for SwiftShader is gone. 4:3, full width. */
   #game{position:absolute;top:50%;left:50%;width:100vw;height:75vw;transform:translate(-50%,-50%)}
   #game canvas{image-rendering:pixelated;width:100%!important;height:100%!important;}
+  /* the game takes the CRT tube's rounded shape — square game pixels used to poke out
+     past the tube's curved corners (most visible bottom-right) */
+  #game{border-radius:6% / 8%;overflow:hidden}
+  /* pad-only: no mouse cursor, and EmulatorJS's own toolbar/menus never appear (they
+     popped up under the game whenever the mouse moved) */
+  html,body,body *{cursor:none!important}
+  .ejs_menu_bar,.ejs_context_menu,.ejs_virtualGamepad_parent{display:none!important}
   /* ---- CRT "tube TV" overlay: scanlines + slanted-shadow-mask + a curved-glass
      vignette/bulge. Pure CSS (the software GPU can't afford a per-frame warp
      shader), tuned to read as a warped tube without touching the render loop. */

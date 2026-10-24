@@ -664,6 +664,7 @@ body.arcade-full #panel .panel-body { padding: 0; height: 100%; }
 body.arcade-full #panel .panel-inner, body.arcade-full #panel .eg { height: 100%; width: 100%; margin: 0; }
 body.arcade-full .eg-bar { display: none; }
 body.arcade-full #feedbackbar { visibility: hidden; }
+body.arcade-full, body.arcade-full * { cursor: none !important; } /* Arcade is pad-driven: no cursor at all */
 /* Nothing of the wall is rendered under a running game: no paint, no layout, no
    compositing of the cards behind the emulator (its minute/5-minute refreshes
    used to cause small hitches in-game). */
