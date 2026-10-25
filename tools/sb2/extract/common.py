@@ -104,5 +104,47 @@ def build_mt_stage_states(force=False):
         print('built', mt_stage_state_name(st), 'frame', S.frame_count)
 
 
+def com4_stage_state_name(stage):
+    return 'com4_stage%02d' % stage
+
+
+def build_com4_stage_states(force=False):
+    """Derived states: ALL FOUR bombers COM (COM LEVEL 5) on each stage, first bright
+    frame.  From harness `battle_players` (cursor on 1P): RIGHT (1P -> COM), DOWN,
+    RIGHT (2P -> COM), START (rules, defaults), START (stage select), RIGHT x (stage-1),
+    START, wait for brightness 15.  The game then plays itself: every colour bombs,
+    kicks, throws, dies and wins."""
+    mkdir(CACHE)
+    todo = [s for s in range(1, NSTAGES + 1)
+            if force or not os.path.exists(os.path.join(CACHE, com4_stage_state_name(s) + '.state'))]
+    if not todo:
+        return
+    S = Snes()
+    S.load_state_file(state_path('battle_players'))
+    S.run(5)
+    tap(S, B.RIGHT, 1, 20)
+    tap(S, B.DOWN, 1, 10)
+    tap(S, B.RIGHT, 1, 10)
+    tap(S, B.START, 1, 160)
+    tap(S, B.START, 1, 200)
+    base = S.save_state()
+    for st in todo:
+        S.load_state(base)
+        for _ in range(st - 1):
+            tap(S, B.RIGHT, 1, 50)
+        tap(S, B.START, 1, 200)
+        for _ in range(900):
+            if bright(S) and S.frame().mean() > 20:
+                break
+            S.step(0)
+        else:
+            raise RuntimeError('stage %d never faded in' % st)
+        S.save_state_file(os.path.join(CACHE, com4_stage_state_name(st) + '.state'))
+        print('built', com4_stage_state_name(st), 'frame', S.frame_count)
+
+
 if __name__ == '__main__':
-    build_mt_stage_states(force='--force' in sys.argv)
+    if 'com4' in sys.argv:
+        build_com4_stage_states(force='--force' in sys.argv)
+    else:
+        build_mt_stage_states(force='--force' in sys.argv)
