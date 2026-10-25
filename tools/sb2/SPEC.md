@@ -1,0 +1,625 @@
+# Super Bomberman 2 — BATTLE MODE specification (measured)
+
+Status: phase 2b. Every rule below is tagged:
+- **[code]**: read from the 65816 routine named.
+- **[meas]**: measured in the instrumented harness. Most are reproduced by a test vector
+  in `data/sb2/vectors/` (generator: `tools/sb2/re/vectors.py`).
+- **[infer]**: inferred and not independently confirmed.
+
+Addresses, RAM layouts and routine lists: `NOTES-re.md`. Sub-notes:
+- `re/notes-ai.md`: the CPU AI in full;
+- `re/notes-stages.md`: stage maps and gimmicks;
+- `re/notes-round.md`: round flow.
+
+---------------------------------------------------------------------------------
+## 0. Units and conventions
+
+- **tick**: one execution of the game's main loop. The SNES runs at 60.0988 video
+  frames/s.
+  - A tick is normally one frame. When a tick overruns, the game drops a frame (a lag
+    frame) and the next tick starts one frame late.
+  - Rules are defined in ticks. The port should run exactly one tick per 60 Hz frame and
+    ignore lag.
+  - Vectors record the tick counter, so the original's frames can be mapped to ticks.
+    [code `C0FB11`, NMI `00FD84`]
+- **Even/odd ticks.** Bombs and explosions update only on even ticks (`tick & 1 == 0`).
+  Burning soft blocks update only on odd ticks. Sprite animations mostly run at 30 Hz.
+  [code `C0E0AA`, `C0DCB4`]
+- **Positions** are 16.16 fixed point, in arena pixels. A bomber's logical position (x, y)
+  is such that:
+  - **cell = ((x + 8) >> 4, (y + 23) >> 4)**;
+  - a bomber centred in cell (cx, cy) has **x = 16·cx, y = 16·cy − 16**.
+  - Equivalently, use "arena coordinates" left = x, top = y + 16: cell (cx, cy) spans
+    pixels [16cx, 16cx+15] × [16cy, 16cy+15], and the bomber's solid box is exactly one
+    cell-sized square [left, left+15] × [top, top+15].
+  - Measured: P1 starts at (32, 48) = cell (2, 4). [code `C0BFE2`, meas]
+- **Grid** (see §2): the arena is columns 1..15 × rows 3..15, including the border
+  ring. The playfield is columns 2..14 × rows 4..14 (13 × 11).
+- **Screen** (256×224): the HUD occupies rows 0..24 (row 24 is a black separator line).
+  - Cell (cx, cy) is drawn at screen x = 16·cx − 8, y = 16·cy − 23.
+  - The arena shows the top wall (y 25..40), 11 inner rows (41..216), and only the top
+    7 px of the bottom wall (217..223). 8 px of outside area show at the left and right
+    edges.
+  - A bomber sprite is 16×32. Its bottom edge is the bottom of its cell.
+  - [meas: framebuffer + OAM in battle_start]
+
+---------------------------------------------------------------------------------
+## 1. Tick order (what happens within one tick)
+[code, main loop `C0FB39..C0FB89`]
+1. Read the pads (`C01602`). Each human bomber's +6E = its pad (SNES bit order).
+2. Stage/HUD housekeeping.
+3. **Bombers**, in slot order P1, P2, P3, P4 (`C01E1D`). Each bomber, only while the
+   round runs (`$30 & $0F == $0F`) and the bomber is controllable:
+   1. cell lookup;
+   2. COM AI (COM only);
+   3. disease effects;
+   4. movement + collision;
+   5. item pickup;
+   6. bomb button / remote / stop-kick buttons;
+   7. animation.
+4. Burning soft blocks: odd ticks only.
+5. **Bombs**: even ticks only, in bomb-slot order (§5).
+6. Danger-map decay (AI).
+7. Moving objects: kicked/thrown bombs. Then disease swaps between touching bombers.
+8. RNG step (§16), sprites, sound.
+
+Consequence: fire written in step 5 kills a bomber on the *next* tick (step 3). Measured:
+fire appears on tick T, P1 dies on tick T+1.
+
+---------------------------------------------------------------------------------
+## 2. Arena grid and cell types
+[code `C0BFE2`, `C0DDF7`; meas dumps]
+
+- Logical grid: 64 × 32 words at `$7FC000` (one word per cell, row stride 64 cells).
+  An underlay grid at `$7FD000` holds what a cell reverts to when a bomb, fire or item
+  leaves it.
+- Cell byte layout: bit 7 = solid, bit 6 = "object", bits 0..5 = type.
+
+| value | meaning | blocks bombers | stops fire |
+|---|---|---|---|
+| `$00` | floor | no | no |
+| `$C2` | soft block (type 2) | yes (unless wall-pass) | yes; is destroyed |
+| `$C5` | hard block / outside the arena | yes | yes |
+| `$C6` | border wall | yes | yes |
+| `$43` | bomb (type 3) | special (§4.4) | triggers that bomb |
+| `$44` | item (type 4) | no (picked up) | burns it, stops |
+| `$41` | burning item (type 1 = fire) | no — kills | — |
+| `$01` | fire | no — kills | no |
+| others | stage gimmicks (`$09`, `$0B`, `$0E`, `$0F`, `$11`, `$16`, `$22`, `$26`, `$49`, `$50`, `$55`, …) | see `re/notes-stages.md` | `$09`/`$0F` let fire through; `$0B`/`$26` stop it |
+
+---------------------------------------------------------------------------------
+## 3. Bomber stats
+[code item handlers `C098C2..C09C5B`, bomb code `C03082`; meas: item_* vectors]
+
+Per bomber there are "base" values and "current" values. A disease changes the current
+values; curing restores them from the base values.
+
+| stat | field (current/base) | start | max | effect |
+|---|---|---|---|---|
+| speed level | +F0 / +E0 | 1 | 5 (base), 6 = fast disease, 0 = slow | speed table below |
+| bomb capacity | +E1 | 1 | 9 | bombs in hand +F1 = cap − bombs out (+F8) |
+| fire | +F2 / +E2 | 1 | 9 | blast reaches **fire + 1** cells per direction |
+| bomb type | +F3 | 0 | — | 1 remote, 2 power, 4 pierce, 8 rubber. **Only one type at a time: the latest pickup replaces it.** |
+| kick | +FF | 0 | — | non-zero = can kick |
+| glove | +FE | 0 | — | non-zero = can lift/throw own bombs |
+| wall-pass | +FB | 0 | — | soft blocks are passable |
+| bomb-pass | +FA | 0 | — | lets the bomber step onto bomb cells during slides |
+| shield | +EF | 0 | — | absorbs a fire hit (flicker instead of death); counts down |
+| disease | +F5 | 0 | — | §9 |
+
+**Speed table** `$C5FB07`, px/tick [code; meas level 1]:
+
+| level | 0 | **1** | 2 | 3 | 4 | 5 | 6 | (7) | (8) | (9) | (10) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| px/tick | 0.5 | **1.25** | 1.5 | 2.0 | 2.5 | 2.75 | 3.0 | 0.8125 | 0 | 0.375 | 3.5 |
+
+- Levels 1..5 are reachable with Speed Up. 0 = slow disease, 6 = fast disease. 7..10
+  are used elsewhere (gimmicks or the normal game).
+- Measured in vector speed_levels:
+  - level 1 moves +1, +1, +1, +2 px (exact 16.16 accumulation, 0x14000 per tick);
+  - the other levels follow the same 16.16 accumulation.
+
+---------------------------------------------------------------------------------
+## 4. Movement
+[code `C0A474`, `C0C2CE`, `C0A98E` and handlers `C0AED4` R, `C0B2DE` L, `C0B40C` D,
+`C0B854` U, `C0B62D` R+D, `C0B6A8` L+D, `C0B723` R+U, `C0B79E` L+U; meas: vectors
+corner_offsets, walk_cleared, walk_natural]
+
+Per tick, for each controllable bomber:
+
+1. Save the old position (x, y and their fractions).
+2. **Velocity from input.**
+   - Up or Down held → vy = speed (sign from the direction); otherwise vy = 0.
+   - Left or Right held → vx = speed; otherwise vx = 0.
+   - Opposite pairs are not filtered here. The dispatcher ignores L+R and U+D (no move).
+3. **Integrate**: x += vx, y += vy (16.16).
+4. **Dispatch** on the motion direction: R=1, L=2, D=4, U=8, from the velocity (or from
+   the input when the velocity is 0).
+   - Diagonals R+D, L+D, R+U and L+U have their own handlers (combined checks).
+   - Combinations with 3 or 4 directions, or opposite pairs, do nothing.
+5. **Right handler** (the others are mirrored; probe offsets below):
+   1. Cancel vertical velocity.
+   2. If another mobile object (kicked/thrown bomb, rider, …) is within |dy| < 8 and
+      0 < dx < 15 ahead, undo the X move and stop.
+   3. `front` = cell at (x+7, y), the front edge at the vertical centre line.
+      `lower` = cell at (x+7, y+8); `upper` = cell at (x+7, y−7).
+      - A soft block counts as `$40` (passable) for a wall-pass bomber.
+   4. Bomb rules (§4.4).
+   5. If **lower and upper are both solid**: walk x back 1 px at a time until `front`
+      is no longer solid, then stop (velocity 0). This snaps the bomber flush against
+      the block.
+   6. Else if **exactly one corner is solid**: **corner slide**.
+      1. If `front` is solid, undo the X move.
+      2. Move perpendicular, away from the solid corner, by the full speed:
+         y' = old_y ∓ speed, in 16.16 from the saved position.
+      3. Then, while the leading corner on that side is solid, step 1 px back.
+      4. A bomb at the leading corner stops the slide.
+   7. Else: free move.
+6. Probe offsets. The bomber's solid box is the 16×16 square [x−8, x+7] × [y−7, y+8].
+   - Right: front (x+7, y), corners y+8 / y−7.
+   - Left: front (x−8, y), corners y+8 / y−7.
+   - Down: front (x, y+8), corners x+7 / x−8.
+   - Up: front (x, y−7), corners x+7 / x−8.
+
+Net effect, measured. Holding RIGHT next to a pillar while off-centre by d px (−8..+8,
+d ≠ 0):
+- the bomber slides toward the open row at full speed (1.25 px/tick at level 1);
+- X starts advancing on the tick the front-centre probe leaves the pillar's row;
+- at d = 0 the bomber is stuck.
+
+There is **no alignment pull in open space**: with neither corner blocked, a bomber may
+stay off-centre. Because every row borders pillars, the slide happens constantly in
+practice.
+
+**4.4 Bombs vs movement.**
+- A bomber standing on a bomb (just placed, or bomb-pass) may walk off it, but cannot
+  walk onto another bomb cell (`C10169`).
+- A bomb in front blocks like a solid block. With **kick** the bomb is kicked instead
+  (§10).
+- A bomb at a slide corner stops the slide.
+
+---------------------------------------------------------------------------------
+## 5. Bombs
+[code `C03082` place, `C034C0` spawn, `C0E0AA` + `C0E980` update; meas: bomb_single,
+bomb_chain]
+
+- **Button A** (SNES A, libretro `A`) places a bomb. It is edge-triggered: holding A
+  does nothing more.
+  - B = remote detonation (§8). X = stop your kicked bomb (§10). Y is stage-specific
+    (see `re/notes-stages.md`).
+- **Placement fails** if:
+  - the bomber's centre cell is an object cell (bomb or item) — with the glove and the
+    bomber's own bomb there, A lifts it instead (§11);
+  - the cell is fire;
+  - a bomb already occupies the tile;
+  - a moving object occupies it;
+  - bombs in hand = 0.
+- **Placement**: bombs in hand −1, bombs out +1. The bomb takes the lowest free bomb
+  slot (40 slots). The cell becomes `$43`. The bomb is placed in the bomber's *centre
+  cell*.
+  - range = the bomber's fire stat.
+  - Power-bomb type: range 9 if the bomber has no other bomb out.
+  - Some stage-5 tiles also give range 9.
+  - type = the bomber's bomb type.
+- **Fuse**: counter = 72, decremented on every **even** tick, including the placement
+  tick if it is even. Detonation on the update where it reaches 0.
+  - Placement on an even tick T → detonation T+142. Placement on an odd tick T →
+    detonation T+143.
+  - Measured: placed tick 18 → detonated 162; placed tick 19 → detonated 162 (fire
+    appears 164).
+- **Remote bombs** (type 1) do not count down (§8). Bombs being lifted, carried or
+  flying do not use this fuse (§10, §11).
+- **Update order and the one-detonation rule**: each even tick, bombs are processed in
+  slot order (0..39).
+  - An already-exploding bomb advances its explosion.
+  - Otherwise: if its cell is fire → detonate now; else count down.
+  - **When a bomb detonates, the rest of the list is skipped for that tick.** So at most
+    one new detonation happens per even tick, and bombs after it in the list do not
+    count down that tick. [code `C0E0E0`]
+- **Chain reaction**: when a blast ray reaches a bomb, that bomb is triggered at once:
+  - its fuse is set to 2 and it is forced to count down (even if remote);
+  - its ray pointing back at the trigger is cut;
+  - the triggering ray stops at it (fire does not enter the bomb's cell).
+  - The triggered bomb therefore detonates **4 ticks** later (2 updates), or earlier if
+    its cell becomes fire.
+  - Measured (bomb_chain, bombs 2 cells apart, reach 3): detonations at ticks 162, 166,
+    170, 174.
+
+---------------------------------------------------------------------------------
+## 6. Explosions and fire
+[code `C0EA83`, `C0EAA7`.., `C0E0F0`, `C0E14F`; meas]
+
+- **On detonation** (even tick D), each of the 4 rays (up, down, left, right) walks up to
+  **range + 1** cells from the bomb:
+
+| cell | effect on the ray |
+|---|---|
+| `$09` or `$0F` gimmick | passes |
+| bomb | triggers it (above), stops |
+| soft block / item / `$0B` | queued to burn (§7), stops — pierce bombs continue |
+| any other solid, or `$26` / `$04` / `$0B` | stops before it |
+| anything else | becomes fire |
+
+  The ray lengths are fixed at D. Later changes (blocks appearing, bombs moving) do not
+  re-shape them.
+- **Fire**: on each of the next **13 even ticks** (D+2 … D+26), the centre and every ray
+  cell are (re)written as fire (`$01`) with the flame tile for that phase.
+  - Phases cycle the flame animation 1 update each (table `$C5F415`).
+  - On D+28 the cells are restored from the underlay (usually floor) and the bomb slot is
+    freed. The owner's bombs out −1 / in hand +1 happen at detonation (`C0E46C`).
+  - So **fire exists for 26 ticks, from D+2 to D+27** (cell = `$01`), and kills on the
+    tick after it appears.
+  - Measured: fire on ticks 164..189, cleared at 190, for D = 162.
+- Overlapping explosions just rewrite `$01`. The first explosion to finish restores the
+  underlay, which can clear fire that another explosion still "owns". [infer from code]
+  - The bomb_chain vector shows fire cells cleared per bomb, 4 ticks apart.
+- Fire on an item: the item burns and the fire does not pass (pierce: passes).
+- Bomber in fire: dies (§12).
+
+---------------------------------------------------------------------------------
+## 7. Soft blocks, burning and the item deck
+[code `C0EF44` queue, `C0DCB4`/`C0DCDA` burn, `C0DE13` reveal, `C01CEA` deck; meas]
+
+- A soft block hit at detonation tick D is queued in the burn list (32 entries). The cell
+  stays `$C2` (solid; stops other fire) while burning.
+  - Burning advances on odd ticks: 6 frames, 6 ticks each, the first at D+1.
+  - At **D+37** the block disappears.
+- **Item deck**: at round start the game builds a deck of **64 cards** (`$7E3C48`).
+  - It starts all "nothing" (`$8000`).
+  - For each item kind k, count[stage][k] cards are dropped into random empty positions:
+    position = RNG() & 63, retried while that position is taken.
+  - When a soft block finishes burning, the **next card** (left to right, skipping used
+    ones) is consumed. Item → the cell becomes `$44` with that item tile. Nothing → floor.
+  - So drops depend on the *order* in which soft blocks are destroyed, not on which
+    block. The deck does not reshuffle and ends after 64 blocks.
+  - Measured: the decks in all 10 battle states match the per-stage counts below exactly.
+- **Burning item** (hit by fire): becomes `$41` (type 1 = fire: it kills) on D+1. It
+  burns 7 frames × 6 ticks and is gone (floor) at **D+43**. It does not draw a card.
+  Measured in vector item_burn: `$41` on 163, floor on 205, D = 162.
+
+**Item counts per battle stage** (the rest of the 64 cards are blanks)
+[code table `$C5F225`, ROM; meas decks]:
+
+| stage (id) | bomb up | fire up | full fire | speed up | skull | glove | kick | power bomb | rubber bomb | total |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 (0) | 7 | 6 | 0 | 5 | 1 | 3 | 3 | 0 | 0 | 25 |
+| 2 (1) | 6 | 7 | 0 | 5 | 1 | 2 | 2 | 1 | 0 | 24 |
+| 3 (2) | 6 | 6 | 1 | 4 | 1 | 3 | 0 | 1 | 0 | 22 |
+| 4 (5) | 5 | 5 | 0 | 5 | 1 | 2 | 2 | 0 | 0 | 20 |
+| 5 (6) | 6 | 2 | 0 | 5 | 1 | 0 | 3 | 0 | 2 | 19 |
+| 6 (7) | 5 | 5 | 0 | 5 | 1 | 0 | 4 | 1 | 3 | 24 |
+| 7 (8) | 6 | 6 | 1 | 0 | 1 | 3 | 0 | 0 | 0 | 17 |
+| 8 (9) | 6 | 6 | 0 | 6 | 1 | 2 | 2 | 1 | 2 | 26 |
+| 9 (A) | 6 | 6 | 0 | 5 | 1 | 0 | 5 | 1 | 1 | 25 |
+| 10 (B) | 7 | 5 | 1 | 5 | 1 | 3 | 2 | 1 | 2 | 27 |
+
+- The deck order of kinds (k = 0..10) is: bomb up `1600`, (pierce `1604`), fire up `1602`,
+  full fire `1606`, speed up `1622`, (remote `160E`), skull `160A`, glove `1626`, kick
+  `1624`, power bomb `162A`, rubber bomb `1628`.
+- Pierce and remote have 0 cards on every battle stage. They exist only in the unused
+  id 3/4 tables. So SB2 battle never drops remote, pierce, wall-pass, bomb-pass or heart.
+  Their effects are still implemented (vectors item_*).
+- The RNG draw order matters for exact decks: kinds in table order; per card, retries
+  draw again.
+
+---------------------------------------------------------------------------------
+## 8. Items (pickup and effects)
+[code jump table `$C5F145` → handlers; meas: one vector per item, all confirmed]
+
+- **Pickup**: when the bomber's centre cell holds an item (`$44`), on that bomber's tick.
+  The cell reverts to the underlay at once.
+  - Measured: walking right from x = 32, the pickup happens at x = 40 (centre enters
+    the cell).
+- **Any pickup first cures a disease** (+F5 = 0, stats restored), then applies the item.
+
+| tile | item | effect |
+|---|---|---|
+| `1600` | Bomb Up | capacity +1 (max 9); in hand = capacity − out |
+| `1602` | Fire Up | fire +1 (max 9) |
+| `1606` | Full Fire | fire = 9 |
+| `1622` | Speed Up | speed level +1 (max 5) |
+| `1624` | Kick | can kick bombs (§10) |
+| `1626` | Power Glove | can lift and throw own bombs (§11) |
+| `160A` | Skull | random disease (§9) |
+| `162A` | Power Bomb | type 2: a bomb placed with no other bomb out gets range 9 |
+| `1628` | Rubber Bomb | type 8: a kicked/thrown bomb that hits an obstacle picks a random new direction (RNG `$0408 & $1E` → table `$C5FC6D`) instead of stopping |
+| `160E` | Remote Control | type 1: bombs never count down; **B** detonates the oldest live remote bomb (fuse := 2, forced). Not in battle decks. |
+| `1604` | Pierce | type 4: blast passes through soft blocks and items (burning them all). Not in battle decks. |
+| `1620` | Wall Pass | soft blocks passable. Not in battle decks. |
+| `1608` | Bomb Pass | Not in battle decks. |
+| `1640` | Heart | shield +1. Not in battle decks. |
+
+Bomb types are exclusive: picking up power, rubber, remote or pierce replaces the
+previous type.
+
+---------------------------------------------------------------------------------
+## 9. Diseases (Skull)
+[code `C099DF`, `C03686`, `C0362B`, `C030A6`, `C002AB`/`C00445`/`C0055A`; meas:
+item_skull, skull_swap]
+
+- **Picking a skull**: disease = table[RNG & 15], with RNG from `$0400` this tick.
+  - Normal table `$C5EEB5` = 1 2 3 4 5 6 1 2 3 4 5 6 2 4 5 6.
+  - Stage 7 uses `$C5EEC5` = 1 2 3 1 2 6 1 2 3 6 3 6 2 1 3 6.
+  - A bomber with a shield uses `$C5EED5` = 1 4 3 4 5 6 1 4 3 4 5 6 4 4 5 6.
+  - Disease 3 becomes 2 for COM bombers.
+
+| id | disease | effect |
+|---|---|---|
+| 1 | blink | the sprite toggles visible/invisible on a growing schedule (table `$C5EE5D`: hidden 1/visible 1 tick … up to 6/10). Logic unaffected. |
+| 2 | diarrhea | tries to place a bomb automatically every 2nd tick |
+| 3 | constipation | cannot place bombs (in hand = 0) |
+| 4 | fast | speed level 6 (3.0 px/tick) |
+| 5 | slow | speed level 0 (0.5 px/tick) |
+| 6 | weak | fire 0 (reach 1), in hand = 1 if no bomb is out else 0 |
+
+- **Duration**: no timer. It lasts until the bomber picks up any item, swaps it away,
+  or dies. [code: no other writer of +F5; infer — long CPU rounds show no timeout]
+- **Contagion**: when two living bombers share a centre cell (equal +A8), their diseases
+  (and +E9 counters) are **swapped**. This is edge-triggered once per contact, per pair
+  (6 pairs), and stats are re-derived.
+
+---------------------------------------------------------------------------------
+## 10. Kick
+[code `C0AFAF`, moving-object code `C08230..`; meas: kick vector]
+
+- A bomber with kick walking into a bomb cell (front probe on a bomb):
+  - its velocity is zeroed;
+  - the bomb is converted into a moving object that travels **2 px/tick** in the
+    bomber's facing direction;
+  - its grid cell is freed while it travels.
+- The bomb's fuse keeps running while it slides: it is decremented every 2 ticks by the
+  mover. Measured: 64 → 63 → … during the slide.
+- It stops when the next cell is blocked (solid, bomb, item?, bomber, other mover). It
+  snaps to that cell and becomes a normal bomb again.
+  - Rubber bombs re-aim randomly instead.
+- **X** stops your own sliding bomb at the next cell boundary (`C029FD`).
+- The kicker cannot follow into the bomb's previous tile until it has moved on (mover
+  collision).
+
+---------------------------------------------------------------------------------
+## 11. Power Glove (lift and throw)
+[code `C02F6E` lift, `C02CAF` throw, `C02DCF` distance; meas: glove_throw, ad-hoc]
+
+1. **Lift**: press A while standing on **your own** bomb whose fuse is ≥ 4.
+   - The bomb is picked up (cell freed, +52 = 3); its fuse freezes while carried.
+   - Lift animation: 15 ticks, then +52 = 6 (carrying).
+   - The bomber can walk while carrying.
+2. **Throw**: release A.
+   - The bomb flies in the facing direction from the bomber's position, 16 px above the
+     ground:
+     - 4 px/tick along the axis;
+     - a vertical arc (sprite height);
+     - normally **3 cells (12 ticks)**.
+   - If a bomber stands 2..5 cells ahead in the line, the distance is shortened to land
+     on it (`C02E0E` scans 4 cells).
+   - The fuse runs again during the flight.
+3. **Wrap-around**: a bomb thrown off the arena edge re-enters from the opposite side.
+   - Measured: thrown left from (2,4) it lands at (14,4); thrown up from (2,4) it ends
+     at (2,13).
+4. **Bounce**: if the landing cell is occupied (wall, block, bomb, bomber), the bomb
+   hops one more cell (16 px at 2 px/tick, 8 ticks) and checks again.
+   - A bomber it lands on is stunned. [infer: measured bounce off P4 at (2,14); stun
+     timing not measured]
+5. It then becomes a normal bomb with its remaining fuse. Measured: thrown at fuse 68,
+   it landed with 61.
+
+---------------------------------------------------------------------------------
+## 12. Death
+[code `C0A5C9`/`C0A675`; meas: death_own_bomb, death_two]
+
+- A bomber whose **centre cell** is fire (`$01` or `$41`) on its tick:
+  - with shield > 0: the shield is decremented and the bomber flickers invulnerable (+B9
+    timer `$C0`);
+  - else it starts dying: +00 bit 11, +52 = `$0801`, death animation `$1E`.
+- It stops being controllable immediately. Its bombs stay on the field.
+- Measured: fire appears tick 164 → death flagged tick 165.
+
+---------------------------------------------------------------------------------
+## 13. Round flow
+(see `re/notes-round.md`; filled in from the round-flow RE)
+
+Measured so far:
+- Bombers can move from the first fully bright frame (`$30 & $0F == $0F`).
+- A round ends when ≤ 1 bomber is left. In cpu_round, round 1 ended at tick ~3200 and
+  round 2 began.
+
+---------------------------------------------------------------------------------
+## 14. Stages
+(see `re/notes-stages.md`)
+
+Battle stage ids (`$1A`) for select-screen stages 1..10: 0, 1, 2, 5, 6, 7, 8, 9, $A, $B.
+
+---------------------------------------------------------------------------------
+## 15. CPU AI
+[code, fully read; key parts measured — details and quirks in `re/notes-ai.md`]
+
+- **Who runs it and how.** COM = bomber +04 bit 0. The AI runs once per tick per living
+  COM. It writes the bomber's +6E input word, which persists and is consumed by the
+  normal movement and bomb code exactly like a pad.
+  - "Press A" = clear the A-edge latch and set A.
+- **Plans** are queues of [direction, cells] per bomber (`$0500 + $100·slot`). Plan
+  active/escape flags live in +BE.
+- **COM LEVEL** (`$7E1CA5`, 0..8 = levels 1..9, default 4) only indexes 4 tables:
+
+| level | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|---|---|---|---|---|---|---|---|---|---|
+| chase threshold / bomb half-box (px) | 24 | 32 | 40 | 48 | 56 | 64 | 72 | 80 | 80 |
+| stuck-in-cell limit (ticks) | 192 | 192 | 128 | 128 | 128 | 64 | 64 | 32 | 16 |
+| glove hold time (ticks) | 192 | 192 | 192 | 128 | 128 | 64 | 64 | 32 | 16 |
+
+- **Danger map** `$7F8000` (word per cell, `$FFFF` = in a blast line):
+  - set at placement for the bomb cell + range+1 cells per direction, stopping before
+    solid cells, items and bombs;
+  - re-marked every 4 ticks;
+  - cleared along the lines when the explosion ends;
+  - when no bombs exist, zeroed one cell per tick via the list `$C5D46A`.
+  - Fire is read from the grid itself.
+
+**Per tick:**
+1. **Stuck timer**: if the bomber stays in one cell longer than the level limit, drop the
+   plan.
+2. **Planners** — only without an active plan, one per tick phase (`tick & 3`):
+   - Phase 3, soft-block seek: scan straight lines D, U, L, R for a soft block. If found
+     and not adjacent, plan [dir, n+1].
+   - Phase 2, item seek: same scan, for items.
+   - Phase 1, chase:
+     - target = first living bomber in a fixed per-slot order: 0→2,1,3; 1→3,0,2;
+       2→0,3,1; 3→1,2,0;
+     - if |dx| ≥ threshold, walk 4 cells horizontally toward it; else if |dy| ≥
+       threshold, 4 vertically.
+   - On phases 1–3, if there is still no plan, **random walk**:
+     - one RNG call; direction from `$C1CE14` by r bits 1–2;
+     - blocked neighbour → stand [0,16];
+     - else walk `$C1CE54[$0402 & $1E]` cells (8,8,8,8,8,8,8,8,9,9,9,9,10,11,12,13;
+       stage 4 uses `$C1CE74`).
+   - Phase 0: nothing.
+3. **Danger check**: if the bomber's own cell is dangerous and it is not already
+   escaping, escape:
+   - Scan R, L, U, D cell by cell. A scan fails at `$0E`, a bomb, fire or a solid cell.
+   - A direction is safe if it reaches a non-dangerous cell, or a cell with a safe
+     side-neighbour (perpendicular).
+   - Farther exits win within an axis; ties go R/D. The vertical choice is used only if
+     strictly shorter than the horizontal.
+   - Plan [dir, n] (+[turn, 1]).
+   - **Trapped**: step onto an adjacent `$55`/`$49`/`$50` gimmick cell, else press Y and
+     stand.
+4. **Stall**:
+   - standing in danger → re-escape;
+   - moving but no cell progress for ≥ 16 ticks → cancel the plan; if facing a soft
+     block, press A; then random replan.
+5. **Execute the plan**: set direction bits from the first non-empty entry.
+   - Outside escape mode, stop if the next cell is fire, a bomb or danger and the bomber
+     is within 4 px of its cell centre.
+   - A cell counts as reached when it is entered and the bomber is within
+     2,3,4,5,6,6,6,6 px (by speed level) of its centre.
+6. **Attack**:
+   - A bomb cooldown +D8 counts up to `$80`. Then press A if another living bomber is
+     within the level's half-box on both axes (strict <).
+   - Holding a bomb (glove): after the level's hold time, face a *human* on the same
+     row or column (never a COM), then throw.
+7. **Every 64 ticks**: press Y if facing a solid cell.
+
+- COMs never kick deliberately.
+- Each random-walk decision consumes one extra RNG step. This matters for exact replay.
+
+---------------------------------------------------------------------------------
+## 16. RNG
+[code `C00CDF`/`C00CAA`; meas]
+
+```
+seed (16-bit, $00D6)
+next(range):  seed = ((seed | 1) * 0x0383) & 0xFFFF
+              return (seed * (range & 0xFF)) >> 16
+tick():       r = next(range = previous seed & 0xFF)   # once per tick, end of main loop
+              $0400 = r ; $0400 + (tick & 0x1E) = r ; bomber[(k++) & 3].+BA = r
+```
+- Extra calls happen in the same tick from: the AI random walk, the deck shuffle at round
+  init, and stage gimmicks.
+- Consumers read `$0400` (item deck: & 63; skull: & 15), `$0402`/`$0408` (AI walk
+  length, rubber bounce), and +BA.
+- Measured over 3000 frames: the seed sequence follows the recurrence exactly.
+
+---------------------------------------------------------------------------------
+## 17. TALL arena proposal (256 × 455, same pixel scale)
+
+**Screen budget.**
+- Original: HUD 25 px (incl. separator), arena top wall 16 px, 11 inner rows × 16 px,
+  and 7 px of the bottom wall.
+- Tall: **HUD 25 + top wall 16 + 25 rows × 16 (= 400) + 14 px of bottom wall = 455**.
+  Like the original, the bottom wall is cropped (14 of 16 px shown instead of 7).
+- **Grid: 13 × 25 playfield (15 × 27 with the border ring).**
+- 25 is odd, so the pillar lattice stays symmetric:
+  - pillars on every odd inner row and column;
+  - 12 pillar rows (original: 5);
+  - corners stay pillar-free.
+- It even fits the original's logical grid: rows 3..29 of the 32-row `$7FC000` array.
+  The cell formula cy = (y + 23) >> 4 is unchanged.
+- Alternative if the whole bottom wall must show: 13 × 23 (HUD 25 + 16 + 368 + 16 =
+  425, 30 px left for a taller HUD or a footer).
+
+**HUD.** Keep it at the top, 25 px, exactly as the original: P1–P4 faces with win
+counts, and the clock centred between them. The 9:16 canvas is much taller than wide, so
+alternatives are:
+- (a) keep the HUD at the top and put an identical-style 25 px strip at the bottom with
+  the stage name / match score;
+- (b) leave the bottom 14 px as wall, as above.
+
+The arena scrolls never; the whole 13 × 25 field is always visible.
+
+**Rules that scale with the taller field.**
+- **Spawns**: the four corners of the 13 × 25 field — (2,4), (14,4), (2,28), (14,28).
+  - Keep each corner's L-shaped 3-cell clearance: the corner + 2 cells along each wall.
+  - Stage 4 (centre spawns) needs its centre-ring layout re-centred (see notes-stages).
+- **Soft blocks**: same placement rule as the stage (fixed map or random fill, per
+  notes-stages), applied to the extra rows with the same density. More blocks mean more
+  item draws.
+  - **The deck must grow**: scale the 64 cards and the per-stage counts by ≈ 2.27
+    (25/11), rounded, so the item density per block stays the same. Pierce/remote stay
+    0.
+- **Gimmicks**: replicate each stage's gimmick pattern by vertical tiling/mirroring of
+  its period (conveyor loops, arrow tiles, ice patches, warps…), keeping vertical
+  symmetry about the middle row (row 16). Per-stage notes in `re/notes-stages.md`.
+- **Sudden death**: the falling-block order must be regenerated for 13 × 25 (same spiral
+  rule, see notes-round), and its timing scaled so the field closes in the same time as
+  the original, or with the same per-block interval (design choice: same interval = a
+  longer finale).
+- **AI**: nothing grid-size-specific except scan lengths. The chase threshold in px is
+  unchanged; the random-walk lengths (8–13 cells) are already longer than 11 rows.
+- **Thrown-bomb wrap** uses the new height.
+
+---------------------------------------------------------------------------------
+## 18. Test vectors
+
+`data/sb2/vectors/*.json` (gitignored). Regenerate with `python3 tools/sb2/re/vectors.py`
+and check determinism with `python3 tools/sb2/re/vectors.py --verify`. The format is
+documented in the script's header.
+- Each vector starts from a harness state, settles 1 frame, then applies explicit WRAM
+  pokes.
+  - The pokes clear soft blocks, place an item, or set stats. They are listed in
+    `start.pokes`.
+  - The resulting `initial` snapshot gives the port its starting conditions.
+- Then come per-frame pads for 5 ports, and per-frame truth: tick, RNG seed, all 4
+  bombers, bombs, movers, grid changes, deaths.
+- Most use the 4-human multitap state, so no AI is involved and humans that are not
+  driven stand still.
+
+| vector | covers |
+|---|---|
+| walk_natural, walk_cleared, corner_offsets | walking, blocking, corner slides in all directions (cleared = soft blocks removed) |
+| speed_levels | speed levels 0, 1, 5, 6 |
+| bomb_single | fuse 144, fire 26 ticks |
+| bomb_chain | 4-bomb chain, 4-tick steps, ray cut |
+| bomb_softblocks | soft blocks burning 37 ticks, deck draws, pickups |
+| item_<name> × 14 | every item effect, including the non-battle ones |
+| item_burn | item burnt by fire (`$41`, 43 ticks) |
+| skull_swap | skull + contagion |
+| kick | kick slide, X stop |
+| glove_throw | lift, carry, throw, wrap, bounce |
+| death_own_bomb, death_two | death, simultaneous death |
+| cpu_round | 4 COM, level 5: a full round + the start of round 2 |
+| cpu_round_1p | battle_start: 1 human walker + 3 COM |
+| (timeout_sudden_death) | added with the round-flow RE |
+
+---------------------------------------------------------------------------------
+## 19. Verified vs inferred (summary)
+
+- **Verified by code + measurement**:
+  - coordinates/cells, the speed table (level 1 measured), the collision box and corner
+    slide;
+  - fuse, the even-tick bomb update, the chain step;
+  - fire lifetime, soft-block burn and reveal timing;
+  - the deck build and per-stage counts;
+  - every item effect;
+  - the death trigger and the tick order;
+  - the RNG recurrence;
+  - kick speed;
+  - throw distance, speed and wrap.
+- **Code only**:
+  - the one-detonation-per-update rule (consistent with bomb_chain);
+  - disease effects other than 6 ("weak");
+  - contagion (vector recorded, see skull_swap);
+  - remote via B;
+  - rubber-bomb re-aim;
+  - throw shortening onto bombers;
+  - the AI (see notes-ai for its own split).
+- **Inferred**: no disease timer, overlap clearing of fire, stun on thrown-bomb hits.
