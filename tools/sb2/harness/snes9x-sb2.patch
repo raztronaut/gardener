@@ -1,0 +1,14 @@
+diff --git a/libretro/Makefile.common b/libretro/Makefile.common
+index 664c6f7..511586a 100644
+--- a/libretro/Makefile.common
++++ b/libretro/Makefile.common
+@@ -48,6 +48,9 @@ SOURCES_CXX := $(CORE_DIR)/apu/apu.cpp \
+ 	       $(CORE_DIR)/fscompat.cpp \
+ 	       $(CORE_DIR)/libretro/libretro.cpp
+ 
++# sb2 harness: instrumentation exports (tools/sb2/harness/sb2_shim.cpp)
++SOURCES_CXX += $(CORE_DIR)/libretro/sb2_shim.cpp
++
+ # libretro VFS support. On statically linked platforms the frontend
+ # provides all of these symbols (file_stream, vfs_implementation and
+ # friends are part of RetroArch there), so they must stay out of the
