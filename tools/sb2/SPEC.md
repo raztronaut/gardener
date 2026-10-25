@@ -135,8 +135,24 @@ Per tick, for each controllable bomber:
 3. **Integrate**: x += vx, y += vy (16.16).
 4. **Dispatch** on the motion direction: R=1, L=2, D=4, U=8, from the velocity (or from
    the input when the velocity is 0).
-   - Diagonals R+D, L+D, R+U and L+U have their own handlers (combined checks).
    - Combinations with 3 or 4 directions, or opposite pairs, do nothing.
+   - **Diagonals R+D, L+D, R+U, L+U never move diagonally.** Each tick they resolve to
+     one cardinal move. R+D (`C0B62D`) is shown; the others mirror it.
+     1. "R blocked" = both right corners (x+7, y+8) and (x+7, y−7) are solid.
+        "D blocked" = both bottom corners (x+7, y+8) and (x−8, y+8) are solid.
+        The blocked axis has its move undone.
+     2. Only R blocked → run the D handler. Only D blocked → run the R handler. Both
+        blocked → stay.
+     3. Neither blocked:
+        - facing down (+5E = 8): if either right corner is solid → D handler, else R
+          handler;
+        - otherwise: if either bottom corner is solid → R handler, else D handler.
+     4. In words: keep going the way you face, and **turn into the other held direction
+        as soon as it is completely open**. The chosen handler still does its corner
+        slide.
+     - Measured: holding R+D from (2,6) runs right along row 6 and turns down exactly at
+       x = 64 (the first open column).
+     - Facing codes +5E: 2 R, 4 L, 8 D, `$10` U.
 5. **Right handler** (the others are mirrored; probe offsets below):
    1. Cancel vertical velocity.
    2. If another mobile object (kicked/thrown bomb, rider, …) is within |dy| < 8 and
