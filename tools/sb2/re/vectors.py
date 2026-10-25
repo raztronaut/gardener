@@ -268,17 +268,41 @@ def rnd_walk(n, seed, bomb_every=0, pl=0):
 
 # ---- derived states ------------------------------------------------------------
 def ensure_states():
+    """com4_stageNN: all four bombers COM (level 5) on stage NN, first bright frame;
+    mt4_stageNN: four humans (multitap) on stage NN."""
     os.makedirs(MYSTATES, exist_ok=True)
-    p = os.path.join(MYSTATES, 'com4_stage01.state')
-    if os.path.exists(p):
-        return
-    S = Snes(render=False)
-    S.load_state_file(os.path.join(STATES_DIR, 'battle_players.state'))
-    for n, pad in [(1, B.RIGHT), (10, 0), (1, B.DOWN), (10, 0), (1, B.RIGHT), (10, 0),
-                   (1, B.START), (160, 0), (1, B.START), (200, 0), (1, B.START), (331, 0)]:
-        S.run(n, pad)
-    S.save_state_file(p)
-    print('built', p)
+    need = [n for n in range(1, 11)
+            if not os.path.exists(os.path.join(MYSTATES, 'com4_stage%02d.state' % n))]
+    if need:
+        S = Snes(render=False)
+        S.load_state_file(os.path.join(STATES_DIR, 'battle_players.state'))
+        for n, pad in [(1, B.RIGHT), (10, 0), (1, B.DOWN), (10, 0), (1, B.RIGHT), (10, 0),
+                       (1, B.START), (160, 0), (1, B.START), (200, 0)]:
+            S.run(n, pad)
+        base = S.save_state()
+        for st in need:
+            S.load_state(base)
+            for _ in range(st - 1):
+                S.run(1, B.RIGHT)
+                S.run(50, 0)
+            S.run(1, B.START)
+            wait_bright(S)
+            p = os.path.join(MYSTATES, 'com4_stage%02d.state' % st)
+            S.save_state_file(p)
+            print('built', p)
+
+
+def wait_bright(S):
+    w = S.wram(live=True)
+    dark = False
+    for _ in range(1500):
+        S.step(0)
+        b = w[0x30] & 0x0F
+        if b != 0x0F:
+            dark = True
+        elif dark:
+            return          # first fully bright frame after the stage fade-in
+    raise RuntimeError('stage never became bright')
 
 
 # ---- scenarios -----------------------------------------------------------------
@@ -377,6 +401,10 @@ scen('round_win', 'Cleared arena; P2, P3, P4 poked next to P1 at (3,4), (2,5), (
                                    (PB + 0x310, 0x40, 2), (PB + 0x318, 0x30, 2)]])
 scen('cpu_round', 'All four bombers COM (level 5), stage 1, full round until the result.',
      'com4_stage01', [[0, 0, 0, 0, 0]] * 9000, multitap=False)
+for _n in range(2, 11):
+    scen('cpu_stage%02d' % _n, 'All four bombers COM (level 5) on stage %d for 4000 frames '
+         '(gimmicks + AI on that stage).' % _n, 'com4_stage%02d' % _n,
+         [[0, 0, 0, 0, 0]] * 4000, multitap=False)
 scen('cpu_round_1p', 'battle_start: P1 human idle-walking, 3 COM (level 5).',
      'battle_start', [e[:2] for e in rnd_walk(5000, 7, bomb_every=97)], multitap=False)
 
