@@ -107,7 +107,7 @@ values; curing restores them from the base values.
 | shield | +EF | 0 | — | absorbs a fire hit (flicker instead of death); counts down |
 | disease | +F5 | 0 | — | §9 |
 
-**Speed table** `$C5FB07`, px/tick [code; meas level 1]:
+**Speed table** `$C5FB07`, px/tick [code; meas levels 0, 1, 5, 6]:
 
 | level | 0 | **1** | 2 | 3 | 4 | 5 | 6 | (7) | (8) | (9) | (10) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -115,9 +115,8 @@ values; curing restores them from the base values.
 
 - Levels 1..5 are reachable with Speed Up. 0 = slow disease, 6 = fast disease. 7..10
   are used elsewhere (gimmicks or the normal game).
-- Measured in vector speed_levels:
-  - level 1 moves +1, +1, +1, +2 px (exact 16.16 accumulation, 0x14000 per tick);
-  - the other levels follow the same 16.16 accumulation.
+- Measured in vector speed_levels: exactly 0.5 / 1.25 / 2.75 / 3.0 px per tick (16.16
+  accumulation; e.g. level 1 shows +1, +1, +1, +2 px).
 
 ---------------------------------------------------------------------------------
 ## 4. Movement
@@ -419,8 +418,9 @@ item_skull, skull_swap]
      at (2,13).
 4. **Bounce**: if the landing cell is occupied (wall, block, bomb, bomber), the bomb
    hops one more cell (16 px at 2 px/tick, 8 ticks) and checks again.
-   - A bomber it lands on is stunned. [infer: measured bounce off P4 at (2,14); stun
-     timing not measured]
+   - A bomber it lands on is **stunned for 28 ticks**: +52 = `$81`, no movement.
+     - Measured: thrown from (2,4) at P2 on (5,4). The bomb hit P2 on tick 60, P2 was
+       frozen through tick 87 and moved on 88. The bomb bounced on to (6,4).
 5. It then becomes a normal bomb with its remaining fuse. Measured: thrown at fuse 68,
    it landed with 61.
 
@@ -714,4 +714,5 @@ documented in the script's header.
   - all 6 diseases and the absence of a disease timer;
   - the clock (65 ticks/s), the sudden-death order and interval, time up = draw;
   - the 256-tick round-over phase and win counting.
-- **Inferred**: overlap clearing of fire, stun on thrown-bomb hits.
+- **Inferred**: overlap clearing of fire.
+- **Measured ad hoc** (no vector): the 28-tick stun from a thrown bomb.
