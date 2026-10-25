@@ -686,6 +686,18 @@ documented in the script's header.
   bombers, bombs, movers, grid changes, deaths.
 - Most use the 4-human multitap state, so no AI is involved and humans that are not
   driven stand still.
+- **Mapping frames to ticks** (for conformance): `truth.tick` is the number of
+  completed ticks.
+  - A frame where it does not advance is a lag frame. Measured lag rate:
+    - 0–1 % with humans only;
+    - 2–19 % with 4 COMs (stage 3, 4, 8 and 10 are heaviest);
+    - 52 % in round_win, mostly the frozen post-round screens.
+  - Tick k reads the pads latched in the frame where it starts, which is the frame right
+    after tick k−1 completed. Without lag, frame i's pads drive the tick that completes
+    in frame i. After a lag frame, the pads of the frame where the late tick completes
+    are never read. [code: input read at the top of the tick `C01602`, counter
+    increment in NMI]
+  - Compare the port against the truth per tick, not per frame.
 
 | vector | covers |
 |---|---|
