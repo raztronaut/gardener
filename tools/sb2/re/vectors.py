@@ -405,6 +405,11 @@ scen('glove_stun', 'P1 (glove) throws its bomb right at P2 standing on (5,4): P2
      hold(16, 0) + hold(104, 0, B.LEFT) + hold(150, 0),
      setup=[clear_soft, stat(0, 'glove', 1),
             lambda R: [(PB + 0x110, 0x50, 2), (PB + 0x118, 0x30, 2)]])
+scen('remote_detonate', 'P1 has remote bombs (type 1) and capacity 2: drops two bombs, '
+     'walks away, presses B twice -> the oldest goes first (fuse forced to 2), then the other.',
+     MT, hold(1, B.A) + hold(14, B.DOWN) + hold(1, B.A) + hold(14, B.DOWN) + hold(14, B.DOWN) +
+     hold(30, 0) + hold(1, B.B) + hold(40, 0) + hold(1, B.B) + hold(120, 0),
+     setup=[clear_soft, stat(0, 'btype', 1), stat(0, 'bombs_cap', 2), stat(0, 'bombs_hand', 2)])
 scen('cpu_round', 'All four bombers COM (level 5), stage 1, full round until the result.',
      'com4_stage01', [[0, 0, 0, 0, 0]] * 9000, multitap=False)
 for _n in range(2, 11):
