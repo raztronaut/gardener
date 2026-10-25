@@ -82,8 +82,10 @@ int retro_sb2_ppu_regs(int32_t *out, int n)
         v[k++] = PPU.BG[i].VOffset & 0x3ff;      /*   BGnVOFS */
     }
     v[k++] = Memory.FillRAM[0x2101];             /* 23 OBSEL raw */
-    v[k++] = PPU.OBJNameBase;                    /* 24 OBJ name base (word addr) */
-    v[k++] = PPU.OBJNameSelect;                  /* 25 OBJ 2nd-table gap (words) */
+    /* snes9x keeps OBJNameBase/OBJNameSelect in BYTES; convert to words */
+    v[k++] = PPU.OBJNameBase >> 1;               /* 24 OBJ tiles $000-$0FF base (word addr) */
+    v[k++] = ((PPU.OBJNameBase >> 1) + (((Memory.FillRAM[0x2101] >> 3) & 3) + 1) * 0x1000) & 0x7fff;
+                                                 /* 25 OBJ tiles $100-$1FF base (word addr) */
     v[k++] = PPU.OBJSizeSelect;                  /* 26 OBSEL size bits 5-7 */
     v[k++] = Memory.FillRAM[0x212C];             /* 27 TM main screen enable */
     v[k++] = Memory.FillRAM[0x212D];             /* 28 TS sub screen enable */
