@@ -347,9 +347,12 @@ def music_part(S, mdir, music):
                 for _ in range(50):
                     tape.step(0)
             tape.step(B.START)
-        info = record_song(S, 'battle_stage%02d' % st, setup, after_upload_play(1), 330, mdir,
-                           note='stage %d battle theme; recorded with the round timer frozen '
-                                '($7E5E20 bit15) so no time-up interrupts it' % st)
+        note = ('stage %d battle theme; recorded with the round timer frozen ($7E5E20 bit15) '
+                'so no time-up interrupts it' % st)
+        info = record_song(S, 'battle_stage%02d' % st, setup, after_upload_play(1), 330, mdir, note=note)
+        if info and 'loop_length_s' not in info:      # long song: record twice as long
+            info = record_song(S, 'battle_stage%02d' % st, setup, after_upload_play(1), 620, mdir,
+                               note=note)
         if info:
             info['stage'] = st
             music.append(info)

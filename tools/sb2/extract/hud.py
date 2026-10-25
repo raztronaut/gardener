@@ -113,6 +113,13 @@ def main():
         hist.append(bg3_map(S)[:HUD_ROWS])
     hist = np.stack(hist)
     vfin = S.vram()
+    # second run for the faces: all four drop a bomb and stay -> every face turns 'dead'
+    S.load_state(base)
+    hist_faces = []
+    for f in range(400):
+        S.step((B.A,) * 4 + (0,) if 10 <= f < 12 else 0)
+        hist_faces.append(bg3_map(S)[:HUD_ROWS])
+    hist_faces = np.concatenate([hist, np.stack(hist_faces)])
 
     # timer: seconds counter states in order of appearance
     tc = [TIMER_COLS[k] for k in ('minutes', 'tens', 'ones')]
@@ -157,13 +164,14 @@ def main():
     face_png = []
     for name, (c0, c1) in FACE_COLS.items():
         states = collections.OrderedDict()
-        for f in range(len(hist)):
-            k = tuple(int(x) for x in hist[f, :, c0:c1 + 1].ravel())
+        for f in range(len(hist_faces)):
+            k = tuple(int(x) for x in hist_faces[f, :, c0:c1 + 1].ravel())
             states.setdefault(k, f)
         lst = []
         for k, f in states.items():
             ent = np.array(k, np.uint16).reshape(HUD_ROWS, 2)
-            lst.append(dict(first_frame=f, entries=[[int(x) for x in row] for row in ent]))
+            lst.append(dict(first_frame=f if f < len(hist) else 'run2+%d' % (f - len(hist)),
+                            entries=[[int(x) for x in row] for row in ent]))
             face_png.append(render_cells(v, cg, cb, ent))
         faces[name] = lst
     if face_png:
@@ -171,7 +179,7 @@ def main():
         save_rgba(os.path.join(OUT, 'faces.png'), to_rgba(fa, cg))
 
     # every BG3 char used in the HUD (start + run), each in the palette it was used with
-    used = sorted(set(int(x) for x in np.unique(hist)) | set(int(x) for x in np.unique(hud_entries)))
+    used = sorted(set(int(x) for x in np.unique(hist_faces)) | set(int(x) for x in np.unique(hud_entries)))
     used = [e for e in used if e & 0x3ff]
     ca = np.full((((len(used) + 15) // 16) * 8, 16 * 8), -1, np.int16)
     chars = []

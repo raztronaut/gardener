@@ -48,7 +48,9 @@ class Library:
         self.by_hash = {}
 
     def add(self, img, pieces, category, colour=None, extra=None):
-        h = shape_key(img)
+        # between-round screens use per-screen palette layouts: keep palettes in the key
+        h = shape_key(img) if category != 'screen_bomber' else \
+            hashlib.sha1(img.tobytes() + str(img.shape).encode()).hexdigest()[:16]
         k = (category, h)
         pal0 = int(img[img >= 0].min() // 16) if (img >= 0).any() else 0
         if k in self.by_hash:

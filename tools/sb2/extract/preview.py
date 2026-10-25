@@ -109,6 +109,13 @@ def stage_sheet(st):
         for c, mid in enumerate(row):
             if mid >= 0:
                 arena.alpha_composite(crop(at, rects[mid]), (c * 16, r * 16))
+    for r, row in enumerate(m.get('grid_bg1_start', [])):      # BG1 overlay, 1 px higher
+        for c, mid in enumerate(row):
+            if mid >= 0:
+                tile = crop(at, rects[mid])
+                layer = Image.new('RGBA', arena.size)
+                layer.paste(tile, (c * 16, r * 16 - 1))
+                arena.alpha_composite(layer)
     C.put(on_checker(arena), scale=2)
     C.label('stage-specific metatiles (floor / walls / blocks / gimmicks); name and grid codes')
     for x in m['metatiles']:

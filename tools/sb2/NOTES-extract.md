@@ -187,5 +187,69 @@ Prerequisites: the harness core and states (`tools/sb2/harness/build.sh`, `paths
   requested id, `$7E1C86` = last sent.
 - Timer freeze: $7E5E20 bit 15 (used to record long music without time-up).
 
-## Coverage
-(filled in at the end of the run: see the report section below)
+## Coverage (run of 2026-10-25)
+
+### Found
+- **Stages (10/10)**: start screen, BG1/BG2/BG3 tilemaps + chars + palettes, metatile atlas
+  (286-646 metatiles per stage; 202-553 of them actually observed on screen), match-start
+  grid as metatile ids + grid codes, floor-only grid, visible-screen BG2 cells.
+  Per stage: floors (incl. shadowed), hard block, wall ring + corners/edges, side borders,
+  soft block, 6-frame soft-block destruction x 4 owner palettes, pressure (sudden-death)
+  block, items (24 icons; the 14 battle-deck kinds are named with their measured effect),
+  item burn (7 frames x 4), bombs of all 5 types (normal, remote, rubber, pierce, power) x 4
+  owner palettes with pulse timing, flames (centre, h/v arm, 4 ends) x 5 frames x 4 owner
+  palettes, played 0-1-2-3-4-3-4-3-4-3-2-1-0 at 2 frames each.
+  Gimmicks: stage 2 ice floors + dark holes (codes 07/08/0A/49), stage 4 dirt-track ring
+  (0E, with its own flipped flame tiles), stage 5 diamond pads (14, character-animated) +
+  BG1 white plates, stage 6 round pads (50), stage 7 numbered pads 1-5 + "!" (0F),
+  stage 8 gear/S panels (12/13) + conveyor pieces (17-1E, palette-animated), stage 9 arrow
+  panels (3C-3F, palette-animated), stage 10 mushrooms that grow back (soft_regrow, 4 x 4
+  frames).
+  Animated tiles: stage 5 (16 chars, the plates' shine), stage 6 (8 chars, the pads);
+  palette animations: item border (all stages), stage 8 (9 colours), stage 9 (6 colours).
+- **Bombers**: 45 arena shapes x 4 colours (+ gold) — walk cycles in 4 directions (4
+  frames: 9/11/11/11 frames), idle in 4 facings, death (33 steps, spin accelerating then
+  collapse), kick (walk frames; SB2 has no separate kick pose), glove lift / carry-walk /
+  throw; 223 between-round figures (scoreboard winner cheer / loser, DRAW screen run,
+  VICTORY!! screen, roulette) in their real palettes. Anchors relative to the cell.
+- **Gold bomber** (G-BOMBER champion of the previous match): palette captured
+  (`bombers_gold.png`, `gold_bomber` in sprites.json).
+- **Other sprites** (236 fx pieces + per-frame events): kicked / thrown bomb sprites (owner
+  palette), item-scatter puffs when a bomber with items dies, "Hurry!" banner letters,
+  falling sudden-death block, scoreboard trophies, VICTORY letters / confetti, roulette.
+- **HUD**: bar at start, faces alive + dead for all four, digits 0-9 and ':' (8x16), all BG3
+  chars, palettes; timer cadence 65 frames per displayed second.
+- **Screens**: scoreboard (x3 rounds), DRAW, VICTORY!!, roulette and what follows — key
+  frames + decoded layers (screens/), their bomber figures in sprites.json.
+- **Music (12)**: battle themes of all 10 stages (.spc + .ogg + intro/loop .ogg): two songs
+  share stages 1/2/3/8/9/10 (loop 88.98 s, intro 1.37 s) and 5/6/7 (loop 92.04 s,
+  intro ~1.36 s); stage 4 has its own song whose channels do not realign within 620 s
+  (no common loop found; use the .spc or the 620 s recording); DRAW song; VICTORY!! +
+  roulette (one-shot within the recording).
+- **SFX (11)**: bomb place $48, explosion $42, item get $4C, kick-item get $61, skull get
+  $55, kick $44, glove lift $43, throw $45, round over (draw) $46, "Hurry!" $4E, first
+  falling block $72.
+
+### Missing / caveats
+- **Louie / rideables**: SB2 battle has none (that is SB3).
+- **Punch**: SB2 has no punch glove (Y is a stage/AI action, NOTES-re.md); kick has no
+  dedicated pose (the walk frames continue while the bomb slides).
+- **Stun / dizzy and disease visuals**: a bomber hit by a thrown bomb (+52 = $81) and the
+  skull-disease blink were not triggered in the labs; any frames the COMs produced are
+  in the shape list, but not labelled.
+- **Sound effects that were never isolated**: death (no separate command is sent),
+  remote detonation (= explosion), soft-block / item burn (part of the explosion), menu
+  sounds, roulette tick/stop $53/$70 (only inside victory.ogg), scoreboard trophy.
+- **SFX purity**: the driver plays effects on DSP voices the music also uses (voice 0 in
+  every effect). Only bomb_place could be moved to a moment where the music leaves its
+  voice silent; the others are A−B residuals that may contain the displaced music voice
+  (inverted) for the effect's duration (`music_voices_silent` false). Hurry / falling
+  block / round-over are time-driven, so they are residuals against a frozen-clock run.
+- **Draw-screen figures**: the four bombers run past each other on the DRAW screen; some
+  frames merge two of them into one figure.
+- **Item icons outside the battle deck** (vest, ?, clock, apple, ice cream, cake and four
+  unknown frames 578-584) are included because they sit in battle VRAM, but are unused.
+- **Flames over stage 4's track** are kept as generic `flame_N` metatiles (track-specific
+  flipped tiles), not labelled by piece/frame.
+- Bomber shape anchors use the logical position of the previous frame; during the death
+  and screen animations (no movement) anchors are constant.

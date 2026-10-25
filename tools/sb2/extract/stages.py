@@ -96,8 +96,13 @@ def entry_of(tile, pal, hflip=False, vflip=False, prio=0):
     return tile | (pal << 10) | (prio << 13) | (0x4000 if hflip else 0) | (0x8000 if vflip else 0)
 
 
+PRESSURE_BLOCK = 0x18CC   # sudden-death block tile word on every stage (NOTES-re.md)
+
+
 def family(e):
     """Name an entry by its tile family (or None)."""
+    if e == PRESSURE_BLOCK:
+        return dict(kind='pressure_block', name='pressure_block', code=0xC1)
     d = decode_entry(e)
     t, p = d['tile'], d['pal']
     if t in SOFT_DESTROY:
@@ -130,6 +135,7 @@ def derived_entries():
         for _, (bn, frames, _, _) in BOMB_TYPES.items():
             out += [entry_of(t, p) for t in frames]
     out += [entry_of(t, ITEM_PAL) for t in ITEMS]
+    out.append(PRESSURE_BLOCK)
     return out
 
 
@@ -270,7 +276,9 @@ def extract(stage):
         for c in range(15):
             codes[int(start_ent[r, c])][int(start_grid[r, c])] += 0
     # entries on the start map (all screens), the 'empty arena' copy and derived families
-    cand = set(int(x) for x in np.unique(bg2)) | set(seen) | set(derived_entries())
+    bg1 = np.array(tm['layers']['bg1']['entries'], np.uint16)
+    bg1_set = set(int(x) for x in np.unique(bg1)) - set(int(x) for x in np.unique(bg2)) - set(seen)
+    cand = set(int(x) for x in np.unique(bg2)) | set(seen) | set(derived_entries()) | bg1_set
     cells = {}
     for e in sorted(cand):
         img, pr = render_bg_cell(vram, ppu['bg2_char_base'], e, 4, True)
@@ -295,7 +303,7 @@ def extract(stage):
         else:
             code = None
         if code is None:
-            return dict(kind='border')
+            return dict(kind='bg1_overlay' if e in bg1_set else 'border')
         return dict(kind=CODE_KIND.get(code, 'gimmick_%02x' % code), code=code)
 
     metas = []
@@ -529,6 +537,12 @@ def extract(stage):
         grid_start=ids_of(arena0),
         grid_codes_start=[[int(x) for x in row] for row in start_grid],
         grid_empty=ids_of(empty0),
+        grid_bg1_start=ids_of(bg1[ARENA_Y0:ARENA_Y0 + 13, ARENA_X0:ARENA_X0 + 15]),
+        bg1_note='BG1 (drawn above BG2) is empty on every stage except stage 5, where it holds '
+                 'the big white plates. BG1 scroll is (%d, %d) vs BG2 (%d, %d): BG1 cells appear '
+                 '%d px higher than the BG2 cell with the same map coordinates. -1 = empty.'
+                 % (ppu['bg1_hofs'], ppu['bg1_vofs'], ppu['bg2_hofs'], ppu['bg2_vofs'],
+                    ppu['bg1_vofs'] - ppu['bg2_vofs']),
         view_bg2_cells=dict(note='BG2 cells x 0..16, y 0..15 at match start (covers the whole '
                                  'visible screen incl. the HUD rows and the side borders)',
                             ids=ids_of(view)),
