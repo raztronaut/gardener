@@ -267,9 +267,16 @@ bomb_chain]
   - So **fire exists for 26 ticks, from D+2 to D+27** (cell = `$01`), and kills on the
     tick after it appears.
   - Measured: fire on ticks 164..189, cleared at 190, for D = 162.
-- Overlapping explosions just rewrite `$01`. The first explosion to finish restores the
-  underlay, which can clear fire that another explosion still "owns". [infer from code]
-  - The bomb_chain vector shows fire cells cleared per bomb, 4 ticks apart.
+- **Overlapping explosions**: a shared cell is simply rewritten `$01` by each explosion.
+  When one explosion ends, it restores the underlay on all its cells, including shared
+  ones; any explosion still running re-writes its cells on its next update.
+  - Within one even tick, explosions are processed in slot order. If the ending
+    explosion has the lower slot, the other re-writes the shared cell in the same tick:
+    no gap.
+  - If the ending explosion has the higher slot, the shared cell is floor for 2 ticks
+    (until the next even tick). [code; the first case is measured]
+  - Measured (fire_overlap): bombs in slots 0 and 1 share (2,6). Slot 0 ended on tick 190
+    and cleared (2,5), but (2,6) stayed fire until slot 1 ended on tick 202.
 - Fire on an item: the item burns and the fire does not pass (pierce: passes).
 - Bomber in fire: dies (§12).
 
@@ -695,6 +702,7 @@ documented in the script's header.
 | glove_stun | thrown bomb lands on P2 → 28-tick stun, bounce |
 | bomb_same_tick | two fuses expiring together → one detonation per update |
 | remote_detonate | remote bombs + B (oldest first, fuse 2) + chain |
+| fire_overlap | two explosions sharing a cell, first one ends |
 | death_own_bomb, death_two | death, simultaneous death |
 | cpu_round | 4 COM, level 5: a full round + the start of round 2 |
 | cpu_round_1p | battle_start: 1 human walker + 3 COM |
@@ -726,5 +734,5 @@ documented in the script's header.
   - all 6 diseases and the absence of a disease timer;
   - the clock (65 ticks/s), the sudden-death order and interval, time up = draw;
   - the 256-tick round-over phase and win counting.
-- **Inferred**: overlap clearing of fire.
+- **Code only**: the 2-tick fire gap when the higher-slot explosion ends first.
 - **Measured ad hoc** (no vector): the 28-tick stun from a thrown bomb.
