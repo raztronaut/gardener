@@ -15,6 +15,10 @@ $00:FA00, NMI $00:FD83): ROM offset = ((bank & $3F) << 16) | addr.
 | `coverage.py` | records executed ROM bytes + their M/X flags → `data/sb2/re/exec_mx.npy` (used by the disassembler to size immediates) |
 | `xref.py` | callers (JSL/JSR/JMP/JML) into an address range |
 | `sb2lib.py` | RAM-map constants + `Game` helper (load state, peek/poke, grid, players) |
+| `disall.py` | listing of every executed ROM range → `data/sb2/re/dis/all.txt` |
+| `vectors.py` | test-vector generator/verifier → `data/sb2/vectors/*.json` (format in its header) |
+| `analyze_vectors.py` | summaries of vectors used for SPEC numbers |
+| `ai_*.py`, `round_*.py`, `stages_*.py` | sub-task scripts (see notes-ai/round/stages.md) |
 
 ### Harness hooks (added to `harness/sb2_shim.cpp`, call sites in `harness/snes9x-sb2-hooks.patch`)
 Three guarded call sites in snes9x (before every opcode in `S9xMainLoop`; fast-path
@@ -99,9 +103,20 @@ copy+rename (a running process keeps its mapping).
 | +B4 | cell type under the player centre (byte) | `C0BEA6` |
 | +B5 | cell type in front (byte) | `C0AE99` |
 | +F0 | **speed level** (byte) → speed table `$C5FB07` | `C0C290` |
-| +FA | (byte) bomb-pass? (lets player walk over bombs) | `C0AF65`, `C10169` |
+| +E0/+E1/+E2 | base speed level / bomb capacity / fire | item handlers |
+| +E4..+E9 | item counters (fire-ups, pierce, remote, power, rubber, skulls) | item handlers |
+| +EF | shield (heart) count | `C0A644`, `C09C5B` |
+| +F1 / +F8 | bombs in hand / bombs out | `C03118`, `C0E46C` |
+| +F2 | current fire (reach = +F2 + 1) | `C03583` |
+| +F3 | bomb type (1 remote, 2 power, 4 pierce, 8 rubber) | `C034E5` |
+| +F5 | disease id 0..6 | `C099DF` |
+| +F6 | bomb serial counter | `C03545` |
+| +FA | (byte) bomb-pass | `C0AF65`, `C10169`, `C099C5` |
 | +FB | (byte) **wall-pass** (soft blocks $C2 become passable $40) | `C0BEA6` |
-| +FF | (byte) **kick** ability | `C0AFAF` |
+| +FE | (byte) **glove** | `C030E3`, `C09BF6` |
+| +FF | (byte) **kick** ability | `C0AFAF`, `C09BA8` |
+| +52 | action state (1 dying anim, 3 lifting, 6 carrying, $81 stunned, $0801 dying) | |
+| +5E | facing (2 R, 4 L, 8 D, $10 U) | `C0AE5F` |
 
 Speed table `$C5FB07` (4 bytes per level: int word, frac word), read from ROM:
 0: 0.5, **1: 1.25 (start)**, 2: 1.5, 3: 2.0, 4: 2.5, 5: 2.75, 6: 3.0, 7: 0.8125,
