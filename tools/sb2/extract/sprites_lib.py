@@ -14,7 +14,7 @@ import hashlib
 
 import numpy as np
 
-from snesgfx import decode_oam, obj_size, compose_sprites, render_sprite, crop_alpha
+from snesgfx import decode_oam, obj_size, compose_sprites, render_sprite, crop_alpha, to_rgba
 from capture import player_xy
 
 
@@ -128,7 +128,7 @@ def render_group(vram, ppu, group):
     return img, (ox, oy), pieces
 
 
-def capture_frame(lib, vram, ppu, oam, prev_wram, colours=range(4), others=True, tag=None):
+def capture_frame(lib, vram, ppu, oam, prev_wram, colours=range(4), others=True, tag=None, cgram=None):
     """Assign this frame's sprites to bombers (pal i + slot tiles, near player i) and keep
     every other OAM entry as an individual fx piece (de-duplicated by shape).
     Returns {'bombers': {i: (shape_id, anchor, (x0, y0))},
@@ -161,7 +161,10 @@ def capture_frame(lib, vram, ppu, oam, prev_wram, colours=range(4), others=True,
             w, h = obj_size(ppu, s['large'])
             pieces = [dict(dx=0, dy=0, tile=s['tile'], w=w, h=h, hflip=s['hflip'],
                            vflip=s['vflip'], pal=s['pal'], prio=s['prio'])]
-            fid = lib.add(img, pieces, 'fx', None, extra=dict(tag=tag, w=w, h=h))
+            extra = dict(tag=tag, w=w, h=h)
+            if cgram is not None:
+                extra['rgba'] = to_rgba(img, cgram)      # colours as on screen that frame
+            fid = lib.add(img, pieces, 'fx', None, extra=extra)
             res['fx'].append((fid, s['x'], sy(s), s['pal'], s['prio'], s['i']))
     return res
 

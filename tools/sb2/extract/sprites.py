@@ -98,14 +98,14 @@ class Recorder:
                 prevw = S.wram()
                 continue
             if ppu['bg2_sc_base'] != 0x4000:
-                r = capture_screen(self.lib, S.vram(live=True), ppu, S.oam(), tag)
+                r = capture_screen(self.lib, S.vram(live=True), ppu, S.oam(), tag, S.cgram())
                 r['frame'] = f
                 r['sig'] = (ppu['bgmode'], ppu['bg1_sc_base'], ppu['bg2_sc_base'], ppu['bg3_sc_base'],
                             ppu['bg1_char_base'], ppu['bg2_char_base'])
                 log.append(r)
                 prevw = S.wram()
                 continue
-            r = capture_frame(self.lib, S.vram(live=True), ppu, S.oam(), prevw, tag=tag)
+            r = capture_frame(self.lib, S.vram(live=True), ppu, S.oam(), prevw, tag=tag, cgram=S.cgram())
             for i in r['bombers']:
                 r['bombers'][i] = r['bombers'][i] + (player_xy(prevw, i),)
             r['frame'] = f
@@ -114,33 +114,36 @@ class Recorder:
         return log
 
 
-def capture_screen(lib, vram, ppu, oam, tag):
-    """Between-round screens (scoreboard, DRAW, VICTORY, roulette): the OAM entries of
-    each bomber palette 0-3 are clustered by proximity; the largest cluster of at most
-    48x56 px with >= 120 opaque pixels is that bomber (the scoreboard also draws a
-    palette-4 copy behind the wall as a shadow -- that one stays an fx piece);
-    everything else (trophies, letters, confetti...) becomes individual fx pieces."""
+def capture_screen(lib, vram, ppu, oam, tag, cgram):
+    """Between-round screens (scoreboard, DRAW, VICTORY, roulette).  These screens draw
+    the bombers with their own palette layout (e.g. on DRAW a bomber = head in one OBJ
+    palette + body in another), so palette != colour here.  All OAM entries are
+    clustered by proximity; a cluster of at most 48x64 px, >= 200 opaque pixels, whose
+    bottom edge is below y = 150 (they all stand on the floor strip at the bottom) is a
+    bomber figure.  The colour is assigned later per screen (screen_anims).  Everything
+    else (trophies, letters, confetti, the scoreboard's shadow copies...) becomes
+    individual fx pieces."""
     from snesgfx import decode_oam
     from sprites_lib import onscreen, render_group, cluster
     spr = [s for s in decode_oam(oam) if onscreen(s, ppu)]
-    res = {'bombers': {}, 'fx': [], 'screen': True}
-    best = {}
-    for i in range(4):
-        for g in cluster([s for s in spr if s['pal'] == i], ppu, gap=1):
-            img, pos, pieces = render_group(vram, ppu, g)
-            if img is None or img.shape[1] > 48 or img.shape[0] > 56:
-                continue
-            n = int((img >= 0).sum())
-            if n >= 120 and (i not in best or n > best[i][0]):
-                best[i] = (n, g, img, pos, pieces)
+    res = {'bombers': {}, 'figures': [], 'fx': [], 'screen': True}
     used = set()
-    for i, (n, g, img, pos, pieces) in best.items():
+    # priority-0 entries are the scoreboard's dark shadow copies drawn behind the wall
+    for g in cluster([s for s in spr if s['prio'] > 0], ppu, gap=1):
+        img, pos, pieces = render_group(vram, ppu, g)
+        if img is None or img.shape[1] > 48 or img.shape[0] > 64 or pos[1] + img.shape[0] < 150:
+            continue
+        if int((img >= 0).sum()) < 200:
+            continue
         used |= set(s['i'] for s in g)
-        fid = lib.add(img, pieces, 'screen_bomber', i, extra=dict(tag=tag, pos=pos))
-        res['bombers'][i] = (fid, (0, 0), pos, (0, 0))
+        key = tuple(sorted(set(s['pal'] for s in g)))
+        fid = lib.add(img, pieces, 'screen_bomber', None,
+                      extra=dict(tag=tag, pos=pos, rgba=to_rgba(img, cgram)))
+        res['figures'].append((fid, pos, key))
     rest = [s for s in spr if s['i'] not in used]
     if rest:
-        r = capture_frame(lib, vram, ppu, oam, np.zeros(0x20000, np.uint8), colours=[], tag=tag)
+        r = capture_frame(lib, vram, ppu, oam, np.zeros(0x20000, np.uint8), colours=[], tag=tag,
+                          cgram=cgram)
         res['fx'] = [p for p in r['fx'] if p[5] not in used]
     return res
 
@@ -192,8 +195,10 @@ def lab_walk(S, base, rec):
 
 def screen_anims(log, names):
     """Per contiguous run of between-round screen frames with the same PPU signature:
-    per colour looping animation.  names: list of names for the runs, in order (runs
-    shorter than 30 frames are ignored)."""
+    a looping animation per bomber colour.  Colours: at the first frame of the run that
+    shows the most figures, figures are ordered left to right = white, black, red, blue
+    (the order all these screens use) and identified by their OBJ palette set from then
+    on.  names: names for the runs in order (runs < 30 frames ignored)."""
     runs = []
     for k, r in enumerate(log):
         if r and r.get('screen'):
@@ -204,12 +209,27 @@ def screen_anims(log, names):
     runs = [x for x in runs if x[2] - x[1] >= 30]
     out = {i: {} for i in range(4)}
     for (sig, lo, hi), name in zip(runs, names):
+        kmax = max(range(lo, hi + 1), key=lambda k: len(log[k]['figures']))
+        figs = sorted(log[kmax]['figures'], key=lambda t: t[1][0])
+        colour_of = {}
+        for ci, (fid, pos, key) in enumerate(figs[:4]):
+            colour_of.setdefault(key, ci)
         for i in range(4):
-            tr = [(log[k]['bombers'][i][0], None) if log[k] and log[k].get('screen') and i in log[k]['bombers']
-                  else (None, None) for k in range(len(log))]
+            tr = []
+            for k in range(len(log)):
+                r = log[k]
+                got = None
+                if lo <= k <= hi and r and r.get('screen'):
+                    for fid, pos, key in r['figures']:
+                        if colour_of.get(key) == i:
+                            got = fid
+                            break
+                tr.append((got, None))
             fr = anim_from(tr, lo, hi + 1, True)
             if fr:
                 out[i][name] = fr
+                for f in fr:
+                    pass
     return out, runs
 
 
@@ -319,6 +339,33 @@ def lab_scatter(S, base, rec):
     return log
 
 
+def gold_palette(S):
+    """G-BOMBER champion: with $7E5C3C/$7E1CAF = slot 0 (champion) and $7E5C42/$7E1CB1 = 0
+    (roulette result) poked at the stage select, the next round draws P1 as the GOLD
+    bomber -- same shapes, OBJ palette 0 replaced (phase 2b: round init sets +04 b8 and
+    +50 = 2).  Returns (16 BGR555 words, colour cycle info over 240 frames)."""
+    from common import tap, bright
+    S.load_state_file(state_path('stage_select_4p_mt'))
+    S.run(2)
+    w = S.wram(live=True)
+    for a in (0x5C3C, 0x1CAF, 0x5C42, 0x1CB1):
+        w[a] = 0
+        w[a + 1] = 0
+    tap(S, B.START, 1, 200)
+    for _ in range(900):
+        if bright(S) and S.frame().mean() > 20:
+            break
+        S.step(0)
+    seen = []
+    for f in range(240):
+        S.step(0)
+        cg = S.cgram()
+        pal = cg[256:288].copy()
+        if not seen or not np.array_equal(seen[-1][1], pal):
+            seen.append((f, pal))
+    return S.cgram(), [(f, cgram_hex(np.concatenate([np.zeros(256, np.uint8), p]))[128:144]) for f, p in seen]
+
+
 def com_run(stage, frames, lib, keep_events):
     S = Snes()
     S.load_state_file(state_path(com4_stage_state_name(stage)))
@@ -405,9 +452,17 @@ def main():
     # sudden death / hurry banner: the part of the stage-1 COM log with "Hurry!" pieces
     events.append(fx_events(com_logs[1], 'com_stage01_special_fx', min_pal=4))
 
+    gold_cg, gold_phases = gold_palette(S)
     # ---- shapes / atlases -----------------------------------------------------------
-    bombers = [f for f in lib.frames if f['category'] in ('bomber', 'screen_bomber')]
+    bombers = [f for f in lib.frames if f['category'] == 'bomber']
+    screens = [f for f in lib.frames if f['category'] == 'screen_bomber']
     fxs = [f for f in lib.frames if f['category'] == 'fx']
+    sw, sh, srects = pack(screens)
+    satlas = np.zeros((max(sh, 1), max(sw, 1), 4), np.uint8)
+    for f in screens:
+        x, y, w, h = srects[f['id']]
+        satlas[y:y + h, x:x + w] = f['rgba']
+    save_rgba(os.path.join(OUT, 'screen_bombers.png'), satlas)
     W, H, rects = pack(bombers)
     for ci, cname in enumerate(COLOURS):
         atlas = np.full((H, W), -1, np.int16)
@@ -417,13 +472,15 @@ def main():
             img = np.where(img < 0, -1, (img % 16) + 128 + 16 * ci)
             atlas[y:y + h, x:x + w] = img
         save_rgba(os.path.join(OUT, 'bombers_%s.png' % cname), to_rgba(atlas, cg))
+        if ci == 0:
+            save_rgba(os.path.join(OUT, 'bombers_gold.png'), to_rgba(atlas, gold_cg))
     # fx pieces: own palette as first seen
     fw, fh, frects = pack(fxs, cols=24)
-    fatlas = np.full((max(fh, 1), max(fw, 1)), -1, np.int16)
+    fatlas = np.zeros((max(fh, 1), max(fw, 1), 4), np.uint8)
     for f in fxs:
         x, y, w, h = frects[f['id']]
-        fatlas[y:y + h, x:x + w] = f['img']
-    save_rgba(os.path.join(OUT, 'fx.png'), to_rgba(fatlas, cg))
+        fatlas[y:y + h, x:x + w] = f['rgba'] if 'rgba' in f else to_rgba(f['img'], cg)
+    save_rgba(os.path.join(OUT, 'fx.png'), fatlas)
 
     # usage counts per shape and source
     src = collections.defaultdict(collections.Counter)
@@ -439,9 +496,14 @@ def main():
             for x in fr:
                 named[x['shape']].append(name)
     shapes = []
-    for f in bombers:
+    allrects = dict(rects)
+    allrects.update(srects)
+    for f in bombers + screens:
         shapes.append(dict(
-            id=f['id'], category=f['category'], rect=rects[f['id']], w=int(f['img'].shape[1]), h=int(f['img'].shape[0]),
+            id=f['id'], category=f['category'],
+            atlas='bombers_<colour>.png' if f['category'] == 'bomber' else 'screen_bombers.png',
+            obj_palettes=sorted(set(int(p['pal']) for p in f['pieces'])),
+            rect=allrects[f['id']], w=int(f['img'].shape[1]), h=int(f['img'].shape[0]),
             anchor=anc_mode(f['id']), colours_seen=sorted(COLOURS[c] for c in f['colours']),
             used_in=sorted(set(named.get(f['id'], []))),
             from_lab=f['id'] in lab_shapes, first_seen=f.get('tag'), count=f['count'],
@@ -467,7 +529,11 @@ def main():
         obj_palettes={c: cgram_hex(cg)[128 + 16 * i:128 + 16 * i + 16] for i, c in enumerate(COLOURS)},
         obj_palettes_all=[cgram_hex(cg)[128 + 16 * p:128 + 16 * p + 16] for p in range(8)],
         obsel=dict(size_select=0, sizes='8x8 small / 16x16 large'),
-        bomber_atlases={c: 'bombers_%s.png' % c for c in COLOURS},
+        bomber_atlases=dict({c: 'bombers_%s.png' % c for c in COLOURS}, gold='bombers_gold.png'),
+        gold_bomber=dict(note='G-BOMBER champion (drawn in the match after winning one): the '
+                              'same shapes as the others with OBJ palette 0 replaced. Captured '
+                              'by poking champion slot 0 + roulette result 0 at stage select.',
+                         palette_phases=[dict(first_frame=f, obj_palette=p) for f, p in gold_phases]),
         bomber_shapes=shapes,
         animations={COLOURS[i]: anims[i] for i in range(4)},
         animations_identical_across_colours=same,

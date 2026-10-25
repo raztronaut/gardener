@@ -132,7 +132,7 @@ def main():
     conflicts = 0
     durations = []
     for key, f, n in seq:
-        if t < 0:
+        if t < 0 or (n > 90 and t < 120):    # timer stopped (round over) -> stop mapping
             break
         mm, ss = divmod(t, 60)
         digits = (mm, ss // 10, ss % 10)

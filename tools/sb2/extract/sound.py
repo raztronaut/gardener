@@ -211,63 +211,132 @@ def after_upload_play(play_id):
     return trig
 
 
+def _env(S):
+    d = S.dsp()
+    return [int(d[0x10 * v + 8]) for v in range(8)]      # ENVX of the 8 voices
+
+
+def _run_tape(S, base, pads, n, poke=None):
+    S.load_state(base)
+    S.audio()
+    tape = Tape(S)
+    env = []
+    for f in range(n):
+        tape.step(pads[f] if f < len(pads) else 0, poke=(lambda s_, f=f: poke(s_, f)) if poke else None)
+        env.append(_env(S))
+    return tape, np.array(env, np.int32)
+
+
 def isolate(S, base, name, with_pads, n, outdir, without_pads=None, poke_a=None, poke_b=None,
-            want_id=None, tail_s=0.15, note=''):
-    """Run A (with the action) and B (without) from the same state; residual = A - B."""
-    def run(pads, poke):
-        S.load_state(base)
-        S.audio()
-        tape = Tape(S)
-        for f in range(n):
-            tape.step(pads[f] if isinstance(pads, list) else pads, poke=(lambda s_, f=f: poke(s_, f)) if poke else None)
-        return tape
-    A = run(with_pads, poke_a)
-    Bt = run(without_pads if without_pads is not None else [0] * n, poke_b)
-    a = A.audio().astype(np.int32)
-    b = Bt.audio().astype(np.int32)
-    m = min(len(a), len(b))
-    res = a[:m] - b[:m]
-    # first frame where the wanted command appears only in A
+            want_id=None, tail_s=0.15, note='', max_delay=0):
+    """Isolate one sound effect.  A = run with the action, B = identical run without it;
+    residual = A - B (the music cancels).  An effect plays on one or two DSP voices that
+    the music may be using at that moment -- then the residual also holds that music
+    voice (inverted).  With max_delay > 0 the action is postponed by d idle frames
+    (d < max_delay) so that the voices the effect uses are SILENT in the music for the
+    whole effect (voice envelopes ENVX read from the DSP every frame): a quiet moment
+    for exactly the channels involved."""
+    wo = without_pads if without_pads is not None else [0] * n
+    k = next((i for i in range(min(len(with_pads), len(wo))) if with_pads[i] != wo[i]), 0)
+    idle = wo[k] if k < len(wo) else 0
+    nb = n + max_delay
+    Bt, envB = _run_tape(S, base, list(wo) + [idle] * max_delay, nb, poke_b)
+    A0, envA = _run_tape(S, base, with_pads, n, poke_a)
     cmdsB = set((f, c) for f, c, _ in Bt.cmds)
-    newc = [(f, c) for f, c, _ in A.cmds if (f, c) not in cmdsB and (want_id is None or c == want_id)]
+    newc = [(f, c) for f, c, _ in A0.cmds if (f, c) not in cmdsB and (want_id is None or c == want_id)]
     if not newc:
         print('!! no new sound command for', name)
         return None
     f0, cid = newc[0]
-    s0 = sum(len(p) for p in A.pcm[:f0])
+    hi = min(n, f0 + 8)
+    voices = [v for v in range(8) if (envA[f0:hi, v] != envB[f0:hi, v]).any()]
+    dur = 0
+    same = 0
+    for f in range(f0, n):
+        if voices and (envA[f, voices] == envB[f, voices]).all():
+            same += 1
+            if same >= 15:
+                dur = f - 14 - f0
+                break
+        else:
+            same = 0
+    else:
+        dur = n - f0
+    d_best, cost_best = 0, None
+    if max_delay and voices:
+        for d in range(0, max_delay - dur - 1, 2):
+            w = envB[f0 + d:f0 + d + dur + 1][:, voices]
+            c = int(w.sum())
+            if cost_best is None or c < cost_best:
+                d_best, cost_best = d, c
+            if c == 0:
+                break
+    if d_best:
+        A, _ = _run_tape(S, base, list(with_pads[:k]) + [idle] * d_best + list(with_pads[k:]),
+                         n + d_best, poke_a)
+    else:
+        A = A0
+    f1 = f0 + d_best
+    a = A.audio().astype(np.int32)
+    b = Bt.audio().astype(np.int32)
+    m = min(len(a), len(b))
+    res = a[:m] - b[:m]
+    s0 = sum(len(p) for p in A.pcm[:f1])
+    s1 = sum(len(p) for p in A.pcm[:min(len(A.pcm), f1 + dur + 1)])
     mono = np.abs(res).max(1)
-    nz = np.nonzero(mono[s0:] > 48)[0]
+    nz = np.nonzero(mono[s0:s1] > 48)[0]
     if not len(nz):
         print('!! silent residual for', name)
         return None
     lo = s0 + int(nz[0])
-    # end: last sample above threshold before a 0.3 s quiet gap
-    tail = int(tail_s * RATE)
-    quiet = int(0.3 * RATE)
-    hi = lo
-    k = lo
-    while k < len(mono):
-        if mono[k] > 48:
-            hi = k
-        elif k - hi > quiet:
-            break
-        k += 1
-    clip = res[lo:hi + tail]
-    raw = a[lo:hi + tail]
+    hi_s = min(m, s1 + int(tail_s * RATE))
+    clip = res[lo:hi_s]
+    raw = a[lo:hi_s]
     write_ogg(os.path.join(outdir, name + '.ogg'), clip)
     write_ogg(os.path.join(outdir, name + '_with_music.ogg'), raw)
     peak = int(np.abs(clip).max())
-    print('sfx', name, 'id $%02X' % cid, 'len %.2fs' % (len(clip) / RATE), 'peak', peak)
+    quiet = cost_best == 0 if max_delay else None
+    print('sfx', name, 'id $%02X' % cid, 'voices', voices, 'dur', dur, 'delay', d_best,
+          'quiet', quiet, 'len %.2fs' % (len(clip) / RATE), 'peak', peak)
     return dict(name=name, sound_id='$%02X' % cid, ogg=name + '.ogg',
                 ogg_with_music=name + '_with_music.ogg', seconds=round(len(clip) / RATE, 3),
-                peak=peak, command_frame=f0, method='diff (A with action - B without)', note=note)
+                peak=peak, command_frame=f1, dsp_voices=voices, effect_frames=dur,
+                action_delay_frames=d_best, music_voices_silent=quiet,
+                method='diff (A with action - B without)' +
+                       ('; action delayed to a moment where the music leaves the effect\'s '
+                        'voices silent' if quiet else ''), note=note)
 
 
 def main():
+    import json
+    do_music = '--sfx' not in sys.argv or '--music' in sys.argv
+    do_sfx = '--music' not in sys.argv or '--sfx' in sys.argv
+    old = {}
+    if os.path.exists(os.path.join(OUT, 'audio.json')):
+        old = json.load(open(os.path.join(OUT, 'audio.json')))
     mdir = mkdir(OUT, 'music')
     sdir = mkdir(OUT, 'sfx')
     S = Snes(multitap=True, render=False)
-    music = []
+    music = [] if do_music else old.get('music', [])
+    if do_music:
+        music_part(S, mdir, music)
+    sfx = sfx_part(S, sdir) if do_sfx else old.get('sfx', [])
+    for m_ in music:
+        m_.pop('_head', None)
+    write_json(os.path.join(OUT, 'audio.json'), dict(
+        note='Music: .spc = APU snapshot taken right after the play command (open in any SPC '
+             'player); .ogg = harness recording from the first audible sample (vorbis q6, '
+             '32040 Hz stereo); loop_* = loop found in the recording (samples at 32040 Hz). '
+             'SFX: residual of two otherwise identical runs (with/without the action), so '
+             'the music cancels; *_with_music.ogg is the raw mix for comparison. If '
+             'music_voices_silent is false, the music was using the effect\'s DSP voice and '
+             'that voice appears inverted in the residual.',
+        music=music, sfx=sfx,
+        not_captured=['death (no separate death sound command is sent; the explosion covers it)',
+                      'menu sounds (not battle)']))
+
+
+def music_part(S, mdir, music):
 
     # ---- stage themes -------------------------------------------------------------
     for st in range(1, 11):
@@ -327,7 +396,10 @@ def main():
     if info:
         music.append(info)
 
-    # ---- sound effects (diff) -------------------------------------------------------
+    return music
+
+
+def sfx_part(S, sdir):
     sfx = []
     from sprites import lab_state, pads_from, script, KICK, GLOVE, BOMB_UP
     base = lab_state(S)
@@ -336,9 +408,9 @@ def main():
         return pads_from({0: script(parts)}, n)
     # bomb place + explosion: P1 drops a bomb and walks out of range (cleared arena)
     act = P1([('-', 10), ('A', 1), ('RIGHT', 60), ('DOWN', 40), ('-', 200)], 320)
-    r = isolate(S, base, 'bomb_place', act, 320, sdir, want_id=0x48)
+    r = isolate(S, base, 'bomb_place', act, 320, sdir, want_id=0x48, max_delay=5400)
     r and sfx.append(r)
-    r = isolate(S, base, 'explosion', act, 320, sdir, want_id=0x42, tail_s=0.3)
+    r = isolate(S, base, 'explosion', act, 320, sdir, want_id=0x42, tail_s=0.3, max_delay=5400)
     r and sfx.append(r)
     # item get (bomb up), kick-item get, skull get
     for nm, it, cid in (('item_get', BOMB_UP, 0x4C), ('item_get_kick', KICK, 0x61), ('item_get_skull', 0x160A, 0x55)):
@@ -346,7 +418,7 @@ def main():
         spawn_item(S, 2, 1, it)
         b2 = S.save_state()
         r = isolate(S, b2, nm, P1([('-', 2), ('RIGHT', 28), ('-', 60)], 90), 90, sdir,
-                    without_pads=P1([('-', 90)], 90), want_id=cid)
+                    without_pads=P1([('-', 90)], 90), want_id=cid, max_delay=5400)
         r and sfx.append(r)
     # kick: kick item, bomb, walk into it
     S.load_state(base)
@@ -355,7 +427,7 @@ def main():
     seq = [('-', 2), ('RIGHT', 28), ('-', 6), ('A', 1), ('-', 2), ('RIGHT', 30), ('-', 8)]
     pre = P1(seq + [('-', 120)], 197)
     act = P1(seq + [('LEFT', 40), ('-', 80)], 197)
-    r = isolate(S, b2, 'kick', act, 197, sdir, without_pads=pre, want_id=0x44)
+    r = isolate(S, b2, 'kick', act, 197, sdir, without_pads=pre, want_id=0x44, max_delay=80)
     r and sfx.append(r)
     # glove lift / throw
     S.load_state(base)
@@ -364,9 +436,9 @@ def main():
     seq = [('-', 2), ('RIGHT', 28), ('-', 6), ('A', 1), ('-', 6)]
     pre = P1(seq + [('-', 120)], 163)
     act = P1(seq + [('A', 20), ('-', 100)], 163)
-    r = isolate(S, b2, 'glove_lift', act, 163, sdir, without_pads=pre, want_id=0x43)
+    r = isolate(S, b2, 'glove_lift', act, 163, sdir, without_pads=pre, want_id=0x43, max_delay=80)
     r and sfx.append(r)
-    r = isolate(S, b2, 'throw', act, 163, sdir, without_pads=pre, want_id=0x45)
+    r = isolate(S, b2, 'throw', act, 163, sdir, without_pads=pre, want_id=0x45, max_delay=80)
     r and sfx.append(r)
     # round over (draw): all four blow up (B: nobody does anything)
     S.load_state(base)
@@ -389,18 +461,7 @@ def main():
     r = isolate(S, b2, 'falling_block_first', [0] * 800, 800, sdir, poke_b=freeze, want_id=0x72,
                 tail_s=0.3)
     r and sfx.append(r)
-    for m_ in music:
-        m_.pop('_head', None)
-    write_json(os.path.join(OUT, 'audio.json'), dict(
-        note='Music: .spc = APU snapshot taken right after the play command (open in any SPC '
-             'player); .ogg = harness recording from the first audible sample (vorbis q6, '
-             '32040 Hz stereo); loop_* = loop found in the recording (samples at 32040 Hz). '
-             'SFX: residual of two otherwise identical runs (with/without the action), so '
-             'the music cancels; *_with_music.ogg is the raw mix for comparison. If an '
-             'effect steals a music voice, that voice appears inverted in the residual.',
-        music=music, sfx=sfx,
-        not_captured=['death (no separate death sound command is sent; the explosion covers it)',
-                      'menu sounds (not battle)']))
+    return sfx
 
 
 if __name__ == '__main__':

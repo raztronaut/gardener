@@ -360,13 +360,14 @@ def extract(stage):
     def dur(a, b):
         """Mode of observed durations of entry a before entry b on this stage; for the
         tile families (bombs, flames, burns) falls back to the same tile pair with any
-        owner palette, then to all 10 stages pooled."""
-        d = mode(trans.get((a, b), []))
-        if d is None:
-            d = mode(tile_trans(trans).get((a & 0x3ff, b & 0x3ff), []))
-        if d is None:
-            d = mode(global_tile_trans().get((a & 0x3ff, b & 0x3ff), []))
-        return d
+        owner palette, then to all 10 stages pooled (+ the bomb lab), whenever fewer
+        than 8 samples exist."""
+        ls = trans.get((a, b), [])
+        if len(ls) < 8:                    # few samples: lag frames could dominate
+            ls = tile_trans(trans).get((a & 0x3ff, b & 0x3ff), [])
+        if len(ls) < 8 and decode_entry(a)['pal'] != 6:
+            ls = global_tile_trans().get((a & 0x3ff, b & 0x3ff), []) or ls
+        return mode(ls)
 
     anims = {}
     for p in (1, 2, 3, 4):

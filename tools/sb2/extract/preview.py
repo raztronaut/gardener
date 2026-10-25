@@ -150,12 +150,15 @@ def sprite_sheet():
     d = os.path.join(ASSETS, 'sprites')
     m = json.load(open(os.path.join(d, 'sprites.json')))
     rects = {s['id']: s['rect'] for s in m['bomber_shapes']}
+    scr = {s['id'] for s in m['bomber_shapes'] if s['category'] == 'screen_bomber'}
+    sat = Image.open(os.path.join(d, 'screen_bombers.png')).convert('RGBA')
     C = Canvas(1300)
     for c in COLOURS:
         at = Image.open(os.path.join(d, 'bombers_%s.png' % c)).convert('RGBA')
         C.label('%s bomber animations (shape id:duration)' % c)
         for name, fr in m['animations'][c].items():
-            imgs = [on_checker(crop(at, rects[f['shape']])) for f in fr if f['shape'] in rects]
+            imgs = [on_checker(crop(sat if f['shape'] in scr else at, rects[f['shape']]))
+                    for f in fr if f['shape'] in rects]
             if not imgs:
                 continue
             w = sum(i.width + 2 for i in imgs[:24])
@@ -166,8 +169,10 @@ def sprite_sheet():
                 strip.paste(i, (x, h - i.height))
                 x += i.width + 2
             C.put(strip, '%s %s' % (name, ' '.join('%d:%d' % (f['shape'], f['duration']) for f in fr[:8])), scale=2)
-    C.label('all bomber shapes (white palette)')
+    C.label('all arena bomber shapes (white palette)')
     C.put(on_checker(Image.open(os.path.join(d, 'bombers_white.png'))), scale=2)
+    C.label('between-round screen figures (screen_bombers.png, real palettes)')
+    C.put(on_checker(sat), scale=2)
     C.label('fx pieces (fx.png, palette as first seen)')
     fx = Image.open(os.path.join(d, 'fx.png')).convert('RGBA')
     for p in m['fx_pieces']:
