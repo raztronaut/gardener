@@ -3,9 +3,11 @@
 WRAM facts used by the extractors (measured in the harness, 2026-10-25, battle mode;
 phase 2b owns the authoritative RAM map in tools/sb2/NOTES-re.md):
   * player structs: $7E8000 + 0x100*i (i = 0..3 = P1 white, P2 black, P3 red, P4 blue)
-      +0x82 u16  x (screen/OAM space; the OAM entries lag it by one frame)
-      +0x84 u16  y (screen/OAM space).  A bomber centred on arena cell (c, r) has
-                 x = 16c + 8, y = 16r + 8; that cell's top-left on screen is (x, y + 17).
+      +0x10 u16  x, +0x18 u16 y: logical position in arena pixels; a bomber centred on
+                 arena cell (c, r) has x = 16c + 16, y = 16r + 32, and that cell's top-left
+                 on screen is (x - 8, y - 7).  The OAM lags these by one frame.
+      (+0x82/+0x84 look like x/y but are the OAM position of one sprite piece: +0x84
+       toggles by 16 depending on which piece is drawn first -- don't use them.)
   * arena grid: $7FC180 + r*0x80 + (c+1)*2, r = 0..12, c = 0..14 (byte per cell; the
       15x13 grid includes the outer wall ring).  Codes seen: 00 floor, 01 flame,
       41 burning item, 43 bomb, 44 item, C1 pressure block (sudden death), C2 soft block,
@@ -45,12 +47,18 @@ def arena_entries(vram):
 
 
 def player_xy(w, i):
+    """Logical position (arena pixels): cell (c, r) centre-aligned = (16c+16, 16r+32)."""
     b = PLAYER_BASE + PLAYER_STRIDE * i
-    return int(w[b + 0x82]) | (int(w[b + 0x83]) << 8), int(w[b + 0x84]) | (int(w[b + 0x85]) << 8)
+    return int(w[b + 0x10]) | (int(w[b + 0x11]) << 8), int(w[b + 0x18]) | (int(w[b + 0x19]) << 8)
 
 
 def cell_of_xy(x, y):
-    return (x - 8) / 16.0, (y - 8) / 16.0
+    return (x - 16) / 16.0, (y - 32) / 16.0
+
+
+def cell_screen_of_xy(x, y):
+    """Screen top-left of the cell a bomber at logical (x, y) is aligned to."""
+    return x - 8, y - 7
 
 
 def spawn_item(S, c, r, entry):

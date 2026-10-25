@@ -40,29 +40,37 @@ CODE_KIND = {0x00: 'floor', 0x01: 'flame', 0x41: 'item_burn', 0x43: 'bomb', 0x44
 # --- tile families (char numbers, identical layout on every stage; verified by observation)
 SOFT_DESTROY = [224, 226, 228, 230, 232, 234]
 FLAME_ROWS = [288, 320, 352, 384, 416]                      # flame animation frames 0..4
+FLAME_ORDER = [0, 1, 2, 3, 4, 3, 4, 3, 4, 3, 2, 1, 0]
 FLAME_PIECES = {0: 'end_up', 2: 'end_down', 4: 'end_left', 6: 'end_right',
                 8: 'arm_v', 10: 'arm_h', 12: 'center'}
 ITEM_BURN = [302, 334, 366, 398, 430, 488, 490]
-BOMB_TYPES = {   # first tile -> (name, frames, item tile that grants it, $7E80F3 value)
+BOMB_TYPES = {   # first tile -> (name, frames, item tile that grants it, player +$F3 value)
     256: ('normal', [256, 258, 260, 262], None, 0),
-    264: ('t264', [264, 266, 268, 270], 526, 1),
-    448: ('t448', [448, 450, 452], 552, 8),
-    456: ('t456', [456, 458, 460, 462], 516, 4),
-    480: ('t480', [480, 482, 484, 486], 554, 2),
+    264: ('remote', [264, 266, 268, 270], 526, 1),
+    448: ('rubber', [448, 450, 452], 552, 8),
+    456: ('pierce', [456, 458, 460, 462], 516, 4),
+    480: ('power', [480, 482, 484, 486], 554, 2),
 }
-ITEMS = {  # tile -> (name, effect measured by picking it up in the harness: P1 struct byte)
-    512: ('bomb_up', '+$E1 bombs +1'), 514: ('fire_up', '+$E2 fire +1'),
-    516: ('bomb_t456', '$F3=4, $E5=1 (bomb type t456: spiked bomb)'),
-    518: ('full_fire', '$E2 fire = 9'), 520: ('dark_bomb_lines', '$FA=1'),
-    522: ('skull', 'disease: $04=$C0, $F9 timer'), 524: ('vest', 'no struct change seen'),
-    526: ('bomb_t264', '$F3=1, $E6=1 (bomb type t264)'), 544: ('wall_pass', '$FB=1'),
-    546: ('speed_up', '$E0 speed +1'), 548: ('kick', '$FF=1 (kick verified)'),
-    550: ('glove', '$FE=1'), 552: ('bomb_t448', '$F3=8, $E8=1 (bomb type t448)'),
-    554: ('bomb_t480', '$F3=2, $E7=1 (bomb type t480: P bomb)'),
-    556: ('question', 'no struct change seen'), 558: ('clock', 'no struct change seen'),
-    576: ('heart', '$EF=1'), 578: ('unknown_578', ''), 580: ('unknown_580', ''),
-    582: ('unknown_582', ''), 584: ('unknown_584', ''), 586: ('apple', ''),
-    588: ('ice_cream', ''), 590: ('cake', ''),
+# tile -> (name, effect).  Effects measured here by spawning the item next to P1 and
+# walking over it (player-struct byte that changed); names follow phase 2b's item
+# handler table (NOTES-re.md "Item pickup").  Battle deck kinds = the first 14.
+ITEMS = {
+    512: ('bomb_up', '+$E1 bomb capacity +1'), 514: ('fire_up', '+$E2 fire +1'),
+    516: ('pierce_bomb', '+$F3 = 4 (pierce bombs)'), 518: ('full_fire', '+$E2 fire = 9'),
+    520: ('bomb_pass', '+$FA = 1'), 522: ('skull', 'disease (+$F5), +$E9'),
+    526: ('remote_bomb', '+$F3 = 1 (remote bombs, B detonates)'),
+    544: ('wall_pass', '+$FB = 1 (walk through soft blocks)'),
+    546: ('speed_up', '+$E0 speed +1'), 548: ('kick', '+$FF = 1'),
+    550: ('glove', '+$FE = 1 (A on own bomb lifts, release throws)'),
+    552: ('rubber_bomb', '+$F3 = 8 (rubber bombs)'), 554: ('power_bomb', '+$F3 = 2 (power bomb)'),
+    576: ('heart', '+$EF = 1 (one hit of protection)'),
+    524: ('vest_icon', 'not in the battle deck; no struct change when picked up'),
+    556: ('question_icon', 'not in the battle deck; no struct change'),
+    558: ('clock_icon', 'not in the battle deck (normal game)'),
+    578: ('unknown_578', 'not in the battle deck'), 580: ('unknown_580', 'not in the battle deck'),
+    582: ('unknown_582', 'not in the battle deck'), 584: ('unknown_584', 'not in the battle deck'),
+    586: ('apple_icon', 'score item (normal game)'), 588: ('ice_cream_icon', 'score item (normal game)'),
+    590: ('cake_icon', 'score item (normal game)'),
 }
 ITEM_PAL = 5
 SOFT_REGROW = [192, 194, 196, 198]   # stage 10: mushrooms sprout back (floor -> soft block)
@@ -161,6 +169,36 @@ def mode(xs):
 
 
 STAGE = [0]
+_GLOBAL = {}
+
+
+def tile_trans(trans):
+    out = collections.defaultdict(list)
+    for (a, b), ls in trans.items():
+        out[(a & 0x3ff, b & 0x3ff)] += ls
+    return out
+
+
+def global_tile_trans():
+    """Tile-pair durations pooled over the COM runs of all stages (cached)."""
+    if 'tt' not in _GLOBAL:
+        tt = collections.defaultdict(list)
+        fam = set(t for _, (_, fr, _, _) in BOMB_TYPES.items() for t in fr) | set(ITEM_BURN) | \
+            set(SOFT_DESTROY) | set(r + o for r in FLAME_ROWS for o in FLAME_PIECES)
+        paths = [obs_path(st, 'com') for st in range(1, NSTAGES + 1)] + [obs_path(1, 'bombs')]
+        for p in paths:
+            if not os.path.exists(p):
+                continue
+            cd = np.load(p)
+            live, ent = cd['live'], cd['ent']
+            for r in range(13):
+                for c in range(15):
+                    runs = run_lengths(ent[:, r, c], live)
+                    for (a, s0, l0), (b, s1, l1) in zip(runs, runs[1:]):
+                        if s0 + l0 == s1 and (a & 0x3ff) in fam:
+                            tt[(a & 0x3ff, b & 0x3ff)].append(l0)
+        _GLOBAL['tt'] = tt
+    return _GLOBAL['tt']
 
 
 def extract(stage):
@@ -320,7 +358,15 @@ def extract(stage):
                     trans[(a, b)].append(l0)
 
     def dur(a, b):
-        return mode(trans.get((a, b), []))
+        """Mode of observed durations of entry a before entry b on this stage; for the
+        tile families (bombs, flames, burns) falls back to the same tile pair with any
+        owner palette, then to all 10 stages pooled."""
+        d = mode(trans.get((a, b), []))
+        if d is None:
+            d = mode(tile_trans(trans).get((a & 0x3ff, b & 0x3ff), []))
+        if d is None:
+            d = mode(global_tile_trans().get((a & 0x3ff, b & 0x3ff), []))
+        return d
 
     anims = {}
     for p in (1, 2, 3, 4):
@@ -347,8 +393,9 @@ def extract(stage):
                                            if a == seq[0] and b == seq[1] for l in ls[:1]]),
                 note='durations: mode of observed run lengths; the very first frame after '
                      'placement can differ (see first_frame_duration)')
-        # flames: rows 0,1,2,3,4,3,2,1,0 per piece
-        order = [0, 1, 2, 3, 4, 3, 2, 1, 0]
+        # flames: rows 0,1,2,3,4,3,4,3,4,3,2,1,0 per piece (measured in the bomb lab and the
+        # COM runs; 13 frames x 2 = the 26 ticks of fire)
+        order = FLAME_ORDER
         for off, pc in FLAME_PIECES.items():
             seq = [entry_of(FLAME_ROWS[k] + off, p) for k in order]
             fr = []

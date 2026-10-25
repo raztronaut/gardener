@@ -90,11 +90,45 @@ def run(stage, frames, kind):
     return out
 
 
+def run_bombs(stage=1):
+    """Bomb lab: for each bomb type (normal + the 4 bomb items) P1 picks the item up,
+    drops a bomb and walks away; B detonates remote bombs at the end.  Logged like a
+    COM run (ent/grid/live) so stages.py can pool the tile timings."""
+    from sprites import lab_state, pads_from, script
+    from capture import spawn_item
+    S = Snes(multitap=True, render=False)
+    base = lab_state(S)
+    ents, grids, lives = [], [], []
+    for item in (None, 0x160E, 0x1604, 0x1628, 0x162A):    # -, remote, pierce, rubber, power
+        S.load_state(base)
+        if item:
+            spawn_item(S, 2, 1, item)
+        pads = pads_from({0: script([('-', 2), ('RIGHT', 28), ('-', 6), ('A', 1), ('RIGHT', 40),
+                                     ('DOWN', 30), ('-', 260), ('B', 2), ('-', 120)])}, 489)
+        for p in pads:
+            S.step(p)
+            ents.append(arena_entries(S.vram(live=True)))
+            grids.append(grid(S.wram(live=True)))
+            lives.append(True)
+        for _ in range(2):          # separator
+            ents.append(ents[-1])
+            grids.append(grids[-1])
+            lives.append(False)
+    out = obs_path(stage, 'bombs')
+    np.savez_compressed(out, ent=np.array(ents, np.uint16), grid=np.array(grids, np.uint8),
+                        live=np.array(lives, bool))
+    print('wrote', out)
+    return out
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('stage', type=int)
     ap.add_argument('--frames', type=int, default=0)
-    ap.add_argument('--kind', default='com', choices=['com', 'idle'])
+    ap.add_argument('--kind', default='com', choices=['com', 'idle', 'bombs'])
     a = ap.parse_args()
+    if a.kind == 'bombs':
+        run_bombs(a.stage)
+        sys.exit(0)
     n = a.frames or (24000 if a.kind == 'com' else 1200)
     run(a.stage, n, a.kind)
