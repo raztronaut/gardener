@@ -200,7 +200,7 @@ async function main() {
     // tonight", so fetchEvents must sort locally. Guard the three invariants with
     // a deliberately scrambled fixture; a fake fetchJSON keeps this offline.
     try {
-      const { fetchEvents, localeRank, dedupKey } = await import(join(PUBLIC, 'lib', 'events.js'));
+      const { fetchEvents, localeRank, dedupKey, sameEvent } = await import(join(PUBLIC, 'lib', 'events.js'));
       const sfDate = (n) => new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Los_Angeles', year: '2-digit', month: 'numeric', day: 'numeric',
       }).format(new Date(Date.now() + n * 864e5)); // "9/20/26"
@@ -257,6 +257,17 @@ async function main() {
       check('events: dedupe key is long enough to separate them',
         dedupKey('Golden Gate Park Sunday Roller Disco Party') !== dedupKey('Golden Gate Park The Whales Tail Beer Garden'),
         'dedupe prefix too short');
+      // Same-day reworded listings of ONE event collapse (the wall once showed the
+      // "World of Dumplings" festival twice), but distinct events stay distinct.
+      check('events: reworded same-day duplicates are recognised',
+        sameEvent('SF’s Free “World of Dumplings” Festival at the Ferry Building', '2026 “World of Dumplings” Festival at SF’s Ferry Building')
+        && sameEvent('SF’s “World of Dumplings” 2026: Free Community Food Fest (Ferry Building)', 'SF’s Free “World of Dumplings” Festival at the Ferry Building'),
+        'near-duplicate titles not matched');
+      check('events: distinct events are not merged as duplicates',
+        !sameEvent('Golden Gate Park Sunday Roller Disco Party (SF)', '“Lindy in the Park” Swing Dance Party (Golden Gate Park)')
+        && !sameEvent('Oakland Chinatown’s “Trick Or Treat” Trail', 'Free “Trick-Or-Treat” Around Historic Aircraft at Hiller Aviation Museum')
+        && !sameEvent('Oakland’s Free POC Comedy Night (Temescal)', 'Oakland’s “Mezcal & Mole” Comedy Night (Mondays & Tuesdays)'),
+        'distinct events wrongly matched');
     } catch (e) { bad('events ordering', e.message); }
     // Gardyn plant tracker: all 16 pods of the Budding Florist kit are mapped to a
     // unique layout position, and the trajectory logic reads sensibly at key days.

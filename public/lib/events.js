@@ -116,6 +116,31 @@ export function dedupKey(name) {
   return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 28);
 }
 
+// Same-day near-duplicates (2026-10-25). The scraper often lists ONE event several
+// times under reworded titles — "SF's Free “World of Dumplings” Festival at the
+// Ferry Building" / "“World of Dumplings” 2026: Free Community Food Fest" — which
+// the 28-char prefix key can't see, so the wall card showed the festival twice.
+// Two listings ON THE SAME DAY are one event when they share a distinctive quoted
+// name (2+ words, one of them a non-generic word of 5+ letters — so two different
+// "Trick-Or-Treat" events never merge), or when their significant words overlap
+// heavily (3+ shared, ≥70% of the shorter title). Exported for smoke.
+const DUP_STOP = new Set('the and for with from at of in on to w a an by sf sfs san francisco free annual every new is back'.split(' '));
+const DUP_GENERIC = new Set('trick treat halloween comedy night party market dance music show free open'.split(' '));
+const dupWords = (s) => String(s || '').toLowerCase().replace(/[’']/g, '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .split(/[^a-z0-9]+/).filter(Boolean);
+const dupTokens = (s) => new Set(dupWords(s).filter((w) => w.length >= 3 && !DUP_STOP.has(w) && !/^\d+$/.test(w))
+  .map((w) => (w.length > 4 ? w.replace(/s$/, '') : w)));
+const dupQuotes = (s) => [...String(s || '').matchAll(/[“"]([^”"]{3,})[”"]/g)].map((m) => dupWords(m[1]))
+  .filter((ws) => ws.length >= 2 && ws.some((w) => w.length >= 5 && !DUP_GENERIC.has(w))).map((ws) => ws.join(' '));
+export function sameEvent(a, b) {
+  const qb = new Set(dupQuotes(b));
+  if (dupQuotes(a).some((q) => qb.has(q))) return true;
+  const A = dupTokens(a), B = dupTokens(b);
+  let n = 0;
+  for (const t of A) if (B.has(t)) n++;
+  return n >= 3 && n / Math.min(A.size, B.size) >= 0.7;
+}
+
 // Which side of the Bay is this? The scraped titles tag their city in plain text
 // ("… (Alameda)", "Oakland's Free …", "SF's Chinatown …"), and location_address is
 // usually blank, so the title is what we have to read. Returns a sort rank:
@@ -221,6 +246,7 @@ export async function fetchEvents(fetchJSON, { limit = 150 } = {}) {
   for (const ev of out) {
     const key = dedupKey(ev.name);
     if (seen.has(key)) continue;
+    if (ev.dayKey && picked.some((p) => p.dayKey === ev.dayKey && sameEvent(p.name, ev.name))) continue;
     seen.add(key);
     picked.push(ev);
   }
