@@ -211,3 +211,68 @@ detonation.
 +B9 = $C0); else `C0A675`: +00 |= $0800 (dying), +52 = $0801, +6A = $1E (death
 animation). Measured: P1 standing on its own bomb dies on the first tick the fire is
 written.
+
+## Soft blocks, burn list, item deck
+- Burn list `$7F0000` (32 × 16-byte entries: tile idx, grid idx, type 2 soft / 4 item,
+  frame-time 3, owner palette) filled by `C0EF44` at detonation; processed on **odd
+  ticks** by `C0DCB4` → `C0DCDA` (list of active entries rebuilt in `$7E2860`). Frame
+  lists `$C5F3ED[type]`: soft 6 frames (`$00E0..$00EA`), item 7 frames; 3 calls (6
+  ticks) per frame, first frame immediately → soft gone at D+37, item at D+43 (vectors
+  bomb_softblocks, item_burn). While burning: soft cell stays `$C2`, item cell = `$41`.
+- End of a soft-block burn → `C0DD76` → battle: `C0DE13` takes the next non-zero deck
+  card from `$7E3C48` (64 words + $FFFF; card zeroed when used): `$8000` = nothing
+  (`C0DDF7` restores floor), else item tile word → `$7FA000` tile, cell `$44`. Items
+  burning (tile has bit 8 set) never draw.
+- Deck build `C01CEA` at round init: 64 × `$8000`; per kind k (tile `$C5F205[k]`),
+  `$C5F225[stage]` → count list; each card at `RNG() & 63` (retry if occupied; RNG via
+  `C00CAA`). Kinds: 0 bomb up 1600, 1 pierce 1604, 2 fire up 1602, 3 full fire 1606,
+  4 speed up 1622, 5 remote 160E, 6 skull 160A, 7 glove 1626, 8 kick 1624, 9 power 162A,
+  10 rubber 1628, 11 heart 1640, 12 wall pass 1620, 13 bomb pass 1608, 14/15 score items.
+
+## Item pickup (`C0986A`, per player)
+Cell under centre type 4 → `C0980D` (cure disease, +E9 −1) → jump table `$C5F145`
+indexed by tile low byte ×2: 00 `C098C2` bomb up (+E1 ≤ 9), 02 `C0991D` fire up
+(+E2 ≤ 9, +E4), 04 `C09965` pierce (+F3 = 4), 06 `C09986` full fire (+E2 = 9),
+08 `C099C5` bomb pass (+FA), 0A `C099DF` skull, 0E `C09B1D` remote (+F3 = 1),
+20 `C09B3E` wall pass (+FB), 22 `C09B58` speed up (+E0 ≤ 5), 24 `C09BA8` kick (+FF),
+26 `C09BF6` glove (+FE), 28 `C09C19` rubber (+F3 = 8), 2A `C09C3A` power (+F3 = 2),
+40 `C09C5B` heart (+EF). All verified by the item_* vectors.
+Base/current stats: +E0/+F0 speed, +E1 capacity (+F1 = in hand, +F8 = out),
++E2/+F2 fire, +F3 bomb type, +F5 disease, +E9 skull count.
+
+## Diseases
+- Skull `C099DF`: id = `$C5EEB5[$0400 & 15]` (stage id 8: `$C5EEC5`; with +EF:
+  `$C5EED5`); id 3 → 2 if +04 b0 (COM). Applied via `C09B74`/`C001EE`: 1 blink
+  (`C0362B`, +FC/+F9 schedule `$C5EE5D` toggling +04 b6 = sprite hidden), 2 auto-bomb
+  (`C03055`, every 2nd tick), 3 no bombs, 4 speed 6, 5 speed 0, 6 fire 0 / 1 bomb.
+- No timer (only writers of +F5: pickup cure, skull, death, swaps). Measured 4000 ticks.
+- Contagion `C002AB`/`C00445`/`C0055A` (each pair once per contact, latch `$5C5E`):
+  swap +F5 and +E9 when +A8 equal, then `C001EE` re-derives stats.
+
+## Buttons (per player, `C02945` → `C03082` / `C02A7A` / `C029FD`)
+A ($0080) bomb / lift (glove) / throw on release; B ($8000) remote detonation of the
+oldest remote bomb (`C02B25` list sorted by serial +05, `C02AB5` sets fuse 2 + b7);
+X ($0040) stop own kicked bomb (`C029FD` → `C08BDA`); Y ($4000) stage/AI action
+(`C065F1`).
+
+## Kick / throw objects
+- Movers are allocated in `$7E8400..` (28 slots, `C02F1B`) and appended to the bomber
+  list `$7E2620`. Kick (`C0AFAF`): mover +52 = $20, +40 = bomb ptr, +46 grid step,
+  speed 2 px/tick, bomb +00 |= $1000 (bomb update skipped; the mover decrements the
+  fuse every 2 ticks). Stops before an occupied cell (measured: before P4), becomes a
+  bomb again (`C08BDA`). Rubber (type 8) re-aims via `$C5FC6D[$0408 & $1E]` (`C093A2`).
+- Glove lift `C02F6E` (own bomb, fuse ≥ 4, +52 |= 3, 15-tick lift → +52 = 6), throw
+  `C02CAF` on A release: mover +52 = $10 at the bomber's x, y−16; distance `C02DCF`
+  (3 cells, or 2..5 to land on a bomber in line); 4 px/tick, arc; wraps around the
+  arena; bounces 1 cell (2 px/tick) while the landing cell is occupied (measured:
+  left from (2,4) → (14,4); up → off P4 at (2,14) → (2,13)).
+
+## Round flow, stages, AI
+See `re/notes-round.md` (clock `$5E10/12/14`, time-up `$5C56`, sudden death
+`C0D843`/`C0D5BB`, order `$C5E1C9`, round end `C00A38`, winner `$5C3E`, wins
+`$5E66+2·slot`, settings `$5C54..$5C5C`), `re/notes-stages.md`, `re/notes-ai.md`
+(COM flag +04 b0, level `$7E1CA5`/`$5C58`/+D2, plans at `$0500+$100·slot`, danger map).
+
+## Screen geometry (battle_start, measured)
+HUD rows 0..24 (24 = black line); cell (cx,cy) at screen (16cx−8, 16cy−23); BG2 scroll
+(8,22), BG1 (8,23); bomber sprite = two 16×16 OBJ at (x−8, y−24) and (x−8, y−8).
