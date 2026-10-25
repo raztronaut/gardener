@@ -115,7 +115,7 @@ copy+rename (a running process keeps its mapping).
 | +FB | (byte) **wall-pass** (soft blocks $C2 become passable $40) | `C0BEA6` |
 | +FE | (byte) **glove** | `C030E3`, `C09BF6` |
 | +FF | (byte) **kick** ability | `C0AFAF`, `C09BA8` |
-| +52 | action state (1 dying anim, 3 lifting, 6 carrying, $81 stunned, $0801 dying) | |
+| +52 | action state: bit0 busy (throw / death animation; movement skipped), 3 lifting, 6 carrying, $81 stunned, $0801 dying | `C0A485`, `C02CAF` |
 | +5E | facing (2 R, 4 L, 8 D, $10 U) | `C0AE5F` |
 
 Speed table `$C5FB07` (4 bytes per level: int word, frac word), read from ROM:
