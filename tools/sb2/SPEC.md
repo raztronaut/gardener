@@ -529,9 +529,42 @@ cpu_round]
 
 ---------------------------------------------------------------------------------
 ## 14. Stages
-(see `re/notes-stages.md`)
+[code + meas, full maps and addresses in `re/notes-stages.md`]
 
 Battle stage ids (`$1A`) for select-screen stages 1..10: 0, 1, 2, 5, 6, 7, 8, 9, $A, $B.
+
+- **Spawns** (`C01AF3`, all stages except 4):
+  - P1 (2,4), P2 (14,14), P3 (14,4), P4 (2,14);
+  - i.e. x/y = $20/$30, $E0/$D0, $E0/$30, $20/$D0.
+  - **Stage 4** spawns in the centre: P1 (6,8), P2 (10,10), P3 (10,8), P4 (6,10).
+- **Layout**:
+  - Each stage has a fixed ROM map (RLE metatiles → collision grid + underlay +
+    BG tiles). The clear cells around the spawns are part of the map (no runtime rule):
+    the spawn cell plus 2 cells along each wall.
+  - Then a **random soft-block removal** (`C0F50D`), N = 12 / 16 / 30 / 23 (no effect) /
+    8 for stages 1 / 2 / 5 / 7 / 9 (others 0).
+    - Scan cells row-major over the whole 16×16 range, wrapping, forever.
+    - For each soft cell: r = RNG(); if r ≥ $80, restore the underlay (floor) and N −= 1.
+    - Stop at N = 0.
+  - Because the RNG carries over from the previous rounds, every round gets a new layout.
+    It is reproduced exactly by `stages_softsim.py` (seed 0 at the first round after
+    power-on).
+- **Hard lattice**: classic pillars at odd cx 3..13 × odd cy 5..13 on stages 1, 2, 4, 5,
+  6, 8 and 9. Stages 3, 7 and 10 are hand-drawn. Symmetry: stages 1–6 are mirror-symmetric
+  both ways; stage 7 L/R only; 8, 9 and 10 are not symmetric.
+
+| stage | gimmick | exact rules |
+|---|---|---|
+| 1 | none | plain lattice, 93 soft blocks − 12 random |
+| 2 ice | **ice**, push blocks, holes | Ice integrator: speed forced to level 1. The held axis accelerates 0.25 px/tick², capped at 2.0. **No friction**: you slide until a collision. Opposite input decelerates 0.25/tick. A perpendicular input cancels the other axis. Blocked by a non-burning soft block whose next cell is free (or an item) → the block slides 2 px/tick until blocked. Holes at (4,6) (8,6) (12,6) (4,12) (8,12) (12,12): entering one snaps you to the centre, falls ~12 ticks, launches up (vy 8 decelerating 0.5) off the top, lands one row below the hole (above if blocked). 91 ticks without control. |
+| 3 beach | tunnels, solid bombers | Border gaps at cx 4 and 12 link top and bottom. Exit (4,3) → re-enter at (4,15) walking up, and vice versa: 6-tick transit, one bomber per tunnel, blocked if a bomber stands at the exit. **Bombers are solid to each other** (|dx| < 13, \|dy\| < 15): pushing a standing bomber moves both at 0.5 px/tick. 20 fixed soft blocks. Sudden death closes the tunnels. |
+| 4 barrels | fuse ring | 28 fuse cells `$0E` (ring cx 4..12 × cy 6..12). Fire touching any fuse ignites the ring if idle: next tick all 28 cells are fire for 11 phases × 3 ticks (30 ticks measured), then they re-arm. Centre spawns. |
+| 5 garden | power tiles | 11 tiles `$14`: (8,4) (4,6) (12,6) (6,8) (10,8) (8,9) (6,10) (10,10) (4,12) (12,12) (8,14). A bomb placed on one gets range 9. Some start under soft blocks. Graphics toggle every 160 ticks (cosmetic). |
+| 6 pink | teleporters | `$50` at (4,6)↔(12,12) and (12,6)↔(4,12). Entering moves you to the partner centre unless a bomb or bomber is there. You must leave the pad before re-use. |
+| 7 race | speed pads | Pads `$0F` at (3,9) (8,9) (13,9) set speed+base by tile: 0.375 / 0.8125 / 1.25 / 3.0 / 3.5 px/tick, or "stop" (input locked 128 ticks). After use, a non-stop pad re-rolls its tile from `$C5E871[(RNG & $E)/2]` = {1.25, 0.375, 0.8125, 3.0, 3.5, 3.5, 3.0, 1.25 tiles}. At round start (3,9) and (13,9) are normal and (8,9) is stop. One permanent soft block at (8,8) → no items ever drop. |
+| 8 factory | conveyor ring | Ring row 6 / col 12 / row 12 / col 4, clockwise. Carries bombers and bombs at 0.5625 px/tick. Switch (8,8) reverses the direction; (8,10) toggles fast mode, 2.3125 px/tick. Both are latched until you step off. |
+| 9 tech | arrows | 12 arrow cells (see notes). Bombers are unaffected. A kicked bomb entering one is redirected (code only). 8 random removals. |
+| 10 forest | jump | **Y = jump** one cell in the facing direction over 32 ticks (0.5 px/tick, arc), no control. Blocked by hard/soft. Onto a bomb: slides one more cell. Hand-drawn layout, 57 fixed soft blocks. |
 
 ---------------------------------------------------------------------------------
 ## 15. CPU AI
@@ -650,6 +683,21 @@ alternatives are:
 
 The arena scrolls never; the whole 13 × 25 field is always visible.
 
+**Concrete numbers for 13 × 25** (inner rows cy 4..28, border rows 3 and 29):
+- Corner spawns: P1 (2,4), P2 (14,28), P3 (14,4), P4 (2,28), i.e. y = 16cy − 16.
+- Stage 4 centre spawns: centre row cy 16 instead of 9 → P1 (6,15), P2 (10,17), P3 (10,15),
+  P4 (6,17).
+- Sudden death:
+  - the two outer rings of a 13 × 25 field are 72 + 64 = 136 blocks (original 44 + 36 =
+    80);
+  - at 15 ticks per block that takes 2040 ticks instead of 1200.
+  - Either start it at 0:47 instead of 0:33 so it ends at the same clock time, or keep
+    0:33 and use 9 ticks per block (136 × 9 = 1224). The spiral rule is unchanged:
+    clockwise from the top-left inner cell, outer ring then second ring.
+- Item deck: soft blocks scale ≈ 2.27×. Use a 145-card deck with each per-stage count
+  ×25/11, rounded (e.g. stage 1: bomb 16, fire 14, speed 11, skull 2, glove 7, kick 7).
+- Random soft removal N scales with the soft-block count (stage 1: 12/93 of the blocks).
+
 **Rules that scale with the taller field.**
 - **Spawns**: the four corners of the 13 × 25 field — (2,4), (14,4), (2,28), (14,28).
   - Keep each corner's L-shaped 3-cell clearance: the corner + 2 cells along each wall.
@@ -660,9 +708,21 @@ The arena scrolls never; the whole 13 × 25 field is always visible.
   - **The deck must grow**: scale the 64 cards and the per-stage counts by ≈ 2.27
     (25/11), rounded, so the item density per block stays the same. Pierce/remote stay
     0.
-- **Gimmicks**: replicate each stage's gimmick pattern by vertical tiling/mirroring of
-  its period (conveyor loops, arrow tiles, ice patches, warps…), keeping vertical
-  symmetry about the middle row (row 16). Per-stage notes in `re/notes-stages.md`.
+- **Gimmicks** (per stage, from `re/notes-stages.md`), keeping symmetry about the middle
+  row (cy 16) where the stage is symmetric:
+
+| stage | how to extend |
+|---|---|
+| 1, 5, 9 | lattice + soft fill like rows 7–11 |
+| 2 | holes at cx 4/8/12 every 6 rows: cy 6, 12, 20, 26, keeping T/B symmetry around 16 (the two original hole rows are 2 rows from each end) |
+| 3 | tunnels stay at cx 4/12 in the top/bottom border; stretch the hard frame columns and the central water band |
+| 4 | keep centre spawns; stretch the fuse ring vertically into one taller loop (cy 6..26) |
+| 5 | power tiles on the diamond pattern repeated |
+| 6 | teleporters at (4,6), (12,6), (4,26), (12,26) |
+| 7 | add straight track segments vertically; pads on the middle row cy 16 |
+| 8 | stretch the conveyor ring (rows 6 and 26, columns 4 and 12); switches at (8,15) and (8,17) |
+| 9 | keep the corner loop and the rotation-symmetric inner arrows |
+| 10 | repeat its rows 6..12 block pattern |
 - **Sudden death**: the falling-block order must be regenerated for 13 × 25 (same spiral
   rule, see notes-round), and its timing scaled so the field closes in the same time as
   the original, or with the same per-block interval (design choice: same interval = a
