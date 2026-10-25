@@ -144,3 +144,70 @@ C0A146 (position clamp/visibility), C0A120 (anim), C09C7B`.
    pillar (3,5), holding RIGHT, Y offset −8..+8): any non-zero offset slides
    1.25 px/tick toward the free row while X waits until the front-centre probe leaves
    the pillar row; offset 0 = stuck. Matches the code.
+
+## Tick counter / lag (NMI `00FD84`)
+NMI: if the main loop has finished its tick (`$16 != 0`) → `INC $32`, OAM/VRAM DMA;
+else (tick still running) nothing is uploaded and `$32` is not incremented = lag frame.
+Every executed tick is counted exactly once, at the first NMI after it completes.
+`$36` increments every NMI.
+
+## RNG (`C00CDF`, seed `$00D6`)
+seed' = ((seed | 1) × $0383) mod 65536; result = (seed' × (X & $FF)) >> 16 (X = range
+argument). `C00CAA` (called once per tick at the end of the main loop `C0FB85`, plus
+extra calls from the CPU AI `C0D45C`, soft-block item shuffling `C01D2D`, `C0F560`)
+calls it with X = old seed, stores the result at `$0400` and at `$0400 + ($32 & $1E)`,
+and in player slot `$5C3A>>8` field `+BA` (slots rotate 0..3, one per tick).
+Measured over 3000 battle frames: 2794 frames one step, 80 frames two (AI), rest
+lag-alignment.
+
+## Bombs (objects at `$7F2000 + $100*k`, k < 40; active list `$7E2960`, $FFFF-terminated)
+Placement (`C03082`, per player per tick): bomb button = **SNES A** (+6E bit $0080),
+edge-triggered (latch +0E bit $0400). Fails if: cell under the player centre is an
+object cell (+B4 bit6) [with glove +FE and a bomb there → pick it up instead,
+`C02F6E`]; cell type is fire ($01) or $11 (`C031EB`); a bomb already uses this tile;
+a blocking object stands there (`C0319A`); +F1 (bombs in hand) = 0. Then +F1 −= 1,
++F8 (bombs out) += 1, spawn `C034C0`:
+| off | value |
+|---|---|
+| +00 | $8000 \| bomb type (player +F3; bit1 type only if no other bomb out) — b0 remote (no countdown), b1 power (range 9), b2 pierce (fire passes soft blocks), b5 …, b11 …, b12 held/kicked (no ticking), b14 exploding, b15 active |
+| +02 | tile index, +0A grid index (cell set to $43) |
+| +04 | fuse = $48 (72 bomb updates) |
+| +05 | per-player bomb serial (+F6) |
+| +06 | owner slot 0..3 |
+| +07 | range = player +F2 (fire reaches +07+1 cells); 9 on stage 5 special tiles (list `$7E2FF0`) |
+| +08/+09 | timer / anim phase |
+| +0C | (owner+1)*4 (palette) |
+| +10.. | 4 rays × (range+1) × 6-byte entries (tile, grid, piece) up/down/left/right at +10/+4C/+88/+C4, $FFFF = cut |
+Danger marks: `$7F8000[cell] = $FFFF` along the rays (for the AI).
+
+### Bomb update (`C0E0AA`, only on **even ticks** (`$32 & 1 == 0`), list order)
+For each bomb: exploding (b14) → `C0E0F0`; else `C0E980`:
+- held/kicked (b12) → skip;
+- **its cell is fire ($01) → detonate now** (chain);
+- remote (b0) and not forced (b7) → no countdown; else +04 −= 1, 0 → detonate.
+- **After a detonation the loop stops for this update** (later bombs in the list are
+  not updated this tick) → at most one new detonation per bomb update (2 ticks).
+Measured: bomb placed on tick 18 (even) detonated on tick 162 = **144 ticks** (72
+updates, the first in the placement tick).
+
+### Detonation (`C0EA83` → rays `C0EAA7/C0EB8E/C0EC68/C0ED42`)
+Each ray walks its (range+1) cells: type $0F/$09 pass; bomb (3) → trigger it
+(`C0EFD3`: its flags |= $C0, its fuse := 2, and its ray pointing back is cut) and stop;
+soft (2)/item (4)/$0B → queue the cell in the burn list `$7F0000` (16-byte entries) and
+stop (pierce bombs continue); solid or types $26/$04/$0B stop; anything else = fire.
+The cut point is stored as $FFFF in the ray.
+
+### Explosion (`C0E0F0`, per even tick)
+Phase table `$C5F415` = 13 × 1 update then $FF. On each of the 13 updates after the
+detonation update, the centre and every ray cell are (re)written as fire `$01` + flame
+tile. On the 14th update the cells are restored from the underlay (`C0E14F`) and the
+bomb freed (`C0E303`). Measured: cell (2,4) = $01 from frame 153 to 178, back to $00
+at 179 (detonation at 151) → fire present for **26 ticks**, starting **2 ticks** after
+detonation.
+
+## Death
+`C0A5C9` (per player): cell under the centre (+B4 & $3F) = 1 (fire) → in battle, if
++EF ≠ 0 (protection counter) it is decremented and the player flickers (+04 b5,
++B9 = $C0); else `C0A675`: +00 |= $0800 (dying), +52 = $0801, +6A = $1E (death
+animation). Measured: P1 standing on its own bomb dies on the first tick the fire is
+written.
