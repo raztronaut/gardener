@@ -53,7 +53,11 @@ PB = 0x8000
 DECK = 0x3C48
 X0, Y0, X1, Y1 = 0, 2, 17, 17          # snapshot window (cols, rows)
 # round clock / state words (filled in from the round-flow RE; extra words are harmless)
-ROUND_ADDRS = []
+ROUND_ADDRS = [0x5E10, 0x5E12, 0x5E14, 0x5C56, 0x5E20, 0x00B9, 0x00BE, 0x5D0E, 0x5C3E,
+               0x5E66, 0x5E68, 0x5E6A, 0x5E6C]
+# = minutes, seconds, sub-tick counter, time-up flag (0 = up), timer-stopped (b15),
+#   mode flags ($B9 b14 = round over), round-over countdown, sudden-death flag (b0),
+#   winner slot ($FFFF = draw), win counters P1..P4  (see re/notes-round.md)
 
 PFIELDS = [('x', 0x10, 2), ('xf', 0x12, 2), ('y', 0x18, 2), ('yf', 0x1A, 2), ('f00', 0x00, 2),
            ('f52', 0x52, 2), ('f7e', 0x7E, 2), ('inp', 0x6E, 2), ('cell', 0xA8, 2),
@@ -358,6 +362,19 @@ scen('glove_throw', 'P1 has the glove: picks up its own bomb (A on the bomb), th
      hold(40, 0) + hold(1, B.A) + hold(6, 0) + hold(20, B.A) + hold(1, B.A | B.UP) +
      hold(1, B.UP) + hold(200, 0),
      setup=[clear_soft, stat(0, 'glove', 1), stat(0, 'bombs_cap', 2), stat(0, 'bombs_hand', 2)])
+scen('timeout_sudden_death', 'Clock poked to 0:35. Soft blocks cleared; the 4 humans walk '
+     'out of the two outer rings, then idle -> Hurry at 0:38? (no: starts at 0:35), sudden '
+     'death from 0:33 (one block per 15 ticks, 80 blocks), time up at 0:00+65 ticks kills '
+     'everyone -> draw, 256-tick round-over phase.', MT,
+     hold(26, B.DOWN, B.UP, B.DOWN, B.UP) + hold(26, B.RIGHT, B.LEFT, B.LEFT, B.RIGHT) +
+     hold(2700, 0),
+     setup=[clear_soft, lambda R: [(0x5E10, 0, 2), (0x5E12, 35, 2), (0x5E14, 0, 2)]])
+scen('round_win', 'Cleared arena; P2, P3, P4 poked next to P1 at (3,4), (2,5), (4,4); P1 '
+     'bombs and runs down to (2,7) -> 3 die, round over, P1 wins after 256 ticks.', MT,
+     hold(1, B.A) + hold(40, B.DOWN) + hold(800, 0),
+     setup=[clear_soft, lambda R: [(PB + 0x110, 0x30, 2), (PB + 0x118, 0x30, 2),
+                                   (PB + 0x210, 0x20, 2), (PB + 0x218, 0x40, 2),
+                                   (PB + 0x310, 0x40, 2), (PB + 0x318, 0x30, 2)]])
 scen('cpu_round', 'All four bombers COM (level 5), stage 1, full round until the result.',
      'com4_stage01', [[0, 0, 0, 0, 0]] * 9000, multitap=False)
 scen('cpu_round_1p', 'battle_start: P1 human idle-walking, 3 COM (level 5).',

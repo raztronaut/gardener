@@ -345,15 +345,20 @@ item_skull, skull_swap]
 
 | id | disease | effect |
 |---|---|---|
-| 1 | blink | the sprite toggles visible/invisible on a growing schedule (table `$C5EE5D`: hidden 1/visible 1 tick … up to 6/10). Logic unaffected. |
+| 1 | blink | the sprite toggles visible/invisible on a growing schedule. Table `$C5EE5D` gives the durations as alternating (hidden, visible) pairs: (1,1)×5, (2,2)×5, (2,4)×2, (3,6)×2, (4,8)×3, (6,10)×3, … Logic is unaffected. |
 | 2 | diarrhea | tries to place a bomb automatically every 2nd tick |
 | 3 | constipation | cannot place bombs (in hand = 0) |
 | 4 | fast | speed level 6 (3.0 px/tick) |
 | 5 | slow | speed level 0 (0.5 px/tick) |
 | 6 | weak | fire 0 (reach 1), in hand = 1 if no bomb is out else 0 |
 
-- **Duration**: no timer. It lasts until the bomber picks up any item, swaps it away,
-  or dies. [code: no other writer of +F5; infer — long CPU rounds show no timeout]
+- **Duration**: **no timer**. It lasts until the bomber picks up any item, swaps it away,
+  or dies.
+  - Code: no other writer of +F5.
+  - Measured: disease 5 still active after 4000 ticks.
+- All six effects were measured by forcing the skull roll (`$0400` poked).
+  - Speeds measured: 3.0 / 0.5 px per tick.
+  - Disease 2 drops a bomb at once; 3 never drops one; 6 gives fire 0.
 - **Contagion**: when two living bombers share a centre cell (equal +A8), their diseases
   (and +E9 counters) are **swapped**. This is edge-triggered once per contact, per pair
   (6 pairs), and stats are re-derived.
@@ -416,12 +421,79 @@ item_skull, skull_swap]
 
 ---------------------------------------------------------------------------------
 ## 13. Round flow
-(see `re/notes-round.md`; filled in from the round-flow RE)
+[code + meas, details in `re/notes-round.md`; vectors timeout_sudden_death, round_win,
+cpu_round]
 
-Measured so far:
-- Bombers can move from the first fully bright frame (`$30 & $0F == $0F`).
-- A round ends when ≤ 1 bomber is left. In cpu_round, round 1 ended at tick ~3200 and
-  round 2 began.
+- **Settings** (menu → RAM):
+  - COM LEVEL 1..9 → `$5C58` = level−1;
+  - BATTLE 1..5 → `$5C5A` = wins needed;
+  - TIME 1:00 / 2:00 / 3:00 / 5:00 / ∞ → `$5C54` = 0..4;
+  - G-BOMBER → `$5C5C`.
+  - Defaults: level 5, 3 wins, 2:00, G-BOMBER on.
+- **Round start**:
+  - Every round fully resets the bombers: all stats and items back to the start values.
+  - The tick counter restarts at 0.
+  - There is **no READY/GO countdown**. The screen fades in, brightness `$30` +1 per tick,
+    15 at tick 16.
+  - **Bombers are frozen until brightness is 15** (first movement on tick 16). The clock
+    and bombs run from tick 0.
+  - The soft-block layout is re-generated each round (see stages); spawn corners are
+    fixed per match.
+- **Clock** (`$5E10` min, `$5E12` sec, `$5E14` sub-counter): **1 displayed second = 65
+  ticks**.
+  - The first decrement is at tick 64, then every 65 ticks.
+  - 65 ticks after 0:00 is shown → time up (`$5C56 = 0`); for 2:00 that is tick 7864.
+  - TIME = ∞ never counts down, and has no sudden death.
+- **"Hurry!"** at 0:38: banner + sound only.
+- **Sudden death** starts when the clock shows **0:33**:
+  - One block per **15 ticks**. For 2:00, block n lands at tick 5656 + 15n.
+  - Order: a clockwise spiral starting at (2,4) — top row left to right, right column
+    down, bottom row right to left, left column up — then the second ring the same way.
+  - **80 blocks** (the two outer rings), then it stops. The full 143-cell spiral exists
+    behind a hidden option `$1C68`.
+  - Cell order n = 0..79:
+    - (2..14, 4)
+    - (14, 5..14)
+    - (13..2, 14)
+    - (2, 13..5)
+    - (3..13, 5)
+    - (13, 6..13)
+    - (12..3, 13)
+    - (3, 12..6)
+  - A landing block makes the cell `$C1` (solid, type 1) in both grids on its first tick.
+    It overwrites floor, soft blocks (their item is lost), items and hard blocks; `$4C`
+    cells are skipped.
+  - A bomber whose centre cell it is **dies that tick** (type 1 = fire for the death
+    check).
+  - A bomb there is **deleted without exploding** and returned to its owner.
+  - A running explosion keeps rewriting its fire over the block until it ends, then
+    restores `$C1`.
+  - Stage 3 also closes its 4 two-deep border tunnels at sudden-death start.
+  - Measured: block cells at ticks 150, 165, 180, … in timeout_sudden_death (clock poked
+    to 0:35).
+- **Time up**: every bomber is killed through the normal death routine → no survivor →
+  **draw**. Measured: all four die on tick 2359 of the vector.
+- **Round end**:
+  - Each tick, count bombers flagged dying (+00 bit 11).
+  - **When ≥ 3 are flagged**: the round is over (`$B9` bit 14), the clock stops, and the
+    battle continues for **256 more ticks**:
+    - bombers can still move and act;
+    - falling blocks stop;
+    - ordinary bombs stop counting down, but chain-triggered bombs and running explosions
+      continue, so the "winner" can still die.
+  - Then the winner is the first slot not flagged (`$5C3E`), or a **draw** if all four
+    are flagged.
+  - Measured round_win: 3 deaths on tick 165, exit on tick 422 (256 later), P1's win
+    counter → 1.
+- **Match**:
+  - win counters `$5E66 + 2·slot`;
+  - the match ends when one reaches the BATTLE setting;
+  - ≈ 510 frames of scoreboard/loading between rounds;
+  - same stage all match.
+- **G-BOMBER**: the previous match's champion plays the next match as the gold bomber,
+  with a per-round roulette bonus (`$5C42`): 0 extra bomb, 1 speed up, 2 glove, 3 kick,
+  4 protection (+EF), 5 speed down. Code-read; the gold bomber and "extra bomb" case were
+  seen. Icon mapping and stop rule are uncertain.
 
 ---------------------------------------------------------------------------------
 ## 14. Stages
@@ -598,7 +670,8 @@ documented in the script's header.
 | death_own_bomb, death_two | death, simultaneous death |
 | cpu_round | 4 COM, level 5: a full round + the start of round 2 |
 | cpu_round_1p | battle_start: 1 human walker + 3 COM |
-| (timeout_sudden_death) | added with the round-flow RE |
+| timeout_sudden_death | clock poked to 0:35: sudden-death spiral (80 blocks, 15 ticks each), time-up kills all → draw, 256-tick end phase |
+| round_win | 3 bombers die → round over → 256 ticks → P1 wins (counter +1) |
 
 ---------------------------------------------------------------------------------
 ## 19. Verified vs inferred (summary)
@@ -616,10 +689,13 @@ documented in the script's header.
   - throw distance, speed and wrap.
 - **Code only**:
   - the one-detonation-per-update rule (consistent with bomb_chain);
-  - disease effects other than 6 ("weak");
   - contagion (vector recorded, see skull_swap);
   - remote via B;
   - rubber-bomb re-aim;
   - throw shortening onto bombers;
   - the AI (see notes-ai for its own split).
-- **Inferred**: no disease timer, overlap clearing of fire, stun on thrown-bomb hits.
+- **Measured too**:
+  - all 6 diseases and the absence of a disease timer;
+  - the clock (65 ticks/s), the sudden-death order and interval, time up = draw;
+  - the 256-tick round-over phase and win counting.
+- **Inferred**: overlap clearing of fire, stun on thrown-bomb hits.
