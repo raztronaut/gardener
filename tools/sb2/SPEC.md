@@ -389,9 +389,16 @@ item_skull, skull_swap]
   - its grid cell is freed while it travels.
 - The bomb's fuse keeps running while it slides: it is decremented every 2 ticks by the
   mover. Measured: 64 → 63 → … during the slide.
-- It stops when the next cell is blocked (solid, bomb, item?, bomber, other mover). It
-  snaps to that cell and becomes a normal bomb again.
+- It stops when the next cell is blocked: solid, bomb, bomber or other mover. It snaps to
+  its current cell and becomes a normal bomb again.
   - Rubber bombs re-aim randomly instead.
+- **It rolls over items and destroys them** (no pickup).
+- **Rolling into a fire cell detonates it at once.**
+- Measured, bomb kicked down column 2 from (2,5):
+  - an item at (2,9) was erased when the bomb passed;
+  - a soft block at (2,9) stopped it at (2,8);
+  - a fire cell at (2,9) detonated it on entry (flags `$C080`, at grid (2,9));
+  - P4 at (2,14) stopped it at (2,13).
 - **X** stops your own sliding bomb at the next cell boundary (`C029FD`).
 - The kicker cannot follow into the bomb's previous tile until it has moved on (mover
   collision).
