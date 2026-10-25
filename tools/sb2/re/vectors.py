@@ -399,6 +399,12 @@ scen('round_win', 'Cleared arena; P2, P3, P4 poked next to P1 at (3,4), (2,5), (
      setup=[clear_soft, lambda R: [(PB + 0x110, 0x30, 2), (PB + 0x118, 0x30, 2),
                                    (PB + 0x210, 0x20, 2), (PB + 0x218, 0x40, 2),
                                    (PB + 0x310, 0x40, 2), (PB + 0x318, 0x30, 2)]])
+scen('glove_stun', 'P1 (glove) throws its bomb right at P2 standing on (5,4): P2 is stunned '
+     '28 ticks (+52 = $81), the bomb bounces to (6,4); P2 then walks left.', MT,
+     hold(1, B.A) + hold(6, 0) + hold(20, B.A) + hold(1, B.A | B.RIGHT) + hold(1, B.RIGHT) +
+     hold(16, 0) + hold(104, 0, B.LEFT) + hold(150, 0),
+     setup=[clear_soft, stat(0, 'glove', 1),
+            lambda R: [(PB + 0x110, 0x50, 2), (PB + 0x118, 0x30, 2)]])
 scen('cpu_round', 'All four bombers COM (level 5), stage 1, full round until the result.',
      'com4_stage01', [[0, 0, 0, 0, 0]] * 9000, multitap=False)
 for _n in range(2, 11):
