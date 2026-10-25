@@ -231,6 +231,8 @@ bomb_chain]
   - **When a bomb detonates, the rest of the list is skipped for that tick.** So at most
     one new detonation happens per even tick, and bombs after it in the list do not
     count down that tick. [code `C0E0E0`]
+  - Measured in bomb_same_tick: two bombs placed on the same tick, far apart. Slot 0 went
+    off at tick 162; slot 1 kept fuse 1 and went off at 164.
 - **Chain reaction**: when a blast ray reaches a bomb, that bomb is triggered at once:
   - its fuse is set to 2 and it is forced to count down (even if remote);
   - its ray pointing back at the trigger is cut;
@@ -690,6 +692,9 @@ documented in the script's header.
 | skull_swap | skull + contagion |
 | kick | kick slide, X stop |
 | glove_throw | lift, carry, throw, wrap, bounce |
+| glove_stun | thrown bomb lands on P2 → 28-tick stun, bounce |
+| bomb_same_tick | two fuses expiring together → one detonation per update |
+| remote_detonate | remote bombs + B (oldest first, fuse 2) + chain |
 | death_own_bomb, death_two | death, simultaneous death |
 | cpu_round | 4 COM, level 5: a full round + the start of round 2 |
 | cpu_round_1p | battle_start: 1 human walker + 3 COM |
@@ -703,6 +708,8 @@ documented in the script's header.
   - coordinates/cells, the speed table (level 1 measured), the collision box and corner
     slide;
   - fuse, the even-tick bomb update, the chain step;
+  - one detonation per update (bomb_same_tick);
+  - remote detonation via B (remote_detonate: B on tick 93 → detonation on 96);
   - fire lifetime, soft-block burn and reveal timing;
   - the deck build and per-stage counts;
   - every item effect;
@@ -711,9 +718,7 @@ documented in the script's header.
   - kick speed;
   - throw distance, speed and wrap.
 - **Code only**:
-  - the one-detonation-per-update rule (consistent with bomb_chain);
   - contagion (vector recorded, see skull_swap);
-  - remote via B;
   - rubber-bomb re-aim;
   - throw shortening onto bombers;
   - the AI (see notes-ai for its own split).

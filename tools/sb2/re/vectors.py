@@ -405,6 +405,10 @@ scen('glove_stun', 'P1 (glove) throws its bomb right at P2 standing on (5,4): P2
      hold(16, 0) + hold(104, 0, B.LEFT) + hold(150, 0),
      setup=[clear_soft, stat(0, 'glove', 1),
             lambda R: [(PB + 0x110, 0x50, 2), (PB + 0x118, 0x30, 2)]])
+scen('bomb_same_tick', 'P1 and P2 drop bombs on the same tick in opposite corners: both '
+     'fuses expire on the same update, but only one bomb may detonate per update -> slot 1 '
+     'goes off 2 ticks after slot 0.', MT,
+     hold(1, B.A, B.A) + hold(14, B.DOWN, B.UP) + hold(14, B.DOWN, B.UP) + hold(200, 0))
 scen('remote_detonate', 'P1 has remote bombs (type 1) and capacity 2: drops two bombs, '
      'walks away, presses B twice -> the oldest goes first (fuse forced to 2), then the other.',
      MT, hold(1, B.A) + hold(14, B.DOWN) + hold(1, B.A) + hold(14, B.DOWN) + hold(14, B.DOWN) +
