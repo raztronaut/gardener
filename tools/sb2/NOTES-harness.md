@@ -229,3 +229,4 @@ than the others (arena fades in ~430 frames after START instead of ~315).
   frames between presses (the paths use 1-frame taps + ≥10-frame gaps).
 - Even one frame of different P1 input changes ~179 WRAM bytes within 6 frames (the
   CPU players react), so filter `event_diff` results by *when* they diverge.
+- The core prints `Map_HiROMMap` to stdout once at load (snes9x debug printf); harmless.
