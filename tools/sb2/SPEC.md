@@ -692,11 +692,10 @@ documented in the script's header.
     - 0–1 % with humans only;
     - 2–19 % with 4 COMs (stage 3, 4, 8 and 10 are heaviest);
     - 52 % in round_win, mostly the frozen post-round screens.
-  - Tick k reads the pads latched in the frame where it starts, which is the frame right
-    after tick k−1 completed. Without lag, frame i's pads drive the tick that completes
-    in frame i. After a lag frame, the pads of the frame where the late tick completes
-    are never read. [code: input read at the top of the tick `C01602`, counter
-    increment in NMI]
+  - **The tick that completes in frame i reads frame i's pads.** The pads of a lag frame
+    (no tick completes) are never read.
+    - Measured on battle_stage03 around a lag frame f: a 1-frame A tap at f−1 or f+1
+      placed a bomb in that same frame; a tap at f was lost.
   - Compare the port against the truth per tick, not per frame.
 
 | vector | covers |
