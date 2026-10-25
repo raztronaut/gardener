@@ -176,3 +176,170 @@ int retro_sb2_smp_finish_opcode(void)
 }
 
 } /* extern "C" */
+
+/* ===================================================================== *
+ * Execution / memory hooks (added in phase 2b, tools/sb2/re).            *
+ * The core calls these from three one-line additions in snes9x           *
+ * (cpuexec.cpp before each opcode, getset.h fast-path WRAM byte/word     *
+ * reads and writes) guarded by `if (sb2_hook_flags ...)`, so with the    *
+ * flags at 0 (the default) emulation is unchanged and costs one load +   *
+ * branch per instruction/access. Nothing here modifies emulated state.   *
+ *                                                                        *
+ * flags: bit0 exec counts (per ROM offset / per WRAM offset)             *
+ *        bit1 write watch (WRAM offsets in the write bitmap are logged)  *
+ *        bit2 read watch  (same for reads)                               *
+ *        bit3 exec trace  (registers at every instruction whose 24-bit   *
+ *                          PB:PC lies in [trace_lo, trace_hi])           *
+ * ===================================================================== */
+#include "65c816.h"
+#include <stdlib.h>
+
+#define SB2_HOOK_VERSION 1
+
+extern "C" {
+uint32 sb2_hook_flags = 0;
+}
+
+struct sb2_mem_ev {            /* 16 bytes */
+    uint32 pc;                 /* PB:PC of the instruction doing the access */
+    uint32 addr;               /* WRAM offset 0..0x1FFFF */
+    uint8  val;                /* value written / read */
+    uint8  old;                /* value before the write (reads: same as val) */
+    uint16 pad;
+    uint32 tag;                /* frame tag set by the frontend */
+};
+struct sb2_trace_ev {          /* 24 bytes */
+    uint32 pc;
+    uint16 a, x, y, s, d;
+    uint8  db, p;
+    uint32 tag;
+    uint32 pad;
+};
+
+static uint32 sb2_cur_pc, sb2_tag;
+static uint8  sb2_watch[2][0x20000];               /* [0]=write [1]=read */
+static sb2_mem_ev *sb2_log[2];
+static uint32 sb2_log_n[2], sb2_log_cap[2], sb2_log_drop[2];
+static uint32 *sb2_exec_rom;                       /* 1 MB of ROM offsets */
+static uint32 *sb2_exec_wram;                      /* 128 KB of WRAM offsets */
+static uint8  *sb2_exec_mx;                        /* per ROM offset: bit (1 << ((P >> 4) & 3)) for every M/X combo seen */
+static sb2_trace_ev *sb2_trace;
+static uint32 sb2_trace_n, sb2_trace_cap, sb2_trace_drop, sb2_trace_lo, sb2_trace_hi;
+
+static inline int32 sb2_wram_off(uint32 a)
+{
+    uint32 bank = (a >> 16) & 0xff, off = a & 0xffff;
+    if (bank == 0x7e || bank == 0x7f) return (int32) (((bank - 0x7e) << 16) | off);
+    if ((bank & 0x40) == 0 && off < 0x2000) return (int32) off;   /* $00-$3F,$80-$BF low mirror */
+    return -1;
+}
+
+extern "C" {
+
+void sb2_hook_exec(void)
+{
+    uint32 pc = Registers.PBPC & 0xffffff;
+    sb2_cur_pc = pc;
+    if ((sb2_hook_flags & 1) && sb2_exec_rom) {
+        uint32 bank = pc >> 16, off = pc & 0xffff;
+        int32 w = sb2_wram_off(pc);
+        if (w >= 0) sb2_exec_wram[w]++;
+        else if ((bank & 0x40) || off >= 0x8000) {
+            uint32 r = ((bank & 0x3f) << 16 | off) & 0xfffff;
+            sb2_exec_rom[r]++;
+            sb2_exec_mx[r] |= (uint8) (1 << ((Registers.PL >> 4) & 3));
+        }
+    }
+    if ((sb2_hook_flags & 8) && pc >= sb2_trace_lo && pc <= sb2_trace_hi) {
+        if (sb2_trace_n < sb2_trace_cap) {
+            sb2_trace_ev &e = sb2_trace[sb2_trace_n++];
+            e.pc = pc; e.a = Registers.A.W; e.x = Registers.X.W; e.y = Registers.Y.W;
+            e.s = Registers.S.W; e.d = Registers.D.W; e.db = Registers.DB; e.p = Registers.PL;
+            e.tag = sb2_tag; e.pad = 0;
+        } else sb2_trace_drop++;
+    }
+}
+
+static inline void sb2_mem(int k, uint32 Address, uint8 v)
+{
+    int32 w = sb2_wram_off(Address);
+    if (w < 0 || !sb2_watch[k][w]) return;
+    if (sb2_log_n[k] >= sb2_log_cap[k]) { sb2_log_drop[k]++; return; }
+    sb2_mem_ev &e = sb2_log[k][sb2_log_n[k]++];
+    e.pc = sb2_cur_pc; e.addr = (uint32) w; e.val = v; e.old = Memory.RAM[w]; e.pad = 0; e.tag = sb2_tag;
+}
+
+void sb2_hook_write(uint32 Address, uint8 Byte) { sb2_mem(0, Address, Byte); }
+void sb2_hook_read(uint32 Address, uint8 Byte)  { sb2_mem(1, Address, Byte); }
+
+int retro_sb2_hook_version(void) { return SB2_HOOK_VERSION; }
+
+/* Enable/disable hooks; allocates buffers lazily (log capacity in entries). */
+void retro_sb2_hook_set_flags(uint32 flags)
+{
+    if ((flags & 1) && !sb2_exec_rom) {
+        sb2_exec_rom = (uint32 *) calloc(0x100000, 4);
+        sb2_exec_wram = (uint32 *) calloc(0x20000, 4);
+        sb2_exec_mx = (uint8 *) calloc(0x100000, 1);
+    }
+    for (int k = 0; k < 2; k++)
+        if ((flags & (2 << k)) && !sb2_log[k]) {
+            sb2_log_cap[k] = 1u << 21;
+            sb2_log[k] = (sb2_mem_ev *) calloc(sb2_log_cap[k], sizeof(sb2_mem_ev));
+        }
+    if ((flags & 8) && !sb2_trace) {
+        if (!sb2_trace_cap) sb2_trace_cap = 1u << 20;
+        sb2_trace = (sb2_trace_ev *) calloc(sb2_trace_cap, sizeof(sb2_trace_ev));
+    }
+    sb2_hook_flags = flags;
+}
+uint32 retro_sb2_hook_get_flags(void) { return sb2_hook_flags; }
+void retro_sb2_hook_set_tag(uint32 tag) { sb2_tag = tag; }
+
+/* kind 0 = write, 1 = read; WRAM offsets [lo, hi) */
+void retro_sb2_hook_watch(int kind, uint32 lo, uint32 hi, int on)
+{
+    if (kind < 0 || kind > 1) return;
+    if (hi > 0x20000) hi = 0x20000;
+    for (uint32 i = lo; i < hi; i++) sb2_watch[kind][i] = on ? 1 : 0;
+}
+uint32 retro_sb2_hook_log(int kind, void **ptr, uint32 *dropped)
+{
+    if (kind < 0 || kind > 1) return 0;
+    if (ptr) *ptr = sb2_log[kind];
+    if (dropped) *dropped = sb2_log_drop[kind];
+    return sb2_log_n[kind];
+}
+void retro_sb2_hook_log_clear(int kind) { if (kind >= 0 && kind <= 1) { sb2_log_n[kind] = 0; sb2_log_drop[kind] = 0; } }
+
+/* which 0 = ROM offsets (0x100000 uint32), 1 = WRAM offsets (0x20000 uint32),
+ * 2 = ROM offsets M/X mask (0x100000 uint8: bit0 M=0X=0, bit1 X=1, bit2 M=1, bit3 both) */
+void *retro_sb2_hook_exec_counts(int which)
+{
+    return which == 2 ? (void *) sb2_exec_mx : which ? (void *) sb2_exec_wram : (void *) sb2_exec_rom;
+}
+void retro_sb2_hook_exec_clear(void)
+{
+    if (sb2_exec_rom) memset(sb2_exec_rom, 0, 0x100000 * 4);
+    if (sb2_exec_wram) memset(sb2_exec_wram, 0, 0x20000 * 4);
+    if (sb2_exec_mx) memset(sb2_exec_mx, 0, 0x100000);
+}
+
+void retro_sb2_hook_trace_config(uint32 lo, uint32 hi, uint32 capacity)
+{
+    sb2_trace_lo = lo; sb2_trace_hi = hi;
+    if (capacity && capacity != sb2_trace_cap) {
+        free(sb2_trace); sb2_trace = NULL; sb2_trace_cap = capacity;
+        if (sb2_hook_flags & 8) sb2_trace = (sb2_trace_ev *) calloc(sb2_trace_cap, sizeof(sb2_trace_ev));
+    }
+    sb2_trace_n = 0; sb2_trace_drop = 0;
+}
+uint32 retro_sb2_hook_trace(void **ptr, uint32 *dropped)
+{
+    if (ptr) *ptr = sb2_trace;
+    if (dropped) *dropped = sb2_trace_drop;
+    return sb2_trace_n;
+}
+void retro_sb2_hook_trace_clear(void) { sb2_trace_n = 0; sb2_trace_drop = 0; }
+
+} /* extern "C" */

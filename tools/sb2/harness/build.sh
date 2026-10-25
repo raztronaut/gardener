@@ -19,11 +19,15 @@ if [ "$(git rev-parse HEAD)" != "$REV" ]; then
   git fetch --depth 1 origin "$REV" 2>/dev/null || git fetch origin
   git checkout -q "$REV"
 fi
-# (re)apply the one-line Makefile patch + drop the shim in
-git checkout -q -- libretro/Makefile.common
+# (re)apply the one-line Makefile patch + the hook call sites + drop the shim in
+git checkout -q -- libretro/Makefile.common cpuexec.cpp getset.h
 git apply "$HERE/snes9x-sb2.patch"
+# exec/memory hook call sites (phase 2b; inert unless retro_sb2_hook_set_flags != 0)
+git apply "$HERE/snes9x-sb2-hooks.patch"
 cp "$HERE/sb2_shim.cpp" libretro/sb2_shim.cpp
 cd libretro
 nice -n 10 make -j4 "$@"
-cp snes9x_libretro.so "$BUILD/snes9x_sb2_libretro.so"
+# copy + rename so processes that have the old .so mapped keep a valid file
+cp snes9x_libretro.so "$BUILD/.snes9x_sb2_libretro.so.tmp"
+mv -f "$BUILD/.snes9x_sb2_libretro.so.tmp" "$BUILD/snes9x_sb2_libretro.so"
 echo "built $BUILD/snes9x_sb2_libretro.so"

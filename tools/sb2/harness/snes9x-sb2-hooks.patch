@@ -1,0 +1,63 @@
+diff --git a/cpuexec.cpp b/cpuexec.cpp
+index 0494810..b9b22d2 100644
+--- a/cpuexec.cpp
++++ b/cpuexec.cpp
+@@ -168,6 +168,7 @@ void S9xMainLoop (void)
+ 				Opcodes = S9xOpcodesSlow;
+ 		}
+ 
++		if (sb2_hook_flags) sb2_hook_exec(); /* sb2 harness: exec hook (tools/sb2/harness/sb2_shim.cpp) */
+ 		Registers.PCw++;
+ 		(*Opcodes[Op].S9xOpcode)();
+ 
+diff --git a/getset.h b/getset.h
+index bd3b365..2e8124a 100644
+--- a/getset.h
++++ b/getset.h
+@@ -55,6 +55,14 @@ static inline int32 memory_speed (uint32 address)
+ 	return (TWO_CYCLES);
+ }
+ 
++/* sb2 harness hooks (tools/sb2/harness/sb2_shim.cpp); no-ops unless enabled */
++extern "C" {
++extern uint32 sb2_hook_flags;
++void sb2_hook_exec(void);
++void sb2_hook_write(uint32 Address, uint8 Byte);
++void sb2_hook_read(uint32 Address, uint8 Byte);
++}
++
+ inline uint8 S9xGetByte (uint32 Address)
+ {
+ 	int		block = (Address & 0xffffff) >> MEMMAP_SHIFT;
+@@ -65,6 +73,7 @@ inline uint8 S9xGetByte (uint32 Address)
+ 	if (GetAddress >= (uint8 *) CMemory::MAP_LAST)
+ 	{
+ 		byte = *(GetAddress + (Address & 0xffff));
++		if (sb2_hook_flags & 4) sb2_hook_read(Address, byte);
+ 		addCyclesInMemoryAccess;
+ 		return (byte);
+ 	}
+@@ -204,6 +213,7 @@ inline uint16 S9xGetWord (uint32 Address, enum s9xwrap_t w = WRAP_NONE)
+ 	if (GetAddress >= (uint8 *) CMemory::MAP_LAST)
+ 	{
+ 		word = READ_WORD(GetAddress + (Address & 0xffff));
++		if (sb2_hook_flags & 4) { sb2_hook_read(Address, (uint8) word); sb2_hook_read(Address + 1, word >> 8); }
+ 		addCyclesInMemoryAccess_x2;
+ 		return (word);
+ 	}
+@@ -345,6 +355,7 @@ inline void S9xSetByte (uint8 Byte, uint32 Address)
+ 
+ 	if (SetAddress >= (uint8 *) CMemory::MAP_LAST)
+ 	{
++		if (sb2_hook_flags & 2) sb2_hook_write(Address, Byte);
+ 		*(SetAddress + (Address & 0xffff)) = Byte;
+ 		addCyclesInMemoryAccess;
+ 		return;
+@@ -490,6 +501,7 @@ inline void S9xSetWord (uint16 Word, uint32 Address, enum s9xwrap_t w = WRAP_NON
+ 
+ 	if (SetAddress >= (uint8 *) CMemory::MAP_LAST)
+ 	{
++		if (sb2_hook_flags & 2) { sb2_hook_write(Address, (uint8) Word); sb2_hook_write(Address + 1, Word >> 8); }
+ 		WRITE_WORD(SetAddress + (Address & 0xffff), Word);
+ 		addCyclesInMemoryAccess_x2;
+ 		return;
