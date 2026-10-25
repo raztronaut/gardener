@@ -72,68 +72,69 @@ class Tape:
         return np.concatenate(self.pcm[lo:hi]) if self.pcm[lo:hi] else np.zeros((0, 2), np.int16)
 
 
-def find_loop(pcm, min_loop_s=5.0, skip_s=1.0):
-    """Loop of a recording via normalised autocorrelation (mono, 8x decimated), the
-    shortest lag whose correlation is within 1.5% of the best; the lag is refined at the
-    full rate and the loop start is the first point from which the audio repeats after
-    one loop length.  Returns (start_sample, length_samples, score) or None."""
+def _ncc(a, b):
+    return float((a * b).sum() / (np.sqrt((a * a).sum() * (b * b).sum()) + 1e-9))
+
+
+def find_loop(pcm, min_loop_s=5.0):
+    """Loop of a recording (the repeats are not sample-exact -- echo/noise state differs
+    -- so this is correlation based):
+    1. normalised autocorrelation of the 32x-decimated mono signal; the loop length is
+       the SHORTEST lag whose peak is within 5% of the best peak (multiples of the loop
+       score about the same);
+    2. refined at full rate (+-48 samples) by maximising the correlation of a 6 s window;
+    3. loop start = first t (10 ms steps) from which three consecutive 1 s windows
+       correlate with the audio one loop later at >= 80% of the typical (median)
+       between-loop correlation (the repeats are close but not sample-identical: the
+       sequencer tempo is not an integer number of output samples per loop, typical
+       window correlation 0.85-0.95).
+    Returns dict(start, length, score, method) or None."""
     x = pcm.astype(np.float64).mean(1)
-    D = 8
-    n8 = len(x) // D
+    n = len(x)
+    D = 32
+    n8 = n // D
     y = x[:n8 * D].reshape(n8, D).mean(1)
-    sk = int(skip_s * RATE / D)
-    a = y[sk:]
-    N = len(a)
+    N = len(y)
     L2 = 1 << int(np.ceil(np.log2(2 * N)))
-    F = np.fft.rfft(a, L2)
+    F = np.fft.rfft(y, L2)
     r = np.fft.irfft(F * np.conj(F), L2)[:N]
-    c2 = np.cumsum(np.concatenate([[0], a ** 2]))
+    c2 = np.cumsum(np.concatenate([[0], y ** 2]))
     lags = np.arange(N)
-    e1 = c2[N - lags]                  # energy of a[0:N-L]
-    e2 = c2[N] - c2[lags]              # energy of a[L:N]
-    norm = r / (np.sqrt(e1 * e2) + 1e-9)
-    lo = int(min_loop_s * RATE / D)
-    hi = int(N * 0.55)
-    if hi <= lo:
+    norm = r / (np.sqrt(c2[N - lags] * (c2[N] - c2[lags])) + 1e-9)
+    sr = RATE / D
+    lo = int(min_loop_s * sr)
+    hi = int((n / RATE - 8) * sr)
+    if hi <= lo + 3:
         return None
     seg = norm[lo:hi]
-    best = float(seg.max())
-    if best < 0.9:
+    pk = np.nonzero((seg[1:-1] > seg[:-2]) & (seg[1:-1] >= seg[2:]))[0] + 1
+    if not len(pk):
         return None
-    cand = np.nonzero(seg >= best - 0.015)[0]
-    Lc = int(cand[0]) + lo
-    # local max around the first candidate
-    w = int(0.05 * RATE / D)
-    Lc = Lc + int(np.argmax(norm[Lc:Lc + w])) if Lc + w < len(norm) else Lc
-    # refine at full rate on a 6 s window in the middle of the recording
-    L0 = Lc * D
-    mid = len(x) // 3
+    bestv = float(seg[pk].max())
+    if bestv < 0.9:
+        return None
+    good = sorted(int(p) for p in pk if seg[p] >= 0.95 * bestv)
+    L0 = (good[0] + lo) * D
     W = int(6 * RATE)
-    if mid + W + L0 + 64 > len(x):
-        mid = max(0, len(x) - W - L0 - 64)
-    ref = x[mid:mid + W]
-    bestL, bestv = L0, -1
-    for L in range(L0 - 24, L0 + 25):
-        b = x[mid + L:mid + L + W]
-        if len(b) < W:
-            continue
-        v = float((ref * b).sum() / (np.sqrt((ref ** 2).sum() * (b ** 2).sum()) + 1e-9))
-        if v > bestv:
-            bestL, bestv = L, v
-    L = bestL
-    # loop start: first s where the next 2 s repeat one loop later
-    step = int(0.02 * RATE)
-    Wd = int(2.0 * RATE)
-    start = None
-    for s0 in range(0, len(x) - L - Wd, step):
-        a1 = x[s0:s0 + Wd]
-        b1 = x[s0 + L:s0 + L + Wd]
-        if np.abs(a1 - b1).mean() < 0.03 * (np.abs(a1).mean() + 1):
-            start = s0
-            break
-    if start is None:
+    t = max(0, (n - L0 - W) // 2)
+    ref = x[t:t + W]
+    cands = [(_ncc(ref, x[t + L:t + L + W]), L) for L in range(L0 - 48, L0 + 49)
+             if t + L + W <= n]
+    if not cands:
         return None
-    return start, L, round(bestv, 5)
+    score, L = max(cands)
+    w = RATE
+    tail = [_ncc(x[s0:s0 + w], x[s0 + L:s0 + L + w]) for s0 in range(n // 4, n - L - w, w)][:30]
+    if not tail:
+        return None
+    thr = 0.8 * float(np.median(tail))
+    step = int(0.01 * RATE)
+    for s0 in range(0, n - L - 3 * w, step):
+        if all(_ncc(x[s0 + k * w:s0 + (k + 1) * w], x[s0 + L + k * w:s0 + L + (k + 1) * w]) >= thr
+               for k in range(3)):
+            return dict(start=s0, length=L, score=round(score, 4), threshold=round(thr, 3),
+                        method='correlation')
+    return None
 
 
 def record_song(S, name, setup, trigger, seconds, outdir, stop_timer=True, note=''):
@@ -180,16 +181,18 @@ def record_song(S, name, setup, trigger, seconds, outdir, stop_timer=True, note=
                 command_frame=start, recorded_seconds=round(len(pcm) / RATE, 3),
                 sample_rate=RATE, leading_silence_trimmed_samples=lead)
     if loop:
-        s, L, sc = loop
+        s, L = loop['start'], loop['length']
         info.update(loop_start_sample=int(s), loop_length_samples=int(L),
                     loop_start_s=round(s / RATE, 3), loop_length_s=round(L / RATE, 3),
-                    loop_match_score=round(sc, 4))
+                    loop_correlation=loop['score'], loop_method=loop['method'])
         lp = os.path.join(outdir, name + '_loop.ogg')
         write_ogg(lp, pcm[:s + L])
         info['ogg_intro_plus_one_loop'] = name + '_loop.ogg'
     else:
         info['loop'] = 'not found (one-shot or longer than the recording)'
-    print('music', name, info.get('loop_length_s'), info.get('loop_start_s'))
+    info['_head'] = pcm[:int(30 * RATE)].astype(np.float64).mean(1)
+    print('music', name, info.get('loop_length_s'), info.get('loop_start_s'), info.get('loop_method'),
+          info.get('loop_correlation'))
     return info
 
 
@@ -281,6 +284,19 @@ def main():
         if info:
             info['stage'] = st
             music.append(info)
+    # same song on several stages? correlate the first 30 s (+-0.5 s lag, 8x decimated)
+    def dec(v):
+        k = len(v) // 8
+        return v[:k * 8].reshape(k, 8).mean(1)
+    for a in range(len(music)):
+        for b in range(a):
+            x, y = dec(music[a]['_head']), dec(music[b]['_head'])
+            m_ = min(len(x), len(y)) - 2100
+            best = max(_ncc(x[1000:1000 + m_ - 2000], y[1000 + d:1000 + d + m_ - 2000])
+                       for d in range(-200, 201, 2))
+            if best > 0.9:
+                music[a]['same_song_as'] = music[b].get('same_song_as', music[b]['name'])
+                break
     # ---- draw ---------------------------------------------------------------------
     def setup_draw(S_, tape):
         S_.load_state_file(state_path('mt4_stage01'))
@@ -373,6 +389,8 @@ def main():
     r = isolate(S, b2, 'falling_block_first', [0] * 800, 800, sdir, poke_b=freeze, want_id=0x72,
                 tail_s=0.3)
     r and sfx.append(r)
+    for m_ in music:
+        m_.pop('_head', None)
     write_json(os.path.join(OUT, 'audio.json'), dict(
         note='Music: .spc = APU snapshot taken right after the play command (open in any SPC '
              'player); .ogg = harness recording from the first audible sample (vorbis q6, '

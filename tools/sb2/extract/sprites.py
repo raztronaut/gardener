@@ -115,26 +115,24 @@ class Recorder:
 
 
 def capture_screen(lib, vram, ppu, oam, tag):
-    """Between-round screens (scoreboard, DRAW, VICTORY, roulette): OAM entries are
-    clustered by proximity; a cluster drawn in one bomber palette (0-3), at most 48x56 px
-    and with >= 120 opaque pixels is that bomber (largest such cluster per colour);
+    """Between-round screens (scoreboard, DRAW, VICTORY, roulette): the OAM entries of
+    each bomber palette 0-3 are clustered by proximity; the largest cluster of at most
+    48x56 px with >= 120 opaque pixels is that bomber (the scoreboard also draws a
+    palette-4 copy behind the wall as a shadow -- that one stays an fx piece);
     everything else (trophies, letters, confetti...) becomes individual fx pieces."""
     from snesgfx import decode_oam
     from sprites_lib import onscreen, render_group, cluster
     spr = [s for s in decode_oam(oam) if onscreen(s, ppu)]
     res = {'bombers': {}, 'fx': [], 'screen': True}
     best = {}
-    for g in cluster(spr, ppu, gap=1):
-        pals = set(s['pal'] for s in g)
-        if len(pals) != 1 or min(pals) > 3:
-            continue
-        img, pos, pieces = render_group(vram, ppu, g)
-        if img is None or img.shape[1] > 48 or img.shape[0] > 56:
-            continue
-        n = int((img >= 0).sum())
-        i = min(pals)
-        if n >= 120 and (i not in best or n > best[i][0]):
-            best[i] = (n, g, img, pos, pieces)
+    for i in range(4):
+        for g in cluster([s for s in spr if s['pal'] == i], ppu, gap=1):
+            img, pos, pieces = render_group(vram, ppu, g)
+            if img is None or img.shape[1] > 48 or img.shape[0] > 56:
+                continue
+            n = int((img >= 0).sum())
+            if n >= 120 and (i not in best or n > best[i][0]):
+                best[i] = (n, g, img, pos, pieces)
     used = set()
     for i, (n, g, img, pos, pieces) in best.items():
         used |= set(s['i'] for s in g)
