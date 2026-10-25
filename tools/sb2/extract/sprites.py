@@ -538,8 +538,12 @@ def main():
         animations={COLOURS[i]: anims[i] for i in range(4)},
         animations_identical_across_colours=same,
         fx_atlas='fx.png', fx_pieces=fx_list,
-        fx_events=events,
+        fx_events_file='fx_events.json',
     ))
+    with open(os.path.join(OUT, 'fx_events.json'), 'w') as f:
+        json.dump(dict(note='per-frame fx piece lists: {name, frames: [{frame, pieces: [{piece '
+                            '(fx_pieces id), x, y (screen px), pal, prio}]}]}', events=events),
+                  f, separators=(',', ':'))
     print('bomber shapes', len(bombers), 'fx pieces', len(fxs))
 
 

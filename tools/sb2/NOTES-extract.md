@@ -116,11 +116,16 @@ Prerequisites: the harness core and states (`tools/sb2/harness/build.sh`, `paths
 - `bombers_{white,black,red,blue}.png`: the same layout for the four colours (OBJ
   palettes 0..3). Bomber shapes are de-duplicated by SHAPE (colour index within the
   palette + transparency), so one shape = one pose for all colours.
-- `fx.png`: every other OAM piece (one 8x8 / 16x16 entry each, flips baked), in the
-  palette it was first seen with.
+- `bombers_gold.png`: the same layout in the G-BOMBER champion's gold palette.
+- `screen_bombers.png`: the between-round figures (scoreboard, DRAW, VICTORY!!,
+  roulette) in the real palettes of those screens (they use their own palette layout,
+  e.g. DRAW = head in one OBJ palette + body in another, so they are not recoloured).
+- `fx.png`: every other OAM piece (one 8x8 / 16x16 entry each, flips baked), coloured
+  with the CGRAM of the frame it was first seen in.
 - `sprites.json`:
   - `bomber_shapes[]`: `id`, `category` (`bomber` = in the arena, `screen_bomber` =
-    scoreboard / DRAW / VICTORY / roulette), `rect`, `w`, `h`, `anchor` [dx, dy],
+    scoreboard / DRAW / VICTORY / roulette), `atlas`, `obj_palettes`, `rect`, `w`, `h`,
+    `anchor` [dx, dy],
     `colours_seen`, `used_in` (animation names), `from_lab`, `first_seen`, `count`,
     `pieces[]` = the OAM entries {dx, dy (relative to the image top-left), tile, w, h,
     hflip, vflip, pal, prio}. `tile` is the VRAM slot the game streamed the pose into
@@ -138,7 +143,7 @@ Prerequisites: the harness core and states (`tools/sb2/harness/build.sh`, `paths
     `white_wins_victory_screen`, `white_wins_after_victory_N` (roulette).
   - `animations_identical_across_colours{name}`: same shapes + durations for all four.
   - `fx_pieces[]`: `id`, `rect`, `w`, `h`, `palettes_seen`, `first_seen`, `count`, `oam`.
-  - `fx_events[]`: per-frame piece lists {frame, pieces[{piece, x, y, pal, prio}]} for
+  - `fx_events.json` (separate file, compact): per-frame piece lists {frame, pieces[{piece, x, y, pal, prio}]} for
     the labs (kicked bomb, thrown bomb, item scatter, death, scoreboard trophies,
     VICTORY letters/confetti) and the COM run's special effects (palette >= 4: "Hurry!"
     banner, falling sudden-death block, item-scatter puffs).
