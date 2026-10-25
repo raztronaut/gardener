@@ -412,8 +412,8 @@ scen('bomb_same_tick', 'P1 and P2 drop bombs on the same tick in opposite corner
 scen('fire_overlap', 'P1 bombs (2,4), P2 (poked to (4,6)) bombs 10 frames later; their '
      'rays overlap at (2,6). Shows what happens to a shared fire cell when the first '
      'explosion ends while the second still burns.', MT,
-     hold(10, B.A if False else 0) and (hold(1, B.A) + hold(9, B.RIGHT) + hold(1, B.RIGHT, B.A) +
-     hold(60, B.RIGHT, B.RIGHT) + hold(200, 0)),
+     hold(1, B.A) + hold(9, B.RIGHT) + hold(1, B.RIGHT, B.A) + hold(60, B.RIGHT, B.RIGHT) +
+     hold(200, 0),
      setup=[clear_soft, lambda R: [(PB + 0x110, 0x40, 2), (PB + 0x118, 0x50, 2)]])
 scen('remote_detonate', 'P1 has remote bombs (type 1) and capacity 2: drops two bombs, '
      'walks away, presses B twice -> the oldest goes first (fuse forced to 2), then the other.',
