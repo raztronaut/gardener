@@ -67,3 +67,6 @@ export function regrow() { call('C0D8E8'); }   // stage table $C5E2A6: only stag
 export function anim() { call('C1334B'); }
 export function iceInput(p) { call('C0C09E', p); }
 export function pushBlock(p) { call('C0ACD4', p); }
+// hooks called from other modules (implemented in the stage modules)
+export function conveyorBomb(b) { call('C0DF87', b); }   // from the bomb update (stage 8)
+export function regrowEntry(e) { call('C0DA60', e); }    // from the burn-list pass C0DA42 (stage 10)

@@ -113,3 +113,5 @@ export function step(p) {               // C0249D
   }
   throw new Error('anim: runaway script');
 }
+
+export const initObject = start;        // alias used by items.js
