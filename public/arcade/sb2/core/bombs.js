@@ -437,8 +437,8 @@ function detonate(b) {
   w16(0x5C12, 0);
   ray(b, 0x10, 0x4C, true);              // C0EAA7 up (cuts the hit bomb's down ray)
   ray(b, 0x4C, 0x10, false);             // C0EB8E down
-  ray(b, 0x88, 0xC4, false);             // C0EC68 left
-  ray(b, 0xC4, 0x88, false);             // C0ED42 right
+  ray(b, 0xC4, 0x88, false);             // C0EC68 right
+  ray(b, 0x88, 0xC4, false);             // C0ED42 left
 }
 
 function ray(b, base, back, up) {
