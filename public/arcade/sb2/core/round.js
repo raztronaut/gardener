@@ -138,7 +138,7 @@ function sdDeleteBomb() {              // C0D7F3: a bomb under the block vanishe
 }
 
 // C0E42E: give a bomb back to its owner (+F8 out -1, +F1 in hand re-derived)
-function returnBomb(b) {
+export function returnBomb(b) {
   const o = 0x8000 | ((r8(b + 6) | 0x80) << 8) & 0xFF00;
   let out = r8(o + 0xF8);
   if (out) { out--; w8(o + 0xF8, out); }

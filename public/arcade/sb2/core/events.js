@@ -6,7 +6,8 @@ import { r16 } from './mem.js';
 export let EV = [];
 export function reset(list) { EV = list; }
 export function emit(type, data) {
-  const e = data ? { type, ...data } : { type };
+  const e = data ? { ...data, type } : { type };
+  if (data && data.type !== undefined) e.kind = data.type;   // a data field named `type`
   e.tick = r16(0x32);
   if (typeof e.cell === 'number' && e.cx === undefined) { e.cx = (e.cell & 0x7F) >> 1; e.cy = e.cell >> 7; }
   EV.push(e);

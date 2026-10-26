@@ -6,6 +6,8 @@ import { r8, r16, w8, w16, GRID, UNDER, DANGER, TILE, TILE_UNDER, BURN } from '.
 import { emit } from './events.js';
 import * as stage from './stage.js';
 import { spawnFlyingSkull } from './items.js';
+import { returnBomb } from './round.js';
+import * as movers from './movers.js';
 
 const SOFT_FRAMES = [0x00E0, 0x00E2, 0x00E4, 0x00E6, 0x00E8, 0x00EA];                 // $C5F3F7
 const ITEM_FRAMES = [0x012E, 0x014E, 0x016E, 0x018E, 0x01AE, 0x01E8, 0x01EA];         // $C5F405
@@ -144,6 +146,61 @@ export function list() {
     w16(0x1C, i);
     const w = r16(0x2860 + i);
     if (w === 0xFFFF) return;
-    if (stage.regrowEntry) stage.regrowEntry(w);
+    cellAnim(w);                          // C0DA60
   }
+}
+
+// Cell-animation scripts used in battle ([tile word, duration, cell code] per frame,
+// $FFFF = end): $C5E264 = stage-3 tunnel closing at sudden death (round.js C0D52B).
+const CELL_SCRIPTS = { 0xC5E264: [[0x18CC, 3, 0xC1], [0x18CC, 3, 0xC1], [0x18CC, 3, 0xC1], [0x18CC, 3, 0xC1]] };
+
+// C0DA60: one entry of the cell-animation list ($7E3D88, 16 bytes: +0 flags (b14 loop,
+// $FFFF free), +2 tile index, +4 grid index, +6 frame timer, +8 frame number,
+// +A..+C script pointer). Odd ticks only.
+function cellAnim(q) {
+  if (!(r16(0x32) & 1)) return;
+  if (r16(0x1A) !== 2 && r16(UNDER + r16(q + 4)) === 0xC1) { w16(q, 0xFFFF); return; }
+  let t = r8(q + 6);
+  if (t !== 0 && --t !== 0) { w8(q + 6, t); return; }
+  const scr = CELL_SCRIPTS[r8(q + 10) | (r8(q + 11) << 8) | (r8(q + 12) << 16)];
+  for (;;) {
+    const fr = scr ? scr[r16(q + 8)] : undefined;
+    if (fr === undefined) {               // $FFFF: end of script
+      if (r16(q) & 0x4000) { w16(q + 6, 0); w16(q + 8, 0); continue; }
+      w16(q, 0xFFFF);
+      return;
+    }
+    w16(0x5CD8, fr[0]); w16(0x5CDA, fr[1]); w16(0x5CDC, fr[2]);
+    cellAnimHit(q);                       // C0DB1D
+    const ti = r16(q + 2), gi = r16(q + 4);
+    w16(TILE + ti, fr[0]); w16(TILE_UNDER + ti, fr[0]);
+    w16(GRID + gi, fr[2]); w16(UNDER + gi, fr[2]);
+    w16(q + 6, fr[1]);
+    w16(q + 8, r16(q + 8) + 1);
+    return;
+  }
+}
+
+function cellAnimHit(q) {                 // C0DB1D: what the new cell does to its content
+  const gi = r16(q + 4);
+  w16(0x5C0E, gi);
+  const v = r16(GRID + gi);
+  if (r16(0x1A) === 2) {                  // C103D2: a bomb there vanishes, back to its owner
+    if (v !== 0x43) return;
+    for (let x = 0; ; x += 2) {
+      const b = r16(0x2960 + x);
+      if (b === 0xFFFF) return;
+      const p = 0x10000 + b;
+      if (r16(p + 0x0A) !== gi) continue;
+      if (r16(p) & 0x5000) return;
+      w16(p, 0);
+      returnBomb(p);
+      return;
+    }
+  }
+  if (v === 0x44) {                       // a skull item flies off (C0EE71)
+    w16(0x5C10, r16(q + 2));
+    if ((r16(TILE + r16(q + 2)) & 0x3FF) === 0x20A) movers.skullFly();
+  }
+  // v == $43 on other stages: C0DBA0 (never reached in battle: only stage 3 queues cells)
 }
