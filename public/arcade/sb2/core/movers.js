@@ -15,7 +15,7 @@ import { emit } from './events.js';
 import * as move from './move.js';
 import * as anim from './anim.js';
 import * as T from './movers_tables.js';
-import { hopBottom } from './geom.js';
+import { hopBottom, isTall } from './geom.js';
 
 const wt = (t, x) => t[(x & 0xFFFF) >> 1];               // word table indexed by byte offset
 const bombPtr = (p) => 0x10000 | r16(p + 0x40);         // +40: bomb slot (bank $7F)
@@ -223,7 +223,7 @@ function bomberMode(p) {                 // C08282
   w16(p + 0x0E, (r16(p + 0x0E) | 0x3000) & 0x3FFF);
 }
 function tunnelStep(p) {                 // C1043F (stage 3: standing on a closed tunnel cell)
-  const d = r16(p + 0x18) < 0x80 ? 8 : 0xFFF8;
+  const d = r16(p + 0x18) < (isTall() ? 0xF0 : 0x80) ? 8 : 0xFFF8;   // tall: centre row 16
   w16(p + 0x18, (r16(p + 0x18) + d) & 0xFFFF);
 }
 export function snapCentre(p) {          // C0456D

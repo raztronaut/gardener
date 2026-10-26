@@ -3,6 +3,7 @@
 // round results.
 //   node tools/sb2/conformance/sim.mjs [--stage N] [--tall] [--seed S] [--rounds K]
 //        [--level L] [--wins W] [--time M] [--quiet] [--all-events] [--max-ticks T]
+//        [--sd pace]   (tall: sudden death from 0:33 at 9 ticks/block instead of 0:47 at 15)
 // --quiet prints only round results; by default the per-tick 'clock' events are hidden
 // (--all-events shows them). Exits non-zero on an exception. SB2_CORE=<dir> selects
 // another core directory (see snapcore.sh).
@@ -26,7 +27,7 @@ try {
   const game = createGame({
     stage, layout: a.includes('--tall') ? 'tall' : 'original', seed,
     players: [0, 1, 2, 3].map(() => ({ type: 'cpu', level })),
-    rules: { wins, time: time === 'inf' ? Infinity : +time, comLevel: level, gbomber: false },
+    rules: { wins, time: time === 'inf' ? Infinity : +time, comLevel: level, gbomber: false, tallSuddenDeath: opt('--sd', 'clock') },
   });
   console.log(`stage ${stage} ${game.layout.tall ? 'tall 13x25' : 'original 13x11'} seed ${seed} level ${level}`);
   for (let r = 1; r <= rounds; r++) {
