@@ -135,7 +135,7 @@ export async function bootSB2(host, { onExit } = {}) {
     .concat([audio.preloadSfx(), document.fonts ? document.fonts.ready : null]));
 
   // ---- input --------------------------------------------------------------------------------
-  let held = 0, latched = 0, prevHeld = 0;
+  let held = 0, latched = 0;
   let onPress = null;                       // per-screen edge handler (bit)
   function down(bit) {
     if (!bit) return;
@@ -260,9 +260,11 @@ export async function bootSB2(host, { onExit } = {}) {
   let game = null, disp = null, img = null, paused = false, ended = false;
   let raf = 0, last = 0, acc = 0;
   const perf = { ticks: 0, tickMs: 0, drawMs: 0, frames: 0, worst: 0 };
+  const pads = [0, null, null, null];   // P1 = the pad; P2..P4 = CPUs (no controller)
 
   function startMatch() {
     saveSet();
+    roundNo = 1;
     const layout = set.layout, stage = set.stage;
     game = createGame({
       stage, layout, seed: (Math.random() * 65536) | 0,
@@ -285,6 +287,7 @@ export async function bootSB2(host, { onExit } = {}) {
     ended = false;
     held = 0; latched = 0;
     onPress = matchPress;
+    audio.wake();
     audio.playMusic('battle_stage' + String(stage).padStart(2, '0'));
     show(match);
     startLoop();
@@ -299,7 +302,7 @@ export async function bootSB2(host, { onExit } = {}) {
 
   function tick() {
     const t0 = performance.now();
-    const pads = [held | latched, null, null, null];
+    pads[0] = held | latched;
     latched = 0;
     game.tick(pads);
     const ev = game.events;
@@ -375,6 +378,7 @@ export async function bootSB2(host, { onExit } = {}) {
     }).join('');
   }
   function roundOver() {
+    if (screen !== match || !game) return;          // left for the picker meanwhile
     stopLoop();
     const res = game.nextRound();            // scoreboard bookkeeping (+ next round unless the match is over)
     const draw = res.winner == null || res.winner === 0xFFFF || res.winner === 'draw';
@@ -388,7 +392,7 @@ export async function bootSB2(host, { onExit } = {}) {
     const tmo = later(next, draw ? 6500 : 5000);
     let done = false;
     function next() {
-      if (done) return; done = true; clearTimeout(tmo); timers.delete(tmo);
+      if (done || screen !== tally) return; done = true; clearTimeout(tmo); timers.delete(tmo);
       if (res.matchOver) { showVictory(res, winner); return; }
       roundNo++;
       disp.beginRound(game);
@@ -412,7 +416,7 @@ export async function bootSB2(host, { onExit } = {}) {
     show(victory);
     const tmo = later(back, 12000);
     let done = false;
-    function back() { if (done) return; done = true; clearTimeout(tmo); timers.delete(tmo); roundNo = 1; showPicker(); }
+    function back() { if (done || screen !== victory) return; done = true; clearTimeout(tmo); timers.delete(tmo); roundNo = 1; showPicker(); }
   }
 
   // ---- lifecycle ------------------------------------------------------------------------------
