@@ -28,4 +28,7 @@ replay the same input traces through the original and the port.
 - `tools/sb2/harness/`  — emulator core build + Python frontend (phase 1)
 - `tools/sb2/extract/`  — asset extraction scripts → `data/sb2/assets/` (phase 2a)
 - `tools/sb2/re/`       — RAM maps, disassembly notes, measured rule spec (phase 2b) → `tools/sb2/SPEC.md`
-- `public/arcade/sb2/`  — the port (phase 3); `tools/sb2/conformance/` (phase 4)
+- `public/arcade/sb2/`  — the port (phase 3): `core/` (logic), `render/` + `audio.js` + `app.js`
+  (presentation, NOTES-render.md); `tools/sb2/conformance/` (phase 4, incl. `visual.py`)
+- `tools/sb2/extract/pack.py` — the runtime pack `data/sb2/assets/pack/` the wall loads;
+  `tools/sb2/qa/` headless browser QA against a test server (never the live kiosk)

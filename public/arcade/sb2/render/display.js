@@ -354,8 +354,8 @@ export function createDisplay(pack, opts = {}) {
     lastTick = tick;
     // animated characters (C1340A queued by the core, uploaded by C1348D)
     if (M[0x5EEE] === 1) {
-      for (const [d, s] of [[0x5EEF, 0x5EF1], [0x5EF4, 0x5EF6]]) {
-        const dst = (g16(d) * 2) & 0xFFFF, src = g16(s) - st.wramBase;
+      for (let k = 0; k < 2; k++) {                // two 64-byte DMAs: chars n, n+1 and n+16, n+17
+        const dst = (g16(k ? 0x5EF4 : 0x5EEF) * 2) & 0xFFFF, src = g16(k ? 0x5EF6 : 0x5EF1) - st.wramBase;
         if (src >= 0 && src + 0x40 <= st.wram.length) ppu.writeVram(dst, st.wram.subarray(src, src + 0x40));
       }
     }

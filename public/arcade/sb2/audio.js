@@ -98,7 +98,7 @@ export function createAudio(manifest) {
       el.loop = true; el.preload = 'auto';
       const node = ctx.createMediaElementSource(el);
       node.connect(gain);
-      music = { el, gain };
+      music = { el, gain, name: e.ogg };
       el.play().catch(() => {});
       return;
     }
@@ -114,7 +114,7 @@ export function createAudio(manifest) {
     }
     src.connect(gain);
     src.start();
-    music = { src, gain };
+    music = { src, gain, name: file };
   }
 
   function preloadMusic(name, loop = true) {
@@ -141,5 +141,7 @@ export function createAudio(manifest) {
     if (ctx) ctx.close().catch(() => {});
   }
 
-  return { ctx, playMusic, stopMusic, preloadMusic, preloadSfx, playSfx, events, suspend, wake, close, resume };
+  function status() { return { state: ctx && ctx.state, music: music ? music.name : null, loop: music && music.src ? [music.src.loopStart, music.src.loopEnd] : null, buffers: buffers.size }; }
+
+  return { ctx, status, playMusic, stopMusic, preloadMusic, preloadSfx, playSfx, events, suspend, wake, close, resume };
 }
