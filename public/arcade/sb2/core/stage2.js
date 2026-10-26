@@ -120,6 +120,7 @@ const faceFlags = (f) => [0x0000, 0x002A, 0x002B, 0x0000, 0x0015, 0, 0, 0, 0x001
 
 // ---- pushing a soft block (C0ACD4) ---------------------------------------------------
 export function C0ACD4(p) {
+  if (r16(0x1A) !== 1) return;
   move.motionDir(p);                    // C0A8D3
   const d = r16(0x5BFC);
   const f = ((d << 1) >> 8) & 0xFF | (((d << 1) & 0xFF) << 8);   // ASL; XBA
