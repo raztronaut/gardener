@@ -616,7 +616,8 @@ function conveyed(o, b) {
   x = (x & 0x0F) >= 8 ? ((x & 0xF0) + 0x10) : (x & 0xF0);
   w16(o + 0x10, x); w16(0x5C2C, x); w16(0x5C2A, 0);
   let y = r16(o + 0x18);
-  y = (y & 0x0F) >= 8 ? ((y & 0xF0) + 0x10) : (y & 0xF0);
+  const ym = isTall() ? 0x1F0 : 0xF0;   // tall: y reaches 448 (AND #$F0 sent a belt bomb below row 16 up 16 rows)
+  y = (y & 0x0F) >= 8 ? ((y & ym) + 0x10) : (y & ym);
   w16(o + 0x18, y); w16(0x5C30, y); w16(0x5C2E, 0);
   move.restoreX(o); move.restoreY(o);
   return false;

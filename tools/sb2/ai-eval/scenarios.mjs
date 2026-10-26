@@ -64,4 +64,26 @@ for (const layout of ['original', 'tall']) {
   report(`stage 10 jump lands next to take-off, ${layout}`, bad === 0, `${jumps} jumps (${low} from y >= 256), ${bad} landed > 2 cells away`);
 }
 
+// 3. Stage 8 belt bombs (C088CC snap): a conveyed bomb that stops is snapped to its cell
+//    with y AND #$F0; on the tall field a bomb below row 16 jumped 16 rows up (even into
+//    the border), where the COMs' danger marks and escapes no longer match the real bomb.
+for (const layout of ['original', 'tall']) {
+  let jumps = 0, n = 0;
+  for (let i = 0; i < 12; i++) {
+    const g = cpuGame(8, layout, 1000 + 2 * i * 7919 % 60000);
+    let prev = new Map();
+    for (let t = 0; t < 40000 && !g.finished; t++) {
+      g.tick([0, 0, 0, 0]);
+      const s = g.state, cur = new Map();
+      for (const b of s.bombs) if (!b.moving) cur.set(b.slot, [b.cx, b.cy]);
+      for (const m of s.movers) if (m.kind === 'bomb' && m.bomb != null) cur.set(m.bomb, [(m.x + 8) >> 4, (m.y + 23) >> 4]);
+      // (a thrown bomb wrapping over the border comes from outside the field: not counted)
+      const last = layout === 'tall' ? 28 : 14;
+      for (const [k, [x, y]] of cur) { const p = prev.get(k); if (!p) continue; n++; if (p[1] >= 4 && p[1] <= last && Math.abs(y - p[1]) > 2) jumps++; }
+      prev = cur;
+    }
+  }
+  report(`stage 8 bombs never jump rows, ${layout}`, jumps === 0, `${n} bomb-ticks, ${jumps} vertical jumps > 2 cells`);
+}
+
 process.exit(fails ? 1 : 0);

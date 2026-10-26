@@ -22,7 +22,7 @@ const DEF_CORE = path.resolve(HERE, '../../../public/arcade/sb2/core');
 export const NEAR = 3;                   // "near an opponent": Manhattan distance <= 3 cells
 const FIELDS = ['rounds', 'cpuRounds', 'ticks', 'alive', 'deaths', 'selfKill', 'oppKill', 'blockKill', 'unkKill',
   'walkedIn', 'kills', 'idle', 'stuck', 'moves', 'reversals', 'bombs', 'soft', 'softInit', 'items',
-  'near', 'isolated', 'sealed', 'sealedRounds', 'samples', 'draws', 'timeUp', 'cpuWins', 'humanWins',
+  'near', 'nearBase', 'isolated', 'sealed', 'sealedRounds', 'samples', 'draws', 'timeUp', 'cpuWins', 'humanWins',
   'humanDeaths', 'humanKilledByCpu', 'firstKillTicks', 'firstKills', 'survivedRounds', 'cells'];
 export const zero = () => Object.fromEntries(FIELDS.map((k) => [k, 0]));
 
@@ -50,6 +50,13 @@ function playRound(game, job, acc, bot, cpus) {
   const cell = (x, y) => (y - r0) * W + x;
   let softInit = 0;
   for (const v of s.grid.code) if (v === 0xC2) softInit++;
+  // arena-size baseline for "near": q = P(a random open-or-soft cell lies within NEAR of
+  // another one); with k living foes a randomly placed bomber is near one with 1-(1-q)^k
+  const open = [];
+  for (let k = 0; k < s.grid.code.length; k++) { const v = s.grid.code[k]; if (!(v & 0x80) || v === 0xC2) open.push([k % W, Math.floor(k / W)]); }
+  let qn = 0;
+  for (const [x, y] of open) for (const [x2, y2] of open) if ((x !== x2 || y !== y2) && Math.abs(x - x2) + Math.abs(y - y2) <= NEAR) qn++;
+  const qNear = qn / (open.length * (open.length - 1));
   acc.rounds++; acc.cpuRounds += cpus.length; acc.softInit += softInit * cpus.length;
 
   const fireStart = new Int32Array(W * H).fill(-1);   // tick a cell became fire
@@ -128,6 +135,7 @@ function playRound(game, job, acc, bot, cpus) {
       q.x = b.x; q.y = b.y;
       const foes = alive.filter((o) => o.slot !== p);
       if (foes.some((o) => Math.abs(o.cx - b.cx) + Math.abs(o.cy - b.cy) <= NEAR)) acc.near++;
+      acc.nearBase += 1 - Math.pow(1 - qNear, foes.length);
       if (sample) {
         acc.samples++;
         const reg = region(code, W, H, r0, b.cx, b.cy);
@@ -193,6 +201,7 @@ export function derive(a) {
     'soft destroyed / min / 100 soft': (100 * a.soft) / (a.alive / MIN) / (a.softInit / a.cpuRounds),
     'items / min': a.items / (a.alive / MIN),
     [`near foe (<=${NEAR}) %`]: pct(a.near, a.alive),
+    '  near / random-placement baseline': a.nearBase ? a.near / a.nearBase : 0,
     'isolated from all foes %': pct(a.isolated, a.samples),
     'sealed (no soft exit, no foe) %': pct(a.sealed, a.samples),
     'CPU survived round %': pct(a.survivedRounds, a.cpuRounds),
