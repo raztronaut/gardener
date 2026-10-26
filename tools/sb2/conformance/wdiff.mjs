@@ -39,6 +39,8 @@ export function label(a) {
   return (a >= 0x10000 ? '7F:' : '$') + (a & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
 }
 
+// display-only object fields (OAM building C09C7B: +7C..+8F) are never compared
+const DISPLAY = (x) => x >= 0x8000 && x < 0xA000 && (x & 0xFF) >= 0x7C && (x & 0xFF) < 0x90;
 const parseR = (s) => s.split(',').map((x) => x.split('-').map((h) => parseInt(h, 16))).map(([a, b]) => [a, b === undefined ? a + 1 : b]);
 
 function main() {
@@ -66,7 +68,7 @@ function main() {
     prevTick = rec.tick;
     const diffs = [];
     for (const [lo, hi] of ranges) for (let x = lo; x < hi; x++) {
-      if (game.mem[x] !== rec.wram[x] && !ignore.some(([l, h]) => x >= l && x < h)) diffs.push(x);
+      if (game.mem[x] !== rec.wram[x] && !DISPLAY(x) && !ignore.some(([l, h]) => x >= l && x < h)) diffs.push(x);
     }
     if (diffs.length && rec.tick >= from) {
       console.log(`tick ${rec.tick} (frame ${rec.frame}): ${diffs.length} bytes differ`);

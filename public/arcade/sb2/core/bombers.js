@@ -153,9 +153,19 @@ export function objects(G) {
     anim.flags(p);                      // C0224A
     clampPos(p);                        // C0A146
     anim.timer(p);                      // C0A120
-    // C09C7B: sprite (OAM) building — display only
+    spriteFlags(p);                     // C09C7B (sprite building: only the +0E b0 ack)
   }
   if (r16(0x32) & 1) w16(0x5E5A, (r16(0x5E5A) + 1) & 0xFFFF);
+}
+
+// C09C7B: builds the OAM entries (fields +7C..+8A, display only). The one logic-visible
+// effect: a bomber's "new frame" flag +0E b0 is acknowledged (cleared).
+function spriteFlags(p) {
+  const f = r16(p);
+  if (!(f & 0x8000) || (f & 0x2000)) return;
+  if (p >= 0x8400) return;
+  const e = r16(p + 0x0E);
+  if (e & 1) w16(p + 0x0E, e & 0xFFFE);
 }
 
 function spritePriorities() {           // C02821 / C028A7 / C02869 (only +08 matters)
@@ -170,5 +180,13 @@ function spritePriorities() {           // C02821 / C028A7 / C02869 (only +08 ma
   for (let i = 0; i < 4; i++) { w16((e[i] & 0xFF00) + 0x08, v); v += 8; }
 }
 
-// C028A7: TODO exact sort order (only affects sprite priority +08)
-function sortBombers(e) { e.sort((a, b) => (a & 0xFF) - (b & 0xFF) || (a >> 8) - (b >> 8)); }
+// C028A7: exchange sort, largest y (low byte) first; +08 then gets $30, $38, ... in
+// that order (only the sprite priority depends on it).
+function sortBombers(e) {
+  for (let i = 0; i < e.length; i++) {
+    let key = e[i] & 0xFF;
+    for (let j = i + 1; j < e.length; j++) {
+      if ((e[j] & 0xFF) > key) { const t = e[j]; e[j] = e[i]; e[i] = t; key = t & 0xFF; }
+    }
+  }
+}
