@@ -15,6 +15,7 @@ import { emit } from './events.js';
 import * as move from './move.js';
 import * as anim from './anim.js';
 import * as T from './movers_tables.js';
+import { hopBottom } from './geom.js';
 
 const wt = (t, x) => t[(x & 0xFFFF) >> 1];               // word table indexed by byte offset
 const bombPtr = (p) => 0x10000 | r16(p + 0x40);         // +40: bomb slot (bank $7F)
@@ -242,7 +243,7 @@ function C08302(p) {                     // a falling block lands on a hopping b
   w8(p + 0xB9, 0xC0);
   w16(p + 4, r16(p + 4) | 0x0020);
 }
-function hopOut(p) {                     // C0838C: inside a solid cell -> hop out
+export function hopOut(p) {                     // C0838C: inside a solid cell -> hop out
   snapCentre(p);
   if (r16(p + 0x52) & 0x0002) dropCarried(p);
   w16(p + 0x52, 0x0809);
@@ -267,7 +268,7 @@ function hopDir(p) {                     // C0843E (battle): direction away from
   if (c2) d = c2;
   const y = r16(p + 0x18), x = r16(p + 0x10);
   // edge limits of the 13x11 field (TODO tall: bottom row limit)
-  if (y >= 0xD7) d = (d & 0x18) ? d & 0x18 : 0x10;
+  if (y >= hopBottom()) d = (d & 0x18) ? d & 0x18 : 0x10;   // tall: bottom edge lower
   else if (y < 0x28) d = (d & 0x18) ? d & 0x18 : 8;
   else if (x < 0x19) d = (d & 6) ? d & 6 : 2;
   else if (x >= 0xE7) d = (d & 6) ? d & 6 : 4;
