@@ -41,10 +41,11 @@ function tileIndexAt(x, y) {            // C0A515
   return (((ty & 0x1F0) << 2) + ((tx & 0x1F0) >> 3)) & 0x7FF;
 }
 
-function centreCell(p) {                // C0BEA6: +B4 = cell under the centre, +A8 / +3A
+export function centreCell(p) {         // C0BEA6: +B4 = cell under the centre, +A8 / +3A
   let v = gridAt(r16(p + 0x10), r16(p + 0x18));
   const idx = lastIdx;
   if (v === 0xC2 && r8(p + 0xFB)) v = 0x40;
+  w16(0x5E, v);                         // C0BEB8 / C0BECD: scratch $5E
   w8(p + 0xB4, v & 0xFF);
   if (r16(0x1C78)) w8(p + 0xB4, 0x41);  // debug "invincible" switch (always 0)
   if (idx !== r16(p + 0xA8)) w16(p + 0x3A, r16(p + 0xA8));

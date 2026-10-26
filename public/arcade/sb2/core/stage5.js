@@ -5,7 +5,7 @@
 //   C06302 (per object!) -> C11080: graphics toggle counter $5E28 counts up once per
 //     object per tick; at $280 it resets and $5E2A b0 flips (the tile-animation lists at
 //     $7E2BF0 are switched; display only — the list contents are not reproduced here).
-import { r16, w16 } from './mem.js';
+import { r16, w16, w8 } from './mem.js';
 import { gridAt, lastIdx } from './move.js';
 import { emit } from './events.js';
 
@@ -35,12 +35,27 @@ export function C03748() {
   w16(0x5D58, r16(0x5D58) | 1);
 }
 
+const LISTS5 = [   // $C5DCF4 / $C5DD14: 8 bytes per entry
+  [[0x01, 0x4C, 0x10, 0x80, 0x82, 0x84, 0x86, 0xFE], [0x01, 0x4E, 0x10, 0x88, 0x8A, 0x8C, 0x8E, 0xFE],
+   [0x01, 0x6C, 0x10, 0x86, 0x84, 0x82, 0x80, 0xFE], [0x01, 0x6E, 0x10, 0x8E, 0x8C, 0x8A, 0x88, 0xFF]],
+  [[0x01, 0x4C, 0x10, 0x86, 0x84, 0x82, 0x80, 0xFE], [0x01, 0x4E, 0x10, 0x8E, 0x8C, 0x8A, 0x88, 0xFE],
+   [0x01, 0x6C, 0x10, 0x80, 0x82, 0x84, 0x86, 0xFE], [0x01, 0x6E, 0x10, 0x88, 0x8A, 0x8C, 0x8E, 0xFF]],
+];
 export function C06302() {              // C11080
   const c = (r16(0x5E28) + 1) & 0xFFFF;
   w16(0x5E28, c);
   if (c < 0x280) return;
   w16(0x5E28, 0);
   w16(0x5E2A, r16(0x5E2A) ^ 1);
+  // C110DE.. (phase 0, table $C5DCF4) / C1121A.. (phase 1, $C5DD14): rewrite the 4
+  // animated-character entries at $7E2BF0 (processed by C1334B): [flags, char, frame
+  // length (also the countdown), seq index $10] + the frame sequence at +$10
+  const T = (r16(0x5E2A) & 1) ? LISTS5[1] : LISTS5[0];
+  for (let k = 0; k < 4; k++) {
+    const e = 0x2BF0 + 0x20 * k, t = T[k];
+    w8(e, t[0]); w8(e + 1, t[1]); w8(e + 2, t[2]); w8(e + 3, t[2]); w8(e + 4, 0x10);
+    for (let i = 0; i < 5; i++) w8(e + 0x10 + i, t[3 + i]);
+  }
   w16(0x2C70, 0x00FF); w16(0x2C71, 0x00FF);   // (C110B6: ends the switched anim lists)
   emit('stageAnim', { stage: 5, phase: r16(0x5E2A) & 1 });
 }
