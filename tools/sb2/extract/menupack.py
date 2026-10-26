@@ -17,7 +17,9 @@ NOTES-menus.md). The menu front end re-runs the original's picture on a small PP
 New characters (written into unused VRAM tiles of vram.menu, recorded in menu.json
 `words`): the words of the wall's extra row (layout TALL / CLASSIC), composed letter by
 letter from the original's own orange label font (glyphs cut out of STAGE, BATTLE, TIME,
-COM LEVEL, G-BOMBER, PLAYER). mini_tall.png: the TALL arena of each stage at match start,
+COM LEVEL, G-BOMBER, PLAYER); STAR = the COM LEVEL value after 9 (the wall's ★ COM, not in
+the original), a five-pointed star drawn like the silver digits 1..9 (same 4 colours:
+outline 1, left edge 3, body 5, right edge f per horizontal run; same palette row). mini_tall.png: the TALL arena of each stage at match start,
 rendered by the port (tools/sb2/render/minimaps.mjs), 1 px per 2 px (112 x 208 each).
 """
 import json
@@ -175,6 +177,46 @@ def compose_word(font, bg, word, gap=1):
     return canvas
 
 
+def star_glyph(bg):
+    """16x16 colour indices: a 5-point star (point up) in the silver digits' style"""
+    import math
+    cx, cy, R, r = 7.5, 8.6, 6.9, 2.8
+    pts = [(cx + (R if k % 2 == 0 else r) * math.cos(-math.pi / 2 + k * math.pi / 5),
+            cy + (R if k % 2 == 0 else r) * math.sin(-math.pi / 2 + k * math.pi / 5)) for k in range(10)]
+
+    def inside(x, y):
+        c = False
+        for i in range(10):
+            (x1, y1), (x2, y2) = pts[i], pts[(i + 1) % 10]
+            if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+                c = not c
+        return c
+    body = np.zeros((16, 16), bool)
+    for y in range(16):
+        for x in range(16):        # 4x4 supersampling, >= 7/16 covered
+            body[y, x] = sum(inside(x + (i + .5) / 4, y + (j + .5) / 4) for i in range(4) for j in range(4)) >= 7
+    out = np.full((16, 16), bg, np.uint8)
+    for y in range(16):
+        for x in range(16):
+            if not body[y, x] and any(0 <= y + dy < 16 and 0 <= x + dx < 16 and body[y + dy, x + dx]
+                                      for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                out[y, x] = 1
+    for y in range(16):
+        x = 0
+        while x < 16:
+            if body[y, x]:
+                x0 = x
+                while x < 16 and body[y, x]:
+                    x += 1
+                out[y, x0:x] = 5
+                out[y, x0] = 3
+                if x - x0 > 1:
+                    out[y, x - 1] = 0xF
+            else:
+                x += 1
+    return out
+
+
 def used_tiles(vram):
     """BG tile numbers referenced by the BG1 / BG2 maps (incl. their 16x16 neighbours)"""
     used = set()
@@ -253,6 +295,7 @@ def main():
     zero = tile16(vram_menu, 0x1248).copy()
     zero[:, 0] = int(np.bincount(tile16(vram_menu, GREEN).ravel()).argmax())
     imgs['DIGIT0'] = zero
+    imgs['STAR'] = star_glyph(int(np.bincount(tile16(vram_menu, GREEN).ravel()).argmax()))
     need = sum(img.shape[1] // 16 for img in imgs.values())
     used = used_tiles(vram_menu)
     for v in stage_vram:

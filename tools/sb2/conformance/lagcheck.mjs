@@ -4,6 +4,7 @@
 //
 //   node tools/sb2/conformance/lagcheck.mjs            # every vector: predicted vs actual
 //   node tools/sb2/conformance/lagcheck.mjs --sim      # + scenarios on both layouts
+//   node tools/sb2/conformance/lagcheck.mjs --sim-only # scenarios only (incl. the ★ COM)
 //
 // Actual = the frames the original spent on each tick (the vector's frame -> tick map:
 // the gap between the frames in which consecutive ticks completed). Speed = ticks per
@@ -81,7 +82,7 @@ function simulate({ stage, layout, players, ticks, seed = 7, sd = false }) {
 }
 
 function main() {
-  const names = fs.readdirSync(VEC).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort();
+  const names = process.argv.includes('--sim-only') ? [] : fs.readdirSync(VEC).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort();
   let T = 0, A = 0, P = 0;
   console.log('vector                  ticks  frames  pred   speed err  tick match  actual rate  model rate');
   for (const n of names) {
@@ -90,12 +91,13 @@ function main() {
     console.log(`${n.padEnd(22)} ${String(c.T).padStart(6)} ${String(c.A).padStart(7)} ${String(c.P).padStart(5)}  ${((c.A - c.P) / c.A * 100).toFixed(2).padStart(7)} %  ${c.match.toFixed(2).padStart(8)} %  ${(HZ * c.T / c.A).toFixed(2).padStart(9)}  ${(HZ * c.T / c.P).toFixed(2).padStart(9)}`);
   }
   console.log(`ALL ${T} ticks: ${A} frames, predicted ${P} (${((A - P) / A * 100).toFixed(3)} %)`);
-  if (process.argv.includes('--sim')) {
-    const H = { type: 'human' }, C = { type: 'cpu', level: 5 };
+  if (process.argv.includes('--sim') || process.argv.includes('--sim-only')) {
+    const H = { type: 'human' }, C = { type: 'cpu', level: 5 }, S = { type: 'cpu', level: 10 };
     // (the core has no OFF slot: "idle" humans stand still without a controller)
     const scen = [
       ['humans only (1 walking + 3 idle)', [H, H, H, H]], ['1 human + 1 CPU (+2 idle)', [H, C, H, H]],
       ['1 human + 3 CPU', [H, C, C, C]], ['4 CPU', [C, C, C, C]],
+      ['1 human + 3 CPU ★', [H, S, S, S]], ['4 CPU ★', [S, S, S, S]],
     ];
     console.log('\nscenario (stage 1..10, 3600 ticks each)   layout     lag %   ticks/s');
     for (const layout of ['original', 'tall']) {

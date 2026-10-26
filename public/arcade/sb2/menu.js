@@ -11,7 +11,9 @@
 //             fade-in 1 step / 2 frames into the mode screen with the menu song
 //   mode      SINGLE MATCH / TAG MATCH (TAG does nothing here), switch +2 frames
 //   players   1P/2P MAN > COM > OFF, 3P/4P COM <> OFF (LEFT runs backwards), $51; B back
-//   rules     COM LEVEL 1-9, BATTLE 1-5, TIME 2:00 > 3:00 > 5:00 > inf > 1:00, G-BOMBER
+//   rules     COM LEVEL 1-9 and ★ (the wall's own CPU, core/ai_smart.js; level 10, drawn like
+//             the silver digits: menupack.py STAR), BATTLE 1-5, TIME 2:00 > 3:00 > 5:00 > inf
+//             > 1:00, G-BOMBER
 //   stage     STAGE 1-10 (silent, the preview mosaic: 46 frames), and the wall's extra row
 //             under the preview: the arena TALL / CLASSIC (UP/DOWN picks the row; the
 //             active row's arrows animate). TALL shows the real tall arena in miniature.
@@ -225,7 +227,7 @@ export function createMenu(mp, opts = {}) {
     if (screen === 'players') for (let i = 0; i < 4; i++) cells(rowsOf('players')[i], 11, PV[i][ptype(i)]);
     if (screen === 'rules') {
       const rr = rowsOf('rules');
-      cells(rr[0], 11, RV[0][String(set.level)]);
+      cells(rr[0], 11, set.level === 10 && M.words.STAR ? [GREEN, M.words.STAR[0], GREEN] : RV[0][String(Math.min(9, set.level))]);
       cells(rr[1], 11, RV[1][String(set.wins)]);
       cells(rr[2], 11, RV[2][set.time === Infinity ? 'inf' : TIME_VAR[set.time]]);
       cells(rr[3], 11, RV[3][set.gbomber ? 'ON' : 'OFF']);
@@ -457,7 +459,7 @@ export function createMenu(mp, opts = {}) {
       set.players[item] = seq[(Math.max(0, k) + d + seq.length) % seq.length];
       return true;
     }
-    if (item === 0) set.level = ((set.level - 1 + d + 9) % 9) + 1;
+    if (item === 0) { const n = M.words.STAR ? 10 : 9; set.level = ((Math.min(n, set.level) - 1 + d + n) % n) + 1; }   // 1..9, ★
     else if (item === 1) set.wins = ((set.wins - 1 + d + 5) % 5) + 1;
     else if (item === 2) { const k = TIMES.indexOf(set.time); set.time = TIMES[(Math.max(0, k) + d + TIMES.length) % TIMES.length]; }
     else set.gbomber = !set.gbomber;

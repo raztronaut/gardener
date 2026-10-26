@@ -34,8 +34,10 @@ const KEYMAP = { ArrowUp: BT.UP, ArrowDown: BT.DOWN, ArrowLeft: BT.LEFT, ArrowRi
   KeyX: BT.A, KeyZ: BT.B, KeyS: BT.X, KeyA: BT.Y, KeyQ: BT.L, KeyW: BT.R, Enter: BT.START, ShiftLeft: BT.SELECT, ShiftRight: BT.SELECT };
 const STEP_MS = 1000 / 60.0988;          // one SNES frame
 const SETTINGS_KEY = 'garden.sb2.menu';
-// the original's defaults (rules screen), the wall's one pad: 2P = COM
-const DEFAULTS = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 5, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall' };
+// the original's defaults (rules screen), the wall's one pad: 2P = COM; COM LEVEL ★ (10,
+// core/ai_smart.js) instead of the original's 5. v: settings version (2 = the ★ default:
+// settings saved before it get ★ once)
+const DEFAULTS = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall', v: 2 };
 
 let packPromise = null, menuPromise = null;
 const displays = new Map();    // layout -> { d, img }: kept for the page's life (see startMatch)
@@ -86,6 +88,7 @@ export async function bootSB2(host, { onExit } = {}) {
     const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
     for (const k of Object.keys(DEFAULTS)) if (s[k] !== undefined) set[k] = s[k];
     if (set.time === null) set.time = Infinity;        // JSON has no Infinity
+    if (!(s.v >= 2)) { set.level = DEFAULTS.level; set.v = DEFAULTS.v; }   // the ★ default, once
   } catch { /* defaults */ }
   const saveSet = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...set, time: set.time === Infinity ? null : set.time })); } catch { /* ignore */ } };
 

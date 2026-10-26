@@ -65,6 +65,9 @@ const INF = 0x3FFFFFFF;
 // written at D+2 and kills from D+3, the window starts at D_lo+1)
 let MARG = 2;
 const MAXWAIT = 240;
+// searches per tick for all ★ bombers together (~15-25 us each on the Jetson): a bomb /
+// kick / throw evaluation that does not fit waits for the next tick (escapes always run)
+const SEARCH_BUDGET = 36;
 
 // item tile low byte -> value (view.js ITEM_NAMES)
 const IT_BOMB = 0x00, IT_FIRE = 0x02, IT_FULL = 0x06, IT_SKULL = 0x0A, IT_SPEED = 0x22,
@@ -98,12 +101,17 @@ function makeWorld() {
     moverVX: new Float64Array(32), moverVY: new Float64Array(32),
     fireSeen: new Int32Array(NC).fill(-1),
     burnT: new Int32Array(NC).fill(-1),      // tick a soft block was last seen burning
+    walk: new Uint8Array(NC),                // this tick: a bomber's centre may enter (walkable())
+    belt: new Uint8Array(NC),                // stage 8 conveyor cells
+    skull: new Uint8Array(NC),               // this tick: a skull lies there
     posX: new Int32Array(4 * 32), posY: new Int32Array(4 * 32),   // ring of 32 ticks
     lastX: new Int32Array(4), lastY: new Int32Array(4),
     ring: new Uint8Array(NC), ringN: 0,      // stage-4 fuse ring cells
     tele: new Int16Array(NC).fill(-1),       // stage-6 teleporter partner cell
     rows: 15, tall: false, stageId: 0,
     roundKey: -1,
+    budget: 0,                               // searches left this tick (all ★ bombers)
+    ringList: new Int16Array(64), ringN2: 0,
   };
 }
 
@@ -113,10 +121,10 @@ function worldRound(W) {
   W.stageId = g16(0x1A);
   W.bombSeen.fill(-1); W.bombKey.fill(-1); W.bombDet.fill(-1); W.moverSeen.fill(-1);
   W.fireSeen.fill(-1);
-  W.ring.fill(0); W.ringN = 0; W.tele.fill(-1);
+  W.ring.fill(0); W.ringN = 0; W.ringN2 = 0; W.tele.fill(-1);
   for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
     const c = cy * 32 + cx;
-    if (W.stageId === 5 && (cellUnder(c) === 0x0E || cellCode(c) === 0x0E)) { W.ring[c] = 1; W.ringN++; }
+    if (W.stageId === 5 && (cellUnder(c) === 0x0E || cellCode(c) === 0x0E)) { W.ring[c] = 1; W.ringN++; if (W.ringN2 < 64) W.ringList[W.ringN2++] = c; }
   }
   if (W.stageId === 7) {                   // teleporters: partner = the pad with the same tile
     const pads = [];
@@ -136,6 +144,7 @@ function worldUpdate(W) {
   const key = g16(0x5C40) * 7 + g16(0x5E66) + g16(0x5E68) * 3 + g16(0x5E6A) * 5 + g16(0x5E6C) * 11;
   if (t < W.tick || W.tick < 0 || key !== W.roundKey) { worldRound(W); W.roundKey = key; }
   W.tick = t;
+  W.budget = SEARCH_BUDGET;
   for (let k = 0; k < 40; k++) {
     const b = 0x12000 + 0x100 * k, f = g16(b);
     if (!(f & 0x8000)) { W.bombSeen[k] = -1; W.bombKey[k] = -1; W.bombDet[k] = -1; continue; }
@@ -156,6 +165,13 @@ function worldUpdate(W) {
     const c = cy * 32 + cx, v = cellCode(c);
     if (v === 0x01 || v === 0x41) { if (W.fireSeen[c] < 0) W.fireSeen[c] = t; }
     else W.fireSeen[c] = -1;
+  }
+  W.walk.fill(0); W.skull.fill(0);
+  for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
+    const c = cy * 32 + cx;
+    W.walk[c] = walkable(c, W) ? 1 : 0;
+    W.belt[c] = isBelt(W, c) ? 1 : 0;
+    if (cellCode(c) === 0x44 && (cellTile(c) & 0xFF) === IT_SKULL) W.skull[c] = 1;
   }
   // burning soft blocks (the burn list $7F0000; visible: the block's burning frames)
   for (let e = 0; e < 32; e++) {
@@ -197,6 +213,10 @@ function makeBot(slot, seed) {
     order: new Int16Array(64),           // bombs by detonation window (rays in that order)
     stamp: 1,
     doomBase: new Int32Array(NC), baseStamp: 1,   // ... of the world map (no hypothetical bomb)
+    doomTA: new Int32Array(NC),
+    foeMin: new Int32Array(NC), foeMinS: new Int32Array(NC), foeStamp: 0,   // foes' earliest arrival
+    aLo: new Int32Array(64), aHi: new Int32Array(64),          // world map windows (after chains)
+    atMap: new Int16Array(NC).fill(-1), atList: new Int16Array(64), nAt: 0,   // world map: bomb at cell
     blocked: new Uint8Array(NC),         // per-search: extra blocked cells (bombers on stage 3)
     // decisions
     goal: -1, goalUntil: 0, goalKind: 0, goalScore: 0,
@@ -403,6 +423,7 @@ function rays(bot, W, D, i, c0, lo, hi, chain) {
 }
 
 function buildDanger(bot, W, D, now, hc, hR, fc, fR) {
+  stats.builds++;
   dClear(D, W.rows);
   bot.stamp++;
   const n0 = bot.nb;
@@ -462,7 +483,7 @@ function buildDanger(bot, W, D, now, hc, hR, fc, fR) {
     }
   }
   for (let i = 0; i < n; i++) if (bot.bMove[i] < 0) bot.bombAt[bot.bc[i]] = -1;
-  if (ringHi >= 0) for (let c = 0; c < NC; c++) if (W.ring[c]) dAdd(D, c, ringLo + 1, ringHi + 36);
+  if (ringHi >= 0) for (let k = 0; k < W.ringN2; k++) dAdd(D, W.ringList[k], ringLo + 1, ringHi + 36);
   // fire on the screen now
   for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
     const c = cy * 32 + cx, v = cellCode(c);
@@ -474,6 +495,55 @@ function buildDanger(bot, W, D, now, hc, hR, fc, fR) {
   return n0;
 }
 const CHAIN = { changed: false };
+
+// the world map (bot.A) plus hypothetical bombs placed now: ours at hc (reach hR) and / or a
+// foe's at fc (reach fR), each with the chain reactions it causes. Into bot.B.
+function hypo(bot, W, now, hc, hR, fc, fR) {
+  const A = bot.A, B = bot.B;
+  B.s0.set(A.s0); B.e0.set(A.e0); B.s1.set(A.s1); B.e1.set(A.e1);
+  if (hc >= 0) {
+    let lo = bot.hLo >= 0 ? bot.hLo : now + 141, hi = bot.hHi >= 0 ? bot.hHi : now + 152;
+    // a blast already due here sets it off early (fire reaches it: + 2 .. 8 ticks)
+    const s0 = A.s0[hc];
+    if (s0 !== INF && s0 + 1 < lo) { lo = s0 + 1; hi = Math.min(hi, s0 + 7); }
+    addBomb(bot, W, B, hc, hR, 0, lo, hi, 0);
+  }
+  if (fc >= 0 && fc !== hc && cellCode(fc) !== 0x43) {
+    let lo = now + 141, hi = now + 152;
+    const s0 = A.s0[fc];
+    if (s0 !== INF && s0 + 1 < lo) { lo = s0 + 1; hi = Math.min(hi, s0 + 7); }
+    addBomb(bot, W, B, fc, fR, 0, lo, hi, 0);
+  }
+}
+function addBomb(bot, W, D, c0, R, pierce, lo, hi, depth) {
+  dAdd(D, c0, lo + 1, hi + 30);
+  let ring = W.ring[c0];
+  for (let d = 0; d < 4; d++) {
+    let c = c0;
+    for (let k = 1; k <= R; k++) {
+      c += DC[d];
+      if ((c >> 5) < 2 || (c >> 5) > W.rows + 1) break;
+      const rk = rayKind(c, pierce);
+      if (rk === 2) break;
+      if (rk === 1) {
+        const j = bot.atMap[c];
+        if (j >= 0 && depth < 6 && lo + 2 < bot.aLo[j]) addBomb(bot, W, D, bot.bc[j], bot.bR[j], bot.bPierce[j], lo + 2, Math.min(hi + 8, bot.aHi[j]), depth + 1);
+        break;
+      }
+      if (rk === 4) {
+        const gone = W.burnT[c] === W.tick || (bot.doomBase[c] === bot.baseStamp && bot.doomTA[c] + 36 <= hi);
+        if (!gone) break;
+        dAdd(D, c, lo + 1, hi + 30);
+        continue;
+      }
+      if (rk === 3) { dAdd(D, c, lo + 1, hi + 44); continue; }
+      if (rk === 5) { dAdd(D, c, lo + 1, hi + 44); break; }
+      dAdd(D, c, lo + 1, hi + 30);
+      if (W.ring[c]) ring = 1;
+    }
+  }
+  if (ring) for (let k = 0; k < W.ringN2; k++) dAdd(D, W.ringList[k], lo + 1, hi + 36);
+}
 
 function suddenDeath(W, D, now) {
   if (g16(0x5C54) === 4) return;
@@ -508,7 +578,11 @@ function suddenDeath(W, D, now) {
 // From cell c0 at tick t0 at `speed` px/tick (ox / oy: the bomber's offset from c0's
 // centre). Results: S.arr[c] (tick the centre reaches c), S.first[c] (first direction),
 // S.dep[c] (tick it leaves c0), S.list = reached cells.
-function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe) {
+export const stats = { searches: 0, builds: 0 };
+// stopAt > 0: stop once that many never-lethal cells (refuges) have been reached
+function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe, stopAt = 0) {
+  stats.searches++;
+  W.budget--;
   S.cur++;
   const st = S.cur;
   S.hn = 0; S.n = 0;
@@ -521,13 +595,14 @@ function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe) {
     hpop(S);
     if (S.stamp[u] !== st || tu > S.arr[u]) continue;
     S.list[S.n++] = u;
+    if (stopAt && dFree(D, u, tu) && !W.belt[u] && --stopAt === 0) { S.hn = 0; return; }
     if (tu > maxT) continue;
     for (let d = 0; d < 4; d++) {
       let v = u + DC[d];
       const vy = v >> 5;
       if (vy < 3 || vy > W.rows) continue;
-      if (!walkable(v, W) || bl[v]) continue;
-      if (!isFoe && cellCode(v) === 0x44 && (cellTile(v) & 0xFF) === IT_SKULL && bot.mode !== 2) continue;
+      if (!W.walk[v] || bl[v]) continue;
+      if (!isFoe && W.skull[v] && bot.mode !== 2) continue;
       let land = v;
       // stage 6: a pad moves you to its partner, unless a bomb is there or fire burns on
       // the pad (the flame tile replaces the pad colour): then you stay on the pad
@@ -540,7 +615,7 @@ function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe) {
       }
       // earliest departure: v must be clear while the centre is in it
       let td = tu, ok = false;
-      const noWait = W.stageId === 9 && isBelt(W, u);
+      const noWait = W.stageId === 9 && W.belt[u] === 1;
       for (let r = 0; r < 4; r++) {
         const e = dHit(D, land, Math.floor(td + half), Math.ceil(td + s + half));
         if (e < 0) { ok = true; break; }
@@ -586,7 +661,7 @@ function hpop(S) {
 }
 
 // open neighbours (walkable) of a cell
-function exits(c, W) { let n = 0; for (let d = 0; d < 4; d++) if (walkable(c + DC[d], W)) n++; return n; }
+function exits(c, W) { let n = 0; for (let d = 0; d < 4; d++) if (W.walk[c + DC[d]]) n++; return n; }
 
 // best never-lethal cell reached in a search: earliest, few dead ends, away from foes
 function bestRefuge(bot, W, D, S, foeX, foeY, nFoe) {
@@ -684,6 +759,7 @@ function myReach(bot, W, c) {
 // evaluate placing a bomb at the bomber's cell now. Returns a value (<= 0: don't), with
 // a guaranteed escape (else -1).
 function evalBomb(bot, W, now, c, ox, oy, speed, attackOnly) {
+  if (W.budget < 4 + 3 * nFoe) return -2;          // no time left this tick: next tick
   MARG = 4;
   const v = evalBomb2(bot, W, now, c, ox, oy, speed, attackOnly);
   MARG = 2;
@@ -694,21 +770,41 @@ function evalBomb2(bot, W, now, c, ox, oy, speed, attackOnly) {
   const S = bot.S;
   // a foe close by may answer with a bomb of his own right away (where he stands now):
   // our escape must work in that case too (one ply of look-ahead per close foe)
+  // (he is seen ~8 ticks late: his cell and the cells next to it)
   for (let f = 0; f < nFoe; f++) {
     const dd = Math.abs((c & 31) - foeX[f]) + Math.abs((c >> 5) - foeY[f]);
-    if (dd > 5) continue;
-    const fc = foeY[f] * 32 + foeX[f];
-    if (!foeHasBomb(foeS[f])) continue;
-    buildDanger(bot, W, bot.B, now, c, R, fc, m[0x8000 + 0x100 * foeS[f] + 0xF2] + 1);
-    bot.blocked[fc] = 1;
-    search(bot, W, bot.B, S, c, now + 1, speed, ox, oy, now + 200, false);
-    bot.blocked[fc] = 0;
-    if (countRefuges(bot.B, S, 1, W) === 0) return -1;
+    if (dd > 5 || !foeHasBomb(foeS[f])) continue;
+    const f0 = foeY[f] * 32 + foeX[f], fR = m[0x8000 + 0x100 * foeS[f] + 0xF2] + 1;
+    for (let k = -1; k < 4; k++) {
+      const fc = k < 0 ? f0 : f0 + DC[k];
+      if (fc === c || (k >= 0 && !walkable(fc, W))) continue;
+      if (k >= 0 && (dd > 3 || Math.abs((c & 31) - (fc & 31)) + Math.abs((c >> 5) - (fc >> 5)) > 4)) continue;
+      hypo(bot, W, now, c, R, fc, fR);
+      bot.blocked[fc] = 1;
+      search(bot, W, bot.B, S, c, now + 1, speed, ox, oy, now + 200, false, 1);
+      bot.blocked[fc] = 0;
+      if (countRefuges(bot.B, S, 1, W) === 0) return -1;
+    }
   }
-  buildDanger(bot, W, bot.B, now, c, R, -1, 0);
+  hypo(bot, W, now, c, R, -1, 0);
   // own escape: start next tick, from the bomb cell (we may walk off our own bomb)
   search(bot, W, bot.B, S, c, now + 1, speed, ox, oy, now + 200, false);
-  const ref = countRefuges(bot.B, S, 3, W);
+  // ... to a refuge we reach well before any foe close by can (he could stand there, or
+  // drop a bomb on the way: corridors)
+  const fs = ++bot.foeStamp;
+  for (let f = 0; f < nFoe; f++) {
+    if (Math.abs((c & 31) - foeX[f]) + Math.abs((c >> 5) - foeY[f]) > 6) continue;
+    const O = bot.O;
+    search(bot, W, bot.B, O, foeY[f] * 32 + foeX[f], now + 2, foeSp[f], 0, 0, now + 110, true);
+    for (let i = 0; i < O.n; i++) { const q = O.list[i]; if (bot.foeMinS[q] !== fs || O.arr[q] < bot.foeMin[q]) { bot.foeMinS[q] = fs; bot.foeMin[q] = O.arr[q]; } }
+  }
+  let ref = 0;
+  for (let i = 0; i < S.n && ref < 3; i++) {
+    const q = S.list[i];
+    if (!dFree(bot.B, q, S.arr[q]) || W.belt[q]) continue;
+    if (bot.foeMinS[q] === fs && bot.foeMin[q] < S.arr[q] + 10) continue;
+    ref++;
+  }
   if (debug.on) bot.lastRef = ref + '/' + S.n;
   if (ref === 0) return -1;
   let val = 0;
@@ -725,10 +821,10 @@ function evalBomb2(bot, W, now, c, ox, oy, speed, attackOnly) {
     // pressure: a foe in the blast must move (and may run into a corner)
     if (inLine(W, c, R, fc)) val += 45;
     const O = bot.O;
-    search(bot, W, bot.B, O, fc, now + 2, foeSp[f], 0, 0, now + 180, true);
+    search(bot, W, bot.B, O, fc, now + 2, foeSp[f], 0, 0, now + 180, true, 12);
     const after = countRefuges(bot.B, O, 12);
     if (after >= 12) continue;
-    search(bot, W, bot.A, O, fc, now + 2, foeSp[f], 0, 0, now + 180, true);
+    search(bot, W, bot.A, O, fc, now + 2, foeSp[f], 0, 0, now + 180, true, 12);
     const before = countRefuges(bot.A, O, 12);
     if (after === 0 && before > 0) val += 600;
     else if (after < before) val += 160 * (before - after) / before + (after <= 2 ? 80 : 0);
@@ -788,7 +884,14 @@ function decide(bot, W) {
   gatherBombs(bot, W, now);
   buildDanger(bot, W, bot.A, now, -1, 0, -1, 0);
   bot.baseStamp++;
-  for (let i = 0; i < NC; i++) if (bot.doomed[i] === bot.stamp) bot.doomBase[i] = bot.baseStamp;
+  for (let i = 0; i < NC; i++) if (bot.doomed[i] === bot.stamp) { bot.doomBase[i] = bot.baseStamp; bot.doomTA[i] = bot.doomT[i]; }
+  // the world map's bombs, for the incremental hypothetical bombs (hypo / addBomb)
+  for (let i = 0; i < bot.nAt; i++) bot.atMap[bot.atList[i]] = -1;
+  bot.nAt = 0;
+  for (let i = 0; i < bot.nb; i++) {
+    bot.aLo[i] = bot.cLo[i]; bot.aHi[i] = bot.cHi[i];
+    if (bot.bMove[i] < 0) { bot.atMap[bot.bc[i]] = i; bot.atList[bot.nAt++] = bot.bc[i]; }
+  }
 
   const S = bot.S;
   search(bot, W, bot.A, S, c, now, speed, ox, oy, now + 260, false);
@@ -849,7 +952,8 @@ function decide(bot, W) {
       return Math.abs(ox) >= Math.abs(oy) ? (ox > 0 ? B_LEFT : B_RIGHT) : (oy > 0 ? B_UP : B_DOWN);
     }
     if (hand > 0 && v !== 0x43 && v !== 0x44 && (cellUnder(c) & 0x3F) !== 0x11 && !isBelt(W, c) && !bot.aHeld && now - bot.lastA > 3
-      && Math.abs(ox) <= 6 && Math.abs(oy) <= 6 && (atGoal || foeNear(c, m[p + 0xF2] + 4))) {
+      && Math.abs(ox) <= 6 && Math.abs(oy) <= 6 && (atGoal || foeNear(c, m[p + 0xF2] + 4))
+      && (!bot.goalWait || (now + bot.slot) % 3 === 0)) {
       const val = evalBomb(bot, W, now, c, ox, oy, speed, !atGoal);
       if (debug.on) bot.dbg = 'val' + val.toFixed(0) + ' ref' + bot.lastRef;
       const need = atGoal ? 20 : 120;
@@ -883,7 +987,7 @@ function decide(bot, W) {
     const bd = beltDir(c);
     if (bd >= 0) pad = DIRBIT[OPP[bd]];
   }
-  else bot.why = target < 0 && !safeHere ? 2 : bot.goalWait ? (m[p + 0xF1] ? 3 : 4) : 5;
+  else bot.why = target < 0 && !safeHere ? 2 : bot.goalWait ? (m[p + 0xF8] ? 6 : m[p + 0xF1] ? 3 : 4) : 5;
   return pad;
 }
 // does this bomber have a bomb to place? (visible: its pickups minus its bombs out)
@@ -1011,11 +1115,12 @@ function kickPad(bot, W, now, c, ox, oy, speed) {
     if (!good) for (let f = 0; f < nFoe; f++) if (inLine(W, x, bot.bR[k], foeY[f] * 32 + foeX[f])) good = true;
     if (!good) continue;
     // simulate the bomb at its stop cell: we need a refuge
+    if (W.budget < 2) return 0;
     const save = bot.bc[k];
     bot.bc[k] = x;
     buildDanger(bot, W, bot.B, now, -1, 0, -1, 0);
     bot.bc[k] = save;
-    search(bot, W, bot.B, bot.O, c, now + 4, speed, 0, 0, now + 200, false);
+    search(bot, W, bot.B, bot.O, c, now + 4, speed, 0, 0, now + 200, false, 1);
     if (countRefuges(bot.B, bot.O, 2, W) < 1) continue;
     bot.goal = -1;
     return DIRBIT[d];
@@ -1064,7 +1169,7 @@ function throwLanding(bot, W, c, d) {
 // is throwing in direction d safe for us (the landed bomb + everything else)?
 function throwSafe(bot, W, now, c, d, speed) {
   const L = throwLanding(bot, W, c, d);
-  if (L < 0) return -1;
+  if (L < 0 || W.budget < 1) return -1;
   const bk = g16(bot.p + 0x40);
   const fuse = bk >= 0x2000 && bk < 0x4800 ? m[0x10000 + bk + 4] : 0x38;
   bot.hLo = now + 2 * Math.max(fuse, 0x38) - 12; bot.hHi = now + 2 * Math.max(fuse, 0x38) + 40;
@@ -1072,9 +1177,9 @@ function throwSafe(bot, W, now, c, d, speed) {
   const dist = Math.abs((L & 31) - (c & 31)) + Math.abs((L >> 5) - (c >> 5));
   const tl = now + 2 + 4 * dist;
   if (dHit(bot.A, L, now, tl + 8) >= 0) { bot.hLo = tl - 2; bot.hHi = tl + 8; }
-  buildDanger(bot, W, bot.B, now, L, m[bot.p + 0xF2] + 1, -1, 0);
+  hypo(bot, W, now, L, m[bot.p + 0xF2] + 1, -1, 0);
   bot.hLo = -1; bot.hHi = -1;
-  search(bot, W, bot.B, bot.O, c, now + 2, speed, 0, 0, now + 200, false);
+  search(bot, W, bot.B, bot.O, c, now + 2, speed, 0, 0, now + 200, false, 1);
   return countRefuges(bot.B, bot.O, 1, W) ? L : -1;
 }
 const facingDir = (p) => { const f = g16(p + 0x5E); return f === 2 ? 3 : f === 4 ? 2 : f === 8 ? 1 : 0; };
