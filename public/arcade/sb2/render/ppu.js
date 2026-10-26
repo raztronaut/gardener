@@ -198,7 +198,8 @@ export function createPPU(H) {
 
   // ---- palette ---------------------------------------------------------------------------
   function rebuildLut() {
-    for (let c = 0; c < 32; c++) bmul[c] = expand5(brightness >= 15 ? c : ((c * (brightness + 1)) >> 4));
+    // master brightness: c * b / 15 rounded (measured on the harness fade-in, every level)
+    for (let c = 0; c < 32; c++) bmul[c] = expand5(brightness >= 15 ? c : Math.round((c * brightness) / 15));
     for (let k = 0; k < 256; k++) {
       const v = cgram[k];
       lut[k] = (0xFF << 24) | (bmul[(v >> 10) & 31] << 16) | (bmul[(v >> 5) & 31] << 8) | bmul[v & 31];

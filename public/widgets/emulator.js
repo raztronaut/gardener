@@ -21,18 +21,22 @@
 // as a panel, each with its own boot machinery. Booting a game first stops the other
 // instance's game (two cores at once halved both to ~40 fps — 2026-10-08).
 let activeTeardown = null;
+// Super Bomberman 2 · Tall (public/arcade/sb2/): not a ROM in EmulatorJS but the native
+// 9:16 port, listed on the shelf when its extracted assets exist (data/sb2/assets/pack/).
+const SB2 = { name: 'Super Bomberman 2 · Tall', file: '__sb2-tall', system: 'sb2', special: 'sb2' };
+const SB2_COVER = '/api/sb2/asset/pack/cover.png';
 
 const CORE = {
   nes: 'nes', snes: 'snes', gb: 'gb', gbc: 'gb', gba: 'gba',
   n64: 'n64', segaMD: 'segaMD', segaMS: 'segaMS', pce: 'pce',
 };
 const SYS_LABEL = {
-  nes: 'NES', snes: 'SNES', gb: 'GAME BOY', gbc: 'GBC', gba: 'GBA',
+  sb2: 'SNES · 9:16', nes: 'NES', snes: 'SNES', gb: 'GAME BOY', gbc: 'GBC', gba: 'GBA',
   n64: 'N64', segaMD: 'GENESIS', segaMS: 'SMS', pce: 'PC ENGINE',
 };
 // Full console names for the detail panel ("metadata and shit").
 const SYS_NAME = {
-  nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
+  sb2: 'Super Nintendo · native 9:16 port', nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
   gbc: 'Game Boy Color', gba: 'Game Boy Advance', n64: 'Nintendo 64',
   segaMD: 'Sega Genesis / Mega Drive', segaMS: 'Sega Master System', pce: 'PC Engine / TurboGrafx-16',
 };
@@ -330,6 +334,7 @@ export default {
     let sel = 0;           // picker selection index
     let roms = [];
     let emuFrame = null;   // the EmulatorJS iframe (one per game)
+    let portCtl = null;    // the running native port (Super Bomberman 2 · Tall)
     let cleanupTimers = []; // any timeouts we set (cleared on stop)
 
     // ---- HARD teardown: removing the iframe destroys EmulatorJS' document,
@@ -383,6 +388,8 @@ export default {
       stopTelemetry();
       try { emuFrame?.remove(); } catch { /* ignore */ }
       emuFrame = null;
+      try { portCtl?.stop(); } catch { /* ignore */ }
+      portCtl = null;
     }
 
     // ---- the controller/keyboard bridge stays set the WHOLE time the panel is
@@ -447,6 +454,7 @@ export default {
     }
     function rawInput(a) {
       if (mode !== 'game') return;
+      if (portCtl) { portCtl.raw(a); return; } // the native port maps the pad itself (Select+Start included)
       if (tele) tele.inputs++;
       if (a[1] === 'b') {                       // jb<idx><d|u> — true press / release
         const bi = a.charCodeAt(2) - 97;
@@ -542,7 +550,7 @@ export default {
     // Cover art: real box art from /api/rom-cover (libretro-thumbnails, cached on
     // the server); a generated cover (gradient + pixel motif + title) underneath
     // shows if there's none.
-    const coverURL = (rom) => `/api/rom-cover?file=${encodeURIComponent(rom.file)}`;
+    const coverURL = (rom) => (rom.special === 'sb2' ? SB2_COVER : `/api/rom-cover?file=${encodeURIComponent(rom.file)}`);
     function coverEl(rom, cls) {
       const box = h('div', { class: `ax-cover ${cls || ''}` },
         h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
@@ -581,6 +589,8 @@ export default {
         const r = await fetch('/api/roms', { cache: 'no-store' });
         roms = (await r.json()).roms || [];
       } catch { roms = []; }
+      // the native port sits first on the shelf when its assets are installed
+      try { if ((await fetch('/api/sb2/asset/pack/pack.json', { method: 'HEAD', cache: 'no-store' })).ok) roms.unshift(SB2); } catch { /* not installed */ }
 
       if (!roms.length) {
         body.replaceChildren(h('div', { class: 'ax' },
@@ -607,8 +617,30 @@ export default {
     // The iframe gets a fresh document so EmulatorJS' global classes never
     // collide across boots, and `allow="gamepad"` lets the SN30 Pro reach the
     // emulator's Gamepad reader. Tearing it down = removing the iframe.
+    // ---- BOOT the native port (no EmulatorJS, no iframe): same fullscreen + pad contract
+    async function bootPort(rom) {
+      recordPlay(rom);
+      mode = 'game';
+      document.body.classList.add('arcade-full');
+      if (activeTeardown && activeTeardown !== teardownGame) activeTeardown(); // another instance's game
+      activeTeardown = teardownGame;
+      teardownGame();
+      const stage = h('div', { class: 'eg-stage' });
+      body.replaceChildren(stage);
+      try {
+        const { bootSB2 } = await import('/arcade/sb2/app.js');
+        if (mode !== 'game' || !stage.isConnected) return;   // left while it loaded
+        const ctl = await bootSB2(stage, { onExit: () => showPicker() });
+        if (mode !== 'game' || !stage.isConnected) { ctl?.stop(); return; }
+        portCtl = ctl;
+      } catch (e) {
+        stage.replaceChildren(h('div', { class: 'eg-empty' }, h('div', {}, 'Super Bomberman 2 could not start.'), h('div', {}, String(e && e.message || e))));
+      }
+    }
+
     function boot(rom) {
       if (!rom) return;
+      if (rom.special === 'sb2') { bootPort(rom); return; }
       const core = CORE[rom.system];
       if (!core) return;
       recordPlay(rom); // bump play count + last-played for the detail panel

@@ -27,7 +27,7 @@ import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
 from snes import Snes, STATES_DIR, ROOT  # noqa: E402
 
-VEC = os.path.join(ROOT, 'data', 'sb2', 'vectors')
+VEC = os.environ.get('SB2_VECTORS') or os.path.join(ROOT, 'data', 'sb2', 'vectors')
 OUT = os.path.join(ROOT, 'data', 'sb2', 'conformance', 'visual')
 MYSTATES = os.path.join(ROOT, 'data', 'sb2', 're', 'states')
 NODE = 'node'

@@ -23,8 +23,9 @@ const { use, r8, r16, w16 } = await import(path.join(CORE_DIR, 'mem.js'));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
-const VEC = path.join(ROOT, 'data', 'sb2', 'vectors');
-const START = path.join(ROOT, 'data', 'sb2', 'conformance', 'start');
+// SB2_VECTORS / SB2_START: other vector sets (e.g. visual_extra.py's display scenarios)
+const VEC = process.env.SB2_VECTORS || path.join(ROOT, 'data', 'sb2', 'vectors');
+const START = process.env.SB2_START || path.join(ROOT, 'data', 'sb2', 'conformance', 'start');
 
 export const ROUND_ADDRS = [0x5E10, 0x5E12, 0x5E14, 0x5C56, 0x5E20, 0x00B9, 0x00BE, 0x5D0E,
   0x5C3E, 0x5E66, 0x5E68, 0x5E6A, 0x5E6C];
