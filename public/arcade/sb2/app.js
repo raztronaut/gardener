@@ -291,7 +291,7 @@ export async function bootSB2(host, { onExit } = {}) {
     // its optimised render path (a fresh display per match measured 2.5x slower)
     let dv = displays.get(layout);
     if (!dv) {
-      const d = createDisplay(pack, { layout, stage });
+      const d = createDisplay(pack, { layout, stage, classic: true });   // classic bomb / fire colours
       dv = { d, img: new ImageData(new Uint8ClampedArray(d.out.buffer), 256, d.H) };
       displays.set(layout, dv);
     }

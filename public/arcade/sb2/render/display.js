@@ -22,8 +22,12 @@ const FACE_BASE = [0x2060, 0x2062, 0x2464, 0x2466];
 const WIN_COL = [6, 11, 22, 27];
 const DIGIT = [0x288F, 0x2886, 0x2887, 0x2888, 0x2889, 0x288A, 0x288B, 0x288C, 0x288D, 0x288E]; // $C5D432
 
+// opts.classic (the wall): every bomb drawn in the BLACK owner's colours and every flame /
+// burning block / burning item in the RED owner's (classic Bomberman), instead of the
+// owner's colours the original uses (the default, kept for the visual conformance).
 export function createDisplay(pack, opts = {}) {
   const tall = opts.layout === 'tall';
+  let classic = !!opts.classic;
   const H = tall ? 455 : 224;
   const ppu = createPPU(H);
   const out = new Uint32Array(256 * H);
@@ -62,9 +66,9 @@ export function createDisplay(pack, opts = {}) {
     used: new Uint8Array(128),       // written this tick
     free: new Uint8Array(128),       // $7E2000 free list (1 = taken)
     x: new Int16Array(128), y: new Int16Array(128), attr: new Uint8Array(128),
-    large: new Uint8Array(128), gfx: new Int32Array(128),
+    large: new Uint8Array(128), gfx: new Int32Array(128), xpal: new Uint8Array(128),
   };
-  function oamClear() { S.used.fill(0); S.free.fill(0); }
+  function oamClear() { S.used.fill(0); S.free.fill(0); S.xpal.fill(0); }
   function oamWrite(slot, x, y, attr, large, gfx) {
     slot &= 0x7F;
     S.used[slot] = 1; S.x[slot] = x; S.y[slot] = y; S.attr[slot] = attr; S.large[slot] = large; S.gfx[slot] = gfx;
@@ -108,6 +112,8 @@ export function createDisplay(pack, opts = {}) {
       if (!(f04 & 0x40)) {                         // C09F9A: hidden objects write nothing
         if (kind !== 2 && (f52 & 1) && (f52 & 0x100) && !(f52 & 0x1000)) attr &= 0xCF;
         oamWrite(slot, x, y, attr, large, gfx);
+        // classic: a kicked / thrown / carried bomb (mover mode 1) in black's healthy palette
+        if (classic && kind === 1 && (A[p + 0x7F] & 0x0F) === 1) S.xpal[slot & 0x7F] = 1;
       }
       if (kind === 0) slot++;
     }
@@ -158,7 +164,7 @@ export function createDisplay(pack, opts = {}) {
       if (tall) { y = (y << 16) >> 16; if (y >= 0x1E0) y -= 0x200; }
       else { y &= 0xFF; if (y + size > 256) y -= 256; }
       o.x[n] = x; o.y[n] = y; o.w[n] = size; o.h[n] = size;
-      o.pal[n] = (a >> 1) & 7; o.prio[n] = (a >> 4) & 3; o.hf[n] = (a >> 6) & 1; o.vf[n] = (a >> 7) & 1;
+      o.pal[n] = S.xpal[s] ? 8 : (a >> 1) & 7; o.prio[n] = (a >> 4) & 3; o.hf[n] = (a >> 6) & 1; o.vf[n] = (a >> 7) & 1;
       o.gfx[n] = S.gfx[s];
       n++;
     }
@@ -267,11 +273,35 @@ export function createDisplay(pack, opts = {}) {
   // ---- background maps ------------------------------------------------------------------------
   const v = ppu.vram;
   const vw16 = (a, val) => { v[a & 0xFFFF] = val & 0xFF; v[(a + 1) & 0xFFFF] = (val >> 8) & 0xFF; };
+  const burnMark = new Uint8Array(0x1000);
   function bg2FromMirror() {                       // C0F60E: $7FA0C0.. -> VRAM $4060..
     const last = tall ? 29 : 15;
+    if (!classic) {
+      for (let row = 3; row <= last; row++) {
+        const src = 0x1A000 + row * 0x40, dst = BG2_MAP + row * 64;
+        for (let k = 0; k < 64; k++) v[dst + k] = M[src + k];
+      }
+      return;
+    }
+    // classic colours: the owner palettes are BG rows 1..4 (white, black, red, blue);
+    // bomb cells ($43) -> row 2 (black), fire ($01 / $41) and burning blocks -> row 3 (red)
+    burnMark.fill(0);
+    for (let e = 0; e < 32; e++) {
+      const a = 0x10000 + 16 * e;
+      if (!(g16(a) & 0x8000)) burnMark[g16(a + 2) & 0xFFF] = 1;
+    }
     for (let row = 3; row <= last; row++) {
       const src = 0x1A000 + row * 0x40, dst = BG2_MAP + row * 64;
-      for (let k = 0; k < 64; k++) v[dst + k] = M[src + k];
+      for (let k = 0; k < 64; k += 2) {
+        let lo = M[src + k], hi = M[src + k + 1];
+        const pl = (hi >> 2) & 7;
+        if (pl >= 1 && pl <= 4) {
+          const gi = row * 0x80 + k, c = M[0x1C000 + gi];      // cell (k / 2, row)
+          const want = c === 0x43 ? 2 : (c === 0x01 || c === 0x41 || burnMark[gi]) ? 3 : 0;
+          if (want) hi = (hi & 0xE3) | (want << 2);
+        }
+        v[dst + k] = lo; v[dst + k + 1] = hi;
+      }
     }
   }
   const hud = { bombers: new Int32Array(4) };
@@ -337,6 +367,7 @@ export function createDisplay(pack, opts = {}) {
     for (const e of fx) e.fill(0);
     pal.c60 = g16(0x5C60) ^ 0x0F00;                // re-derive every bomber palette once
     for (let i = 0; i < 4; i++) bomberPalette(i, false);
+    loadPal(256, 0xC10000 | rom16(0xC1D7B0 + 2 * 1));   // classic: black's healthy OBJ palette (8)
     pal.c60 = g16(0x5C60);
     pal.ph8a = pal.ph8b = pal.ph9 = -1;
     if (id === 9) { pal.ph8a = g16(0x5CBA) & 3; pal.ph8b = g16(0x5CC2) & 1; }
@@ -421,5 +452,7 @@ export function createDisplay(pack, opts = {}) {
     return out;
   }
 
-  return { ppu, H, W: 256, out, tall, beginRound, frame, render, stats };
+  // switch the classic colours (the next frame() redraws the arena)
+  function setClassic(on) { classic = !!on; }
+  return { ppu, H, W: 256, out, tall, beginRound, frame, render, stats, setClassic };
 }

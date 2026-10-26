@@ -28,10 +28,12 @@ export function expand5(c) { return (c << 3) | (c >> 2); }
 export function createPPU(H) {
   const N = W * H;
   const vram = new Uint8Array(0x10000);
-  const cgram = new Uint16Array(256);
-  const lut = new Uint32Array(256);
+  // 256 CGRAM words + one extra OBJ palette (8, words 256..271) the wall's classic bomb
+  // colours use (display.js classic); the original has no such palette
+  const cgram = new Uint16Array(272);
+  const lut = new Uint32Array(272);
   let brightness = 15, lutKey = -1;
-  const cgShadow = new Uint16Array(256);
+  const cgShadow = new Uint16Array(272);
   const bmul = new Uint8Array(32);          // 5-bit channel -> 8-bit after brightness
 
   // ---- background layers ---------------------------------------------------------------
@@ -200,7 +202,7 @@ export function createPPU(H) {
   function rebuildLut() {
     // master brightness: c * b / 15 rounded (measured on the harness fade-in, every level)
     for (let c = 0; c < 32; c++) bmul[c] = expand5(brightness >= 15 ? c : Math.round((c * brightness) / 15));
-    for (let k = 0; k < 256; k++) {
+    for (let k = 0; k < 272; k++) {
       const v = cgram[k];
       lut[k] = (0xFF << 24) | (bmul[(v >> 10) & 31] << 16) | (bmul[(v >> 5) & 31] << 8) | bmul[v & 31];
       cgShadow[k] = v;
@@ -294,7 +296,7 @@ export function createPPU(H) {
   // ---- frame -----------------------------------------------------------------------------
   function render(out) {
     let palChanged = brightness !== lutKey;
-    if (!palChanged) for (let k = 0; k < 256; k++) if (cgram[k] !== cgShadow[k]) { palChanged = true; break; }
+    if (!palChanged) for (let k = 0; k < 272; k++) if (cgram[k] !== cgShadow[k]) { palChanged = true; break; }
     if (palChanged) rebuildLut();
     for (let n = 1; n <= 3; n++) renderLayer(L[n]);
     if (anyCharDirty) { charDirty.fill(0); anyCharDirty = false; }

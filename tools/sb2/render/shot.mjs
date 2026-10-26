@@ -22,7 +22,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const pack = loadPack();
   const game = createGame({ stage: +stage, layout, seed: +seed,
     players: [0, 1, 2, 3].map(() => ({ type: 'cpu', level: 5 })), rules: { wins: 3, time: 3, gbomber: false } });
-  const d = createDisplay(pack, { layout });
+  const d = createDisplay(pack, { layout, classic: !!process.env.SB2_CLASSIC });
   d.beginRound(game);
   const t0 = performance.now();
   for (let i = 0; i < +ticks && !game.finished; i++) { game.tick([0, 0, 0, 0]); d.frame(game, game.events); }
