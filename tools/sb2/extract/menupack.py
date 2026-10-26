@@ -248,6 +248,11 @@ def main():
     words = {}
     want = {'TALL': 'TALL', 'CLASSIC': 'CLASSIC'}
     imgs = {k: compose_word(font, bg, w) for k, w in want.items() if all(c in font for c in w)}
+    # the silver digit 0 for the results' win counts: the "0" cell of TIME 2:00 ($1248)
+    # without the neighbouring 0's outline column on its left
+    zero = tile16(vram_menu, 0x1248).copy()
+    zero[:, 0] = int(np.bincount(tile16(vram_menu, GREEN).ravel()).argmax())
+    imgs['DIGIT0'] = zero
     need = sum(img.shape[1] // 16 for img in imgs.values())
     used = used_tiles(vram_menu)
     for v in stage_vram:

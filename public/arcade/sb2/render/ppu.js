@@ -73,6 +73,8 @@ export function createPPU(H) {
     state.objOn = !!(ppu.tm & 0x10);
     state.objSub = !!(ppu.ts & 0x10);
     state.mathBG2 = !!(ppu.cgadsub & 0x02);
+    state.mathBG1 = !!(ppu.cgadsub & 0x01);
+    state.mathSubtract = !!(ppu.cgadsub & 0x80);
     state.mathHalf = !!(ppu.cgadsub & 0x40);
     allDirty = true;
   }
@@ -82,7 +84,8 @@ export function createPPU(H) {
   function setWindowLines(fn) { for (let y = 0; y < H; y++) { const [l, r] = fn(y); winL[y] = l; winR[y] = r; } allDirty = true; }
   setWindowLines((y) => (y < 24 ? [255, 0] : [1, 254]));
 
-  const state = { bg3prio: true, objOn: true, objSub: true, mathBG2: true, mathHalf: true, snes9x565: false };
+  const state = { bg3prio: true, objOn: true, objSub: true, mathBG2: true, mathHalf: true, snes9x565: false,
+    mathBG1: false, mathSubtract: false };
 
   function mapEntry(l, tx, ty) {
     // tx, ty in tiles (wrapped by the screen size), returns the tilemap word
@@ -209,6 +212,11 @@ export function createPPU(H) {
     }
     lutKey = brightness;
   }
+  function subtract(a, b) {          // 15-bit colours -> RGBA, a - b per channel (clamped), then brightness
+    const r = Math.max(0, (a & 31) - (b & 31)), g = Math.max(0, ((a >> 5) & 31) - ((b >> 5) & 31));
+    const bl = Math.max(0, ((a >> 10) & 31) - ((b >> 10) & 31));
+    return (0xFF << 24) | (bmul[bl] << 16) | (bmul[g] << 8) | bmul[r];
+  }
   function blend(a, b) {             // 15-bit colours -> RGBA, half-add, then brightness
     const r = (((a & 31) + (b & 31)) >> 1), bl = ((((a >> 10) & 31) + ((b >> 10) & 31)) >> 1);
     let g;
@@ -287,6 +295,10 @@ export function createPPU(H) {
           if (rank > br) out[i] = lut[pbase + v];
           else if ((br === R_BG2LO || br === R_BG2HI) && state.mathBG2 && state.objSub) {
             out[i] = state.mathHalf ? blend(cgram[baseIdx[i]], cgram[pbase + v]) : lut[baseIdx[i]];
+          } else if ((br === R_BG1LO || br === R_BG1HI) && state.mathBG1 && state.objSub && state.mathSubtract) {
+            // the menus' shadows (CGADSUB $81): a sprite hidden under BG1 on the main screen
+            // is the sub-screen pixel, subtracted from BG1
+            out[i] = subtract(cgram[baseIdx[i]], cgram[pbase + v]);
           }
         }
       }
