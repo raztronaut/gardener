@@ -64,6 +64,59 @@ function seasonInfo(y, m, d) {
   return { name: s.name, icon: s.icon, day, toNext, phase, turn, nextName: next.name, nextIcon: next.icon };
 }
 
+// Holidays & occasions — a quiet heads-up on the date line in the week before
+// ("Halloween Sat · 5d"), "today" on the day itself (warmed to gold), and, for
+// the festive ones, the greeting turns too ("Happy Halloween"). US civic dates
+// plus a few SF-loved ones (Lunar New Year matters here). Pure date arithmetic,
+// recomputed once per local day — no network, no motion.
+const nthWeekday = (y, m, wd, n) => { // n-th weekday (0=Sun) of month m (1-12); n<0 → last
+  if (n > 0) { const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(); return 1 + ((wd - first + 7) % 7) + (n - 1) * 7; }
+  const lastD = new Date(Date.UTC(y, m, 0)).getUTCDate(), lastWd = new Date(Date.UTC(y, m - 1, lastD)).getUTCDay();
+  return lastD - ((lastWd - wd + 7) % 7);
+};
+const easter = (y) => { // anonymous Gregorian computus → [month, day]
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4;
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), hh = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - hh - k) % 7, m = Math.floor((a + 11 * hh + 22 * l) / 451);
+  return [Math.floor((hh + l - 7 * m + 114) / 31), ((hh + l - 7 * m + 114) % 31) + 1];
+};
+const LUNAR_NEW_YEAR = { 2026: [2, 17], 2027: [2, 6], 2028: [1, 26], 2029: [2, 13], 2030: [2, 3], 2031: [1, 23], 2032: [2, 11] };
+// [name, month, day, greeting|null] for calendar year y.
+function holidaysOf(y) {
+  const list = [
+    ["New Year's Day", 1, 1, 'Happy New Year'],
+    ['MLK Day', 1, nthWeekday(y, 1, 1, 3), null],
+    ["Valentine's Day", 2, 14, "Happy Valentine's Day"],
+    ["Presidents' Day", 2, nthWeekday(y, 2, 1, 3), null],
+    ["St Patrick's Day", 3, 17, "Happy St Patrick's Day"],
+    ['Easter', ...easter(y), 'Happy Easter'],
+    ["Mother's Day", 5, nthWeekday(y, 5, 0, 2), "Happy Mother's Day"],
+    ['Memorial Day', 5, nthWeekday(y, 5, 1, -1), null],
+    ["Father's Day", 6, nthWeekday(y, 6, 0, 3), "Happy Father's Day"],
+    ['Juneteenth', 6, 19, null],
+    ['Independence Day', 7, 4, 'Happy Fourth of July'],
+    ['Labor Day', 9, nthWeekday(y, 9, 1, 1), null],
+    ['Halloween', 10, 31, 'Happy Halloween'],
+    ['Veterans Day', 11, 11, null],
+    ['Thanksgiving', 11, nthWeekday(y, 11, 4, 4), 'Happy Thanksgiving'],
+    ['Christmas Eve', 12, 24, 'A merry Christmas Eve'],
+    ['Christmas', 12, 25, 'Merry Christmas'],
+    ["New Year's Eve", 12, 31, "Happy New Year's Eve"],
+  ];
+  if (LUNAR_NEW_YEAR[y]) list.push(['Lunar New Year', ...LUNAR_NEW_YEAR[y], 'Happy Lunar New Year']);
+  return list;
+}
+// The nearest occasion within `within` days of the tz-local date (0 = today).
+function nextHoliday(y, m, d, within = 7) {
+  const today = Date.UTC(y, m - 1, d) / 864e5;
+  let best = null;
+  for (const yr of [y, y + 1]) for (const [name, hm, hd, greet] of holidaysOf(yr)) {
+    const days = Date.UTC(yr, hm - 1, hd) / 864e5 - today;
+    if (days >= 0 && days <= within && (!best || days < best.days)) best = { name, days, greet, utc: Date.UTC(yr, hm - 1, hd) };
+  }
+  return best;
+}
+
 export default {
   id: 'clock',
   title: 'Time',
@@ -95,7 +148,14 @@ export default {
         font-size: 78px; line-height:.92; background:linear-gradient(120deg,#fff,var(--mint));
         -webkit-background-clip:text; background-clip:text; color:transparent; display:flex; align-items:baseline; gap:12px; }
       .clk .time .ap { font-size:30px; -webkit-text-fill-color:var(--ink-soft); font-family:var(--font); font-weight:600; }
-      .clk .date { color: var(--ink); font-size:20px; opacity:.92; }
+      .clk .daterow { display:flex; align-items:baseline; gap:12px; min-width:0; }
+      .clk .date { color: var(--ink); font-size:20px; opacity:.92; flex:0 0 auto; white-space:nowrap; }
+      /* Holiday heads-up — hushed, right-aligned on the date line in the week before
+         an occasion; gold on the day. Smaller than the date, so it never grows the row. */
+      .clk .hol { margin-left:auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+        font-family:var(--font-mono); font-size:12.5px; letter-spacing:.04em; color:var(--ink-faint); }
+      .clk .hol b { color:var(--ink-soft); font-weight:600; letter-spacing:.02em; }
+      .clk .hol.today b { color:var(--gold); }
       /* World clocks — a hushed row of a few far-flung city times, anchored toward
          the bottom of the card (margin-top:auto) so it fills the breathing room
          beneath the date. Fully offline & deterministic (pure Intl formatting), so
@@ -141,7 +201,9 @@ export default {
     const season = topline.appendChild(ctx.h('div', { class: 'season' }));
     const timerow = root.appendChild(ctx.h('div', { class: 'timerow' }));
     const time = timerow.appendChild(ctx.h('div', { class: 'time' }));
-    const date = root.appendChild(ctx.h('div', { class: 'date' }));
+    const daterow = root.appendChild(ctx.h('div', { class: 'daterow' }));
+    const date = daterow.appendChild(ctx.h('div', { class: 'date' }));
+    const hol = daterow.appendChild(ctx.h('div', { class: 'hol', style: 'display:none' }));
     // World clocks — a few far-flung cities keeping time alongside home. Built once;
     // each tick refreshes only the cells whose minute changed (see below). The list
     // deliberately skips the home zone (the hero time above already tells it) and
@@ -235,6 +297,27 @@ export default {
     // time text every second pegs this Jetson's software renderer. The 10s tick is
     // cheap (string compare, no repaint) and flips the minute within ~10s of :00.
     let lastT = '', lastD = '', lastG = '', lastS = '', lastY = '';
+    let holiday = null, lastHolDay = '';
+    const fmtHolDay = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short' });
+    const fmtHolFull = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
+    // Paint the date-line heads-up, stepping down if the line is tight:
+    // "Halloween Sat · 5d" → "Halloween · 5d" → hidden (the date always stays whole).
+    const paintHoliday = () => {
+      if (!holiday) { hol.style.display = 'none'; hol.replaceChildren(); return; }
+      const { name, days, utc } = holiday;
+      const wd = fmtHolDay.format(new Date(utc));
+      const forms = days === 0 ? [['', ' today']]
+        : days === 1 ? [['', ' tomorrow'], ['', ' · 1d']]
+        : [['', ` ${wd} · ${days}d`], ['', ` · ${days}d`]];
+      hol.style.display = '';
+      hol.classList.toggle('today', days === 0);
+      hol.title = days === 0 ? `${name} — today` : `${name} · ${fmtHolFull.format(new Date(utc))} · in ${days} day${days === 1 ? '' : 's'}`;
+      for (const [, post] of forms) {
+        hol.replaceChildren(ctx.h('b', {}, name), post);
+        if (hol.scrollWidth <= hol.clientWidth + 1) return;
+      }
+      hol.style.display = 'none';
+    };
     const tick = () => {
       const now = new Date();
       const parts = fmtTime.formatToParts(now);
@@ -247,12 +330,16 @@ export default {
       const h = parseInt(hourOf.format(now), 10);
       // Day-of-week-aware greeting (weekends & Fridays get their own warmth),
       // read in the display tz so it turns over correctly at local midnight.
-      const g = greetingFor(h, fmtWeekday.format(now));
+      const [yy, mm, dd] = fmtYMD.format(now).split('-').map((n) => parseInt(n, 10));
+      const hKey = `${yy}-${mm}-${dd}`;
+      if (hKey !== lastHolDay) { lastHolDay = hKey; try { holiday = nextHoliday(yy, mm, dd); } catch { holiday = null; } paintHoliday(); }
+      // On a festive day the greeting turns ("Happy Halloween") through waking hours.
+      const g = holiday && holiday.days === 0 && holiday.greet && h >= 5 && h < 22
+        ? holiday.greet : greetingFor(h, fmtWeekday.format(now));
       let toplineDirty = false;
       if (g !== lastG) { lastG = g; greet.textContent = g; toplineDirty = true; }
       // Seasonal marker — recomputed from the tz-local date; only repaints when the
       // day (and therefore the "day N of season") actually changes.
-      const [yy, mm, dd] = fmtYMD.format(now).split('-').map((n) => parseInt(n, 10));
       const s = seasonInfo(yy, mm, dd);
       const sKey = `${s.phase}|${s.name}|${s.toNext}`;
       if (sKey !== lastS) {

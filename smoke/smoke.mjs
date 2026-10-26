@@ -311,6 +311,17 @@ async function main() {
       const m = appSrc.match(/TRASH_NIGHT_HOUR\s*=\s*(\d+)/);
       check('trash takeover fires by 5 PM (TRASH_NIGHT_HOUR ≤ 17)', m && Number(m[1]) <= 17, m ? `is ${m[1]}` : 'TRASH_NIGHT_HOUR not found');
     } catch (e) { bad('trash takeover threshold', e.message); }
+    // Clock holiday heads-up: the movable-date maths must land on the right days.
+    try {
+      const ckSrc = readFileSync(join(PUBLIC, 'widgets', 'clock.js'), 'utf8');
+      const mod = await import('data:text/javascript,' + encodeURIComponent(ckSrc.split('export default')[0] + 'export { holidaysOf, nextHoliday };'));
+      const day = (y, n) => { const x = mod.holidaysOf(y).find((r) => r[0] === n); return x ? `${x[1]}/${x[2]}` : null; };
+      const nh = mod.nextHoliday(2026, 10, 26);
+      check('clock holidays: Thanksgiving/Easter/Memorial Day dates', day(2026, 'Thanksgiving') === '11/26' && day(2027, 'Easter') === '3/28'
+        && day(2026, 'Memorial Day') === '5/25' && day(2027, 'Thanksgiving') === '11/25', `${day(2026, 'Thanksgiving')} ${day(2027, 'Easter')} ${day(2026, 'Memorial Day')}`);
+      check('clock holidays: nearest occasion within a week', nh && nh.name === 'Halloween' && nh.days === 5 && mod.nextHoliday(2026, 11, 1) === null
+        && mod.nextHoliday(2026, 12, 29)?.name === "New Year's Eve" && mod.nextHoliday(2026, 12, 31)?.days === 0, JSON.stringify(nh));
+    } catch (e) { bad('clock holiday maths', e.message); }
     // Weather forecast days must carry °C as well as °F (feedback 2026-09-23).
     try {
       const wxSrc = readFileSync(join(PUBLIC, 'widgets', 'weather.js'), 'utf8');
