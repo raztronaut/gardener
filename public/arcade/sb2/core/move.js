@@ -16,6 +16,7 @@ import * as items from './items.js';
 import * as movers from './movers.js';
 import * as stage from './stage.js';
 import { emit } from './events.js';
+import { parkY } from './geom.js';
 
 // Speed table $C5FB07: [int, frac] per level (SPEC §3)
 export const SPEED = [[0, 0x8000], [1, 0x4000], [1, 0x8000], [2, 0], [2, 0x8000], [2, 0xC000],
@@ -284,7 +285,7 @@ function timeUp(p) {                    // C0A6FD
   const hi = r16(p + 0x7E) & 0xFF00;
   if (hi) {
     if (hi !== 0x0400) return;
-    w16(p, 0); w16(p + 0x10, 0x1FF); w16(p + 0x18, 0xF0);
+    w16(p, 0); w16(p + 0x10, 0x1FF); w16(p + 0x18, parkY());   // tall: parked below the field
   }
   die(p);
 }
@@ -294,7 +295,7 @@ function dyingStep(p) {                 // C0A7FA: end of the death animation
   if (r16(p + 0x60) & 0x0800) return;
   w16(p + 0x60, r16(p + 0x60) | 0x0800);
   w16(p + 0x10, 0);
-  w16(p + 0x18, 0xF0);
+  w16(p + 0x18, parkY());               // tall: parked below the field
   w16(p + 0xA8, 0);
   if (r16(0xB9) & 0x8000) items.deathScatter?.(p);       // C097A0
 }

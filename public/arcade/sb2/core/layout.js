@@ -4,6 +4,8 @@
 import { r8, r16, w8, w16, GRID, UNDER, TILE, TILE_UNDER, DANGER } from './mem.js';
 import { rng } from './rng.js';
 import { STAGE_MAPS } from './layout_data.js';
+import { isTall } from './geom.js';
+import { buildTallLayout, syncLayout } from './tall.js';
 
 // battle stage ids ($1A) of the stage-select stages 1..10
 export const STAGE_IDS = [0, 1, 2, 5, 6, 7, 8, 9, 0xA, 0xB];
@@ -173,6 +175,8 @@ export function fieldList(cols = 13, rows = 11) {
 
 // C0F3E4: the whole layout chain of a round (after C0F1E0's graphics setup).
 export function buildLayout(sid) {
+  if (isTall()) { buildTallLayout(sid); return; }   // tall: 13x25 (tall.js)
+  syncLayout();          // tall: restore the original's tables
   loadMap(sid);          // C0F36F/C0F3C2/C0F8B3/C0F815/C0F601
   setOffsets();          // C0F5D3
   maskGrids();           // C0F5AF

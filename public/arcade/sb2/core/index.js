@@ -12,6 +12,12 @@ import { tick as runTick, roundFinished } from './loop.js';
 import { reset as resetEvents } from './events.js';
 import { applySettings, roundInit, finishRound, newMatch } from './setup.js';
 import { buildState } from './view.js';
+import { setTall, isTall } from './geom.js';
+import { syncLayout } from './tall.js';
+
+// tall: the layout-dependent tables of the modules follow the active game's memory
+let syncedMem = null;
+function activate(mem) { use(mem); if (syncedMem !== mem) { syncLayout(); syncedMem = mem; } }
 
 export function createGame(opts = {}) {
   const mem = new Uint8Array(WRAM_SIZE);
@@ -28,7 +34,7 @@ export function createGame(opts = {}) {
     // finished round's result; when the match is over it does not start a round
     // (call newMatch() first).
     nextRound() {
-      use(mem);
+      activate(mem);
       this.events = [];
       resetEvents(this.events);
       if (roundFinished() || (r16(0xB9) & 0x4000)) this.result = finishRound();
@@ -40,7 +46,7 @@ export function createGame(opts = {}) {
     // Start the next match on the same settings (the champion becomes the gold bomber
     // when G-BOMBER is on; bonus = roulette result 0..5).
     newMatch(o = {}) {
-      use(mem);
+      activate(mem);
       this.events = [];
       resetEvents(this.events);
       newMatch(o);
@@ -48,7 +54,7 @@ export function createGame(opts = {}) {
       roundInit(this);
     },
     tick(pads) {
-      use(mem);
+      activate(mem);
       this.events = [];
       resetEvents(this.events);
       if (roundFinished()) return this.events;
@@ -56,6 +62,7 @@ export function createGame(opts = {}) {
       this._ticks++;
       return this.events;
     },
+    get layout() { use(mem); return { tall: isTall() }; },
     get finished() { use(mem); return roundFinished(); },
     // renderer view (STATE.md); cached per tick
     get state() {
@@ -65,11 +72,14 @@ export function createGame(opts = {}) {
     _ticks: 0,
     // full serialisation of the authoritative state (WRAM image + options)
     save() { return { v: 1, opts: { ...this.opts, wram: undefined }, layout: this.layout || null, levels: this.levels, result: this.result, mem: b64(mem) }; },
-    load(s) { mem.set(unb64(s.mem)); this.layout = s.layout; this.levels = s.levels; this.result = s.result; this._ticks++; },
+    load(s) { mem.set(unb64(s.mem)); syncedMem = null; this.levels = s.levels; this.result = s.result; this._ticks++; },
   };
   if (!opts.wram) {
     use(mem);
     resetEvents(game.events);
+    // tall: layout 'tall' = 13x25 field (tall.js); stored in the WRAM image (geom.js)
+    setTall(opts.layout === 'tall', !!(opts.rules && opts.rules.tallSuddenDeath === 'pace'));
+    syncedMem = null;
     applySettings(opts);
     roundInit(game);
   }

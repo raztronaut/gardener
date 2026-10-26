@@ -234,7 +234,7 @@ function C0963E(k, x) {
   const tile = ITEM_TILES[k];
   w16(0x52, tile);
   const g = r16(0x1E000 + (r16(0x400) & 0xFE));
-  if (g >= 0x800) return;
+  if (g >= scanEnd) return;               // tall: $F00 (setScatterScan)
   const c = r16(GRID + g);
   if (c !== 0 && (c === 0x44 || c === 0x01 || (c & 0xC0))) return;
   w16(GRID + g, 0x0044);

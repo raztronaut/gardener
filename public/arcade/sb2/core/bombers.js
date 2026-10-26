@@ -9,6 +9,7 @@ import * as stage from './stage.js';
 import * as movers from './movers.js';
 import * as bombs from './bombs.js';
 import * as anim from './anim.js';
+import { offY } from './geom.js';
 
 // ---- C01602: pads -> +6E of human bombers ------------------------------------------
 // (C01797 latched the pads into $C3/$C5/$C7/$C9 and the signatures into $CD..$D0.)
@@ -111,7 +112,7 @@ function clampPos(p) {
   w16(p + 0x10, r16(p + 0x10) & r16(0x5D3E));
   w16(p + 0x18, r16(p + 0x18) & r16(0x5D3C));
   const y = r16(p + 0x18), x = r16(p + 0x10);
-  const onY = !(y >= 0x200 || (y >= 0xF0 && y < 0x1F8));
+  const onY = !(y >= 0x200 || (y >= offY() && y < 0x1F8));   // tall: the field ends at y $1C0
   const onX = !(x >= 0x200 || (x >= 0x110 && x < 0x1E8));
   if (!(r16(p) & 0x1000)) {             // currently flagged off-screen
     if (onY && onX) w16(p, (r16(p) | 0x1000) & 0xDFFF);

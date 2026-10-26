@@ -5,6 +5,8 @@ import { r8, r16, w8, w16, OBJ } from './mem.js';
 import { buildLayout, STAGE_IDS } from './layout.js';
 import { emit } from './events.js';
 import { exitBattle } from './round.js';
+import { isTall, yMask, parkY } from './geom.js';
+import { tallSpawns } from './tall.js';
 
 // menu variables (bank $00 low RAM) — the battle reads copies of them (CC0377)
 const M_LEVEL = 0x1CA5, M_BATTLE = 0x1CA7, M_TIME = 0x1CA9, M_GOLD = 0x1CAB;
@@ -66,7 +68,7 @@ function copySettings() {                          // CC0377
 
 // ---- C00D55: round globals ------------------------------------------------------------
 function roundGlobals() {
-  w16(0x5D3C, 0x00FF);                    // position masks (C0A146): y, x
+  w16(0x5D3C, yMask());                   // position masks (C0A146): y, x (tall: $1FF)
   w16(0x5D3E, 0x00FF);
   w16(0x5D42, r16(0x1A));
   let b9 = r16(0xB9) | 1;
@@ -150,7 +152,7 @@ function initBombers(G) {                 // C01B9B
     w16(p + 4, f);
     if (f & 0x0002) {                     // empty slot: parked off-field
       w16(p, r16(p) | 0xA800);
-      w16(p + 0x10, 0); w16(p + 0x18, 0xF0);
+      w16(p + 0x10, 0); w16(p + 0x18, parkY());   // tall: parked below the field
     }
   }
 }
@@ -174,6 +176,7 @@ function goldBonus() {                    // C019CB, table $C5D5C2 (byte fields)
 const SPAWN = [0x20, 0x30, 0xE0, 0xD0, 0xE0, 0x30, 0x20, 0xD0];    // $C5E51C
 const SPAWN4 = [0x60, 0x70, 0xA0, 0x90, 0xA0, 0x70, 0x60, 0x90];   // $C5E52C (stage id 5)
 function spawns() {                       // C01AF3
+  if (isTall()) { tallSpawns(); return; }   // tall: corners of the 13x25 field
   const t = r16(0x1A) === 5 ? SPAWN4 : SPAWN;
   for (let s = 0; s < 4; s++) {
     w16(OBJ + s * 0x100 + 0x10, t[s * 2]);

@@ -2,6 +2,7 @@
 // tools/sb2/re/notes-round.md).
 import { r8, r16, w8, w16, OBJ, GRID, UNDER, TILE, TILE_UNDER, DANGER, BOMB_LIST, cellX, cellY } from './mem.js';
 import { emit } from './events.js';
+import { isTall, sdDigits, hurryDigits, sdBlockSteps } from './geom.js';
 
 // $C5D432: clock digit tiles
 const DIGIT = [0x288F, 0x2886, 0x2887, 0x2888, 0x2889, 0x288A, 0x288B, 0x288C, 0x288D, 0x288E];
@@ -19,7 +20,8 @@ export function fade() {               // C00C36
 export function hurry() {
   if (r16(0x5E34) & 0x8000) return;
   if (r16(0x5C54) === 4) return;
-  if (r16(0x5E04) !== 0 || r16(0x5E06) !== 3 || r16(0x5E08) !== 8) return;
+  const hd = hurryDigits();            // tall: 0:52 (geom.js)
+  if (r16(0x5E04) !== hd[0] || r16(0x5E06) !== hd[1] || r16(0x5E08) !== hd[2]) return;
   w16(0x5E34, r16(0x5E34) | 0x8000);
   emit('hurry', { sfx: 0x4E });
 }
@@ -49,7 +51,8 @@ export function suddenDeath() {        // C0D843
     return;
   }
   if (r16(0x5C54) === 4) return;
-  if (r16(0x5E04) === 0 && r16(0x5E06) === 3 && r16(0x5E08) === 3) {
+  const sd = sdDigits();               // tall: 0:47 (geom.js)
+  if (r16(0x5E04) === sd[0] && r16(0x5E06) === sd[1] && r16(0x5E08) === sd[2]) {
     w16(0x5D0E, f | 0x0001);
     emit('suddenDeath', {});
   }
@@ -75,7 +78,7 @@ function sdStep() {                    // C0D5BB
     }
   }
   const step = r16(0x5D14);
-  const tile = SD_STEPS[step] ?? 0xFFFF;
+  const tile = step + 1 >= sdBlockSteps() ? 0xFFFF : (SD_STEPS[step] ?? 0xFFFF);   // tall: 3-step blocks with 'pace'
   if (tile & 0x8000) {
     w16(0x5D14, 0);
     w16(0x5D0E, r16(0x5D0E) & 0xFFFB);
@@ -150,6 +153,9 @@ function returnBomb(b) {
 // the list is run by C0DA42, which writes the $C1 cells).
 const TUNNEL_TILES = [0x0188, 0x0108, 0x0198, 0x0118, 0x0788, 0x0808, 0x0798, 0x0818];
 const TUNNEL_CELLS = [0x00C8, 0x0088, 0x00D8, 0x0098, 0x03C8, 0x0408, 0x03D8, 0x0418];
+// tall: (4,3) (4,2) (12,3) (12,2) as above, then (4,29) (4,30) (12,29) (12,30)
+const TALL_TUNNEL_TILES = [0x0188, 0x0108, 0x0198, 0x0118, 0x0E88, 0x0F08, 0x0E98, 0x0F18];
+const TALL_TUNNEL_CELLS = [0x00C8, 0x0088, 0x00D8, 0x0098, 0x0748, 0x0788, 0x0758, 0x0798];
 function tunnelsClose() {
   if (r16(0x1A) !== 2) return;
   if (r16(0x5E3C) & 0x8000) return;
@@ -160,8 +166,8 @@ function tunnelsClose() {
     if (x < 0) return;
     const a = 0x3D88 + x;
     w16(a, 0);
-    w16(a + 2, TUNNEL_CELLS[k]);
-    w16(a + 4, TUNNEL_TILES[k]);
+    w16(a + 2, (isTall() ? TALL_TUNNEL_CELLS : TUNNEL_CELLS)[k]);   // tall: bottom tunnels at rows 29/30
+    w16(a + 4, (isTall() ? TALL_TUNNEL_TILES : TUNNEL_TILES)[k]);
     w16(a + 6, 0);
     w16(a + 8, 0);
     w8(a + 10, 0x64); w8(a + 11, 0xE2); w8(a + 12, 0xC5);
