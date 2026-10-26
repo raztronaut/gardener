@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Headless CPU behaviour metrics, original 13x11 vs tall 13x25 (tools/sb2/ai-eval/README).
+// Headless CPU behaviour metrics, original 13x11 vs tall 13x25 (findings: tools/sb2/NOTES-core-ai.md).
 //   node tools/sb2/ai-eval/eval.mjs [--core DIR] [--stages 1-10] [--seeds 6] [--rounds 3]
 //        [--level 5] [--time 3] [--modes cpu4,human3] [--layouts original,tall]
 //        [--jobs 5] [--out file.json] [--label name]

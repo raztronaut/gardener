@@ -32,7 +32,13 @@
   - 3 (beach): default (the frame columns cx 3/13 and the central water/soft band stretch;
     tunnels stay at cx 4/12 in the top border rows 2/3 and the bottom border rows 29/30).
   - 4 (barrels): one fuse ring cx 4..12 × cy 6..26; centre spawns P1 (6,15) P2 (10,17)
-    P3 (10,15) P4 (6,17); pillar rows on the even middle rows so 15/17 are open rows.
+    P3 (10,15) P4 (6,17). Rows 9..24 repeat the original's rows 7..11 (14..18 = 7..11
+    exactly, so the centre looks like the original's), with the pillar-parity flip as a
+    double OPEN row (8/9, 23/24). The first version repeated rows 8/9/10 only: every middle
+    pillar row then had row 9's soft blocks at cx 2/14, cutting the sides into 2-cell
+    pockets whose only exit is the fuse ring — a wall to the COM escape scan ($0E) — and
+    COMs died on their own bombs there (ai-eval: own-bomb deaths 1.36/CPU-min vs 0.84 on
+    the original; 0.58 with the new rows).
   - 5 (garden): default with the power tiles placed on the repeated diamond: 21 tiles —
     (8,4) (4,6) (12,6) (6,8) (10,8) (8,9) (6,10) (10,10) (4,12) (12,12) (8,16) and the T/B
     mirror of the first ten.
@@ -73,6 +79,11 @@
   cells (4,29) (4,30) (12,29) (12,30).
 - `layout.js` buildLayout → `tall.buildTallLayout`.
 - `index.js`: `layout` option, `game.layout`, table sync on game switch.
+- y kept with bit 8 where the original masks it to 8 bits (y reaches 448; found by
+  tools/sb2/ai-eval, see NOTES-core-ai.md): `stage10.js` jump landing y +C0 (C06852 /
+  C066F5 / C06819 — a jump below row 16 landed 16 rows higher), `ai.js` glove aim
+  (C0C66E `AND #$F8`), `movers.js` belt-bomb snap (C088CC `AND #$F0`); `movers.js` C08CC6
+  thrown bomb on a stage-8 switch uses the tall switch cells (8,15)/(8,17).
 - `stage3.js` tunnels (bottom cells rows 29/30, transit y $1CF), `stage6.js` lower pads
   (12,26)/(4,26), `stage8.js` switches (8,15)/(8,17) (tile animation + latch), stage-4 / 8
   rings via their `setRing` hooks.

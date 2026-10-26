@@ -63,5 +63,52 @@ Paths never exercised by the vectors (so verified by reading only): the trapped 
    module's `centreCell` when exported, else `cellLookup`).
 
 ## Notes for the tall layout
-Nothing in the AI depends on the field size except the up-scan `$2000` guard (index of row
-64, far outside a 32-row grid) and `C0EE1C`'s `& $1FF` pixel mask (row 29 → y 448, fits).
+Read from the disassembly of the whole AI (C0C54B..C0D530, C17CA9..C17F40, C106D8): the
+only field-size assumptions are the up-scan `$2000` guard (row 64, outside a 32-row grid:
+harmless), `C0EE1C`'s `& $1FF` pixel mask (row 29 → y 448, fits) and the glove aim's
+`AND #$00F8` on y (C0C66E, 4 copies; also the never-called C0CF08): on the 13x25 field it
+matched a human 256 px = 16 rows away as "same row", so a COM threw sideways at nobody.
+ai.js masks y with $1F8 on the tall layout only. The scan results keep the distance in
+the low byte (`AND #$00FF`): ≤ 24 cells, fits. No ROM table the AI reads is laid out for
+the 13x11 field except the danger decay list $C5D46A (tall.js TALL_DECAY).
+
+## Tall CPU audit (tools/sb2/ai-eval, Oct 2026)
+"CPUs seem more stupid on the tall field." Tools:
+- `eval.mjs` — headless matches (4 COMs, and a scripted human P1 `human.mjs` + 3 COMs) on
+  all stages, original vs tall, per-CPU metrics: deaths by own bomb / opponent / sudden
+  death / walking into fire, idle / stuck / reversals, bombs, soft blocks and items per
+  minute, time near a foe (plus a random-placement baseline that normalises for the arena
+  size), isolation / sealed-in, time-up draws, human wins. `report.mjs` compares runs
+  (`--stages` per stage, `--mode`). `--core DIR` runs a snapshot (snapcore.sh).
+- `danger.mjs` — stale danger-map marks (marked cells no bomb/fire explains).
+- `scenarios.mjs` — the tall failures below as pass/fail tests (also on the original).
+
+Root causes found (each fails in scenarios.mjs on the old core, passes now):
+1. **Stage 10 jump** (stage10.js C06852/C066F5/C06819): the landing y +C0 is a byte; a jump
+   from y ≥ 256 (below row 16) landed 256 px higher — 52 of 281 COM jumps in 4 tall games
+   teleported, some into the border row. COMs jump on every periodic Y facing a wall.
+2. **Glove aim** (ai.js C0C66E): y `AND #$F8` (above).
+3. **Stage 4 tall map** (tall.js): 2-cell side pockets exiting only over the fuse ring,
+   which the escape scan treats as a wall: own-bomb deaths 57% of deaths vs 43% (30 seeds);
+   with the new rows 32%.
+4. **Stage 8 belt bombs** (movers.js C088CC): y `AND #$F0` on the snap sent a bomb below
+   row 16 up 16 rows (into the border for row 18); C08CC6 checked the 13x11 switch cells.
+The original layout is unchanged (run.mjs 46/46, aicheck: 135 858 AI calls identical).
+
+Checked and NOT changed (measured, no gain):
+- Vertical chase legs scaled 4 → 9 cells on tall: proximity unchanged (10.1%), first
+  kill later (29 s vs 25 s). The chase is not the bottleneck; soft blocks are.
+- Danger decay 2 cells/tick on tall (253-cell list vs 113): stale marks 1.66 → 1.58 per
+  tick, a COM faces a stale mark 0.32% of its ticks either way.
+What remains different is density, not decisions: the tall field has 2.27x the cells and
+soft blocks for the same 4 bombers and clock, so COMs meet less (near a foe 10% vs 16%,
+first kill 25 s vs 19 s, time-up draws 6% vs 2%, mostly stage 7 where the sudden death
+leaves a 9x21 inside). Normalised by a random placement on the same arena, tall COMs are
+near a foe MORE (0.84 vs 0.68). Per-decision metrics match (own-bomb share 57/55%,
+walked into fire 15/15%, idle 67/67%, reversals 15/15%, stuck 6/6%).
+
+COM level (+D2 = level − 1, honoured on tall): only CHASE / BOMBBOX / STUCK / HOLD change
+(table above; levels 8 and 9 differ only in STUCK/HOLD). Measured (human3, 4–6 seeds x 10
+stages): L1 → L5 → L9 idle 71 → 66 → 43%, cells/s 1.9 → 2.1 → 3.1, bombs/min 6.5 → 10.7 →
+12.1, own-bomb deaths/min 0.31 → 0.60 → 0.80 (original; tall the same trend). A higher
+level is busier, not safer: vs the scripted human, human wins 22 / 33 / 32%.
