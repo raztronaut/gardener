@@ -16,6 +16,8 @@ Blobs (all raw, decoded by public/arcade/sb2/render/*.js):
                VRAM 64 KiB + CGRAM 512 B + WRAM $7E4000-$7E5FFF (8 KiB: the source
                graphics of the animated characters, $7E4828 + frame*32, C1340A)
   stageNN.ppu  PPU registers of that frame (in the JSON)
+Also pack/cover.png (the Arcade shelf cover: title screen) and pack/thumb_*.png (picker
+thumbnails rendered by tools/sb2/render/thumbs.mjs).
 
 Requires the harness core and the derived states (tools/sb2/harness/build.sh, paths.py,
 tools/sb2/extract/common.py). Never commit the output: it is derived from the ROM.
@@ -86,6 +88,15 @@ def main():
     with open(os.path.join(OUT, 'pack.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
     print('wrote', os.path.join(OUT, 'sb2.bin'), off, 'bytes')
+    # Arcade shelf cover: the title screen (harness state 'title'), lines 0..175 (above
+    # the PASSWORD line), x2; the shelf crops it to 512:364 (object-fit: cover)
+    from PIL import Image
+    S.load_state_file(state_path('title'))
+    S.run(2)
+    Image.fromarray(S.frame()[:176]).resize((512, 352), Image.NEAREST).save(os.path.join(OUT, 'cover.png'))
+    # picker thumbnails, rendered by the port's own renderer
+    import subprocess
+    subprocess.check_call(['node', os.path.join(HERE, '..', 'render', 'thumbs.mjs')])
 
 
 if __name__ == '__main__':
