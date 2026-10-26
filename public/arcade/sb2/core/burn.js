@@ -28,7 +28,7 @@ export function queueBurn(b, e, type, g) {
   w16(0x5C10, tile);
   if (t === 0x0004 && (r16(TILE + tile) & 0x03FF) === 0x020A) {   // a skull is not burnt:
     w16(0x5C0E, g);                                                // it flies away
-    spawnFlyingSkull();                  // C0EE71
+    spawnFlyingSkull(b);                 // C0EE71
     return;
   }
   for (let k = 0; k < 0x20; k++) {

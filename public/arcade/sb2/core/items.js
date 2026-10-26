@@ -5,7 +5,7 @@
 import { r8, r16, w8, w16, GRID, UNDER, DANGER, TILE, TILE_UNDER } from './mem.js';
 import { emit } from './events.js';
 import * as move from './move.js';
-import * as anim from './anim.js';
+import * as movers from './movers.js';
 import { restore } from './burn.js';
 
 // item kinds in deck order ($C5F205): tile words
@@ -22,13 +22,6 @@ const SKULL_ST7 = [1, 2, 3, 1, 2, 6, 1, 2, 3, 6, 3, 6, 2, 1, 3, 6];
 const SKULL_SHIELD = [1, 4, 3, 4, 5, 6, 1, 4, 3, 4, 5, 6, 4, 4, 5, 6];
 // stat bytes counted when a dead bomber's items scatter ($C5FF7D, per kind; 0 = none)
 const SCATTER_STATS = [0xE1, 0xE5, 0xE2, 0xF4, 0xE0, 0xE6, 0x00, 0xFE, 0xFF, 0xE7, 0xE8, 0x00, 0xFB, 0xFA];
-const DIRS = [2, 4, 8, 0x10, 2, 4, 8, 0x10, 2, 4, 8, 0x10, 2, 4, 8, 0x10];       // $C5FC6D
-const DIR_FLAGS = { 2: 0x002A, 4: 0x002B, 8: 0x0015, 0x10: 0x0016 };            // $C5FAE7 (word at byte offset dir)
-const FLY_DIST = [5, 1, 2, 3, 4, 5, 4, 3, 5, 1, 2, 3, 4, 5, 4, 3];               // $C5EE0F
-// flight scripts: $C5C0B6[n] / $C5CAA0[n] -> per-direction pointer tables (stored in +43)
-const PATH_C0B6 = [0xC5C0CE, 0xC5C0F2, 0xC5C116, 0xC5C13A, 0xC5C15E, 0xC5C182];
-const PATH_CAA0 = [0xC5CAB8, 0xC5CADC, 0xC5CB00, 0xC5CB24];
-const TEMPLATE_ITEM = [0x8400, 0x0C00, 0x0080, 0x0080, 0x0200, 0x8000, 0x0005];  // $C2015F
 
 const cellOf = (g) => ({ cx: (g & 0x7F) >> 1, cy: g >> 7 });
 const SFX_GET = 0x4C;
@@ -155,100 +148,16 @@ function C09ACD(p) {                     // restore the stat a previous disease 
 }
 
 // ================================================================================
-// Flying items (objects at $7E8400+): the skull leaving a cured bomber, a bombed skull
+// Flying items: the object code lives in movers.js (C09231 spawnFlyingItem, C0EE71
+// skullFly); these wrappers supply the original's context.
 // ================================================================================
-// C02F1B: first free object slot from $7E8400 (28 slots); -1 if none.
-export function allocObject() {
-  let o = 0x8400;
-  for (let n = 0x1C; n; n--, o += 0x100) {
-    if (!(r16(o) & 0x8000)) {
-      w8(o + 0xA8, 0);
-      w8(o + 0xAA, 0);
-      return o;
-    }
-  }
-  return -1;
+function flyingItem(p) {                 // C09231 from the cure (after C09850's setup)
+  movers.spawnFlyingItem?.(p, p);
 }
 
-// C02196: C02401 (template) + clear +6C/+6E + animation init (C021B0 / C021DC)
-export function initObject(o, tpl) {
-  w16(o + 0x0A, r16(0x1C));
-  w16(o, tpl[0]);
-  w16(o + 4, tpl[1]);
-  w16(o + 0x10, tpl[2]);
-  w16(o + 0x18, tpl[3]);
-  w16(o + 0x7E, tpl[4]);
-  w16(o + 6, tpl[5]);
-  w16(o + 0x2A, tpl[5]);
-  w16(o + 0x50, tpl[6]);
-  w16(o + 0x0C, 0);
-  w16(o + 0x0E, 0);
-  w16(o + 0x52, 0);
-  w16(o + 0x6C, 0);
-  w16(o + 0x6E, 0);
-  if (anim.initObject) anim.initObject(o);  // C021B0 + C021DC
-}
-
-function zeroVel(o) {
-  for (const off of [0x14, 0x16, 0x24, 0x26, 0x1C, 0x1C, 0x2C, 0x2E]) w16(o + off, 0);
-}
-
-function setDir(o, rnd) {                // +5E from $C5FC6D, motion sign flags, +6A facing
-  const dir = DIRS[(rnd & 0x1E) >> 1];
-  w16(o + 0x5E, dir);
-  w16(o, r16(o) | DIR_FLAGS[dir]);
-  return dir;
-}
-
-function setPath(o, table, n) {          // C02C59 / C02C03: +43..+45 = script pointer
-  const base = table[n];
-  const dir = r16(o + 0x5E);
-  const ptr = PATH_LOOKUP(base, dir);
-  w8(o + 0x43, ptr & 0xFF); w8(o + 0x44, (ptr >> 8) & 0xFF); w8(o + 0x45, (ptr >> 16) & 0xFF);
-  w8(0x5C08, ptr & 0xFF); w8(0x5C0A, (ptr >> 8) & 0xFF); w8(0x5C0C, (ptr >> 16) & 0xFF);
-}
-
-function facing(o) {                     // +6A from +5E (C092D4)
-  const d = r16(o + 0x5E);
-  let x = 2;
-  if (d & 2) x = 0;
-  else if (d & 4) x = 4;
-  w16(o + 0x6A, x);
-}
-
-function flyingItem(p) {                 // C09231: from bomber p, tile $5C84
-  const o = allocObject();
-  if (o < 0) return;
-  initObject(o, TEMPLATE_ITEM);
-  w16(o + 0x10, r16(p + 0x10));
-  w16(o + 0x18, (r16(p + 0x18) - 0x10) & r16(0x5D3C));
-  w16(o + 0x4A, r16(0x5C84));
-  zeroVel(o);
-  const x = r16(0x5C72);
-  setDir(o, r16(0x400 + x));
-  setPath(o, PATH_C0B6, FLY_DIST[(r16(0x400 + x) & 0x1E) >> 1]);
-  facing(o);
-  emit('itemFly', { tile: r16(0x5C84), slot: (p - 0x8000) >> 8 });
-}
-
-export function spawnFlyingSkull() {     // C0EE71: a bombed skull flies off ($5C0E cell)
-  const o = allocObject();
-  if (o < 0) return;
-  initObject(o, TEMPLATE_ITEM);
-  const [x, y] = cellCentre(r16(0x5C0E));
-  w16(o + 0x10, x);
-  w16(o + 0x18, (y - 0x0E) & 0xFFFF);
-  w16(o + 0x4A, 0x160A);
-  zeroVel(o);
-  const i = (r16(0x5C12) + 2) & 0x1E;
-  w16(0x5C12, i);
-  setDir(o, r16(0x400 + i));
-  setPath(o, PATH_CAA0, 3);
-  facing(o);
-  w16(0x42, r16(0x5C0E));
-  w16(0x44, r16(0x5C10));
-  restore(r16(0x5C0E), r16(0x5C10));     // C0DDF7
-  emit('itemFly', { tile: 0x160A, ...cellOf(r16(0x5C0E)) });
+export function spawnFlyingSkull(b) {    // C0EE71 from the explosion (C0EF86), $6A = bomb b
+  movers.skullFly?.((b - 0x10000) & 0xFFFF);
+  w8(0x5C00, 0x7F);                      // C02F1B saved $6C = $7F (bank of the bomb)
 }
 
 function cellCentre(idx) {               // C0EE1C
@@ -339,18 +248,3 @@ function C0963E(k, x) {
   emit('itemScattered', { ...cellOf(g), tile });
 }
 
-// per-direction flight-script pointers ($C5C0CE.. / $C5CAB8..: 3-byte pointers at dir*2);
-// the scripts themselves are the movers' data (movers_tables.js).
-const PATH_PTRS = {
-  0xC5C0CE: { 2: 0xC5C1A6, 4: 0xC5C1D8, 8: 0xC5C20A, 0x10: 0xC5C242 },
-  0xC5C0F2: { 2: 0xC5C27A, 4: 0xC5C2B2, 8: 0xC5C2EA, 0x10: 0xC5C334 },
-  0xC5C116: { 2: 0xC5C35A, 4: 0xC5C39E, 8: 0xC5C3E2, 0x10: 0xC5C44A },
-  0xC5C13A: { 2: 0xC5C494, 4: 0xC5C4DE, 8: 0xC5C528, 0x10: 0xC5C59C },
-  0xC5C15E: { 2: 0xC5C5FE, 4: 0xC5C660, 8: 0xC5C6C8, 0x10: 0xC5C748 },
-  0xC5C182: { 2: 0xC5C7BC, 4: 0xC5C836, 8: 0xC5C8B0, 0x10: 0xC5C936 },
-  0xC5CAB8: { 2: 0xC5CB90, 4: 0xC5CBC2, 8: 0xC5CBF4, 0x10: 0xC5CC2C },
-  0xC5CADC: { 2: 0xC5CC6A, 4: 0xC5CCA8, 8: 0xC5CCE6, 0x10: 0xC5CD36 },
-  0xC5CB00: { 2: 0xC5CD62, 4: 0xC5CDAC, 8: 0xC5CDF6, 0x10: 0xC5CE64 },
-  0xC5CB24: { 2: 0xC5CEB4, 4: 0xC5CF04, 8: 0xC5CF54, 0x10: 0xC5CFCE },
-};
-function PATH_LOOKUP(base, dir) { return (PATH_PTRS[base] && PATH_PTRS[base][dir]) || 0; }
