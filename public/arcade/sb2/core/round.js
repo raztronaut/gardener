@@ -108,8 +108,10 @@ export function setSuddenDeathCorners(c) { sdCorners = c || SD_CORNERS; }
 function sdCornerDanger(gi) {
   const e = sdCorners[gi];
   if (!e) return;
-  let a = gi;
-  for (let n = e[0]; n > 0; n--) { w16(DANGER + (a & 0xFFFF), 0xFFFF); a = (a + e[1]) & 0xFFFF; }
+  // quirk (C0D6FC..): A is reused for the address, so only the corner gets $FFFF; every
+  // following cell gets its own grid index (non-zero = dangerous anyway)
+  let a = gi, v = 0xFFFF;
+  for (let n = e[0]; n > 0; n--) { w16(DANGER + (a & 0xFFFF), v); a = (a + e[1]) & 0xFFFF; v = a; }
 }
 
 function sdCancelRegrow() {            // C0D7CC: a block on a pending stage-10 regrow cell

@@ -213,6 +213,10 @@ export function roundInit(G) {
 export function finishRound() {
   // (C0FBAB / C00BD6 already ran at the end of the round's last tick: round.exitBattle)
   if (!(r16(0xB9) & 0x0800)) exitBattle();
+  // C0FBB3: INC $16 then a wait for the next NMI, which counts the finished tick once
+  // more: the scoreboard and the next round init run with $32 = last tick + 1 (the deck
+  // shuffle's RNG calls store into $0400 + ($32 & $1E))
+  w16(0x32, (r16(0x32) + 1) & 0xFFFF);
   const win = r16(0x5C3E);
   w16(0x16, 1);
   let matchOver = false;
