@@ -22,6 +22,14 @@ Addresses, RAM layouts and routine lists: `NOTES-re.md`. Sub-notes:
     ignore lag.
   - Vectors record the tick counter, so the original's frames can be mapped to ticks.
     [code `C0FB11`, NMI `00FD84`]
+  - **Corrected in phase 3a [code + meas]:** the NMI increments `$32` at the START of a
+    frame when the previous tick has completed (`$16 != 0`); the tick then runs with
+    `$32` = its own index (the even/odd rule uses that value). A round's first tick runs
+    with `$32 = 0` (round init clears `$16`). `$32` can be **double-incremented**: when a
+    tick ends right before vblank the NMI lands between `INC $16` and the main loop's
+    wait, so the next NMI counts the same tick again — that `$32` value never runs (its
+    parity is skipped). After the round's last tick one more NMI increment happens
+    (C0FBB3), so the scoreboard and the next round init run with `$32` = last + 1.
 - **Even/odd ticks.** Bombs and explosions update only on even ticks (`tick & 1 == 0`).
   Burning soft blocks update only on odd ticks. Sprite animations mostly run at 30 Hz.
   [code `C0E0AA`, `C0DCB4`]
@@ -130,7 +138,8 @@ Per tick, for each controllable bomber:
 2. **Velocity from input.**
    - Up or Down held → vy = speed (sign from the direction); otherwise vy = 0.
    - Left or Right held → vx = speed; otherwise vx = 0.
-   - Opposite pairs are not filtered here. The dispatcher ignores L+R and U+D (no move).
+   - Opposite pairs are filtered for humans by the input routine (C01625: L+R and U+D
+     both cleared, phase 3a); the dispatcher also ignores them.
 3. **Integrate**: x += vx, y += vy (16.16).
 4. **Dispatch** on the motion direction: R=1, L=2, D=4, U=8, from the velocity (or from
    the input when the velocity is 0).
@@ -205,7 +214,9 @@ bomb_chain]
 - **Placement fails** if:
   - the bomber's centre cell is an object cell (bomb or item) — with the glove and the
     bomber's own bomb there, A lifts it instead (§11);
-  - the cell is fire;
+  - ~~the cell is fire~~ — **corrected: placing on a fire cell is allowed** (C031EB: type 1
+    is OK; the running fire sets the bomb off on its next even update); only cell type
+    `$11` (stage-3 tunnel) forbids placement;
   - a bomb already occupies the tile;
   - a moving object occupies it;
   - bombs in hand = 0.
@@ -233,6 +244,13 @@ bomb_chain]
     count down that tick. [code `C0E0E0`]
   - Measured in bomb_same_tick: two bombs placed on the same tick, far apart. Slot 0 went
     off at tick 162; slot 1 kept fuse 1 and went off at 164.
+- **Ray order** (phase 3a): detonation walks up, down, RIGHT, LEFT (C0EAA7, C0EB8E,
+  C0EC68 = `+C4` table, C0ED42 = `+88`); this decides the burn-list order and therefore
+  which block draws which deck card. The ray tables are built at placement; detonation
+  only cuts them where they stop.
+- **The bomb list `$7E2960` is rebuilt only at the start of each even-tick update**
+  (placement/remote/pickup read a possibly stale list). A power-bomb owner placing while
+  another bomb is out gets a plain bomb (type 0).
 - **Chain reaction**: when a blast ray reaches a bomb, that bomb is triggered at once:
   - its fuse is set to 2 and it is forced to count down (even if remote);
   - its ray pointing back at the trigger is cut;
@@ -408,7 +426,13 @@ item_skull, skull_swap]
   - a soft block at (2,9) stopped it at (2,8);
   - a fire cell at (2,9) detonated it on entry (flags `$C080`, at grid (2,9));
   - P4 at (2,14) stopped it at (2,13).
-- **X** stops your own sliding bomb at the next cell boundary (`C029FD`).
+- **X** stops your own sliding bomb **at once, in the cell under its centre** (`C029FD` →
+  `C08BDA`; corrected in phase 3a).
+- Phase 3a details (NOTES-core-movers.md): the kicked bomb's fuse is decremented by the
+  mover on ODD ticks and never below 1; kicking needs exactly one direction held and a
+  bomb ahead with fuse ≥ 3; a rubber bomb kicked into an obstacle rolls BACK (random
+  re-aim only when landing after a throw); items under a kicked bomb are erased except a
+  skull, which flies 3 cells in a random direction.
 - The kicker cannot follow into the bomb's previous tile until it has moved on (mover
   collision).
 
@@ -438,7 +462,11 @@ item_skull, skull_swap]
      - Measured: thrown from (2,4) at P2 on (5,4). The bomb hit P2 on tick 60, P2 was
        frozen through tick 87 and moved on 88. The bomb bounced on to (6,4).
 5. It then becomes a normal bomb with its remaining fuse. Measured: thrown at fuse 68,
-   it landed with 61.
+   it landed with 61. **A landing bomb with fuse < $38 gets $38** (C10734, phase 3a).
+6. Phase 3a: a bomb thrown at a bomber who carries a bomb is deflected back (unless it is
+   a power bomb and the carried one is not); a stunned bomber loses 1..3 items
+   (`$C5EDFF[$0404 & 15]`; skulls/disease first) which fly 1..5 cells; sounds: lift $48,
+   throw $43, landing $45 (NOTES-extract's lift/throw labels are swapped).
 
 ---------------------------------------------------------------------------------
 ## 12. Death
@@ -450,6 +478,11 @@ item_skull, skull_swap]
   - else it starts dying: +00 bit 11, +52 = `$0801`, death animation `$1E`.
 - It stops being controllable immediately. Its bombs stay on the field.
 - Measured: fire appears tick 164 → death flagged tick 165.
+- Phase 3a: the death animation's end (`+0C == $0FFF`, C0A7FA) parks the bomber at
+  (0, $F0) and queues its items (C097A0): counts from its stats (bomb/fire/speed − 1, no
+  skull/heart, no speed-up on stage 7) re-appear one per tick (C09615) at a random entry
+  (`$0400 & $FE`) of a 128-cell free-cell list built from grid indices `$204..$7FF`; an
+  entry past the list or an occupied cell loses the item. (Missing from the first SPEC.)
 
 ---------------------------------------------------------------------------------
 ## 13. Round flow
@@ -558,9 +591,9 @@ Battle stage ids (`$1A`) for select-screen stages 1..10: 0, 1, 2, 5, 6, 7, 8, 9,
 | 1 | none | plain lattice, 93 soft blocks − 12 random |
 | 2 ice | **ice**, push blocks, holes | Ice integrator: speed forced to level 1. The held axis accelerates 0.25 px/tick², capped at 2.0. **No friction**: you slide until a collision. Opposite input decelerates 0.25/tick. A perpendicular input cancels the other axis. Blocked by a non-burning soft block whose next cell is free (or an item) → the block slides 2 px/tick until blocked. Holes at (4,6) (8,6) (12,6) (4,12) (8,12) (12,12): entering one snaps you to the centre, falls ~12 ticks, launches up (vy 8 decelerating 0.5) off the top, lands one row below the hole (above if blocked). 91 ticks without control. |
 | 3 beach | tunnels, solid bombers | Border gaps at cx 4 and 12 link top and bottom. Exit (4,3) → re-enter at (4,15) walking up, and vice versa: 6-tick transit, one bomber per tunnel, blocked if a bomber stands at the exit. **Bombers are solid to each other** (|dx| < 13, \|dy\| < 15): pushing a standing bomber moves both at 0.5 px/tick. 20 fixed soft blocks. Sudden death closes the tunnels. |
-| 4 barrels | fuse ring | 28 fuse cells `$0E` (ring cx 4..12 × cy 6..12). Fire touching any fuse ignites the ring if idle: next tick all 28 cells are fire for 11 phases × 3 ticks (30 ticks measured), then they re-arm. Centre spawns. |
+| 4 barrels | fuse ring | 28 fuse cells `$0E` (ring cx 4..12 × cy 6..12). Fire touching any fuse ignites the ring if idle: all 28 cells are fire for **10 phases × 3 ticks (30 ticks)**, the 11th phase re-arms (phase 3a). The first ring of a round starts the tick after ignition, later ones 3 ticks after. Quirk: the ring writes its tile word into the AI danger map. Centre spawns. |
 | 5 garden | power tiles | 11 tiles `$14`: (8,4) (4,6) (12,6) (6,8) (10,8) (8,9) (6,10) (10,10) (4,12) (12,12) (8,14). A bomb placed on one gets range 9. Some start under soft blocks. Graphics toggle every 160 ticks (cosmetic). |
-| 6 pink | teleporters | `$50` at (4,6)↔(12,12) and (12,6)↔(4,12). Entering moves you to the partner centre unless a bomb or bomber is there. You must leave the pad before re-use. |
+| 6 pink | teleporters | `$50` at (4,6)↔(12,12) and (12,6)↔(4,12). Entering moves you to the partner centre unless **a bomb or a kicked-bomb mover** is there (C10456; bombers do NOT block — phase 3a). Kicked bombs teleport too. You must leave the pad before re-use. |
 | 7 race | speed pads | Pads `$0F` at (3,9) (8,9) (13,9) set speed+base by tile: 0.375 / 0.8125 / 1.25 / 3.0 / 3.5 px/tick, or "stop" (input locked 128 ticks). After use, a non-stop pad re-rolls its tile from `$C5E871[(RNG & $E)/2]` = {1.25, 0.375, 0.8125, 3.0, 3.5, 3.5, 3.0, 1.25 tiles}. At round start (3,9) and (13,9) are normal and (8,9) is stop. One permanent soft block at (8,8) → no items ever drop. |
 | 8 factory | conveyor ring | Ring row 6 / col 12 / row 12 / col 4, clockwise. Carries bombers and bombs at 0.5625 px/tick. Switch (8,8) reverses the direction; (8,10) toggles fast mode, 2.3125 px/tick. Both are latched until you step off. |
 | 9 tech | arrows | 12 arrow cells (see notes). Bombers are unaffected. A kicked bomb entering one is redirected (code only). 8 random removals. |
@@ -807,3 +840,65 @@ documented in the script's header.
   - the 256-tick round-over phase and win counting.
 - **Code only**: the 2-tick fire gap when the higher-slot explosion ends first.
 - **Measured ad hoc** (no vector): the 28-tick stun from a thrown bomb.
+
+---------------------------------------------------------------------------------
+## 20. Phase 3a corrections (JS core transliteration, verified by conformance)
+
+The JS core (`public/arcade/sb2/core/`) transliterates the battle code routine by
+routine and replays all recorded vectors identically (`tools/sb2/conformance/run.mjs`);
+the WRAM matches the original tick for tick in all logic ranges (`wdiff.mjs`). What that
+work found beyond / against the sections above, with evidence in the per-area notes
+`tools/sb2/NOTES-core-{bombs,movers,round,ai,stages23,stages47,stages810,tall}.md`:
+
+- **Ticks** (§0): `$32` semantics, the double increment, the uncounted first tick and the
+  extra increment after the last tick (see §0). Frame→tick rule for vectors: group frames
+  by truth.tick; the tick reads the pads of the group's first frame and is complete at
+  the last frame still showing the group's first `$B9`; a group whose RNG equals the
+  previous tick's ran no tick.
+- **Input** (§4): humans' L+R / U+D are cleared by the input routine. **C022E2 quirk**:
+  the velocity-sign update is gated by +0E bit 0 (`LDA #$0052` then `LDA [$6A],Y` with
+  Y = $0E), not by +52.
+- **Movement** (§4): walking from outside onto a bomb cell is undone and the bomber is
+  snapped to its cell centre (C10169 family); a bomb at a slide corner snaps to the cell
+  centre unless the bomber has bomb-pass. Off-screen objects without +04 b10 are erased
+  (C0A146).
+- **Animation** drives logic: object animation scripts (C0249D, decoded into
+  `animdata.js`) time the death animation (its end removes the bomber and scatters its
+  items), the throw/lift/stun busy states (+0C = $0FFF) and the stop pad.
+- **Bombs** (§5/§6): placement on fire allowed; ray order up/down/right/left; stale bomb
+  list; power bomb with another out = type 0; pierce burns through and draws fire on
+  soft/items; bombs re-assert `$43` every update; burn: first free entry wins, 6 frames ×
+  3 odd ticks, a sudden-death block ends a burn with no card; danger-decay table typo
+  (`$049C` for `$069C`). Remote: oldest by per-bomber serial, skipping held/kicked.
+- **Items / diseases** (§8/§9): a bombed skull is never burnt — it flies 3 cells; picking
+  any item while sick cures and throws a skull off (stats restored on the next tick by
+  C03686); disease quirks (slow skips the refresh, restoring weak sets in-hand = cap,
+  COMs roll 3 → 2); the contagion latch is not cleared for a dying/busy partner; dead
+  bombers' items re-appear (§12).
+- **Deck** (§7): a free position is drawn before the kind's count is checked, so every
+  kind (zero-count kinds too) and the terminator waste one extra successful draw.
+- **Kick / glove** (§10/§11): see those sections; skulls under a kicked bomb fly off;
+  kicked bombs use stage-3 tunnels, stage-6 teleporters and stage-7 pads; bombs resting
+  on stage-8 belts become carried movers; a bomber inside a solid cell hops out (C0838C).
+- **Round** (§13): round init uses the RNG only for the soft-block removal and the deck
+  (seed 0 after power-on, never advanced by menus); `$5D10` (sudden-death step counter)
+  is not reset between rounds (first block 0..2 ticks late); sound $72 on every block;
+  each block re-writes `$C1` on 4 steps; corner danger marks store `$FFFF` only in the
+  corner cell and grid indices after it (C0D6FC), and the 8th corner never matches; a
+  block deletes a bomb unless exploding/held and cancels a pending stage-10 regrow; the
+  battle loop exits at the end of the last tick (winner, fade). Stage-3 tunnel closing
+  runs through the cell-animation list C0DA42/C0DA60 (vector stage03_sudden_death).
+- **Stages** (§14): stage 2 holes lead into an underground track ridden at 2 px/tick
+  with random junction turns, then a launch (NOTES-core-stages23); ice latches in +52
+  b15/b14; push block inherits the pusher's sign bits; stage 3 bomber collision groups,
+  voting, tunnel-busy quirk (`$5D04 & 3` for both); stage 4 ring as in the table; stage 5
+  tile list built on the first tick, graphics toggle counts per object; stage 6
+  teleporters blocked by bombs only; stage 7 pads set +F0 and +E0, stop pad = 128-tick
+  busy; stage 8 switches act one tick after stepping on, belts carry resting bombs;
+  stage 10 jump has no take-off block check (landing on a bomb hops out) and **soft
+  blocks regrow** after 64..1280 ticks on empty cells of the init list with no object
+  on or next to them (missing from the first SPEC).
+- **AI** (§15): see NOTES-core-ai.md.
+- **Tall layout** (§17): implemented as specified; sudden death defaults to start at 0:47
+  at 15 ticks/block over 136 blocks ("Hurry!" at 0:52), option `'pace'` = 0:33 at 9
+  ticks/block; 145-card deck at `$7E3C48`; details in NOTES-core-tall.md.
