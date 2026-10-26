@@ -28,7 +28,10 @@ export function latchPads(pads) {          // C01797: auto-joypad read -> $C3/$C
 export function tick(G, pads) {
   // NMI (00FD84): the previous tick is counted before this one starts, so $32 during
   // the tick (and in the vectors' truth.tick) is the index of the running tick.
-  w16(0x32, (r16(0x32) + 1) & 0xFFFF);
+  // Only a tick that completed ($16 != 0) is counted: the first tick after a round init
+  // (which clears $16) runs with $32 = 0.
+  if (r16(0x16)) w16(0x32, (r16(0x32) + 1) & 0xFFFF);
+  w16(0x16, 0);            // C0FB27 STZ $16
   latchPads(pads);
   round.fade();            // C00C36  screen fade-in (brightness $30)
   bombers.input();         // C01602  pads -> human bombers' +6E
@@ -50,6 +53,7 @@ export function tick(G, pads) {
   // C10971: pause handling (not part of the battle logic)
   rng();                   // C00CAA  once per tick
   round.end();             // C00A38  round-over detection / 256-tick countdown
+  w16(0x16, (r16(0x16) + 1) & 0xFFFF);   // C0FB8D INC $16: tick complete
 }
 
 // After the tick: is the battle loop finished (round over and the 256 ticks elapsed)?
