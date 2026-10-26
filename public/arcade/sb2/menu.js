@@ -198,6 +198,12 @@ export function createMenu(mp, opts = {}) {
       holeShown = '';
       writeRows(BG1_MAP, rowsCache);
       if (name === 'stage') stageBG2();
+      else {
+        // BG2 shows through the panel on the mode screen (its text layer): the original's
+        // scroll, moved down with the panel (original row 1 -> MENU_T)
+        const r = M.ppu[name === 'results' ? 'players' : name];
+        ppu.L[2].hofs = r.bg2_hofs & 0x3FF; ppu.L[2].vofs = (r.bg2_vofs - (MENU_T - 1) * 16) & 0x3FF; ppu.L[2].force = true;
+      }
     }
     refresh();
   }
@@ -253,6 +259,8 @@ export function createMenu(mp, opts = {}) {
 
   // ---- animations -----------------------------------------------------------------------------
   function animate() {
+    // the mode screen's text shows BG2 through it, scrolled 1 px every 4 frames (measured)
+    if (screen === 'mode' && (frameNo & 3) === 0) { ppu.L[2].hofs = (ppu.L[2].hofs + 1) & 0x3FF; }
     if (screen === 'mode' || screen === 'players' || screen === 'rules' || screen === 'results') {
       const rr = screen === 'mode' ? ITEM_ROWS.mode.map((r) => r - 1 + MENU_T) : rowsOf(screen);
       const e = CURSOR[(frameNo >> 3) & 3];
