@@ -33,10 +33,17 @@ function generic(t) {
   if (t >= 23) return t - 14 <= 17 ? t - 14 : 17;
   return (t & 1) ? 9 : (t < 16 ? 8 : 10);
 }
+// stage 4, tall rows 9..24 (symmetric about 16: original 7 <-> 11, 8 <-> 10, 9 = centre)
+const ST4_MID = [8, 7, 8, 9, 10, 7, 8, 9, 10, 11, 8, 9, 10, 11, 10, 10];
 const STAGE_ROWS = {
-  // stage 4 (fuse ring): the centre spawn rows 8/10 land on 15/17, pillar rows (9) on the
-  // even middle rows, so the 4 bombers start around the centre like the original
-  5: (t) => (t <= 9 ? t : t >= 23 ? t - 14 : (t & 1) ? (t < 16 ? 8 : 10) : 9),
+  // stage 4 (fuse ring): the original's middle rows 7..11 (spawn rows 8/10) land on
+  // 14..18, so the 4 bombers start around the centre like the original; the inside of the
+  // ring repeats rows 7..11 (side pockets cx 2-3 / 13-14 open to 3+ cells like the
+  // original's), the parity flip is a double OPEN row (8/9, 23/24). (It was rows 8/9/10
+  // only: every middle pillar row had the row-9 soft block at cx 2/14, so the sides were
+  // 2-cell pockets whose only way out is the fuse ring — which the COM escape scan treats
+  // as a wall ($0E): COMs bombing in there died on their own bomb, see ai-eval.)
+  5: (t) => (t <= 8 || t >= 25 ? (t <= 8 ? t : t - 14) : ST4_MID[t - 9]),
   // stage 7 (race track): straight segments (row 10) above and below the pad row, the
   // permanent soft block row 8 just above the pad row 16 (as 8 above 9 in the original)
   8: (t) => (t <= 7 ? t : t <= 14 ? 10 : t === 15 ? 8 : t === 16 ? 9 : t <= 23 ? 10 : t - 14),
