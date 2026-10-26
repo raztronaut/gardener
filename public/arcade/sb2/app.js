@@ -86,6 +86,11 @@ const CSS = `
 /* match */
 .sb2-match { display:flex; align-items:center; justify-content:center; background:#000; }
 .sb2-match canvas { display:block; width:100%; height:auto; image-rendering:pixelated; image-rendering:crisp-edges; }
+.sb2-cap { position:absolute; left:0; right:0; text-align:center; opacity:0; transition:opacity .3s linear; pointer-events:none; }
+.sb2-match.orig .sb2-cap { opacity:1; }
+.sb2-cap.top { top:150px; } .sb2-cap.bot { bottom:150px; }
+.sb2-cap .t { font-family:var(--font-display); font-size:46px; color:#fff; }
+.sb2-cap .d { margin-top:10px; font-size:20px; color:var(--ink-soft); }
 .sb2-pause { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
   background:rgba(2,8,6,.72); opacity:0; transition:opacity .2s linear; pointer-events:none; }
 .sb2-pause.on { opacity:1; }
@@ -254,7 +259,14 @@ export async function bootSB2(host, { onExit } = {}) {
   const match = el('div', 'sb2-scr sb2-match');
   const canvas = el('canvas');
   const pauseEl = el('div', 'sb2-pause', '<div class="t">Paused</div><div class="d">Start to play on · Select + Start for the stage list</div>');
-  match.append(canvas, pauseEl);
+  // original layout (256x224 -> 900x788): the stage and the round above, a hint below
+  const capTop = el('div', 'sb2-cap top'), capBot = el('div', 'sb2-cap bot');
+  match.append(canvas, capTop, capBot, pauseEl);
+  function captions() {
+    const [nm] = STAGES[set.stage - 1];
+    capTop.innerHTML = `<div class="t">Stage ${set.stage} · ${nm}</div><div class="d">Round ${roundNo} · first to ${set.wins} win${set.wins === 1 ? '' : 's'}</div>`;
+    capBot.innerHTML = `<div class="d">Start pauses · Select + Start for the stage list</div>`;
+  }
   root.appendChild(match);
   const c2d = canvas.getContext('2d', { alpha: false });
   let game = null, disp = null, img = null, paused = false, ended = false;
@@ -281,6 +293,8 @@ export async function bootSB2(host, { onExit } = {}) {
     }
     disp = dv.d; img = dv.img;
     canvas.width = 256; canvas.height = disp.H;
+    match.classList.toggle('orig', layout !== 'tall');
+    captions();
     disp.beginRound(game);
     drawFrame();
     paused = false; pauseEl.classList.remove('on');
@@ -395,6 +409,7 @@ export async function bootSB2(host, { onExit } = {}) {
       if (done || screen !== tally) return; done = true; clearTimeout(tmo); timers.delete(tmo);
       if (res.matchOver) { showVictory(res, winner); return; }
       roundNo++;
+      captions();
       disp.beginRound(game);
       drawFrame();
       ended = false; held = 0; latched = 0;
