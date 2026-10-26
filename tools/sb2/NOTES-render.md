@@ -13,7 +13,9 @@ lives in `render/display.js`. Nothing the logic reads is ever written.
 | `public/arcade/sb2/render/display.js` | the display routines (addresses below), OAM builder, effect objects, palettes, HUD, tall adaptations |
 | `public/arcade/sb2/render/pack.js` | loads `pack/pack.json` + `pack/sb2.bin` (2 requests) |
 | `public/arcade/sb2/audio.js` | Web Audio: looping stage music, SFX by sound id |
-| `public/arcade/sb2/app.js` | picker / match / tally / victory, pad mapping, game loop |
+| `public/arcade/sb2/app.js` | menus / match / results flow, pad mapping, game loop (pacing) |
+| `public/arcade/sb2/menu.js` | the original battle menus re-laid out for 256x455 (NOTES-menus.md) |
+| `public/arcade/sb2/pacing.js` | the original's lag frames (NOTES-pacing.md) |
 | `public/widgets/emulator.js` | shelf entry + `bootPort()` (same `__GARDEN_GAME` contract) |
 | `src/server.mjs` | `GET /api/sb2/asset/<path>` -> `data/sb2/assets/<path>` (read-only, guarded) |
 | `tools/sb2/extract/pack.py` | builds the pack (+ cover, + thumbnails via `tools/sb2/render/thumbs.mjs`) |
@@ -102,16 +104,24 @@ lives in `render/display.js`. Nothing the logic reads is ever written.
 - "Hurry!" crosses the middle of the tall arena (y + 116).
 
 ## Front end
-- Game loop: rAF; a frame within 2.5 ms of the tick period runs exactly one tick; the
-  accumulator allows one catch-up tick per frame and drops the rest. Hidden page: loop
-  stopped, AudioContext suspended.
-- Input: SN30 Pro raw edges -> core bits (A0 B1 X3 Y4 L6 R7 Select10 Start11, d-pad /
-  stick = jx/jy). A press shorter than a frame is latched so the next tick sees it.
-  Start = pause; Select+Start: match -> picker -> shelf; B in the picker -> shelf.
-- Audio: AudioContext at 32040 Hz; `<stage>_loop.ogg` with loopStart/loopEnd from
-  audio.json; stage 4 (no loop point) streams the 620 s recording through a media
-  element. SFX by `ev.sfx` / `sfx` events, one voice per id. Draw: draw.ogg; match:
-  victory.ogg.
+- Screens: the original battle menus (menu.js, NOTES-menus.md) -> match -> results (the
+  player table with the wins) -> SINGLE MATCH. All 256 x 455 pixel pictures on canvases
+  scaled to the wall's width.
+- Game loop: rAF; one SNES frame (60.0988 Hz) per display frame, never two ticks in one
+  display frame; the original's lag frames from pacing.js (NOTES-pacing.md): no tick, no
+  input, the old picture; the wall's 60.00 Hz drift is absorbed by lag frames.
+  Hidden page: loop stopped, AudioContext suspended.
+- Input: SN30 Pro raw edges -> SNES bits (A0 B1 X3 Y4 L6 R7 Select10 Start11, d-pad /
+  stick = jx/jy). A press shorter than a frame is latched so the next tick sees it (a
+  press only during a lag frame is dropped, like the original). Start = pause;
+  Select+Start: match -> menus -> shelf; B on the title -> shelf.
+- Classic colours (display.js opts.classic, on in app.js): bombs in the black owner's
+  palette, flames / burning blocks / items in the red owner's (visual conformance keeps
+  the original's owner colours).
+- Audio: AudioContext at 32040 Hz; title / menu songs, `<stage>_loop.ogg` with
+  loopStart/loopEnd from audio.json; stage 4 (no loop point) streams the 620 s recording
+  through a media element. SFX by `ev.sfx` / `sfx` events and the menus' $51 / $52.
+  Draw: draw.ogg; match: victory.ogg.
 
 ## Performance (Jetson Orin Nano CPU)
 - Node (same V8): `node tools/sb2/qa/perf.mjs` — tall, 4 CPUs through hurry + sudden
