@@ -16,6 +16,7 @@ import { emit } from './events.js';
 import * as move from './move.js';
 import * as movers from './movers.js';
 import { DIRBITS_C5FAE7, DELTA_C5E392, ANIM_C5FC29 } from './movers_tables.js';
+import { isTall } from './geom.js';
 
 // switch tiles (BG tile words written at (8,8) $7FA210 and (8,10) $7FA290)
 const DIR_TILES_ON = [0x1C64, 0x1C66, 0x1C68, 0xFFFF];   // $C5E3EC (toggled to reversed)
@@ -75,8 +76,9 @@ function switchAnim(stepA, timerA, bit, reload, tileOn, tileOff, tileIdx, kind) 
   w16(stepA, s + 1);
 }
 // C040EF: direction switch (8,8); C04086: speed switch (8,10)
-const dirSwitchAnim = () => switchAnim(0x5CC4, 0x5CC8, 2, 4, DIR_TILES_ON, DIR_TILES_OFF, 0x210, 'direction');
-const speedSwitchAnim = () => switchAnim(0x5CC6, 0x5CCA, 1, 5, SPD_TILES_ON, SPD_TILES_OFF, 0x290, 'speed');
+// tall: the switches are at (8,15) / (8,17)
+const dirSwitchAnim = () => switchAnim(0x5CC4, 0x5CC8, 2, 4, DIR_TILES_ON, DIR_TILES_OFF, isTall() ? 0x3D0 : 0x210, 'direction');
+const speedSwitchAnim = () => switchAnim(0x5CC6, 0x5CCA, 1, 5, SPD_TILES_ON, SPD_TILES_OFF, isTall() ? 0x450 : 0x290, 'speed');
 
 // ---- switch cells -------------------------------------------------------------------
 function switchCell(p, stepA) {
@@ -141,7 +143,7 @@ export function C06376(p) {
   offBelt(p);                           // C06533
   kickCarried(p);                       // C06398
   const c = r16(p + 0xA8);
-  if (c === 0x0410 || c === 0x0510) return;   // still on a switch: (8,8) / (8,10)
+  if (isTall() ? (c === 0x0790 || c === 0x0890) : (c === 0x0410 || c === 0x0510)) return;   // still on a switch: (8,8) / (8,10) (tall: (8,15) / (8,17))
   w16(p + 2, r16(p + 2) & 0xFEFF);
 }
 

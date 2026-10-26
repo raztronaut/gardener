@@ -17,6 +17,7 @@
 import { r8, r16, w8, w16, GRID, UNDER, OBJ_LIST } from './mem.js';
 import * as move from './move.js';
 import { emit } from './events.js';
+import { isTall } from './geom.js';
 
 const sfx = (id) => emit('sfx', { id });
 const P = (e) => e & 0xFF00;            // object pointer of a sorted-list entry
@@ -29,9 +30,14 @@ function setVY(o) { w16(o + 0x1C, r16(o + 0xA0)); w16(o + 0x1E, r16(o + 0xA2)); 
 let d50 = 0, d52 = 0, d54 = 0, d56 = 0, d5C = 0, d5E = 0;
 
 // ---- per tick ----------------------------------------------------------------------
+// tall: the bottom tunnels are at rows 29/30 instead of 15/16 (geom.js)
+const TUN = () => (isTall() ? { b4: 0x0E88, f4: 0x0F08, b12: 0x0E98, f12: 0x0F18, y: 0x1CF }
+  : { b4: 0x0788, f4: 0x0808, b12: 0x0798, f12: 0x0818, y: 0xEF });
+
 export function C0426E() {
-  reopen(0x0003, 0x5D06, 0x0188, 0x0788);    // C042D9 (cx 4)
-  reopen(0x000C, 0x5D08, 0x0198, 0x0798);    // C0427B (cx 12)
+  const T = TUN();
+  reopen(0x0003, 0x5D06, 0x0188, T.b4);      // C042D9 (cx 4)
+  reopen(0x000C, 0x5D08, 0x0198, T.b12);     // C0427B (cx 12)
   C069D8();
 }
 
@@ -377,13 +383,11 @@ function pushBack(L, push, away, lockBit, vOff, set, signBit, setV, caBit) {
 // ---- tunnels (C04DE1, cell handler for underlay $11) ---------------------------------
 export function C04DE1(o) {
   if (o >= 0x8400 && !(r16(o + 0x52) & 0x0020)) return;   // only bombers / kicked bombs
-  switch (r16(o + 0xA8)) {
-    case 0x0108: enter(o, 0x0788, 0x0808, 0x5D06, 1, 0xEF, 0x0800); break;   // C050E0
-    case 0x0808: enter(o, 0x0188, 0x0108, 0x5D06, 2, 0x11, 0x0400); break;   // C04F64
-    case 0x0118: enter(o, 0x0798, 0x0818, 0x5D08, 4, 0xEF, 0x0800); break;   // C04E20
-    case 0x0818: enter(o, 0x0198, 0x0118, 0x5D08, 8, 0x11, 0x0400); break;   // C04EC2
-    default: break;
-  }
+  const T = TUN(), c = r16(o + 0xA8);     // tall: TUN()
+  if (c === 0x0108) enter(o, T.b4, T.f4, 0x5D06, 1, T.y, 0x0800);          // C050E0
+  else if (c === T.f4) enter(o, 0x0188, 0x0108, 0x5D06, 2, 0x11, 0x0400);  // C04F64
+  else if (c === 0x0118) enter(o, T.b12, T.f12, 0x5D08, 4, T.y, 0x0800);   // C04E20
+  else if (c === T.f12) enter(o, 0x0198, 0x0118, 0x5D08, 8, 0x11, 0x0400); // C04EC2
 }
 
 function objectAt(idx) {                     // C05182
@@ -400,7 +404,7 @@ function objectAt(idx) {                     // C05182
 function enter(o, exit, far, who, bit, y, dirBit) {
   if (r16(o + 2) & 0x0400) return;           // already in transit
   if (r16(GRID + exit) || objectAt(exit) || objectAt(far) || (r16(0x5D04) & 3)) {
-    pushBackOut(o, y === 0xEF);              // C051AE (top) / C05006 (bottom)
+    pushBackOut(o, y === TUN().y);           // C051AE (top) / C05006 (bottom)
     return;
   }
   w16(GRID + exit, 0xFB); w16(UNDER + exit, 0xFB);

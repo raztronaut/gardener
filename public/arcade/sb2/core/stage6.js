@@ -8,9 +8,13 @@
 import { r8, r16, w8, w16, OBJ_LIST } from './mem.js';
 import { gridAt, lastIdx, cellCentre } from './move.js';
 import { emit } from './events.js';
+import { isTall } from './geom.js';
 
 const PAD_TILES = [0x0188, 0x0198, 0x0318, 0x0308];   // $C5E881: tile index of each pad
 const PAD_DEST = [0x0308, 0x0318, 0x0618, 0x0608];    // $C5E8B1: grid index of each pad
+// tall: the lower pads are at (12,26) / (4,26)
+const TALL_PAD_TILES = [0x0188, 0x0198, 0x0698, 0x0688];
+const TALL_PAD_DEST = [0x0308, 0x0318, 0x0D18, 0x0D08];
 
 function centreCell(p) {                // C0BEA6
   let v = gridAt(r16(p + 0x10), r16(p + 0x18));
@@ -47,10 +51,10 @@ export function C04D33(p) {
   w16(0x42, colour);
   w16(0x4E, 4);
   for (let y = 0; y < 4; y++) {
-    const t = PAD_TILES[y];
+    const t = (isTall() ? TALL_PAD_TILES : PAD_TILES)[y];   // tall
     if (r16(0x1B000 + t) !== colour || t === here) continue;
     // C04D98
-    const dest = PAD_DEST[y];
+    const dest = (isTall() ? TALL_PAD_DEST : PAD_DEST)[y];  // tall
     w16(0x50, y * 2); w16(0x52, dest);
     if (r16(0x1C000 + dest) === 0x43) return;
     if (moverAt(p, dest)) return;

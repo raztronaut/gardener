@@ -21,6 +21,8 @@ import * as bombs from './bombs.js';
 import * as burn from './burn.js';
 import * as items from './items.js';
 import * as round from './round.js';
+import * as stage4 from './stage4.js';
+import * as stage8 from './stage8.js';
 
 export const TALL_DECK_SIZE = 145;
 const REMOVE = [12, 16, 0, 0, 0, 0, 30, 0, 23, 0, 8, 0];         // $C5EA4D[$1A]
@@ -211,11 +213,20 @@ export function syncLayout() {
     items.setScatterScan?.(0x0F00, 0x0FFF);
     round.setSuddenDeathOrder?.(TALL_SD_ORDER);
     round.setSuddenDeathCorners?.(TALL_SD_CORNERS);
+    if (stage4.setRing && stage4.ringLists) {   // stage 4: the fuse ring spans rows 6..26
+      const main = stage4.ringLists(4, 6, 12, 26), second = stage4.ringLists(2, 4, 14, 28);
+      main.term = [0x0308, 0x01C8, 0x020E, 0x01D8];      // (the original's read-past words)
+      second.term = [0x0384, 0x0144, 0x0188, 0x015C];
+      stage4.setRing(main, second);
+    }
+    stage8.setRing?.({ left: 0x40, right: 0xC0, top: 0x50, bottom: 0xB0 + 14 * 16 });   // ring rows 6 / 26
   } else {
     bombs.setLayoutTables?.({});
     items.setScatterScan?.();
     round.setSuddenDeathOrder?.(null);
     round.setSuddenDeathCorners?.(null);
+    stage4.setRing?.();
+    stage8.setRing?.({ left: 0x40, right: 0xC0, top: 0x50, bottom: 0xB0 });
   }
   burn.setDeckAddr?.(DECK);
 }
