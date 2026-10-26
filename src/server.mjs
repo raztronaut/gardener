@@ -783,6 +783,25 @@ const server = http.createServer(async (req, res) => {
     }
     // Stream one ROM's bytes (read-only, basename-guarded path traversal).
     if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/roms/')) return serveRom(req, res, p);
+    // Super Bomberman 2 · Tall (public/arcade/sb2/): read-only assets extracted from the
+    // user's own ROM into the gitignored data/sb2/assets/ (tools/sb2/README.md).
+    // Path-guarded: no dot segments, confined to that directory, known types only.
+    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/api/sb2/asset/')) {
+      const SB2_TYPES = { '.json': 'application/json; charset=utf-8', '.bin': 'application/octet-stream',
+        '.png': 'image/png', '.ogg': 'audio/ogg' };
+      let rel = '';
+      try { rel = decodeURIComponent(p.slice('/api/sb2/asset/'.length)); } catch { return send(res, 400, 'text/plain', 'bad path'); }
+      const root = resolve(join(paths.DATA, 'sb2', 'assets'));
+      const full = resolve(root, rel);
+      if (!rel || rel.split('/').some((s) => !s || s.startsWith('.')) || !full.startsWith(root + '/')
+        || !SB2_TYPES[extname(full).toLowerCase()]) return send(res, 404, 'text/plain', 'not found');
+      try {
+        const data = await fs.readFile(full);
+        res.writeHead(200, { 'Content-Type': SB2_TYPES[extname(full).toLowerCase()], 'Content-Length': data.length,
+          'Cache-Control': 'no-cache' });
+        return res.end(req.method === 'HEAD' ? undefined : data);
+      } catch { return send(res, 404, 'text/plain', 'not found'); }
+    }
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
     // Localhost wall surface: reads, PLUS the chore-logging write so the Roots
