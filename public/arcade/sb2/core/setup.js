@@ -20,7 +20,7 @@ const ANIM_LIST_7 = '0046040010FFFFFFFFFFFFFFFFFFFFFF80828486FEFFFFFFFFFFFFFFFFF
   '8A8C8EFFFFFFFFFFFFFFFFFFFFFFFFFF00';
 
 // ---- settings ----------------------------------------------------------------------
-// opts: { stage 1..10, players: [{type:'human'|'cpu', level?}] x4,
+// opts: { stage 1..10, players: [{type:'human'|'cpu'|'off', level?}] x4,
 //         rules: { wins 1..5, time 1|2|3|5|Infinity, gbomber bool, comLevel 1..9,
 //                  champion slot|null, bonus 0..5 }, seed }
 export function applySettings(opts = {}) {
@@ -43,7 +43,7 @@ export function applySettings(opts = {}) {
   w16(0x1C68, 0);                                  // hidden full-spiral option: off
   for (let i = 0; i < 4; i++) {
     const p = players[i] || { type: 'cpu' };
-    w16(0x5C4C + i * 2, p.type === 'human' ? 0 : 1);   // MAN/COM per slot
+    w16(0x5C4C + i * 2, p.type === 'human' ? 0 : p.type === 'off' ? 2 : 1);   // MAN / COM / OFF per slot (OFF: parked, skipped)
     w16(0x5C44 + i * 2, i);                            // bomber colour per slot
     w16(0x5E66 + i * 2, 0);                            // win counters
   }
