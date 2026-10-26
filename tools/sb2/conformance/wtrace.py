@@ -23,24 +23,37 @@ OUT = os.path.join(ROOT, 'data', 'sb2', 'conformance', 'wtrace')
 MYSTATES = os.path.join(ROOT, 'data', 'sb2', 're', 'states')
 
 
-def compare_frames(ticks, t0, b9=None):
-    """frame index at which each tick is complete: the last frame of its group that still
-    shows the group's first $B9 (frozen post-round screens change $B9)."""
-    out = set()
-    i = 0
+def compare_frames(frames, t0, rng0, start=0):
+    """(first_frame, complete_frame) of every executed tick. Frames are grouped by
+    truth.tick ($32 is incremented by the NMI at the start of a frame; the tick then runs
+    and reads that frame's pads). The tick is complete at the last frame of its group that
+    still shows the group's first $B9 (a 2-frame group = the tick lagged into the next
+    frame; frozen post-round screens change $B9). A group whose rng equals the previous
+    tick's rng ran no tick: $32 was incremented twice (the NMI hit between INC $16 and the
+    main loop's wait, so the next NMI counted the same tick again) — the skipped value
+    never runs, and the next tick runs with $32 = its truth.tick."""
+    out = []
+    i = start
     prev = t0
-    while i < len(ticks):
-        if ticks[i] == prev:
+    prng = rng0
+    n = len(frames)
+    while i < n:
+        t = frames[i]['truth']['tick']
+        if t == prev:
             i += 1
             continue
         j = i
-        while j + 1 < len(ticks) and ticks[j + 1] == ticks[i]:
+        while j + 1 < n and frames[j + 1]['truth']['tick'] == t:
             j += 1
+        b9 = frames[i]['truth']['timer'][5]
         c = i
-        while c < j and (b9 is None or b9[c + 1] == b9[i]):
+        while c < j and frames[c + 1]['truth']['timer'][5] == b9:
             c += 1
-        out.add(c)
-        prev = ticks[i]
+        r = frames[c]['truth']['rng']
+        if r != prng or t < prev:
+            out.append((i, c))
+            prng = r
+        prev = t
         i = j + 1
     return out
 
@@ -62,13 +75,17 @@ def main():
         w[off] = val & 0xff
         if size == 2:
             w[off + 1] = (val >> 8) & 0xff
+    t0 = v['initial']['globals']['tick']
+    skip = 0                     # same start as vcover.py (complete a lagged settle tick)
+    while skip < len(v['frames']) and v['frames'][skip]['truth']['tick'] == t0:
+        S.step(tuple(v['frames'][skip]['pads']))
+        skip += 1
     prev = S.wram()
     recs = []
-    ticks = [fr['truth']['tick'] for fr in v['frames']]
-    n = len(ticks) if maxf is None else min(maxf, len(ticks))
-    b9 = [fr['truth']['timer'][5] for fr in v['frames']]
-    want = compare_frames(ticks[:n], int(prev[0x32]) | int(prev[0x33]) << 8, b9[:n])
-    for i in range(n):
+    n = len(v['frames']) if maxf is None else min(maxf, len(v['frames']))
+    rng0 = int(prev[0xD6]) | int(prev[0xD7]) << 8
+    want = set(c for f, c in compare_frames(v['frames'][:n], t0, rng0, skip))
+    for i in range(skip, n):
         S.step(tuple(v['frames'][i]['pads']))
         if i in want:
             cur = S.wram()

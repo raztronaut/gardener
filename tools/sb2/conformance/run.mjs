@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 // The core under test: SB2_CORE=<dir> overrides (e.g. a snapshot copy, see snapcore.sh).
 const CORE_DIR = process.env.SB2_CORE ? path.resolve(process.env.SB2_CORE) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../public/arcade/sb2/core');
 const { createGame } = await import(path.join(CORE_DIR, 'index.js'));
-const { use, r8, r16 } = await import(path.join(CORE_DIR, 'mem.js'));
+const { use, r8, r16, w16 } = await import(path.join(CORE_DIR, 'mem.js'));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
@@ -111,6 +111,7 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
   }
   if (skip) applyTo(skip - 1);
   let prevTick = ref.tick;
+  let prevRng = ref.rng;
   let ticks = 0;
   const diffs = [];
   let rounds = 1;
@@ -131,6 +132,9 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
     let c = i;
     while (c < j && frames[c + 1].truth.timer[5] === frames[i].truth.timer[5]) c++;
     const fr = frames[i];
+    if (t0 > prevTick && game.finished) {        // after the battle loop: scoreboard frames
+      prevTick = t0; i = j + 1; continue;
+    }
     if (t0 < prevTick) {                         // tick counter reset: next round
       rounds++;
       if (!game.nextRound) { diffs.push({ frame: i, tick: t0, d: [['round', 'next round', 'nextRound() not implemented']] }); break; }
@@ -139,9 +143,15 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
       // the round's first tick (run with $32 = 0, not counted) completes in its last frame
       game.tick(frames[c].pads.slice(0, 4).map((p, k) => (v.start.multitap || k < 2 ? p : null)));
     } else {
-      if (t0 !== prevTick + 1) { diffs.push({ frame: i, tick: t0, d: [['tick', 'one tick per frame', `jump ${prevTick}->${t0}`]] }); break; }
+      // no tick ran in this group (rng unchanged): $32 was double-incremented (the NMI hit
+      // between INC $16 and the main loop's wait); the skipped value never runs
+      if (frames[c].truth.rng === prevRng) { prevTick = t0; i = j + 1; continue; }
+      if (t0 !== prevTick + 1 && t0 !== prevTick + 2) { diffs.push({ frame: i, tick: t0, d: [['tick', 'one tick per frame', `jump ${prevTick}->${t0}`]] }); break; }
+      // the running tick sees $32 = truth.tick (also after a double increment)
+      use(game.mem); w16(0x32, (t0 - 1) & 0xFFFF); w16(0x16, 1);
       game.tick(fr.pads.slice(0, 4).map((p, k) => (v.start.multitap || k < 2 ? p : null)));
     }
+    prevRng = frames[c].truth.rng;
     prevTick = t0;
     ticks++;
     applyTo(c);

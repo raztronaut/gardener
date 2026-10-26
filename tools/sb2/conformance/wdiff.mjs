@@ -63,8 +63,10 @@ function main() {
     // the pads were those of the group's first frame
     let f0 = rec.frame;
     while (f0 > 0 && v.frames[f0 - 1].truth.tick === fr.truth.tick) f0--;
-    if (rec.tick < prevTick) { if (!game.nextRound) { console.log('round change: nextRound() missing'); break; } game.nextRound(); }
-    else game.tick(v.frames[f0].pads.slice(0, 4).map((p, i) => (v.start.multitap || i < 2 ? p : null)));
+    if (rec.tick > prevTick && game.finished) { prevTick = rec.tick; continue; }   // scoreboard
+    if (rec.tick < prevTick) { if (!game.nextRound) { console.log('round change: nextRound() missing'); break; } game.nextRound(); game.tick(v.frames[rec.frame].pads.slice(0, 4).map((p, i) => (v.start.multitap || i < 2 ? p : null))); }
+    else { game.mem[0x32] = (rec.tick - 1) & 0xFF; game.mem[0x33] = ((rec.tick - 1) >> 8) & 0xFF; game.mem[0x16] = 1; game.mem[0x17] = 0;
+      game.tick(v.frames[f0].pads.slice(0, 4).map((p, i) => (v.start.multitap || i < 2 ? p : null))); }
     prevTick = rec.tick;
     const diffs = [];
     for (const [lo, hi] of ranges) for (let x = lo; x < hi; x++) {
