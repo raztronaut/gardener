@@ -5,8 +5,9 @@
 Replays the vector's start (state, settle, pokes) and pads in the emulator. One record
 per logic tick: frames are grouped by the tick counter $32 (it advances in the NMI at
 the start of a frame, then that tick runs and reads that frame's pads); the record is
-the WRAM at the end of the group's last frame (a 2-frame group = the tick lagged into
-the next frame), or of its first frame for longer groups (frozen post-round screens). File format
+the WRAM at the end of the group's last frame that still shows the group's first $B9
+(long ticks lag into the following frames; after a round's final tick $B9 changes and
+the frozen scoreboard frames are skipped). File format
 (read by wtrace.mjs): 'SB2W' u32 version=1 u32 count, then per record: u32 frame,
 u32 tick ($32 after the frame), u32 n, n bytes = zlib(deflate) of (WRAM xor previous
 record's WRAM) (the first record is xor'ed against the start WRAM = start/<vector>.wram).
@@ -22,8 +23,9 @@ OUT = os.path.join(ROOT, 'data', 'sb2', 'conformance', 'wtrace')
 MYSTATES = os.path.join(ROOT, 'data', 'sb2', 're', 'states')
 
 
-def compare_frames(ticks, t0):
-    """frame index at which each tick is complete (see the module doc)."""
+def compare_frames(ticks, t0, b9=None):
+    """frame index at which each tick is complete: the last frame of its group that still
+    shows the group's first $B9 (frozen post-round screens change $B9)."""
     out = set()
     i = 0
     prev = t0
@@ -34,7 +36,10 @@ def compare_frames(ticks, t0):
         j = i
         while j + 1 < len(ticks) and ticks[j + 1] == ticks[i]:
             j += 1
-        out.add(j if j - i + 1 <= 2 else i)
+        c = i
+        while c < j and (b9 is None or b9[c + 1] == b9[i]):
+            c += 1
+        out.add(c)
         prev = ticks[i]
         i = j + 1
     return out
@@ -61,7 +66,8 @@ def main():
     recs = []
     ticks = [fr['truth']['tick'] for fr in v['frames']]
     n = len(ticks) if maxf is None else min(maxf, len(ticks))
-    want = compare_frames(ticks[:n], int(prev[0x32]) | int(prev[0x33]) << 8)
+    b9 = [fr['truth']['timer'][5] for fr in v['frames']]
+    want = compare_frames(ticks[:n], int(prev[0x32]) | int(prev[0x33]) << 8, b9[:n])
     for i in range(n):
         S.step(tuple(v['frames'][i]['pads']))
         if i in want:

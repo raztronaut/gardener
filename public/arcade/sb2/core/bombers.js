@@ -118,9 +118,10 @@ function clampPos(p) {
     return;
   }
   if (onY && onX) return;
-  // C0A1C3: objects with +04 b10 stay "visible" (TODO: verify the branch at C0A1CD)
-  if (r16(p + 4) & 0x0400) return;
-  w16(p, (r16(p) | 0x2000) & 0xEFFF);
+  // C0A1C3: gone off-screen. Objects with +04 b10 (bombers) are only flagged; any other
+  // object (a mover) is erased: its 256 bytes are zeroed.
+  if (r16(p + 4) & 0x0400) { w16(p, (r16(p) | 0x2000) & 0xEFFF); return; }
+  for (let i = 0; i < 0x100; i += 2) w16(p + i, 0);
 }
 
 // ---- C01E1D: run every object -------------------------------------------------------

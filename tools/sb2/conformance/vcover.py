@@ -58,10 +58,19 @@ def main():
             w[off] = val & 0xff
             if size == 2:
                 w[off + 1] = (val >> 8) & 0xff
+        # If the settle frame's tick lagged, the snapshot is mid-tick: let the pending
+        # tick complete (the leading frames whose truth.tick == the initial tick) and
+        # start from there; meta.skip = number of frames consumed.
+        t0 = v['initial']['globals']['tick']
+        skip = 0
+        while skip < len(v['frames']) and v['frames'][skip]['truth']['tick'] == t0:
+            S.step(tuple(v['frames'][skip]['pads']))
+            skip += 1
         S.wram().tofile(os.path.join(OUT, v['name'] + '.wram'))
+        json.dump({'skip': skip}, open(os.path.join(OUT, v['name'] + '.meta.json'), 'w'))
         if cover:
             H.enable(exec_counts=True)
-            for fr in v['frames']:
+            for fr in v['frames'][skip:]:
                 S.step(tuple(fr['pads']))
         print(v['name'], int((H.exec_rom() > 0).sum()) if cover else '')
     if cover:

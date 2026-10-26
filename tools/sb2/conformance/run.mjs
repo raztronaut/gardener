@@ -95,22 +95,28 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
   const game = createGame({ wram });
   use(game.mem);
   const init = v.initial;
-  // sanity: the JSON initial snapshot must agree with the start WRAM
-  const s0 = snapshot();
-  if (s0.rng !== init.globals.rng || s0.tick !== init.globals.tick || !eq(s0.players, init.players)) {
-    return { name, ok: false, ticks: 0, first: 'start WRAM does not match the vector initial snapshot' };
-  }
-  const expGrid = init.grid.map((r) => r.slice());
   const frames = v.frames;
+  // start/<name>.meta.json: skip = leading frames consumed to complete a lagged tick
+  const mpath = path.join(START, name + '.meta.json');
+  const skip = fs.existsSync(mpath) ? JSON.parse(fs.readFileSync(mpath, 'utf8')).skip : 0;
+  const expGrid = init.grid.map((r) => r.slice());
   let applied = -1;                              // grid changes applied through this frame
   const applyTo = (k) => { for (; applied < k; ) { applied++; for (const [cx, cy, val] of frames[applied].truth.grid) expGrid[cy - 2][cx] = val; } };
-  let prevTick = init.globals.tick;
+  // sanity: the reference snapshot must agree with the start WRAM
+  const ref = skip ? { rng: frames[skip - 1].truth.rng, tick: frames[skip - 1].truth.tick, players: frames[skip - 1].truth.players }
+    : { rng: init.globals.rng, tick: init.globals.tick, players: init.players };
+  const s0 = snapshot();
+  if (s0.rng !== ref.rng || s0.tick !== ref.tick || !eq(s0.players, ref.players)) {
+    return { name, ok: false, ticks: 0, first: 'start WRAM does not match the vector snapshot' };
+  }
+  if (skip) applyTo(skip - 1);
+  let prevTick = ref.tick;
   let ticks = 0;
   const diffs = [];
   let rounds = 1;
-  let i = 0;
-  if (frames.length && frames[0].truth.tick === prevTick) {
-    return { name, ok: false, ticks: 0, first: 'start WRAM is mid-tick (the settle frame lagged)' };
+  let i = skip;
+  if (i < frames.length && frames[i].truth.tick === prevTick) {
+    return { name, ok: false, ticks: 0, first: 'start WRAM is mid-tick (re-run vcover.py)' };
   }
   while (i < frames.length) {
     const t0 = frames[i].truth.tick;
@@ -129,6 +135,9 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
       rounds++;
       if (!game.nextRound) { diffs.push({ frame: i, tick: t0, d: [['round', 'next round', 'nextRound() not implemented']] }); break; }
       game.nextRound();
+      // the group starts with the loading frames of the round init ($32 = 0 already);
+      // the round's first tick (run with $32 = 0, not counted) completes in its last frame
+      game.tick(frames[c].pads.slice(0, 4).map((p, k) => (v.start.multitap || k < 2 ? p : null)));
     } else {
       if (t0 !== prevTick + 1) { diffs.push({ frame: i, tick: t0, d: [['tick', 'one tick per frame', `jump ${prevTick}->${t0}`]] }); break; }
       game.tick(fr.pads.slice(0, 4).map((p, k) => (v.start.multitap || k < 2 ? p : null)));
