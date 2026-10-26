@@ -13,6 +13,8 @@ replay the same input traces through the original and the port.
 - ROM: `data/roms/Super Bomberman 2 (USA).sfc` (the user's own file). NEVER commit the ROM
   or anything extracted from it. Extracted assets/dumps go under `data/sb2/` (gitignored).
   Only CODE and NOTES (tools/sb2/, public/arcade/sb2/ engine code) are committed.
+  Tables decoded from the ROM that the core loads at runtime (core/animdata.js,
+  core/movers_tables.js) are gitignored too — `tools/sb2/build-rom-data.sh` rebuilds them.
 - Don't touch the live kiosk (CDP port 9223), don't restart services, don't edit files
   outside your area. Build/run heavy things with `nice -n 10`.
 - The 06:00 tending runs `git reset --hard` on a dirty tree: commit your own CODE paths

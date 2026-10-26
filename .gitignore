@@ -16,3 +16,7 @@ data/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# sb2: tables decoded from the user's ROM — regenerate with tools/sb2/build-rom-data.sh
+public/arcade/sb2/core/animdata.js
+public/arcade/sb2/core/movers_tables.js
