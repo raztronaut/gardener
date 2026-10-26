@@ -41,7 +41,7 @@ function main() {
   const r = runVector(name, {
     max: 1e9,
     onTick: ({ i, game }) => {
-      if (!disp) disp = createDisplay(pack, { layout: 'original' });
+      if (!disp) { disp = createDisplay(pack, { layout: 'original' }); disp.ppu.state.snes9x565 = !process.env.SB2_HW_BLEND; }
       const a0 = process.hrtime.bigint();
       disp.frame(game, game.events);
       const a1 = process.hrtime.bigint();

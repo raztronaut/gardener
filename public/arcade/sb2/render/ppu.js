@@ -38,7 +38,7 @@ export function createPPU(H) {
   // per layer: config + screen-space index buffer (CGRAM index, 0 = transparent) + priority
   function mkLayer(id) {
     return { id, on: false, sc: 0, size: 0, chr: 0, bpp: 4, t16: false, hofs: 0, vofs: 0,
-      idx: new Uint8Array(N), pri: new Uint8Array(N), shadow: null, cols: 0, rows: 0, force: true };
+      idx: new Uint8Array(N), pri: new Uint8Array(N), shadow: null, cols: 0, rows: 0, force: true, maxY: H };
   }
   const L = [null, mkLayer(1), mkLayer(2), mkLayer(3)];
   const BW = W >> 3, BH = (H + 7) >> 3;
@@ -80,7 +80,7 @@ export function createPPU(H) {
   function setWindowLines(fn) { for (let y = 0; y < H; y++) { const [l, r] = fn(y); winL[y] = l; winR[y] = r; } allDirty = true; }
   setWindowLines((y) => (y < 24 ? [255, 0] : [1, 254]));
 
-  const state = { bg3prio: true, objOn: true, objSub: true, mathBG2: true, mathHalf: true };
+  const state = { bg3prio: true, objOn: true, objSub: true, mathBG2: true, mathHalf: true, snes9x565: false };
 
   function mapEntry(l, tx, ty) {
     // tx, ty in tiles (wrapped by the screen size), returns the tilemap word
@@ -137,7 +137,7 @@ export function createPPU(H) {
         const pbase = pal * palMul;
         for (let y = 0; y < ts; y++) {
           const sy = sy0 + y;
-          if (sy < 0 || sy >= H) continue;
+          if (sy < 0 || sy >= l.maxY) continue;
           const ty = vf ? ts - 1 - y : y;
           for (let half = 0; half < (l.t16 ? 2 : 1); half++) {
             // which 8x8 char: t + (ty>=8 ? 16 : 0) + (tx>=8 ? 1 : 0) with hflip
@@ -207,7 +207,16 @@ export function createPPU(H) {
     lutKey = brightness;
   }
   function blend(a, b) {             // 15-bit colours -> RGBA, half-add, then brightness
-    const r = (((a & 31) + (b & 31)) >> 1), g = ((((a >> 5) & 31) + ((b >> 5) & 31)) >> 1), bl = ((((a >> 10) & 31) + ((b >> 10) & 31)) >> 1);
+    const r = (((a & 31) + (b & 31)) >> 1), bl = ((((a >> 10) & 31) + ((b >> 10) & 31)) >> 1);
+    let g;
+    if (state.snes9x565) {
+      // snes9x adds in RGB565 with green's low bit = its top bit (pixform.h), so the
+      // halved green rounds up when both inputs are >= 16: an emulator artefact the
+      // conformance run reproduces on request (the hardware halves 5-bit values).
+      const ga = (a >> 5) & 31, gb = (b >> 5) & 31;
+      const a6 = (ga << 1) | (ga >> 4), b6 = (gb << 1) | (gb >> 4);
+      g = ((((a6 & ~1) + (b6 & ~1)) >> 1) + (a6 & b6 & 1)) >> 1;
+    } else g = ((((a >> 5) & 31) + ((b >> 5) & 31)) >> 1);
     return (0xFF << 24) | (bmul[bl] << 16) | (bmul[g] << 8) | bmul[r];
   }
 

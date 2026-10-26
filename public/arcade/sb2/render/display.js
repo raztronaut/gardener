@@ -128,9 +128,13 @@ export function createDisplay(pack, opts = {}) {
       }
       for (let r = 0; r < 4; r++) tallRank[sortI[r]] = r;
     }
-    // bombers and movers in object-list order (slot order)
-    for (let k = 0; k < 32; k++) {
-      const p = 0x8000 + 0x100 * k;
+    // bombers and movers in the order of the active list $7E2620, which the core rebuilds
+    // at the start of the tick (C028F6): an object created during the tick is not drawn
+    // until the next one, like in the original
+    for (let x = 0; x < 64; x += 2) {
+      const p = g16(0x2620 + x);
+      if (p === 0xFFFF || p < 0x8000 || p >= 0xA000) break;
+      const k = (p - 0x8000) >> 8;
       const f = g16(p);
       if (!(f & 0x8000) || (f & 0x2000)) continue;
       if (k < 4) drawObject(M, p, 0, tall ? 0x30 + tallRank[k] * 8 : g16(p + 8));
@@ -294,8 +298,27 @@ export function createDisplay(pack, opts = {}) {
     }
   }
 
+  // tall stage 5: BG1 holds the 8 white plates around the original centre (cy 5..12).
+  // The tall layout copies the original's rows 0..8 at the top and rows 9..14 at
+  // cy 23..28 (tall.js rowOf), so the plates follow the same split: the upper four stay,
+  // the lower four move down 14 rows, and the stretched middle has none.
+  function tallPlates() {
+    const base = 0xB000;                         // BG1 map (sc_base word $5800), 32x32
+    const orig = v.slice(base, base + 0x800);
+    const empty = orig[2 * 0] | (orig[1] << 8);   // map cell (0,0): no plate
+    for (let r = 0; r < 32; r++) {
+      const sr = r <= 8 ? r : (r >= 23 && r <= 28 ? r - 14 : -1);
+      for (let c = 0; c < 32; c++) {
+        const val = sr < 0 ? empty : orig[(sr * 32 + c) * 2] | (orig[(sr * 32 + c) * 2 + 1] << 8);
+        vw16(base + (r * 32 + c) * 2, val);
+      }
+    }
+  }
+
   // ---- rounds and ticks ----------------------------------------------------------------------
   const animPrev = new Int32Array(4).fill(-1);
+  const pendingPuffs = [];
+  const pendingHas = (k) => { for (let q = 0; q < pendingPuffs.length; q += 3) if (pendingPuffs[q] === k) return true; return false; };
   let lastTick = -1, lastSD = 0;
   function beginRound(game) {
     M = game.mem;
@@ -305,6 +328,9 @@ export function createDisplay(pack, opts = {}) {
     ppu.vram.set(st.vram);
     for (let k = 0; k < 256; k++) ppu.cgram[k] = st.cgram[2 * k] | (st.cgram[2 * k + 1] << 8);
     ppu.configure(st.ppu);
+    // tall: BG3 (the HUD) is a 256-line map; it would wrap and repeat below line 256
+    if (tall) ppu.L[3].maxY = 256;
+    if (tall && id === 6) tallPlates();
     ppu.setObjBase((st.ppu.obj_name_base * 2) & 0xFFFF, (st.ppu.obj_name_base2 * 2) & 0xFFFF);
     ppu.forceAll();
     for (const e of fx) e.fill(0);
@@ -352,6 +378,15 @@ export function createDisplay(pack, opts = {}) {
     }
     lastSD = sd;
     fxTick();
+    // item-scatter puffs (C09689 -> C096B9): created after C10CAF, so first drawn next tick
+    if (events) for (const ev of events) {
+      if (ev.type !== 'itemScattered') continue;
+      let k = 2;
+      while (k < 16 && ((e16(fx[k], 0) & 0x8000) || pendingHas(k))) k++;
+      if (k >= 16) continue;
+      const gi = ev.cy * 0x80 + ev.cx * 2;
+      pendingPuffs.push(k, (((gi & 0x7F) << 3) - g16(0x5F01) + 8) & 0x1FF, (((gi & 0xF80) >> 3) - g16(0x5EFB) + 7) & 0x1FF);
+    }
     // did any bomber step its animation this tick (C09E7D sets $BB -> C11356 skipped)?
     let newFrame = false;
     for (let i = 0; i < 4; i++) {
@@ -364,6 +399,8 @@ export function createDisplay(pack, opts = {}) {
     bg2FromMirror();
     hudUpdate(newFrame);
     buildOAM();
+    for (let q = 0; q < pendingPuffs.length; q += 3) fxCreate(pendingPuffs[q], pendingPuffs[q + 1], pendingPuffs[q + 2], 4);
+    pendingPuffs.length = 0;
     const b30 = M[0x30];
     ppu.brightness = b30 & 0x80 ? 0 : b30 & 0x0F;
     blank = !!(b30 & 0x80);
