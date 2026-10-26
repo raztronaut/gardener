@@ -41,6 +41,7 @@ export const SD_ORDER = [
 const SD_STEPS = [0x18CC, 0x18CC, 0x18CC, 0x18CC, 0xFFFF];   // $C5E25A
 let sdOrder = SD_ORDER;                // tall layouts install their own order
 export function setSuddenDeathOrder(order) { sdOrder = order || SD_ORDER; }
+export const sdOrderNow = () => sdOrder;     // (read by the ★ COM: the visible spiral order)
 
 export function suddenDeath() {        // C0D843
   const b9 = r16(0xB9);

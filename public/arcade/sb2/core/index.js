@@ -7,13 +7,14 @@
 //   game.events           // events of the last tick
 //
 // See public/arcade/sb2/core/STATE.md for the state and event schema.
-import { WRAM_SIZE, use, r16 } from './mem.js';
+import { WRAM_SIZE, use, r16, COST } from './mem.js';
 import { tick as runTick, roundFinished } from './loop.js';
 import { reset as resetEvents } from './events.js';
 import { applySettings, roundInit, finishRound, newMatch } from './setup.js';
 import { buildState } from './view.js';
 import { setTall, isTall } from './geom.js';
 import { syncLayout } from './tall.js';
+import { fillPads, STAR_FLAG, STAR_COST } from './ai_smart.js';
 
 // tall: the layout-dependent tables of the modules follow the active game's memory
 let syncedMem = null;
@@ -58,7 +59,12 @@ export function createGame(opts = {}) {
       this.events = [];
       resetEvents(this.events);
       if (roundFinished()) return this.events;
+      // ★ COMs: their pads, decided from what the screen shows (ai_smart.js)
+      if (mem[STAR_FLAG]) { pads = fillPads(this, pads, this._starPads); use(mem); }
       runTick(this, pads);
+      // pacing (../pacing.js): a ★ COM's decision costs what the original COM AI costs
+      // (the meter group C0C54B: its measured mean per living COM per tick, ai_smart.js)
+      if (mem[STAR_FLAG]) COST.last[20] += STAR_COST * starsAlive(mem);
       this._ticks++;
       return this.events;
     },
@@ -70,6 +76,7 @@ export function createGame(opts = {}) {
       return this._state;
     },
     _ticks: 0,
+    _starPads: [0, 0, 0, 0],
     // full serialisation of the authoritative state (WRAM image + options)
     save() { return { v: 1, opts: { ...this.opts, wram: undefined }, layout: this.layout || null, levels: this.levels, result: this.result, mem: b64(mem) }; },
     load(s) { mem.set(unb64(s.mem)); syncedMem = null; this.levels = s.levels; this.result = s.result; this._ticks++; },
@@ -84,6 +91,16 @@ export function createGame(opts = {}) {
     roundInit(game);
   }
   return game;
+}
+
+function starsAlive(mem) {
+  let n = 0;
+  for (let i = 0; i < 4; i++) {
+    if (!((mem[STAR_FLAG] >> i) & 1)) continue;
+    const f = mem[0x8000 + 0x100 * i] | (mem[0x8001 + 0x100 * i] << 8);
+    if ((f & 0x8800) === 0x8000 && (mem[0x30] & 0x0F) === 0x0F) n++;
+  }
+  return n;
 }
 
 function b64(u8) {

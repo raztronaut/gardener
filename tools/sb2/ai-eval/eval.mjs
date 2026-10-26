@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 // Headless CPU behaviour metrics, original 13x11 vs tall 13x25 (findings: tools/sb2/NOTES-core-ai.md).
 //   node tools/sb2/ai-eval/eval.mjs [--core DIR] [--stages 1-10] [--seeds 6] [--rounds 3]
-//        [--level 5] [--time 3] [--modes cpu4,human3] [--layouts original,tall]
+//        [--level 5] [--vs 5] [--time 3] [--modes cpu4,human3] [--layouts original,tall]
 //        [--jobs 5] [--out file.json] [--label name]
 // Runs every (layout, mode, stage, seed) game in worker threads, plays --rounds rounds
 // (a new match starts when one ends) and accumulates per-CPU metrics. Prints a table and
 // writes the raw totals as JSON (report.mjs compares several JSON files).
-// Modes: cpu4 = four COMs; human3 = scripted human P1 (human.mjs) + three COMs.
+// Modes: cpu4 = four COMs (--level); human3 = scripted human P1 (human.mjs) + three COMs;
+//        mix1v3 = one COM at --level (its slot rotates with the seed: every spawn corner)
+//        against three at --vs; mix2v2 = two and two (slots 0+1 / 2+3 swapped by seed).
+// Level 10 = the ★ COM (core/ai_smart.js). Metrics are kept per KIND of CPU ("L5",
+// "L10" = ★ ...): columns layout/mode/kind; 'win %' = rounds won per CPU-round of
+// that kind (equal CPUs in a 4-CPU game: ~25 % each minus draws).
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -23,28 +28,43 @@ export const NEAR = 3;                   // "near an opponent": Manhattan distan
 const FIELDS = ['rounds', 'cpuRounds', 'ticks', 'alive', 'deaths', 'selfKill', 'oppKill', 'blockKill', 'unkKill',
   'walkedIn', 'kills', 'idle', 'stuck', 'moves', 'reversals', 'bombs', 'soft', 'softInit', 'items',
   'near', 'nearBase', 'isolated', 'sealed', 'sealedRounds', 'samples', 'draws', 'timeUp', 'cpuWins', 'humanWins',
-  'humanDeaths', 'humanKilledByCpu', 'firstKillTicks', 'firstKills', 'survivedRounds', 'cells'];
+  'humanDeaths', 'humanKilledByCpu', 'firstKillTicks', 'firstKills', 'survivedRounds', 'cells', 'wins', 'decideNs', 'decideTicks'];
 export const zero = () => Object.fromEntries(FIELDS.map((k) => [k, 0]));
 
-export async function runGame(core, job, acc) {
+// per-slot levels of a job (null = the scripted human)
+export function jobLevels(job) {
+  const L = job.level, V = job.vs ?? 5, k = job.seedIndex || 0;
+  if (job.mode === 'human3') return [null, L, L, L];
+  if (job.mode === 'mix1v3') return [0, 1, 2, 3].map((i) => (i === k % 4 ? L : V));
+  if (job.mode === 'mix2v2') return [0, 1, 2, 3].map((i) => ((i < 2) === (k % 2 === 0) ? L : V));
+  return [L, L, L, L];
+}
+export const kindName = (lv) => (lv === 10 ? 'star' : 'L' + lv);
+
+// accs: { kind: acc } (filled per kind of CPU)
+export async function runGame(core, job, accs) {
   const { createGame } = core;
   const { makeHuman } = await import(pathToFileURL(path.join(HERE, 'human.mjs')).href);
-  const human = job.mode === 'human3';
+  const levels = jobLevels(job);
+  const human = levels[0] === null;
   const game = createGame({
     stage: job.stage, layout: job.layout, seed: job.seed,
-    players: [0, 1, 2, 3].map((i) => (human && i === 0 ? { type: 'human' } : { type: 'cpu', level: job.level })),
-    rules: { wins: 3, time: job.time, comLevel: job.level, gbomber: false },
+    players: levels.map((l) => (l === null ? { type: 'human' } : { type: 'cpu', level: l })),
+    rules: { wins: 3, time: job.time, comLevel: Math.min(9, job.level), gbomber: false },
   });
   const bot = human ? makeHuman(0) : null;
   const cpus = human ? [1, 2, 3] : [0, 1, 2, 3];
+  const kinds = levels.map((l) => (l === null ? null : kindName(l)));
+  for (const k of kinds) if (k && !accs[k]) accs[k] = zero();
+  const accOf = (p) => accs[kinds[p]];
   for (let r = 0; r < job.rounds; r++) {
-    playRound(game, job, acc, bot, cpus);
+    playRound(game, job, accOf, [...new Set(kinds.filter(Boolean))].map((k) => accs[k]), bot, cpus, kinds);
     const res = game.nextRound();
     if (res && res.matchOver) game.newMatch({});
   }
 }
 
-function playRound(game, job, acc, bot, cpus) {
+function playRound(game, job, accOf, roundAccs, bot, cpus, kinds) {
   let s = game.state;
   const W = s.grid.width, r0 = s.grid.rows[0], H = s.grid.height;
   const cell = (x, y) => (y - r0) * W + x;
@@ -57,7 +77,8 @@ function playRound(game, job, acc, bot, cpus) {
   let qn = 0;
   for (const [x, y] of open) for (const [x2, y2] of open) if ((x !== x2 || y !== y2) && Math.abs(x - x2) + Math.abs(y - y2) <= NEAR) qn++;
   const qNear = qn / (open.length * (open.length - 1));
-  acc.rounds++; acc.cpuRounds += cpus.length; acc.softInit += softInit * cpus.length;
+  for (const a of roundAccs) a.rounds++;
+  for (const p of cpus) { accOf(p).cpuRounds++; accOf(p).softInit += softInit; }
 
   const fireStart = new Int32Array(W * H).fill(-1);   // tick a cell became fire
   const fireOwner = new Int8Array(W * H).fill(-1);
@@ -68,16 +89,19 @@ function playRound(game, job, acc, bot, cpus) {
   const maxT = 40000;
   while (!game.finished && t < maxT) {
     const pads = [bot ? bot(game.state) : 0, 0, 0, 0];
+    const t0 = process.hrtime.bigint();
     const ev = game.tick(pads);
+    const dt = Number(process.hrtime.bigint() - t0);
+    for (const a of roundAccs) { a.decideNs += dt; a.decideTicks++; }
     t++;
     s = game.state;
     const code = s.grid.code;
     for (const e of ev) {
       if (e.type === 'bombExploded') expl.push({ owner: e.owner, cx: e.cx, cy: e.cy, range: e.range, t });
       else if (e.type === 'blockFell') blockAt[cell(e.cx, e.cy)] = t;
-      else if (e.type === 'bombPlaced' && cpus.includes(e.slot)) acc.bombs++;
-      else if (e.type === 'blockBurn' && cpus.includes(e.owner)) acc.soft++;
-      else if (e.type === 'itemGot' && cpus.includes(e.slot)) acc.items++;
+      else if (e.type === 'bombPlaced' && cpus.includes(e.slot)) accOf(e.slot).bombs++;
+      else if (e.type === 'blockBurn' && cpus.includes(e.owner)) accOf(e.owner).soft++;
+      else if (e.type === 'itemGot' && cpus.includes(e.slot)) accOf(e.slot).items++;
     }
     while (expl.length && t - expl[0].t > 200) expl.shift();
     // fire onset + owner (most recent explosion aligned within reach)
@@ -105,12 +129,13 @@ function playRound(game, job, acc, bot, cpus) {
       const owner = blockAt[k] >= 0 && t - blockAt[k] < 8 ? 'block' : fireOwner[k];
       const isCpu = cpus.includes(p);
       if (firstKill < 0) firstKill = t;
-      if (typeof owner === 'number' && owner >= 0 && owner !== p && cpus.includes(owner)) acc.kills++;
+      if (typeof owner === 'number' && owner >= 0 && owner !== p && cpus.includes(owner)) accOf(owner).kills++;
       if (!isCpu) {
-        acc.humanDeaths++;
-        if (typeof owner === 'number' && cpus.includes(owner)) acc.humanKilledByCpu++;
+        for (const a of roundAccs) a.humanDeaths++;
+        if (typeof owner === 'number' && cpus.includes(owner)) accOf(owner).humanKilledByCpu++;
         continue;
       }
+      const acc = accOf(p);
       acc.deaths++;
       if (owner === 'block') acc.blockKill++;
       else if (owner === p) acc.selfKill++;
@@ -121,7 +146,7 @@ function playRound(game, job, acc, bot, cpus) {
     }
     const sample = (t & 31) === 0;
     for (const p of cpus) {
-      const b = s.bombers[p], q = per[p];
+      const b = s.bombers[p], q = per[p], acc = accOf(p);
       if (!b.active || b.dying) continue;
       acc.alive++;
       const k = cell(b.cx, b.cy);
@@ -145,13 +170,16 @@ function playRound(game, job, acc, bot, cpus) {
       }
     }
   }
-  acc.ticks += t;
-  for (const p of cpus) { if (per[p].sealed) acc.sealedRounds++; if (!per[p].dead) acc.survivedRounds++; }
-  if (firstKill >= 0) { acc.firstKillTicks += firstKill; acc.firstKills++; }
+  for (const p of cpus) { const acc = accOf(p); if (per[p].sealed) acc.sealedRounds++; if (!per[p].dead) acc.survivedRounds++; }
   const w = s.winner;
-  if (w === 'draw' || w === null) { acc.draws++; if (s.clock.timeUp) acc.timeUp++; }
-  else if (cpus.includes(w)) acc.cpuWins++; else acc.humanWins++;
-  acc.cells += W * H;
+  for (const acc of roundAccs) {
+    acc.ticks += t;
+    if (firstKill >= 0) { acc.firstKillTicks += firstKill; acc.firstKills++; }
+    if (w === 'draw' || w === null) { acc.draws++; if (s.clock.timeUp) acc.timeUp++; }
+    else if (cpus.includes(w)) acc.cpuWins++; else acc.humanWins++;
+    acc.cells += W * H;
+  }
+  if (typeof w === 'number' && cpus.includes(w)) accOf(w).wins++;
 }
 
 // passable region from (x, y): every non-solid cell (bombs, fire, items count as passable)
@@ -205,6 +233,8 @@ export function derive(a) {
     'isolated from all foes %': pct(a.isolated, a.samples),
     'sealed (no soft exit, no foe) %': pct(a.sealed, a.samples),
     'CPU survived round %': pct(a.survivedRounds, a.cpuRounds),
+    'win % (per CPU-round)': pct(a.wins, a.cpuRounds),
+    'tick ms (core + AI)': a.decideTicks ? a.decideNs / a.decideTicks / 1e6 : 0,
     'human deaths / round': a.humanDeaths / a.rounds,
     'human wins %': pct(a.humanWins, a.rounds),
   };
@@ -231,22 +261,22 @@ if (!isMainThread) {
   const { coreDir, jobs } = workerData;
   const core = await import(pathToFileURL(path.join(coreDir, 'index.js')).href);
   for (const job of jobs) {
-    const acc = zero();
-    try { await runGame(core, job, acc); } catch (e) { parentPort.postMessage({ job, error: e.stack }); continue; }
-    parentPort.postMessage({ job, acc });
+    const accs = {};
+    try { await runGame(core, job, accs); } catch (e) { parentPort.postMessage({ job, error: e.stack }); continue; }
+    parentPort.postMessage({ job, accs });
   }
 } else if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2);
   const opt = (k, d) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : d; };
   const coreDir = path.resolve(opt('--core', process.env.SB2_CORE || DEF_CORE));
   const stages = parseList(opt('--stages', '1-10'));
-  const nSeeds = +opt('--seeds', 6), rounds = +opt('--rounds', 3), level = +opt('--level', 5);
+  const nSeeds = +opt('--seeds', 6), rounds = +opt('--rounds', 3), level = +opt('--level', 5), vs = +opt('--vs', 5);
   const time = opt('--time', '3') === 'inf' ? Infinity : +opt('--time', '3');
   const modes = opt('--modes', 'cpu4,human3').split(','), layouts = opt('--layouts', 'original,tall').split(',');
   const nJobs = +opt('--jobs', Math.max(1, os.cpus().length - 1));
   const jobs = [];
   for (const layout of layouts) for (const mode of modes) for (const stage of stages) for (let i = 0; i < nSeeds; i++)
-    jobs.push({ layout, mode, stage, seed: 1000 + 2 * i * 7919 % 60000, rounds, level, time });
+    jobs.push({ layout, mode, stage, seed: 1000 + 2 * i * 7919 % 60000, seedIndex: i, rounds, level, vs, time });
   const t0 = Date.now();
   const results = [];
   await Promise.all(Array.from({ length: nJobs }, (_, w) => new Promise((res, rej) => {
@@ -256,12 +286,12 @@ if (!isMainThread) {
     wk.on('message', (m) => { if (m.error) console.error('ERROR', JSON.stringify(m.job), m.error); else results.push(m); });
     wk.on('error', rej); wk.on('exit', res);
   })));
-  const group = (f) => { const g = {}; for (const r of results) { const k = f(r.job); g[k] ||= zero(); for (const x in r.acc) g[k][x] += r.acc[x]; } return g; };
-  const byLM = group((j) => `${j.layout}/${j.mode}`);
-  const byStage = group((j) => `${j.layout}/${j.mode}/${j.stage}`);
+  const group = (f) => { const g = {}; for (const r of results) for (const kind in r.accs) { const k = f(r.job, kind); g[k] ||= zero(); for (const x in r.accs[kind]) g[k][x] += r.accs[kind][x]; } return g; };
+  const byLM = group((j, kind) => `${j.layout}/${j.mode}/${kind}`);
+  const byStage = group((j, kind) => `${j.layout}/${j.mode}/${kind}/${j.stage}`);
   const cols = Object.keys(byLM).sort().map((k) => ({ name: k, acc: byLM[k] }));
-  console.log(`core ${coreDir}  level ${level}  time ${time}  ${jobs.length} games x ${rounds} rounds  ${((Date.now() - t0) / 1000).toFixed(0)} s`);
+  console.log(`core ${coreDir}  level ${level}  vs ${vs}  time ${time}  ${jobs.length} games x ${rounds} rounds  ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   console.log(table(cols));
   const out = opt('--out');
-  if (out) fs.writeFileSync(out, JSON.stringify({ label: opt('--label', path.basename(coreDir)), coreDir, level, time, rounds, nSeeds, stages, byLM, byStage }, null, 1));
+  if (out) fs.writeFileSync(out, JSON.stringify({ label: opt('--label', path.basename(coreDir)), coreDir, level, vs, time, rounds, nSeeds, stages, byLM, byStage }, null, 1));
 }

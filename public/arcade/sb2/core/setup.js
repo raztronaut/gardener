@@ -21,14 +21,17 @@ const ANIM_LIST_7 = '0046040010FFFFFFFFFFFFFFFFFFFFFF80828486FEFFFFFFFFFFFFFFFFF
 
 // ---- settings ----------------------------------------------------------------------
 // opts: { stage 1..10, players: [{type:'human'|'cpu'|'off', level?}] x4,
-//         rules: { wins 1..5, time 1|2|3|5|Infinity, gbomber bool, comLevel 1..9,
+//         rules: { wins 1..5, time 1|2|3|5|Infinity, gbomber bool, comLevel 1..9 | 10,
 //                  champion slot|null, bonus 0..5 }, seed }
+// Level 10 = the ★ COM (ai_smart.js, not in the original): the slot is a MAN slot in the
+// core ($5C4C = 0; the original COM AI never runs for it) whose pad ai_smart.js fills in
+// before every tick; $7E7001 bit i marks it (a byte the original never uses).
 export function applySettings(opts = {}) {
   const rules = opts.rules || {};
   const stage = opts.stage || 1;
   if (stage < 1 || stage > 10) throw new Error('stage must be 1..10');
   const players = opts.players || [{ type: 'human' }, { type: 'cpu' }, { type: 'cpu' }, { type: 'cpu' }];
-  const level = rules.comLevel || 5;
+  const level = Math.min(rules.comLevel || 5, 9);   // ★ (10): the original variable stays 1..9
   const wins = rules.wins || 3;
   const time = rules.time === undefined ? 2 : rules.time;
   w16(0x1A, STAGE_IDS[stage - 1]);
@@ -41,12 +44,16 @@ export function applySettings(opts = {}) {
   w16(M_CHAMP, champ);
   w16(M_BONUS, champ === 0xFFFF ? 0xFFFF : (rules.bonus || 0));
   w16(0x1C68, 0);                                  // hidden full-spiral option: off
+  let star = 0;
   for (let i = 0; i < 4; i++) {
     const p = players[i] || { type: 'cpu' };
-    w16(0x5C4C + i * 2, p.type === 'human' ? 0 : p.type === 'off' ? 2 : 1);   // MAN / COM / OFF per slot (OFF: parked, skipped)
+    const isStar = p.type === 'cpu' && (p.level || rules.comLevel) === 10;
+    if (isStar) star |= 1 << i;
+    w16(0x5C4C + i * 2, p.type === 'human' || isStar ? 0 : p.type === 'off' ? 2 : 1);   // MAN / COM / OFF per slot (OFF: parked, skipped; ★: MAN driven by ai_smart.js)
     w16(0x5C44 + i * 2, i);                            // bomber colour per slot
     w16(0x5E66 + i * 2, 0);                            // win counters
   }
+  w8(0x7001, star);                              // ★ slots (ai_smart.js STAR_FLAG)
   w16(0x5C40, 0);
   w16(0xD6, (opts.seed || 0) & 0xFFFF);
   copySettings();
