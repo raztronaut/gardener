@@ -189,12 +189,18 @@ int retro_sb2_smp_finish_opcode(void)
  *        bit1 write watch (WRAM offsets in the write bitmap are logged)  *
  *        bit2 read watch  (same for reads)                               *
  *        bit3 exec trace  (registers at every instruction whose 24-bit   *
- *                          PB:PC lies in [trace_lo, trace_hi])           *
+ *                          PB:PC lies in [trace_lo, trace_hi] or whose   *
+ *                          ROM offset is marked in the v2 PC set); the   *
+ *                          event's `cyc` = running master-cycle count    *
+ *        bit4 exec cycles (master cycles from each instruction to the    *
+ *                          next, summed per ROM offset of the first one: *
+ *                          the real cycle cost of every routine, DMA     *
+ *                          stalls included; v2)                          *
  * ===================================================================== */
 #include "65c816.h"
 #include <stdlib.h>
 
-#define SB2_HOOK_VERSION 1
+#define SB2_HOOK_VERSION 2
 
 extern "C" {
 uint32 sb2_hook_flags = 0;
@@ -213,7 +219,7 @@ struct sb2_trace_ev {          /* 24 bytes */
     uint16 a, x, y, s, d;
     uint8  db, p;
     uint32 tag;
-    uint32 pad;
+    uint32 cyc;                /* v2: running master-cycle counter (low 32 bits) */
 };
 
 static uint32 sb2_cur_pc, sb2_tag;
@@ -225,6 +231,27 @@ static uint32 *sb2_exec_wram;                      /* 128 KB of WRAM offsets */
 static uint8  *sb2_exec_mx;                        /* per ROM offset: bit (1 << ((P >> 4) & 3)) for every M/X combo seen */
 static sb2_trace_ev *sb2_trace;
 static uint32 sb2_trace_n, sb2_trace_cap, sb2_trace_drop, sb2_trace_lo, sb2_trace_hi;
+static uint8  *sb2_trace_set;                      /* v2: per ROM offset, 1 = trace this PC */
+static uint32 *sb2_cyc_rom;                        /* bit4: master cycles per ROM offset */
+static uint64 sb2_cyc_total;                       /* running master cycles (at the last hook) */
+static int32  sb2_cyc_prev_pos = -1;               /* V*H_Max + H at the last hook */
+static int32  sb2_cyc_prev_rom = -1;               /* ROM offset of the previous instruction */
+
+/* advance the running cycle counter to now; returns the delta since the last hook */
+static inline uint32 sb2_cyc_now(void)
+{
+    int32 pos = CPU.V_Counter * Timings.H_Max + CPU.Cycles;
+    int32 d = 0;
+    if (sb2_cyc_prev_pos >= 0) {
+        d = pos - sb2_cyc_prev_pos;
+        /* frame wrap; a small negative step is snes9x's line bookkeeping (the H event
+           can run between the two counters' updates) and is kept signed so the sum stays right */
+        if (d < -(Timings.V_Max * Timings.H_Max) / 2) d += Timings.V_Max * Timings.H_Max;
+    }
+    sb2_cyc_prev_pos = pos;
+    sb2_cyc_total += (int64) d;
+    return (uint32) d;                             /* callers add it modulo 2^32 */
+}
 
 static inline int32 sb2_wram_off(uint32 a)
 {
@@ -234,12 +261,26 @@ static inline int32 sb2_wram_off(uint32 a)
     return -1;
 }
 
+static inline int32 sb2_rom_pc(uint32 pc)       /* HiROM PC -> ROM offset, -1 if not ROM */
+{
+    uint32 bank = pc >> 16, off = pc & 0xffff;
+    if (sb2_wram_off(pc) >= 0 || !((bank & 0x40) || off >= 0x8000)) return -1;
+    return (int32) (((bank & 0x3f) << 16 | off) & 0xfffff);
+}
+
 extern "C" {
 
 void sb2_hook_exec(void)
 {
     uint32 pc = Registers.PBPC & 0xffffff;
     sb2_cur_pc = pc;
+    if (sb2_hook_flags & 0x18) {
+        uint32 d = sb2_cyc_now();
+        if ((sb2_hook_flags & 16) && sb2_cyc_rom) {
+            if (sb2_cyc_prev_rom >= 0) sb2_cyc_rom[sb2_cyc_prev_rom] += d;
+            sb2_cyc_prev_rom = sb2_rom_pc(pc);
+        }
+    }
     if ((sb2_hook_flags & 1) && sb2_exec_rom) {
         uint32 bank = pc >> 16, off = pc & 0xffff;
         int32 w = sb2_wram_off(pc);
@@ -250,12 +291,12 @@ void sb2_hook_exec(void)
             sb2_exec_mx[r] |= (uint8) (1 << ((Registers.PL >> 4) & 3));
         }
     }
-    if ((sb2_hook_flags & 8) && pc >= sb2_trace_lo && pc <= sb2_trace_hi) {
+    if ((sb2_hook_flags & 8) && ((pc >= sb2_trace_lo && pc <= sb2_trace_hi) || (sb2_trace_set && sb2_rom_pc(pc) >= 0 && sb2_trace_set[sb2_rom_pc(pc)]))) {
         if (sb2_trace_n < sb2_trace_cap) {
             sb2_trace_ev &e = sb2_trace[sb2_trace_n++];
             e.pc = pc; e.a = Registers.A.W; e.x = Registers.X.W; e.y = Registers.Y.W;
             e.s = Registers.S.W; e.d = Registers.D.W; e.db = Registers.DB; e.p = Registers.PL;
-            e.tag = sb2_tag; e.pad = 0;
+            e.tag = sb2_tag; e.cyc = (uint32) sb2_cyc_total;
         } else sb2_trace_drop++;
     }
 }
@@ -287,6 +328,8 @@ void retro_sb2_hook_set_flags(uint32 flags)
             sb2_log_cap[k] = 1u << 21;
             sb2_log[k] = (sb2_mem_ev *) calloc(sb2_log_cap[k], sizeof(sb2_mem_ev));
         }
+    if ((flags & 16) && !sb2_cyc_rom) sb2_cyc_rom = (uint32 *) calloc(0x100000, 4);
+    if ((flags & 0x18) && !(sb2_hook_flags & 0x18)) { sb2_cyc_prev_pos = -1; sb2_cyc_prev_rom = -1; }
     if ((flags & 8) && !sb2_trace) {
         if (!sb2_trace_cap) sb2_trace_cap = 1u << 20;
         sb2_trace = (sb2_trace_ev *) calloc(sb2_trace_cap, sizeof(sb2_trace_ev));
@@ -341,5 +384,18 @@ uint32 retro_sb2_hook_trace(void **ptr, uint32 *dropped)
     return sb2_trace_n;
 }
 void retro_sb2_hook_trace_clear(void) { sb2_trace_n = 0; sb2_trace_drop = 0; }
+
+/* v2 */
+/* mark (on=1) / unmark ROM offsets to trace in addition to the range; n=0 clears the set */
+void retro_sb2_hook_trace_pcs(const uint32 *rom_offsets, uint32 n, int on)
+{
+    if (!sb2_trace_set) sb2_trace_set = (uint8 *) calloc(0x100000, 1);
+    if (!n) { memset(sb2_trace_set, 0, 0x100000); return; }
+    for (uint32 i = 0; i < n; i++) sb2_trace_set[rom_offsets[i] & 0xfffff] = on ? 1 : 0;
+}
+void *retro_sb2_hook_cycles_rom(void) { return sb2_cyc_rom; }
+void retro_sb2_hook_cycles_clear(void) { if (sb2_cyc_rom) memset(sb2_cyc_rom, 0, 0x100000 * 4); }
+uint64 retro_sb2_hook_cycles_total(void) { return sb2_cyc_total; }
+int retro_sb2_hook_position(void) { return (CPU.V_Counter << 16) | (CPU.Cycles & 0xffff); }
 
 } /* extern "C" */

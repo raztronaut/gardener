@@ -9,6 +9,9 @@
     for ev in H.writes(): ...              # dicts pc/addr/val/old/tag
     H.enable(exec_counts=True); ...; H.exec_rom()   # np.uint32[0x100000] by ROM offset
     H.trace_config(lo_pc, hi_pc); H.enable(trace=True); H.trace()
+    # v2 (cycle costs): trace events carry `cyc` = running master-cycle count;
+    H.trace_pcs([pc, ...])                 # also trace these exact PCs (any bank)
+    H.enable(cycles=True); ...; H.cycles_rom()   # master cycles per ROM offset
 
 Hooks never modify emulated state; with all flags off the core is unchanged.
 """
@@ -18,14 +21,15 @@ import numpy as np
 MEM_EV = np.dtype([('pc', '<u4'), ('addr', '<u4'), ('val', 'u1'), ('old', 'u1'),
                    ('pad', '<u2'), ('tag', '<u4')])
 TRACE_EV = np.dtype([('pc', '<u4'), ('a', '<u2'), ('x', '<u2'), ('y', '<u2'), ('s', '<u2'),
-                     ('d', '<u2'), ('db', 'u1'), ('p', 'u1'), ('tag', '<u4'), ('pad', '<u4')])
+                     ('d', '<u2'), ('db', 'u1'), ('p', 'u1'), ('tag', '<u4'), ('cyc', '<u4')])
 
 
 class Hooks:
     def __init__(self, S):
         self.S = S
         L = self.L = S.lib
-        if L.retro_sb2_hook_version() != 1:
+        self.version = L.retro_sb2_hook_version()
+        if self.version not in (1, 2):
             raise RuntimeError('hook version mismatch')
         L.retro_sb2_hook_set_flags.argtypes = [C.c_uint32]
         L.retro_sb2_hook_get_flags.restype = C.c_uint32
@@ -41,8 +45,9 @@ class Hooks:
         L.retro_sb2_hook_trace.restype = C.c_uint32
         self.tag = 0
 
-    def enable(self, exec_counts=False, write=False, read=False, trace=False):
-        f = (1 if exec_counts else 0) | (2 if write else 0) | (4 if read else 0) | (8 if trace else 0)
+    def enable(self, exec_counts=False, write=False, read=False, trace=False, cycles=False):
+        f = (1 if exec_counts else 0) | (2 if write else 0) | (4 if read else 0) | (8 if trace else 0) \
+            | (16 if cycles else 0)
         self.L.retro_sb2_hook_set_flags(f)
 
     def off(self):
@@ -112,6 +117,42 @@ class Hooks:
         if clear:
             self.L.retro_sb2_hook_trace_clear()
         return arr
+
+
+def _v2(self):
+    if self.version < 2:
+        raise RuntimeError('cycle hooks need the v2 shim (tools/sb2/harness/build.sh)')
+    L = self.L
+    L.retro_sb2_hook_trace_pcs.argtypes = [C.c_void_p, C.c_uint32, C.c_int]
+    L.retro_sb2_hook_cycles_rom.restype = C.c_void_p
+    L.retro_sb2_hook_cycles_total.restype = C.c_uint64
+    return L
+
+
+def _trace_pcs(self, pcs, on=True):
+    offs = np.array([rom_off(p) for p in pcs], np.uint32)
+    _v2(self).retro_sb2_hook_trace_pcs(offs.ctypes.data if len(offs) else None, len(offs), 1 if on else 0)
+
+
+def _cycles_rom(self):
+    p = _v2(self).retro_sb2_hook_cycles_rom()
+    if not p:
+        return np.zeros(0x100000, np.uint32)
+    return np.ctypeslib.as_array((C.c_uint32 * 0x100000).from_address(p)).copy()
+
+
+def _cycles_clear(self):
+    _v2(self).retro_sb2_hook_cycles_clear()
+
+
+def _cycles_total(self):
+    return int(_v2(self).retro_sb2_hook_cycles_total())
+
+
+Hooks.trace_pcs = _trace_pcs
+Hooks.cycles_rom = _cycles_rom
+Hooks.cycles_clear = _cycles_clear
+Hooks.cycles_total = _cycles_total
 
 
 def rom_off(pc):
