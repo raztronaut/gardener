@@ -20,7 +20,11 @@ export const RANGES = [[0x30, 0x31], [0x32, 0x34], [0xB9, 0xBB], [0xBE, 0xC0], [
   [0x1A000, 0x1A800], [0x1B000, 0x1B800], [0x1C000, 0x20000]];
 // bomb slots: only the flags word is initialised; the rest is scratch left by graphics
 // decompression, never read before a bomb is spawned
-const IGNORE = (a) => a >= 0x12000 && a < 0x14800 && (a & 0xFF) > 1;
+// The stage-10 regrow lists ($7F0300/$7F0700) are scratch (scoreboard sprites) on the
+// other stages.
+let stageId = 0;
+const IGNORE = (a) => (a >= 0x12000 && a < 0x14800 && (a & 0xFF) > 1) ||
+  (stageId !== 0xB && ((a >= 0x10300 && a < 0x10400) || (a >= 0x10700 && a < 0x10780)));
 
 const SETUPS = {
   com4: (stage) => ({ stage, players: [0, 1, 2, 3].map(() => ({ type: 'cpu' })), rules: { comLevel: 5, wins: 3, time: 2, gbomber: true } }),
@@ -30,6 +34,7 @@ const SETUPS = {
 
 export function diffMem(a, b, n) {
   const out = [];
+  stageId = a[0x1A];
   for (const [lo, hi] of RANGES) for (let x = lo; x < hi; x++) if (a[x] !== b[x] && !IGNORE(x)) { out.push(x); }
   return out;
 }
@@ -46,3 +51,27 @@ for (const f of fs.readdirSync(I).filter((f) => /^(com4|1p|mt4)_stage\d\d\.wram$
     (d.length ? ': ' + d.slice(0, nmax).map((x) => `${x.toString(16)} exp ${exp[x].toString(16)} got ${g.mem[x].toString(16)}`).join(', ') : ''));
 }
 console.log(`${ok}/${total} round inits match`);
+
+// Round 2 of cpu_round: the original's WRAM after the last tick of round 1 (wtrace) ->
+// nextRound() vs the original right after its round-2 init (capinit.py cpu_round 4010 4110).
+{
+  const { readTrace } = await import('./wtrace.mjs');
+  const C = path.join(ROOT, 'data', 'sb2', 'conformance');
+  const tp = path.join(C, 'wtrace', 'cpu_round.bin');
+  const ip = path.join(I, 'cpu_round_r2_init.wram');
+  if (fs.existsSync(tp) && fs.existsSync(ip)) {
+    let last = null;
+    for (const rec of readTrace(tp, new Uint8Array(fs.readFileSync(path.join(C, 'start', 'cpu_round.wram'))))) {
+      if (rec.frame > 3613) break;
+      last = rec.wram.slice();     // the round's last tick (incl. the battle-loop exit)
+    }
+    const exp = new Uint8Array(fs.readFileSync(ip));
+    const g = createGame({ wram: last });
+    const res = g.nextRound();
+    const d = diffMem(exp, g.mem);
+    total++; if (!d.length) ok++;
+    console.log(`${d.length ? 'FAIL' : 'PASS'}  cpu_round round 2   ${d.length} bytes differ (winner ${res && res.winner})` +
+      (d.length ? ': ' + d.slice(0, nmax).map((x) => `${x.toString(16)} exp ${exp[x].toString(16)} got ${g.mem[x].toString(16)}`).join(', ') : ''));
+    console.log(`${ok}/${total} round inits match`);
+  }
+}

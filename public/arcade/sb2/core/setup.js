@@ -4,6 +4,7 @@
 import { r8, r16, w8, w16, OBJ } from './mem.js';
 import { buildLayout, STAGE_IDS } from './layout.js';
 import { emit } from './events.js';
+import { exitBattle } from './round.js';
 
 // menu variables (bank $00 low RAM) — the battle reads copies of them (CC0377)
 const M_LEVEL = 0x1CA5, M_BATTLE = 0x1CA7, M_TIME = 0x1CA9, M_GOLD = 0x1CAB;
@@ -207,16 +208,9 @@ export function roundInit(G) {
 // C00BD6 (winner, fade-out), scoreboard CC4C7D (win counter), CC273E / CC26FC.
 // Returns { winner: slot|null (draw), wins: [4], matchOver, champion }.
 export function finishRound() {
-  const b9 = r16(0xB9) | 0x0800;          // C0FBAB
-  w16(0xB9, b9);
-  w16(0x16, 0);
-  // C00B05: first bomber not flagged dying, or $FFFF = draw
-  let win = 0xFFFF;
-  if (!(b9 & 0x2000)) {
-    for (let i = 0; i < 4; i++) if (!(r16(OBJ + i * 0x100) & 0x0800)) { win = i; break; }
-    w16(0x5C3E, win);
-  }
-  w8(0x30, 0x80);                         // faded out, forced blank
+  // (C0FBAB / C00BD6 already ran at the end of the round's last tick: round.exitBattle)
+  if (!(r16(0xB9) & 0x0800)) exitBattle();
+  const win = r16(0x5C3E);
   w16(0x16, 1);
   let matchOver = false;
   if (win !== 0xFFFF) {                   // CC4C7D: scoreboard adds the win
@@ -232,7 +226,7 @@ export function finishRound() {
   w16(0x5C3C, r16(M_CHAMP));
   w16(0x16, 0);
   const wins = [0, 1, 2, 3].map((i) => r16(0x5E66 + i * 2));
-  emit('roundResult', { winner: win === 0xFFFF ? null : win, draw: win === 0xFFFF, wins, sfx: win === 0xFFFF ? 0x46 : undefined });
+  emit('roundResult', { winner: win === 0xFFFF ? null : win, draw: win === 0xFFFF, wins });
   if (matchOver) {
     emit('matchOver', { winner: win, wins });
   } else {
