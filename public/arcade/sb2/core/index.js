@@ -10,6 +10,7 @@
 import { WRAM_SIZE, use, r16 } from './mem.js';
 import { tick as runTick, roundFinished } from './loop.js';
 import { reset as resetEvents } from './events.js';
+import { applySettings, roundInit, finishRound, newMatch } from './setup.js';
 
 export function createGame(opts = {}) {
   const mem = new Uint8Array(WRAM_SIZE);
@@ -18,6 +19,32 @@ export function createGame(opts = {}) {
     mem,
     events: [],
     opts,
+    // per-slot COM level override (+D2); the original uses one level for every COM
+    levels: opts.players ? opts.players.map((p) => (p && p.level ? p.level - 1 : null)) : null,
+    result: null,          // { winner, wins, matchOver } of the last finished round
+    // After a finished round (game.finished): scoreboard bookkeeping, then the next
+    // round's init (new soft-block layout and deck from the running RNG). Returns the
+    // finished round's result; when the match is over it does not start a round
+    // (call newMatch() first).
+    nextRound() {
+      use(mem);
+      this.events = [];
+      resetEvents(this.events);
+      if (roundFinished() || (r16(0xB9) & 0x4000)) this.result = finishRound();
+      if (this.result && this.result.matchOver) return this.result;
+      roundInit(this);
+      return this.result;
+    },
+    // Start the next match on the same settings (the champion becomes the gold bomber
+    // when G-BOMBER is on; bonus = roulette result 0..5).
+    newMatch(o = {}) {
+      use(mem);
+      this.events = [];
+      resetEvents(this.events);
+      newMatch(o);
+      this.result = null;
+      roundInit(this);
+    },
     tick(pads) {
       use(mem);
       this.events = [];
@@ -28,5 +55,11 @@ export function createGame(opts = {}) {
     },
     get finished() { use(mem); return roundFinished(); },
   };
+  if (!opts.wram) {
+    use(mem);
+    resetEvents(game.events);
+    applySettings(opts);
+    roundInit(game);
+  }
   return game;
 }
