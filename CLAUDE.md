@@ -92,6 +92,14 @@ chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.f
 - `npm run iterate -- manual` — run one tending iteration now.
 - `npm run day | night | display-sync` — display energy control.
 
+## Super Bomberman 2 · Tall (native port, first on the Arcade shelf)
+A faithful 9:16 re-implementation of SB2 battle mode: `public/arcade/sb2/` (core = line-by-line
+rewrite of the original routines, 46/46 tick-exact conformance vectors; render = pixel-exact vs
+the original), assets extracted from the user's ROM into `data/sb2/` (gitignored, never commit),
+served by `/api/sb2/asset/`. Tooling + specs in `tools/sb2/` (README, SPEC.md, NOTES-*.md).
+**The tending must not modify `public/arcade/sb2/` or `tools/sb2/`** — any change there must keep
+`node tools/sb2/conformance/run.mjs` at 46/46. Fresh clone: `tools/sb2/build-rom-data.sh`.
+
 ## Arcade — retro-console emulator widget
 `public/widgets/emulator.js` (replaced the old Mario widget). **Off-grid since
 2026-10-01:** it is `enabled:false` in the manifest (no wall tile) and opens only
