@@ -108,4 +108,15 @@ kick $44, lift $48, throw $43, land $45, hurry $4E, falling block $72, draw $46.
 | `roundOver` | ≥ 3 bombers dying |
 | `roundEnd`, `roundResult`, `matchOver` | after the 256 ticks / scoreboard |
 | `fuseRing` | stage 4 ring ignites |
-| stage events | see the stage modules (`teleport`, `speedPad`, `stopPad`, `conveyorSwitch`, `jump`, `blockRegrow`, `holeFall`, `tunnelEnter` …) |
+| stage events | `blockPushed` (stage 2 push), `holeFall` / `holeLaunch` / `holeLand` (stage 2), `bombersBump` (stage 3 push), `tunnelEnter` / `tunnelExit` (stage 3), `fuseRing` (stage 4), `stageAnim` (stage 5 plate shine phase), `teleport` (stage 6), `speedPad` / `stopPad` (stage 7), `conveyorSwitch` (stage 8: direction / fast), `jump` (stage 10), `blockRegrow` (stage 10), `sfx` (other sound effects by id) |
+
+Stage gimmick animation states the renderer may need beyond `grid.tile`: stage 5 plate
+shine phase `$5E2A` b0 (event `stageAnim`); stage 8 belt scroll phase `$5CBA` (0..3) and
+switch animations `$5CC4..$5CCA`; stage 9 panel colour cycle `$5CC2`; stage 10 regrowth
+frames come through `grid.tile`. Read them with `game.mem` (`mem[0x5CBA]`…) or add them
+to view.js when 3b needs them.
+
+Tall layout (`layout: 'tall'`): rows 3..29 (playfield cy 4..28); `grid.rows = [2, 30]`
+(the stage-3 tunnels use rows 2/30); positions are not masked to 8 bits (y up to 448);
+dead bombers park at y $1F0. The renderer composes the arena from metatiles: every tall
+row copies one row of the original map, so `grid.tile` holds original tile words.

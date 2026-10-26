@@ -898,7 +898,18 @@ work found beyond / against the sections above, with evidence in the per-area no
   stage 10 jump has no take-off block check (landing on a bomb hops out) and **soft
   blocks regrow** after 64..1280 ticks on empty cells of the init list with no object
   on or next to them (missing from the first SPEC).
-- **AI** (§15): see NOTES-core-ai.md.
+- **AI** (§15; NOTES-core-ai.md; every one of ~136 000 recorded COM AI calls over the 11
+  CPU vectors is reproduced exactly, scratch registers included — `aisnap.py` +
+  `aicheck.mjs`): chase quirk C0CE91 — on the negative branch A is reloaded with the
+  step constant before the threshold compare, so a target to the RIGHT is never chased
+  horizontally and a target BELOW is always chased down whatever the distance (only
+  "left ≥ threshold" / "above ≥ threshold" use the threshold); soft-block seek writes
+  the direction into plan[0] even when the block is adjacent (no plan), and a made plan
+  gets no $FFFF terminator (the walk continues into old buffer entries); bombing an
+  enemy checks all four slots (A may be pressed repeatedly); glove aim: the LAST aligned
+  human in slot order wins; trapped exit: a $55 neighbour in any direction gives [R, 1];
+  the stuck timer drops the plan when the counter exceeds the limit; the stall handler's
+  random walk still checks the tick phase; the "arrived" test also runs in escape mode.
 - **Tall layout** (§17): implemented as specified; sudden death defaults to start at 0:47
   at 15 ticks/block over 136 blocks ("Hurry!" at 0:52), option `'pace'` = 0:33 at 9
   ticks/block; 145-card deck at `$7E3C48`; details in NOTES-core-tall.md.
