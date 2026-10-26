@@ -82,7 +82,8 @@ function inputFlags(p) {
     e |= 0x2000;
   }
   w16(p + 0x0E, e);
-  if (!(r16(p + 0x52) & 0x0001)) velocitySigns(p);
+  // C02348: `LDA #$0052` then `LDA [$6A],Y` with Y still $0E: tests +0E b0 (quirk)
+  if (!(r16(p + 0x0E) & 0x0001)) velocitySigns(p);
 }
 
 function velocitySigns(p) {             // C02357
