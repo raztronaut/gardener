@@ -579,8 +579,9 @@ export function toBomb(o) {
 function C08CC6(o) {                     // ($5D60 b15) thrown bomb clears a stage latch
   if (!(r16(o + 0x52) & 0x0010)) return;
   const idx = r16(o + 0xA8);
-  if (idx === 0x0410) w16(0x5CC4, 0);
-  else if (idx === 0x0510) w16(0x5CC6, 0);
+  const tall = isTall();                 // tall: the switches are (8,15) / (8,17) (stage8.js)
+  if (idx === (tall ? 0x0790 : 0x0410)) w16(0x5CC4, 0);
+  else if (idx === (tall ? 0x0890 : 0x0510)) w16(0x5CC6, 0);
 }
 function powerTile(o, b) {               // C08CF0: stage 5 power tiles -> range 9
   const st = r16(0x1A);
