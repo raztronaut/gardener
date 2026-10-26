@@ -117,7 +117,12 @@ lives in `render/display.js`. Nothing the logic reads is ever written.
   Select+Start: match -> menus -> shelf; B on the title -> shelf.
 - Classic colours (display.js opts.classic, on in app.js): bombs in the black owner's
   palette, flames / burning blocks / items in the red owner's (visual conformance keeps
-  the original's owner colours).
+  the original's owner colours). A bomb in a bomber's hands (lift / carry / throw poses)
+  is a piece of the BOMBER's sprite: pose pieces with tile ids $3C0..$3C9 (C09DBB: the
+  fixed VRAM bomb tiles picked by the held bomb's type +42) get black's palette too; a
+  bomb in flight / bouncing / kicked / conveyed is a mover (mode 1). Check:
+  `node tools/sb2/render/glove_shots.mjs out.png [original|tall] [classic 0|1]` (every
+  colour lifts, carries, throws; one contact-sheet row per bomber).
 - Audio: AudioContext at 32040 Hz; title / menu songs, `<stage>_loop.ogg` with
   loopStart/loopEnd from audio.json; stage 4 (no loop point) streams the 620 s recording
   through a media element. SFX by `ev.sfx` / `sfx` events and the menus' $51 / $52.

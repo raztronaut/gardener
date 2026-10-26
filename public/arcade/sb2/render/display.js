@@ -93,10 +93,13 @@ export function createDisplay(pack, opts = {}) {
       const b2 = rom8(pose + 2), b3 = rom8(pose + 3), b4 = rom8(pose + 4);
       const large = (b3 & 0x80) ? 1 : 0;
       const size = large ? 16 : 8;
-      let attr, gfx;
+      let attr, gfx, xp = 0;
       if (kind === 0) {
         attr = b2 & 0xFE;
         const tid = ((b3 & 0x0F) << 8) | b4;
+        // classic: the bomb in a bomber's lift / carry / throw poses (tiles $3C0..$3C9 =
+        // the held bomb's type, +42) is a piece of the bomber in the bomber's palette
+        if (classic && tid >= 0x3C0 && tid < 0x3CA) xp = 1;
         if (tid >= 0x3C0) {                       // C09DBB: fixed VRAM tiles
           const a = tid < 0x3CA ? rom16(0xC5FC17 + ((A[p + 0x42] << 1) & 0x1FF)) : tid;
           let t = rom8(0xC5FC07 + (a & 0x0F));
@@ -112,8 +115,9 @@ export function createDisplay(pack, opts = {}) {
       if (!(f04 & 0x40)) {                         // C09F9A: hidden objects write nothing
         if (kind !== 2 && (f52 & 1) && (f52 & 0x100) && !(f52 & 0x1000)) attr &= 0xCF;
         oamWrite(slot, x, y, attr, large, gfx);
-        // classic: a kicked / thrown / carried bomb (mover mode 1) in black's healthy palette
-        if (classic && kind === 1 && (A[p + 0x7F] & 0x0F) === 1) S.xpal[slot & 0x7F] = 1;
+        // classic: a kicked / thrown / bouncing / conveyed bomb (mover mode 1) and a held
+        // bomb (above) in black's healthy palette
+        if (xp || (classic && kind === 1 && (A[p + 0x7F] & 0x0F) === 1)) S.xpal[slot & 0x7F] = 1;
       }
       if (kind === 0) slot++;
     }
