@@ -75,3 +75,23 @@ console.log(`${ok}/${total} round inits match`);
     console.log(`${ok}/${total} round inits match`);
   }
 }
+
+// G-BOMBER: the next match after data/sb2/re/round/match_end.state (capgold.py): P3 is the
+// champion (gold, roulette result 4 = +1 shield). Compared: objects, grids, tiles, deck,
+// RNG, settings (the rest of WRAM holds the previous match's leftovers).
+{
+  const gp = path.join(I, 'gold.wram');
+  if (fs.existsSync(gp)) {
+    const exp = new Uint8Array(fs.readFileSync(gp));
+    const g = createGame({ stage: 1, players: [{ type: 'human' }, { type: 'cpu' }, { type: 'cpu' }, { type: 'cpu' }],
+      rules: { gbomber: true, champion: 2, bonus: 4, wins: 3, time: 2, comLevel: 5 }, seed: 0xA9AB });
+    const R = [[0xD6, 0xD8], [0x3C48, 0x3CCC], [0x5C3C, 0x5C3E], [0x5C40, 0x5C5E], [0x8000, 0x10000],
+      [0x1A000, 0x1A800], [0x1C000, 0x20000]];
+    const d = [];
+    for (const [lo, hi] of R) for (let x = lo; x < hi; x++) if (exp[x] !== g.mem[x]) d.push(x);
+    total++; if (!d.length) ok++;
+    console.log(`${d.length ? 'FAIL' : 'PASS'}  gold bomber match   ${d.length} bytes differ` +
+      (d.length ? ': ' + d.slice(0, nmax).map((x) => `${x.toString(16)} exp ${exp[x].toString(16)} got ${g.mem[x].toString(16)}`).join(', ') : ''));
+    console.log(`${ok}/${total} round inits match`);
+  }
+}
