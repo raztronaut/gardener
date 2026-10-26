@@ -6,10 +6,11 @@
 // Screens (fade only, nothing slides; every screen keeps its size while loading):
 //   picker   stage (10 tall thumbnails rendered by the port), layout tall/original, CPU
 //            level, wins to take the match — d-pad / A / B on the SN30 Pro
-//   match    the core (./core) ticked once per display frame (rAF + accumulator, at most
-//            one catch-up tick per frame), drawn by ./render at 256x455 (tall) or 256x224
-//            and scaled to the wall's width with crisp pixels; P1 = white = the pad,
-//            P2..P4 = CPUs
+//   match    the core (./core) at the original's real speed: one tick per SNES frame
+//            (60.0988 Hz, never two ticks in one display frame), except the original's LAG
+//            frames (./pacing.js: the frames its CPU overran) — no tick, no input, the old
+//            picture stays; drawn by ./render at 256x455 (tall) or 256x224 and scaled to
+//            the wall's width with crisp pixels; P1 = white = the pad, P2..P4 = CPUs
 //   tally    after each round: the HUD faces and win digits extracted from the game
 //   victory  the match winner, then back to the picker
 // Input: the wall's raw pad edges (jb<idx><d|u>, jx<l|c|r>, jy<u|c|d>, src/pad.mjs),
@@ -19,6 +20,7 @@ import { createGame } from './core/index.js';
 import { loadPack, ASSET_BASE } from './render/pack.js';
 import { createDisplay } from './render/display.js';
 import { createAudio } from './audio.js';
+import { createPacer } from './pacing.js';
 
 export const SB2_TITLE = 'Super Bomberman 2 · Tall';
 export const SB2_COVER = ASSET_BASE + 'pack/cover.png';
@@ -270,8 +272,10 @@ export async function bootSB2(host, { onExit } = {}) {
   root.appendChild(match);
   const c2d = canvas.getContext('2d', { alpha: false });
   let game = null, disp = null, img = null, paused = false, ended = false;
-  let raf = 0, last = 0, acc = 0;
-  const perf = { ticks: 0, tickMs: 0, drawMs: 0, frames: 0, worst: 0 };
+  let raf = 0, last = 0;
+  const perf = { ticks: 0, tickMs: 0, drawMs: 0, frames: 0, worst: 0, lagFrames: 0 };
+  const pacer = createPacer({ rom8: pack.rom8 });
+  let lagLeft = 0, pendingDraw = false;      // lag frames still to wait out; picture held
   const pads = [0, null, null, null];   // P1 = the pad; P2..P4 = CPUs (no controller)
 
   function startMatch() {
@@ -296,6 +300,7 @@ export async function bootSB2(host, { onExit } = {}) {
     match.classList.toggle('orig', layout !== 'tall');
     captions();
     disp.beginRound(game);
+    pacer.reset(); lagLeft = 0; pendingDraw = false;
     drawFrame();
     paused = false; pauseEl.classList.remove('on');
     ended = false;
@@ -321,6 +326,7 @@ export async function bootSB2(host, { onExit } = {}) {
     game.tick(pads);
     const ev = game.events;
     disp.frame(game, ev);
+    lagLeft = pacer.after(game, disp) - 1;   // the original's frames for this tick
     audio.events(ev);
     for (const e of ev) if (e.type === 'roundEnd') audio.stopMusic(0.6);
     perf.ticks++; perf.tickMs += performance.now() - t0;
@@ -333,20 +339,35 @@ export async function bootSB2(host, { onExit } = {}) {
     const dt = performance.now() - t0;
     perf.frames++; perf.drawMs += dt;
   }
+  // One SNES frame per display frame on the 60 Hz wall. sacc counts SNES frames due
+  // (60.0988 Hz); a frame the original lost to lag costs no display frame when there is a
+  // debt to absorb, so the long-run tick rate is the original's. Never two ticks in one
+  // display frame; a hiccup never fast-forwards.
+  let sacc = 0.5;
   function loop(ts) {
     raf = requestAnimationFrame(loop);
     repeatPoll(ts);
-    if (!game || paused || ended) { last = ts; return; }
+    if (!game || paused || ended) { last = ts; if (pendingDraw && game && ended) { pendingDraw = false; drawFrame(); } return; }
     let dt = last ? ts - last : STEP_MS;
     last = ts;
-    if (Math.abs(dt - STEP_MS) < 2.5) dt = STEP_MS;   // locked to a ~60 Hz display: one tick per frame
-    acc += dt;
-    let n = 0;
-    while (acc >= STEP_MS && n < 2 && !ended) { tick(); acc -= STEP_MS; n++; }   // at most one catch-up tick
-    if (acc >= STEP_MS) acc = 0;                       // a hiccup never fast-forwards
-    if (n) drawFrame();
+    if (dt > 3 * STEP_MS || dt < 0) dt = STEP_MS;
+    sacc += dt / STEP_MS;
+    let ticked = false;
+    while (sacc >= 1) {
+      if (lagLeft > 0) {                 // the original's lag frame: no tick, old picture,
+        lagLeft--; sacc -= 1;            // and a press made only during it is never read
+        latched = 0; perf.lagFrames++;
+        if (lagLeft === 0 && pendingDraw) { pendingDraw = false; drawFrame(); }
+        continue;
+      }
+      if (ticked || ended) break;
+      tick(); sacc -= 1; ticked = true;
+      if (lagLeft > 0) pendingDraw = true;   // the picture appears when the tick "completes"
+      else drawFrame();
+    }
+    if (sacc > 2.5) sacc = 1.5;          // no lag frame to absorb the drift: drop it
   }
-  function startLoop() { if (!raf) { last = 0; acc = 0; raf = requestAnimationFrame(loop); } }
+  function startLoop() { if (!raf) { last = 0; sacc = 0.5; raf = requestAnimationFrame(loop); } }
   function stopLoop() { if (raf) cancelAnimationFrame(raf); raf = 0; }
   // the picker also needs the rAF poll for the d-pad repeat
   function menuLoop(ts) { menuRaf = requestAnimationFrame(menuLoop); if (!raf) repeatPoll(ts); }
@@ -411,6 +432,7 @@ export async function bootSB2(host, { onExit } = {}) {
       roundNo++;
       captions();
       disp.beginRound(game);
+      pacer.reset(); lagLeft = 0; pendingDraw = false;
       drawFrame();
       ended = false; held = 0; latched = 0;
       onPress = matchPress;

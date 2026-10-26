@@ -1,7 +1,7 @@
 // Object pipeline (C01E1D) and the per-bomber routines that are not movement.
 // Objects are the 32 slots at $7E8000 (0..3 = bombers P1..P4, 4.. = movers such as
 // kicked/thrown bombs); the active list $7E2620 is rebuilt every tick in slot order.
-import { r8, r16, w8, w16, OBJ, OBJ_LIST } from './mem.js';
+import { r8, r16, w8, w16, OBJ, OBJ_LIST, COST } from './mem.js';
 import * as move from './move.js';
 import * as ai from './ai.js';
 import * as disease from './disease.js';
@@ -142,14 +142,14 @@ export function objects(G) {
     move.cellLookup(p);                 // C0A4F7
     if ((r8(0x30) & 0x0F) === 0x0F) {
       if (!(r16(p + 0x7E) & 0xFF00)) {
-        ai.tick(p);                     // C0C54B  (COM only)
+        COST.t = 20; ai.tick(p); COST.t = 7;   // C0C54B  (COM only)
         inputFlags(p);                  // C022E2
         disease.perBomber(p);           // C03686
       }
       stage.cellHandler(p);             // C04337  gimmick of the cell under the object
       stage.yButton(p);                 // C065F1  Y action (stage 10 jump ...)
       stage.perBomber(p);               // C05741  per-stage per-object state
-      move.move(p);                     // C0A474  movement, death, item pickup
+      COST.t = 21; move.move(p); COST.t = 7; // C0A474  movement, death, item pickup
       movers.update(p);                 // C08230  kicked / thrown bombs
       bombs.buttons(p);                 // C02945  A / B / X
     }

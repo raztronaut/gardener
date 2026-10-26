@@ -18,8 +18,10 @@ Addresses, RAM layouts and routine lists: `NOTES-re.md`. Sub-notes:
   frames/s.
   - A tick is normally one frame. When a tick overruns, the game drops a frame (a lag
     frame) and the next tick starts one frame late.
-  - Rules are defined in ticks. The port should run exactly one tick per 60 Hz frame and
-    ignore lag.
+  - Rules are defined in ticks. ~~The port should run exactly one tick per 60 Hz frame and
+    ignore lag.~~ **Corrected:** the game SPEED is set by the lag: the port reproduces the
+    original's lost frames from a measured cost model (`tools/sb2/NOTES-pacing.md`,
+    `public/arcade/sb2/pacing.js`); the rules themselves stay per tick.
   - Vectors record the tick counter, so the original's frames can be mapped to ticks.
     [code `C0FB11`, NMI `00FD84`]
   - **Corrected in phase 3a [code + meas]:** the NMI increments `$32` at the START of a

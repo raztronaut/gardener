@@ -19,10 +19,17 @@ export let M = new Uint8Array(WRAM_SIZE);
 
 export function use(bytes) { M = bytes; }
 
-export function r8(a) { return M[a]; }
-export function r16(a) { return M[a] | (M[a + 1] << 8); }
-export function w8(a, v) { M[a] = v; }
-export function w16(a, v) { M[a] = v; M[a + 1] = v >> 8; }
+// Work meter for the pacing model (../pacing.js): every memory access of the logic is
+// counted under the routine group COST.t (set by loop.js / bombers.js). The original's CPU
+// time per tick follows these counts (fitted against the harness's cycle measurements,
+// tools/sb2/re/lagcost.py); it never feeds back into the logic.
+export const COST = { t: 0, n: new Float64Array(32), last: new Float64Array(32) };
+const CN = COST.n;
+
+export function r8(a) { CN[COST.t]++; return M[a]; }
+export function r16(a) { CN[COST.t]++; return M[a] | (M[a + 1] << 8); }
+export function w8(a, v) { CN[COST.t]++; M[a] = v; }
+export function w16(a, v) { CN[COST.t]++; M[a] = v; M[a + 1] = v >> 8; }
 // signed views
 export function s8(a) { return (M[a] << 24) >> 24; }
 export function s16(a) { return (r16(a) << 16) >> 16; }

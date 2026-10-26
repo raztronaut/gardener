@@ -30,8 +30,9 @@ game.mem           // the authoritative state: a 128 KiB image laid out like the
                    // only this, so a saved image replays identically.
 ```
 
-Timing: the original runs one logic tick per 60.1 Hz video frame (it drops frames on
-overrun; ignore that — call `tick()` once per frame). For the first 16 ticks of a round
+Timing: the original runs one logic tick per 60.1 Hz video frame, except the frames it
+loses when a tick overruns; `../pacing.js` predicts those from the tick's work
+(`COST` in mem.js counts the logic's memory accesses per routine group; NOTES-pacing.md). For the first 16 ticks of a round
 the screen fades in and the bombers are frozen (`state.frozen`); the clock and bombs
 already run.
 

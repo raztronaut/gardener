@@ -320,6 +320,7 @@ export function createDisplay(pack, opts = {}) {
   const pendingPuffs = [];
   const pendingHas = (k) => { for (let q = 0; q < pendingPuffs.length; q += 3) if (pendingPuffs[q] === k) return true; return false; };
   let lastTick = -1, lastSD = 0;
+  const stats = { fx: 0, newFrame: 0 };          // per tick, read by the pacing model
   function beginRound(game) {
     M = game.mem;
     const id = g16(0x1A);
@@ -379,6 +380,10 @@ export function createDisplay(pack, opts = {}) {
     }
     lastSD = sd;
     fxTick();
+    // for the pacing model (../pacing.js): effect objects C10CAF ran this tick
+    let nfx = 0;
+    for (let k = 0; k < 16; k++) if (e16(fx[k], 0) & 0x8000) nfx++;
+    stats.fx = nfx;
     // item-scatter puffs (C09689 -> C096B9): created after C10CAF, so first drawn next tick
     if (events) for (const ev of events) {
       if (ev.type !== 'itemScattered') continue;
@@ -397,6 +402,7 @@ export function createDisplay(pack, opts = {}) {
       if ((g16(p) & 0xA000) === 0x8000 && prev >= 0 && !(prev === 0x0FFF && t === 0x0FFF) && !(prev > 0 && prev !== 0x0FFF && t === prev - 1)) newFrame = true;
       animPrev[i] = t;
     }
+    stats.newFrame = newFrame ? 1 : 0;
     bg2FromMirror();
     hudUpdate(newFrame);
     buildOAM();
@@ -415,5 +421,5 @@ export function createDisplay(pack, opts = {}) {
     return out;
   }
 
-  return { ppu, H, W: 256, out, tall, beginRound, frame, render };
+  return { ppu, H, W: 256, out, tall, beginRound, frame, render, stats };
 }
