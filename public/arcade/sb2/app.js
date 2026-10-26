@@ -98,15 +98,16 @@ const CSS = `
 .sb2-rows { margin-top:70px; display:flex; flex-direction:column; gap:22px; width:640px; }
 .sb2-row { display:flex; align-items:center; gap:26px; height:124px; padding:0 28px; border-radius:22px; border:1px solid var(--stroke); }
 .sb2-row.win { border-color:var(--gold); background:rgba(255,217,138,.07); }
-.sb2-face { width:64px; height:96px; background-repeat:no-repeat; image-rendering:pixelated; flex:none; }
+.sb2-face { width:64px; height:64px; background-repeat:no-repeat; image-rendering:pixelated; flex:none; }
 .sb2-row .nm { flex:1; text-align:left; font-size:26px; color:var(--ink); }
 .sb2-row .nm small { display:block; font-size:16px; color:var(--ink-faint); margin-top:2px; }
-.sb2-digit { width:32px; height:64px; background-repeat:no-repeat; image-rendering:pixelated; flex:none; }
+.sb2-digit { width:32px; height:32px; background-repeat:no-repeat; image-rendering:pixelated; flex:none; }
 .sb2-pips { display:flex; gap:8px; }
 .sb2-pips span { width:16px; height:16px; border-radius:50%; border:2px solid var(--stroke-strong); }
 .sb2-pips span.on { background:var(--gold); border-color:var(--gold); }
 .sb2-foot { margin-top:auto; font-size:18px; color:var(--ink-faint); }
-.sb2-champ { margin-top:80px; width:192px; height:288px; background-repeat:no-repeat; image-rendering:pixelated; }
+.sb2-champbox { margin-top:56px; width:240px; height:272px; display:flex; align-items:flex-end; justify-content:center; }
+.sb2-champ { background-repeat:no-repeat; image-rendering:pixelated; }
 `;
 
 function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
@@ -226,8 +227,8 @@ export async function bootSB2(host, { onExit } = {}) {
     if (bit === BT.A || bit === BT.START) { startMatch(); return; }
     const d = bit === BT.RIGHT ? 1 : bit === BT.LEFT ? -1 : 0;
     if (focus === 0) {
-      if (bit === BT.UP) { if (set.stage > 5) set.stage -= 5; }
-      else if (bit === BT.DOWN) { if (set.stage <= 5) set.stage += 5; else focus = 2; }
+      // left / right walk the 10 stages (row to row), down goes to the options
+      if (bit === BT.DOWN) focus = 2;
       else if (d) set.stage = ((set.stage - 1 + d + 10) % 10) + 1;
       else return;
     } else if (bit === BT.UP) focus = focus === 2 ? 0 : focus - 1;
@@ -338,9 +339,33 @@ export async function bootSB2(host, { onExit } = {}) {
   const tally = el('div', 'sb2-scr sb2-dark sb2-res');
   const victory = el('div', 'sb2-scr sb2-dark sb2-res');
   root.append(tally, victory);
-  const faceCss = (i, dead, scale) => `background-image:url(${ASSET_BASE}hud/faces.png);background-size:${144 * scale}px ${24 * scale}px;background-position:-${(2 * i + (dead ? 1 : 0)) * 18 * scale}px 0`;
+  // HUD faces (hud/faces.png: 16x24 each, alive/dead per colour, 18 px apart); rows 4..19 = the face
+  const faceCss = (i, dead, scale) => `background-image:url(${ASSET_BASE}hud/faces.png);background-size:${144 * scale}px ${24 * scale}px;background-position:-${(2 * i + (dead ? 1 : 0)) * 18 * scale}px -${4 * scale}px`;
+  // HUD digits (hud/glyphs.png: 8x16 = the digit tile + the bar's lower border): the top 8x8
   const digitCss = (d, scale) => `background-image:url(${ASSET_BASE}hud/glyphs.png);background-size:${88 * scale}px ${16 * scale}px;background-position:-${d * 8 * scale}px 0`;
   let roundNo = 1;
+  // the between-round figures extracted from the game (sprites/screen_bombers.png, real
+  // palettes): cheering winner / loser loops, frame lengths in video frames
+  const FIG = (pack.manifest.figures && pack.manifest.figures.anims) || {};
+  const COLKEY = ['white', 'black', 'red', 'blue'];
+  let figTimer = 0;
+  function animateFigure(elm, i, kind, scale) {
+    clearTimeout(figTimer);
+    const fr = (FIG[COLKEY[i]] || {})[kind] || [];
+    if (!elm || !fr.length) return;
+    elm.style.backgroundImage = `url(${ASSET_BASE}${pack.manifest.figures.atlas})`;
+    elm.style.backgroundSize = `${768 * scale}px ${770 * scale}px`;
+    let k = 0;
+    const step = () => {
+      if (stopped || !elm.isConnected) return;
+      const [x, y, w, h, d] = fr[k];
+      elm.style.width = w * scale + 'px'; elm.style.height = h * scale + 'px';
+      elm.style.backgroundPosition = `-${x * scale}px -${y * scale}px`;
+      k = (k + 1) % fr.length;
+      figTimer = setTimeout(step, Math.max(16, d * 1000 / 60.0988));
+    };
+    step();
+  }
   function rowsHtml(wins, winner) {
     return wins.map((w, i) => {
       const pips = Array.from({ length: set.wins }, (_, k) => `<span class="${k < w ? 'on' : ''}"></span>`).join('');
@@ -378,9 +403,10 @@ export async function bootSB2(host, { onExit } = {}) {
   function showVictory(res, winner) {
     const w = winner != null ? winner : res.wins.indexOf(Math.max(...res.wins));
     victory.innerHTML = `<div class="k">Match over</div><div class="h">${COLOURS[w]} wins the match</div>
-      <div class="sb2-champ" style="${faceCss(w, false, 12)}"></div>
+      <div class="sb2-champbox"><div class="sb2-champ"></div></div>
       <div class="sb2-rows" style="margin-top:60px">${rowsHtml(res.wins, w)}</div>
       <div class="sb2-foot">A for the stage list</div>`;
+    animateFigure(victory.querySelector('.sb2-champ'), w, 'winner', 8);
     audio.playMusic('victory', { loop: false });
     onPress = (bit) => { if (bit === BT.A || bit === BT.START || bit === BT.B) back(); };
     show(victory);
@@ -401,6 +427,7 @@ export async function bootSB2(host, { onExit } = {}) {
     stopped = true;
     stopLoop();
     cancelAnimationFrame(menuRaf);
+    clearTimeout(figTimer);
     for (const t of timers) clearTimeout(t);
     timers.clear();
     window.removeEventListener('keydown', onKeyDown, true);
@@ -420,7 +447,7 @@ export async function bootSB2(host, { onExit } = {}) {
     get state() { return game ? game.state : null; },
     perf,
     // QA hooks (headless tests, tools/sb2/qa/)
-    _game: () => game, _set: set, _audio: audio,
+    _game: () => game, _disp: () => disp, _set: set, _audio: audio,
   };
   window.__SB2 = ctl;
   return ctl;

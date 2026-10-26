@@ -367,7 +367,8 @@ export function createDisplay(pack, opts = {}) {
       ew16(ban, 0x10, x);
       if ((x & 0x1F0) === 0x1A0) ewipe(ban);
     }
-    if (events) for (const ev of events) if (ev.type === 'hurry') fxCreate(0, 0x140, 0x70, 0);
+    // (tall: the banner crosses the middle of the taller arena, 116 lines lower)
+    if (events) for (const ev of events) if (ev.type === 'hurry') fxCreate(0, 0x140, tall ? 0x70 + 0x74 : 0x70, 0);
     // falling block (C10761 at every sudden-death step: slot 1, the cell centre)
     const sd = g16(0x5D14);
     if (sd !== lastSD && sd !== 0) {

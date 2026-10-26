@@ -52,11 +52,8 @@ if (!await waitFor(`!!(window.__SB2 && window.__SB2.screen === 'picker' && docum
 await sleep(800);
 // set stage / layout / wins with the d-pad: go to stage 1 first
 const cur = await sb2('s._set');
-for (let k = 0; k < 12 && (await sb2('s._set.stage')) !== 1; k++) { await pad.push('l', 60); await sleep(90); }
-if (STAGE > 5) { await pad.push('d', 60); await sleep(90); }
-for (let k = 1; k < ((STAGE - 1) % 5) + 1; k++) { await pad.push('r', 60); await sleep(90); }
-await pad.push('d', 60); await sleep(90);              // -> arena row (from the lower thumbnail row)
-if (STAGE <= 5) { await pad.push('d', 60); await sleep(90); }
+for (let k = 0; k < 12 && (await sb2('s._set.stage')) !== STAGE; k++) { await pad.push('r', 60); await sleep(90); }
+await pad.push('d', 60); await sleep(90);              // -> arena row
 if ((await sb2('s._set.layout')) !== LAYOUT) { await pad.push('r', 60); await sleep(120); }
 await pad.push('d', 60); await sleep(90);              // -> CPU level
 await pad.push('d', 60); await sleep(90);              // -> wins
