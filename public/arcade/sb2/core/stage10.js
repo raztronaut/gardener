@@ -3,7 +3,7 @@
 // addresses (see stage.js).
 //
 // Jump fields: +02 b0 jumping, b1 apex passed, b2 direction chosen; +C0 landing y (low
-// byte; moves with the shadow on vertical jumps), +C2 jump direction (2 R, 4 L, 8 D,
+// byte — the whole y on the tall field; moves with the shadow on vertical jumps), +C2 jump direction (2 R, 4 L, 8 D,
 // $10 U), +C8 the shadow object (a mover slot), +9A the input at take-off.
 // Regrowth: $5D0A delay, $5D0C index into the regrow list $7F0300 (grid idx) /
 // $7F0700 (tile idx); the growing block: $7F0B00 tile idx (0 = none), $7F0B02 grid idx,
@@ -12,6 +12,7 @@ import { r8, r16, w8, w16, OBJ_LIST, GRID } from './mem.js';
 import { emit } from './events.js';
 import * as move from './move.js';
 import * as movers from './movers.js';
+import { isTall } from './geom.js';
 
 const JUMP_ANIM = { 2: 0x0002, 4: 0x0006, 8: 0x0004, 0x10: 0x0000 };   // $C5E817[+5E]
 const REGROW_TILES = [0x1CC0, 0x1CC2, 0x1CC4, 0x1CC6, 0x1C02, 0xFFFF];   // $C5E386
@@ -51,7 +52,10 @@ function jumpLaunch(p) {                // C06852: vy 4 up, decelerating 0.25/ti
   w16(p, r16(p) | 0x000A);
   w16(p + 0x14, 0);
   w16(p + 0x16, 0);
-  w16(p + 0xC0, r16(p + 0x18) & 0xFF);
+  // tall: the original keeps only the low byte of the landing y (y < 256 on 13x11); on
+  // the 13x25 field y reaches 448, so +C0 holds the whole y (else a jump below row 16
+  // lands 256 px = 16 rows higher)
+  w16(p + 0xC0, isTall() ? r16(p + 0x18) : r16(p + 0x18) & 0xFF);
   shadow(p);                            // C04C0C
   const s = r16(0x73);                  // (the original zeroes [$73] even if no slot)
   for (const o of [0x14, 0x16, 0x24, 0x26, 0x1C, 0x1E, 0x2C, 0x2E]) w16(s + o, 0);
@@ -129,7 +133,8 @@ function jumpMove(p) {                  // C066F5
     }
   } else if (!(r16(0x32) & 1)) {        // C06789 down / C067A6 up: 1 px every 2 ticks
     const dv = (c & 8) ? 1 : -1;
-    w8(p + 0xC0, (r8(p + 0xC0) + dv) & 0xFF);
+    if (isTall()) w16(p + 0xC0, (r16(p + 0xC0) + dv) & 0xFFFF);
+    else w8(p + 0xC0, (r8(p + 0xC0) + dv) & 0xFF);
     w16(s + 0x18, (r16(s + 0x18) + dv) & 0xFFFF);
   }
 }
@@ -147,7 +152,8 @@ function jumpDir(p) {                   // C05F45: COM -> C05F25, human -> its p
 
 function landed(p) {                    // C06819
   w16(0x5D02, 0);
-  if ((r16(p + 0x18) & 0xFF) < (r16(p + 0xC0) & 0xFF)) return false;
+  const m = isTall() ? 0xFFFF : 0xFF;   // tall: whole y (see C06852)
+  if ((r16(p + 0x18) & m) < (r16(p + 0xC0) & m)) return false;
   if (r8(p + 0xB4) === 0x43) w16(0x5D02, 1);
   return true;
 }

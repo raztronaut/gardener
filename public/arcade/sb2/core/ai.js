@@ -10,6 +10,7 @@
 import { r8, r16, w8, w16, OBJ } from './mem.js';
 import { rng } from './rng.js';
 import * as move from './move.js';
+import { isTall } from './geom.js';
 
 const GRID = 0x1C000, DANGER = 0x18000;
 
@@ -372,14 +373,17 @@ function glove(p) {                      // C0C63D
   const t = u(r16(p + 0xD6) + 1);
   w16(p + 0xD6, t);
   if (HOLD[lvl(p)] >= t) return;
-  // C0C66E: face every aligned living HUMAN in slot order (the last match wins)
+  // C0C66E: face every aligned living HUMAN in slot order (the last match wins).
+  // tall: the original's AND #$00F8 on y assumes y < 256; on the 13x25 field y reaches
+  // 448, so y keeps bit 8 (else a human 16 rows away counts as "same row"). x < 256.
+  const ym = isTall() ? 0x1F8 : 0xF8;
   for (let q = 0; q < 4; q++) {
     const o = OBJ + q * 0x100;
     if (o === p || (r16(o) & 0x0800) || (r16(o + 4) & 0x0001)) continue;
     w16(0x40, r16(p + 0x10) & 0xF8);
     if ((r16(p + 0x10) & 0xF8) === (r16(o + 0x10) & 0xF8)) {
       w16(p + 0x6E, r16(p + 0x18) >= r16(o + 0x18) ? 0x800 : 0x400);
-    } else if ((w16(0x40, r16(p + 0x18) & 0xF8), (r16(p + 0x18) & 0xF8) === (r16(o + 0x18) & 0xF8))) {
+    } else if ((w16(0x40, r16(p + 0x18) & ym), (r16(p + 0x18) & ym) === (r16(o + 0x18) & ym))) {
       w16(p + 0x6E, r16(p + 0x10) >= r16(o + 0x10) ? 0x200 : 0x100);
     }
   }
