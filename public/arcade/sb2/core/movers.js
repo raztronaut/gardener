@@ -78,7 +78,9 @@ const ownerOf = (b) => 0x8000 | (r8(b + 6) << 8);       // C0E651 ([$70])
 
 // ---- object slots --------------------------------------------------------------------
 // C02F1B: first free slot of $7E8400.. (28); +A8/+AA low bytes cleared. null = none.
-function allocMover() {
+// It saves the current object pointer ($6A/$6C) in $5BFE/$5C00 (restored by C02F0A).
+function allocMover(cur, bank = 0x7E) {
+  w16(0x5BFE, cur & 0xFFFF); w8(0x5C00, bank);
   for (let k = 0, o = 0x8400; k < 0x1C; k++, o += 0x100) {
     if (!(r16(o) & 0x8000)) { w8(o + 0xA8, 0); w8(o + 0xAA, 0); return o; }
   }
@@ -329,7 +331,7 @@ function sinkInHole(o) {                 // C13E86: anim end -> object freed, bo
 
 function itemUnder(o) {                  // shared by C08A30 / C0881F / C094D3: an item is
   w16(0x5C10, r16(o + 0xAA));            // under the mover: a skull flies away, others
-  if (r16(TILE + r16(o + 0xAA)) === 0x160A) skullFly();   // are destroyed
+  if (r16(TILE + r16(o + 0xAA)) === 0x160A) skullFly(o);   // are destroyed
   else restoreUnder(r16(o + 0xA8), r16(o + 0xAA));
 }
 
@@ -666,7 +668,7 @@ export function kick(p) {
   w16(b, r16(b) | 0x1000);
   w16(0x5C0E, r16(b + 0x0A));
   clearDanger(b);                        // C0E303
-  const o = allocMover();
+  const o = allocMover(p);
   if (o === null) return false;
   initObject(o, 'bomb');
   w16(o + 0x46, delta);
@@ -767,7 +769,7 @@ export function throwRelease(p) {
   w16(p + 0x6A, wt(T.ANIM_C5EE41, r16(p + 0x5E)));
   w16(p + 0x56, (r16(p + 0x50) - 1) & 0xFFFF);
   w16(p + 0x0E, (r16(p + 0x0E) | 0x3000) & 0x3FFF);
-  const o = allocMover();
+  const o = allocMover(p);
   if (o === null) return;
   initObject(o, 'bomb');
   w16(o + 0x40, r16(p + 0x40));
@@ -809,7 +811,7 @@ function throwDistance(p) {
 // C0A743: a bomber that dies / is hit while carrying drops its bomb: it hops one cell
 // in a random direction.
 export function dropCarried(p) {
-  const o = allocMover();
+  const o = allocMover(p);
   if (o === null) return;
   initObject(o, 'bomb');
   w16(o + 0x40, r16(p + 0x40));
@@ -841,8 +843,8 @@ export function stopKicked(o) {
 // C0EE71: a bombed skull flies 3 cells in a random direction ($5C0E = its cell,
 // $5C10 = its tile index). Called by the explosion code (bombs.js, C0EF86) and by a
 // kicked bomb rolling over a skull.
-export function skullFly() {
-  const o = allocMover();
+export function skullFly(cur = r16(0x6A)) {
+  const o = allocMover(cur);
   if (o === null) return;
   initObject(o, 'item');
   const [x, y] = move.cellCentre(r16(0x5C0E));
@@ -863,8 +865,8 @@ export function skullFly() {
 
 // C09231: launch one item (kind $5C84) out of bomber src; $5C72 = index into the
 // per-tick RNG table for its direction and distance.
-export function spawnFlyingItem(src) {
-  const o = allocMover();
+export function spawnFlyingItem(src, cur = r16(0x6A)) {
+  const o = allocMover(cur);
   if (o === null) return;
   initObject(o, 'item');
   w16(o + 0x10, r16(src + 0x10));
