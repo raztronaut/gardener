@@ -146,6 +146,12 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
     } else {
       // no tick ran in this group (rng unchanged): $32 was double-incremented (the NMI hit
       // between INC $16 and the main loop's wait); the skipped value never runs
+      // (a round that ends inside a lag tick changes $B9 only in the group's last frames:
+      // the tick then completed there, so look at the end of the group before skipping)
+      if (frames[c].truth.rng === prevRng && c < j && frames[j].truth.rng !== prevRng) c = j;
+      // the round-over flag ($B9 b14) is the last thing a tick writes (C00A38): when it rises
+      // inside the group, the tick completed in that frame, not before it
+      if (c < j && !(frames[c].truth.timer[5] & 0x4000) && (frames[c + 1].truth.timer[5] & 0x4000)) c++;
       if (frames[c].truth.rng === prevRng) { prevTick = t0; i = j + 1; continue; }
       if (t0 !== prevTick + 1 && t0 !== prevTick + 2) { diffs.push({ frame: i, tick: t0, d: [['tick', 'one tick per frame', `jump ${prevTick}->${t0}`]] }); break; }
       // the running tick sees $32 = truth.tick (also after a double increment)

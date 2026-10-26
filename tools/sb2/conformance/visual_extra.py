@@ -11,8 +11,7 @@ data/sb2/conformance/visual_vectors/ with their start WRAM in .../visual_vectors
 Scenarios:
   hurry_cpu      4 COM on stage 1, clock poked to 0:41: "Hurry!" banner at 0:38, sudden
                  death from 0:33 with the COMs still playing, deaths, round end
-  hurry_stage04  same on stage 4 (centre spawns, fuse track) and stage 6 (teleporters)
-  hurry_stage06
+  hurry_stageNN  the same on stages 2..10 (every stage's falling blocks / banner palette)
 """
 import json
 import os
@@ -31,11 +30,8 @@ CLOCK_041 = lambda R: [(0x5E10, 0, 2), (0x5E12, 41, 2), (0x5E14, 0, 2)]  # noqa:
 SCEN = [
     dict(name='hurry_cpu', desc='4 COM, stage 1, clock 0:41 -> Hurry, sudden death, round end',
          state='com4_stage01', pads=[[0] * 5] * 3000, setup=[CLOCK_041], multitap=False),
-    dict(name='hurry_stage04', desc='4 COM, stage 4, clock 0:41', state='com4_stage04',
-         pads=[[0] * 5] * 2600, setup=[CLOCK_041], multitap=False),
-    dict(name='hurry_stage06', desc='4 COM, stage 6, clock 0:41', state='com4_stage06',
-         pads=[[0] * 5] * 2600, setup=[CLOCK_041], multitap=False),
-]
+] + [dict(name='hurry_stage%02d' % n, desc='4 COM, stage %d, clock 0:41' % n, state='com4_stage%02d' % n,
+          pads=[[0] * 5] * 2600, setup=[CLOCK_041], multitap=False) for n in range(2, 11)]
 
 
 def record():

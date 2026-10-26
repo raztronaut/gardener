@@ -41,6 +41,7 @@ const COLOURS = ['White', 'Black', 'Red', 'Blue'];
 const SETTINGS_KEY = 'garden.sb2.settings';
 
 let packPromise = null;
+const displays = new Map();    // layout -> { d, img }: kept for the page's life (see startMatch)
 export function preloadSB2() {
   if (!packPromise) packPromise = loadPack().catch((e) => { packPromise = null; throw e; });
   return packPromise;
@@ -59,25 +60,26 @@ const CSS = `
 .sb2-kicker { font-size:15px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--mint); }
 .sb2-title { font-family:var(--font-display); font-weight:400; font-size:62px; line-height:1.02; margin-top:12px; color:#fff; }
 .sb2-title b { font-weight:400; color:var(--mint); }
-.sb2-grid { margin-top:34px; display:grid; grid-template-columns:repeat(5, 152px); grid-auto-rows:271px; gap:18px 14px; justify-content:center; }
-.sb2-tile { position:relative; width:152px; height:271px; border-radius:12px; overflow:hidden; background:#02080a;
+.sb2-grid { margin-top:38px; display:grid; grid-template-columns:repeat(5, 160px); grid-auto-rows:285px; gap:20px 12px; justify-content:center; }
+.sb2-tile { position:relative; width:160px; height:285px; border-radius:12px; overflow:hidden; background:#02080a;
   box-shadow:0 10px 24px rgba(0,0,0,.45); opacity:.5; transition:opacity .15s linear; display:flex; align-items:center; justify-content:center; }
-.sb2-tile img { width:152px; height:auto; display:block; }
-.sb2-tile .n { position:absolute; left:8px; top:6px; font-family:var(--font-display); font-size:22px; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.9); }
+.sb2-tile img { width:160px; height:auto; display:block; }
+.sb2-tile .n { position:absolute; left:0; bottom:0; min-width:34px; height:30px; padding:0 9px; border-radius:0 10px 0 0; background:rgba(2,10,8,.82);
+  font-family:var(--font-display); font-size:22px; line-height:30px; color:#fff; text-align:center; }
 .sb2-grid.dim .sb2-tile.sel { opacity:.8; }
 .sb2-tile.sel { opacity:1; box-shadow:0 0 0 3px var(--mint), 0 14px 34px rgba(0,0,0,.6); }
-.sb2-stage { margin-top:26px; text-align:center; min-height:84px; }
+.sb2-stage { margin-top:34px; text-align:center; min-height:84px; }
 .sb2-stage .t { font-family:var(--font-display); font-size:40px; color:#fff; line-height:1.05; }
 .sb2-stage .d { margin-top:6px; font-size:19px; color:var(--ink-soft); }
-.sb2-opts { margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+.sb2-opts { margin-top:26px; display:flex; flex-direction:column; gap:10px; }
 .sb2-opt { display:flex; align-items:center; justify-content:space-between; height:62px; padding:0 22px; border-radius:16px;
   border:1px solid var(--stroke); font-size:21px; color:var(--ink-soft); }
 .sb2-opt .v { display:flex; align-items:center; gap:14px; font-family:var(--font-display); font-size:30px; color:var(--ink); }
 .sb2-opt .v i { font-style:normal; font-family:var(--font); font-size:22px; color:var(--ink-faint); opacity:0; }
 .sb2-opt.sel { border-color:var(--mint); color:var(--ink); background:rgba(116,247,176,.07); }
 .sb2-opt.sel .v i { opacity:1; color:var(--mint); }
-.sb2-play { margin-top:20px; height:72px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:14px;
-  font-size:24px; font-weight:600; color:#04140e; background:var(--mint); opacity:.55; }
+.sb2-play { margin-top:28px; height:72px; border-radius:999px; display:flex; align-items:center; justify-content:center; gap:14px;
+  font-size:24px; font-weight:600; color:#04140e; background:var(--mint); opacity:.8; }
 .sb2-play.sel { opacity:1; box-shadow:0 10px 30px rgba(116,247,176,.28); }
 .sb2-play kbd { font-family:var(--font); font-size:15px; font-weight:600; border:1.5px solid rgba(4,20,14,.45); border-radius:7px; padding:1px 8px; }
 .sb2-hint { margin-top:auto; text-align:center; font-size:16px; color:var(--ink-faint); line-height:1.6; }
@@ -240,7 +242,7 @@ export async function bootSB2(host, { onExit } = {}) {
   function showPicker() {
     stopLoop();
     audio.stopMusic(0.3);
-    game = null; disp = null;
+    game = null;
     focus = 0;
     pickRender();
     onPress = pickPress;
@@ -266,9 +268,16 @@ export async function bootSB2(host, { onExit } = {}) {
       players: [{ type: 'human' }, ...[1, 2, 3].map(() => ({ type: 'cpu', level: set.level }))],
       rules: { wins: set.wins, time: 3, gbomber: false, comLevel: set.level },
     });
-    disp = createDisplay(pack, { layout, stage });
+    // one display per layout for the session: no per-match allocation, and the JIT keeps
+    // its optimised render path (a fresh display per match measured 2.5x slower)
+    let dv = displays.get(layout);
+    if (!dv) {
+      const d = createDisplay(pack, { layout, stage });
+      dv = { d, img: new ImageData(new Uint8ClampedArray(d.out.buffer), 256, d.H) };
+      displays.set(layout, dv);
+    }
+    disp = dv.d; img = dv.img;
     canvas.width = 256; canvas.height = disp.H;
-    img = new ImageData(new Uint8ClampedArray(disp.out.buffer), 256, disp.H);
     disp.beginRound(game);
     drawFrame();
     paused = false; pauseEl.classList.remove('on');
@@ -399,17 +408,20 @@ export async function bootSB2(host, { onExit } = {}) {
     document.removeEventListener('visibilitychange', onVis);
     audio.close();
     root.remove();
+    if (window.__SB2 && window.__SB2.stop === stop) window.__SB2 = null;
   }
 
   showPicker();
   root.classList.add('ready');
-  return {
+  const ctl = {
     raw, stop,
     inGame: () => !stopped,
     get screen() { return screen === pick ? 'picker' : screen === match ? 'match' : screen === tally ? 'tally' : screen === victory ? 'victory' : null; },
     get state() { return game ? game.state : null; },
     perf,
-    // QA hooks (headless tests)
-    _game: () => game, _set: set,
+    // QA hooks (headless tests, tools/sb2/qa/)
+    _game: () => game, _set: set, _audio: audio,
   };
+  window.__SB2 = ctl;
+  return ctl;
 }
