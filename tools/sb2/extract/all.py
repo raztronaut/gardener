@@ -11,6 +11,7 @@ Needs the harness core + states (tools/sb2/harness/build.sh, paths.py, paths.py
      hud.py      -> data/sb2/assets/hud/
      sound.py    -> data/sb2/assets/audio/
   5. preview.py  -> data/sb2/assets/preview/
+  6. menus.py    -> data/sb2/assets/menus/ (+ menu music / SFX into audio/)
 """
 import argparse
 import os
@@ -56,6 +57,7 @@ def main():
     run(['stages.py'])
     parallel([['sprites.py'], ['hud.py'], ['sound.py']], a.jobs)
     run(['preview.py'])
+    run(['menus.py', '--sound'])
 
 
 if __name__ == '__main__':
