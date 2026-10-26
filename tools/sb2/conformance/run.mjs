@@ -16,8 +16,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createGame } from '../../../public/arcade/sb2/core/index.js';
-import { use, r8, r16 } from '../../../public/arcade/sb2/core/mem.js';
+// The core under test: SB2_CORE=<dir> overrides (e.g. a snapshot copy, see snapcore.sh).
+const CORE_DIR = process.env.SB2_CORE ? path.resolve(process.env.SB2_CORE) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../public/arcade/sb2/core');
+const { createGame } = await import(path.join(CORE_DIR, 'index.js'));
+const { use, r8, r16 } = await import(path.join(CORE_DIR, 'mem.js'));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
@@ -117,7 +119,11 @@ export function runVector(name, { verbose = false, max = 1, only = null, onTick 
     // (2-frame group = lag), or at the first for long groups (frozen post-round screens)
     let j = i;
     while (j + 1 < frames.length && frames[j + 1].truth.tick === t0) j++;
-    const c = j - i + 1 <= 2 ? j : i;
+    // last frame of the group that still shows the same mode word $B9: long ticks (lag)
+    // complete at the group's end; after the final tick of a round $B9 changes (exit to
+    // the scoreboard) and the frozen screens are not part of the battle state
+    let c = i;
+    while (c < j && frames[c + 1].truth.timer[5] === frames[i].truth.timer[5]) c++;
     const fr = frames[i];
     if (t0 < prevTick) {                         // tick counter reset: next round
       rounds++;

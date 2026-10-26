@@ -13,7 +13,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readTrace } from './wtrace.mjs';
-import { createGame } from '../../../public/arcade/sb2/core/index.js';
+// The core under test: SB2_CORE=<dir> overrides (e.g. a snapshot copy, see snapcore.sh).
+const CORE_DIR = process.env.SB2_CORE ? path.resolve(process.env.SB2_CORE) : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../public/arcade/sb2/core');
+const { createGame } = await import(path.join(CORE_DIR, 'index.js'));
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
