@@ -47,7 +47,8 @@ async function grab(name) {
   fs.writeFileSync(f, Buffer.from(url.split(',')[1], 'base64'));
   console.log('  grab', path.basename(f), await sb2('s.screen'));
 }
-const shot = async (name) => { const f = path.join(OUT, `page_${name}.png`); await c.screenshot(f); console.log('  shot', path.basename(f)); };
+// the test server may be in night mode (the wall's dimmer): lift it for the page shots
+const shot = async (name) => { await ev(`document.body.classList.remove('night', 'idle')`); await sleep(300); const f = path.join(OUT, `page_${name}.png`); await c.screenshot(f); console.log('  shot', path.basename(f)); };
 const tap = async (b, wait = 250) => { await pad.tap(b, 70); await sleep(wait); };
 const push = async (d, wait = 250) => { await pad.push(d, 70); await sleep(wait); };
 
@@ -108,6 +109,7 @@ await push('l', 100); await idle(4000);                       // stage 1 (wrap f
 console.log('  settings', JSON.stringify(await sb2('s._set')));
 
 await sb2('(s._set.wins = 2, 1)');                       // a short match for the QA
+if (process.argv.includes('--classic')) await sb2(`(s._set.layout = 'classic', 1)`);
 console.log('6. START -> match');
 await tap('A', 600); await grab('stage_go');
 if (!await waitFor(`window.__SB2.screen === 'match'`, 12000)) throw new Error('match did not start');
