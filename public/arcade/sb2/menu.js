@@ -289,7 +289,7 @@ export function createMenu(mp, opts = {}) {
       const tc = M.title_cursor;
       if (titleConfirm >= 0) {
         const f = tc.confirm[titleConfirm];
-        if (f) spr(f.x, f.y + dy + (cursor - 1) * 16, 16, 16, f.pal, 3, ppu.vramObj(f.tile, 16));
+        if (f) spr(f.x, f.y + dy + cursor * 16, 16, 16, f.pal, 3, ppu.vramObj(f.tile, 16));
       } else {
         const idle = tc.idle;
         let t = frameNo % 53, k = 0, acc = 0;
@@ -420,7 +420,7 @@ export function createMenu(mp, opts = {}) {
       if (up && cursor > 0) { cursor--; sfx(SFX_CURSOR); }
       else if (down && cursor < 3) { cursor++; sfx(SFX_CURSOR); }
       else if (d) { if (change(screen, cursor, d)) { sfx(SFX_CURSOR); refresh(); save(); } }
-      else if (ok) { sfx(SFX_CONFIRM); busy = 3; later(3, () => { if (screen === 'players') enter('rules'); else { enter('stage'); stageRow = 0; startTrans(set.stage, set.layout); busy = 46; } }); }
+      else if (ok) { sfx(SFX_CONFIRM); busy = 3; later(3, () => { if (screen === 'players') enter('rules'); else { enter('stage'); stageRow = 0; startTrans(set.stage, set.layout); busy = 43; } }); }
       else if (bit === BT.B) { busy = 2; later(2, () => enter(screen === 'players' ? 'mode' : 'players', { keepCursor: false })); }
       return;
     }

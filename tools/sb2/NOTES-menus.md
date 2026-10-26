@@ -139,3 +139,40 @@ TAG MATCH and the NORMAL GAME / PASSWORD paths were not followed.
 - Sprite priorities are not composed in `obj.png` (all sprites over each other); use
   `sprites[]` / the strip frames with their priority for the shadow subtraction.
 - The 1P/2P "MAN" option needs a controller per player; the wall has one pad.
+
+## The wall's front end (public/arcade/sb2/menu.js, packed by tools/sb2/extract/menupack.py)
+- The menus are re-run on the battle PPU (render/ppu.js) from the original's VRAM / CGRAM
+  (`pack/menu.json` + `menu.bin`): title VRAM, menu VRAM (+ the stage screen's BG1 cells),
+  per stage the preview chars 0..255 + CGRAM; the strip / "go" pieces as colour indices.
+  ppu.js gained the menus' colour math: CGADSUB $81 = BG1 minus the sub-screen sprite
+  (the shadows on the wall).
+- Re-layout for 256 x 455, cell by cell (16 px), nothing scaled:
+  - mode / players / rules: panel (original rows 1..9) at rows 8..16, the wall top / kerb /
+    road (rows 10..13) at 25..28, stone wall elsewhere (the original's stone tiles); the
+    strip sprites 240 px lower. BG2 (the mode screen's text colours, scrolled 1 px every 4
+    frames, measured) moves down with the panel.
+  - title: logo / items / copyright and the 65 sprites 96 px lower (rows 6..19), sky with
+    clouds above and below, the buildings and the ground at rows 24..28.
+  - stage select: panel rows 2..18: preview hole 7 x 7 cells (CLASSIC: the original
+    preview) or 7 x 13 (TALL: the real tall arena at round start, rendered by the port,
+    1 px in 2 = 8 px per cell, `mini_tall.png`), STAGE / number with arrows in the right
+    column, a separator and the wall's extra row "TALL" / "CLASSIC" below. UP/DOWN picks
+    the row ($51); the active row's arrows animate; LEFT/RIGHT on either row runs the
+    original preview transition (mosaic, 46 frames, silent).
+  - "TALL" / "CLASSIC" and the results' "0": new 16x16 cells composed from the original's
+    own label font (glyphs = letter body components + their outline, cut out of STAGE,
+    BATTLE, TIME, COM LEVEL, G-BOMBER, 1PLAYER) / the "0" of TIME 2:00, written into
+    tiles no map or animation uses.
+- Check: `node tools/sb2/qa/menucheck.mjs && python3 tools/sb2/qa/menucheck.py` — every
+  region kept from the original (the three panels, the stage panel's right column and
+  preview, the title's logo / items / sprites) is pixel-identical to the harness frames
+  (143 104 / 143 104 px). Timings in Node (menu frames): title A -> mode fully bright
+  +192 (original +191), switches +2 / +3 / +3, stage select input from +46, stage START ->
+  match +316 then the core's 15-tick fade-in (first bright frame +331, as the original).
+- Differences from the original, on purpose: the title starts on BATTLE GAME and only it
+  goes on (NORMAL GAME / PASSWORD keep their look, do nothing); TAG MATCH does nothing;
+  B on the title leaves for the Arcade shelf; 2P defaults to COM (one pad on the wall; a
+  2P MAN stands still); no attract demo; the results are the player table with each
+  one's wins (the round / match winner marked by the cursor, his cheering figure above)
+  instead of the scoreboard / VICTORY!! / roulette screens; G-BOMBER ON makes the match
+  winner the next match's gold bomber with a random bonus (the roulette's pick).
