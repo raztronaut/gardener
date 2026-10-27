@@ -135,8 +135,15 @@ export default {
         const t = splitTitle(e.name);
         // Street addresses arrive in full ("1310 Haight Street, San Francisco, CA
         // 94117"); on an SF card the city/state/ZIP tail is noise, so drop it.
-        const place = String(e.place || '').replace(/,?\s*(San Francisco,?\s*)?CA\s*\d{5}(-\d{4})?\s*$/i, '')
-          .replace(/,\s*San Francisco\s*$/i, '').trim();
+        // Feeds vary: "2825 Diamond Street San Francisco , CA 94131 United States"
+        // (stray space before the comma, no comma before the city, a country tail).
+        const place = String(e.place || '').replace(/\s+,/g, ',').replace(/\s{2,}/g, ' ')
+          .replace(/,?\s*(United States( of America)?|USA|US)\.?\s*$/i, '')
+          .replace(/,?\s*(San Francisco,?\s*)?CA,?\s*(\d{5}(-\d{4})?)?\s*$/i, '')
+          .replace(/,?\s*San Francisco\s*$/i, '').replace(/[,\s]+$/, '').trim()
+          // House style is the short form ("3349 20th St"), so match it after a number.
+          .replace(/(\b\d+[A-Z]?\s+[^,\s][^,]*?\s)(Street|Avenue|Boulevard|Drive|Place)\b\.?/i,
+            (_, a, w) => a + ({ street: 'St', avenue: 'Ave', boulevard: 'Blvd', drive: 'Dr', place: 'Pl' })[w.toLowerCase()]);
         const sub = [place || t.where, t.note].filter(Boolean).join(' · ');
         let tm;
         if (timed(e)) {

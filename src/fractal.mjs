@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 export const SLOT_MS = 3 * 60 * 60 * 1000;
 export const W = 900, H = 700;
+const FRAME_V = 2; // bump when framing changes so the current slot's cached still re-renders
 export const slotOf = (t = Date.now()) => Math.floor(t / SLOT_MS);
 
 // ---- tiny vec3 helpers (plain arrays; hot loops inline the maths) ------------
@@ -94,7 +95,10 @@ function makeScene(seed, turn = 0) {
     const scale = pick([-1.5, -1.75, -2.0, 2.0, 2.4]);
     maxIt = 11; P = { scale };
     name = `Mandelbox · scale ${scale}`;
-    dist = scale < 0 ? 3.4 + r() * 0.8 : 6.2 + r() * 1.0;
+    // A positive-scale box fills a cube of half-width 2(s+1)/(s-1) (6 at s=2) — the
+    // camera must sit well OUTSIDE it, or the card shows one flat wall of surface.
+    const ext = scale > 0 ? 2 * (scale + 1) / (scale - 1) : 0;
+    dist = scale < 0 ? 3.4 + r() * 0.8 : ext * (2.3 + r() * 0.3);
     fov = 0.85;
     de = (px, py, pz, out) => {
       let x = px, y = py, z = pz, dr = 1, trap = 1e9;
@@ -271,7 +275,7 @@ export function ensureFractal(dir, now = Date.now()) {
   const metaPath = join(dir, 'fractal.json');
   try {
     const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
-    if (meta.slot === slot && existsSync(join(dir, 'fractal.png'))) return Promise.resolve(meta);
+    if (meta.slot === slot && meta.v === FRAME_V && existsSync(join(dir, 'fractal.png'))) return Promise.resolve(meta);
   } catch { /* none yet */ }
   if (rendering) return rendering;
   mkdirSync(dir, { recursive: true });
@@ -279,7 +283,7 @@ export function ensureFractal(dir, now = Date.now()) {
   rendering = renderSlot(slot, { threads: 5 }).then((png) => {
     const tmp = join(dir, 'fractal.png.tmp');
     writeFileSync(tmp, png); renameSync(tmp, join(dir, 'fractal.png'));
-    const meta = { slot, ...sceneInfo(slot), generatedAt: Date.now(), nextAt: (slot + 1) * SLOT_MS, renderMs: Date.now() - t0, w: W, h: H };
+    const meta = { slot, v: FRAME_V, ...sceneInfo(slot), generatedAt: Date.now(), nextAt: (slot + 1) * SLOT_MS, renderMs: Date.now() - t0, w: W, h: H };
     writeFileSync(metaPath, JSON.stringify(meta));
     return meta;
   }).finally(() => { rendering = null; });

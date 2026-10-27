@@ -160,6 +160,11 @@ async function main() {
       const fams = new Set(Array.from({ length: 5 }, (_, k) => fr.sceneInfo(1000 + k).family));
       check('fractal: same slot → same scene', JSON.stringify(fr.sceneInfo(4242)) === JSON.stringify(fr.sceneInfo(4242)));
       check('fractal: slots cycle the families', ['bulb', 'julia', 'box', 'menger'].every((f) => fams.has(f)), [...fams].join(','));
+      { // camera must sit outside a positive-scale Mandelbox (inside = a flat wall of colour)
+        const inside = [];
+        for (let k = 0; k < 400; k++) { const p = fr.sceneParams(k); if (p.fam === 'box' && p.scale > 0 && p.dist < 2 * (2 * (p.scale + 1) / (p.scale - 1))) inside.push(k); }
+        check('fractal: Mandelbox camera frames the whole box (outside its bounds)', inside.length === 0, inside.slice(0, 5).join(','));
+      }
       check('fractal: slot is 3 hours', fr.SLOT_MS === 3 * 3600 * 1000 && fr.slotOf(fr.SLOT_MS * 7 + 5) === 7);
       const png = fr.encodePNG(2, 1, new Uint8ClampedArray([255, 0, 0, 255, 0, 255, 0, 255]));
       check('fractal: PNG encoder writes a valid header',
