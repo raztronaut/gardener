@@ -332,6 +332,13 @@ async function main() {
       const wxSrc = readFileSync(join(PUBLIC, 'widgets', 'weather.js'), 'utf8');
       check('weather: forecast days show °C too', /const tempCell[^\n]*\n[^\n]*fToC\(f\)\}°C/.test(wxSrc), 'tempCell must render °F and °C');
     } catch (e) { bad('weather °C guard', e.message); }
+    // The UV cell reads the day's peak before it lands and tomorrow's after dark
+    // (2026-10-28) rather than a meaningless "0 Low" at dawn / night.
+    try {
+      const wxSrc = readFileSync(join(PUBLIC, 'widgets', 'weather.js'), 'utf8');
+      check('weather: UV cell shows the coming peak, not a bare 0 at night',
+        /UV peak · \$\{hr12\(peakToday\.hr\)\}/.test(wxSrc) && /'UV tomorrow'/.test(wxSrc) && /h\('div', \{ class: 'k'[^\n]*\}, uvKey\)/.test(wxSrc));
+    } catch (e) { bad('weather UV guard', e.message); }
 
     // 3) Boot the server with an isolated DB + port.
     console.log('\n[3] server boot');

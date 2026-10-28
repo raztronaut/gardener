@@ -385,8 +385,29 @@ export default {
       const feels = Math.round(cur.apparent_temperature);
       const hum = Math.round(cur.relative_humidity_2m);
       const hNow = nowHour();
-      const uvRaw = d.hourly.uv_index?.[hNow];
-      const uv = Number.isFinite(uvRaw) ? Math.round(uvRaw) : null;
+      // UV that answers "do we need sunscreen?": a bare "0 Low" at dawn or
+      // after dark says nothing, so the cell reads the day's PEAK (and its hour)
+      // until the peak passes, then the live value, then — once the sun's done —
+      // tomorrow's peak. The hourly series starts at today's local midnight.
+      const uvAt = (j) => { const v = d.hourly.uv_index?.[j]; return Number.isFinite(v) ? v : null; };
+      const uvPeakOf = (from, to) => {
+        let best = null;
+        for (let j = from; j < Math.min(to, d.hourly.time.length); j++) {
+          const v = uvAt(j);
+          if (v != null && (!best || v > best.v)) best = { v, hr: hourOf(d.hourly.time[j]) };
+        }
+        return best;
+      };
+      const uvNowRaw = uvAt(hNow);
+      const peakToday = uvPeakOf(0, 24);
+      let uvKey = 'UV index', uvVal = uvNowRaw;
+      if (peakToday && Math.round(peakToday.v) >= 1 && hNow < peakToday.hr) {
+        uvKey = `UV peak · ${hr12(peakToday.hr)}`; uvVal = peakToday.v;
+      } else if (uvNowRaw == null || Math.round(uvNowRaw) < 1) {
+        const peakTmrw = uvPeakOf(24, 48);
+        if (peakTmrw && Math.round(peakTmrw.v) >= 1) { uvKey = 'UV tomorrow'; uvVal = peakTmrw.v; }
+      }
+      const uv = uvVal == null ? null : Math.round(uvVal);
       const [uvLabel, uvColor] = uvBand(uv);
       // Next days: tomorrow + two more, each in °F and °C.
       const days = [];
@@ -484,7 +505,7 @@ export default {
             h('div', { class: 'v' }, `${feels}°F`, h('small', {}, `${fToC(feels)}°C`))),
           h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Humidity'),
             h('div', { class: 'v' }, `${hum}%`)),
-          h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'UV index'),
+          h('div', { class: 'wx-stat' }, h('div', { class: 'k', title: uvKey === 'UV index' ? 'UV index now' : uvKey === 'UV tomorrow' ? "Tomorrow's peak UV" : "Today's peak UV and when it lands" }, uvKey),
             h('div', { class: 'v' }, `${uv ?? '—'}`, h('small', { style: { color: uvColor } }, uvLabel)))),
         days.length ? h('div', {},
           h('div', { class: 'wx-days' },
