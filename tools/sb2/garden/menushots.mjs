@@ -91,3 +91,22 @@ for (const skin of ['classic', 'garden']) {
   fs.writeFileSync(out, encodePNG(sheet, W, H, scale));
   console.log(out);
 }
+
+// the Arcade shelf cover: the garden title around its logo, lines 72..247 of the tall
+// title (176 lines, like the original cover's 0..175), x2 -> public/arcade/sb2/garden/cover.png
+if (process.argv.includes('--cover')) {
+  const set = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall', skin: 'garden' };
+  const menu = createMenu(packs.garden, { settings: set, skins: ['garden', 'classic'] });
+  menu.show('title');
+  for (let i = 0; i < 40; i++) menu.frame(0);
+  const px = new Uint8Array(menu.out.buffer.slice(0));
+  const y0 = +arg('cover-y', '72'), H = 176;
+  const crop = new Uint8Array(256 * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < 256; x++) {
+    const s = ((y0 + y) * 256 + x) * 4, d = (y * 256 + x) * 4;
+    crop[d] = px[s]; crop[d + 1] = px[s + 1]; crop[d + 2] = px[s + 2]; crop[d + 3] = 255;
+  }
+  const out = path.join(ROOT, 'public/arcade/sb2/garden/cover.png');
+  fs.writeFileSync(out, encodePNG(crop, 256, H, 2));
+  console.log(out);
+}

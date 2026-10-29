@@ -462,6 +462,207 @@ def menu_skin(ov, report):
     report.append('menus: %d tiles, palettes 1..4' % (len(menus.wall_tiles()) + len(menus.strip_tiles()) + len(menus.icons())))
 
 
+# ---- the title screen (vram.title: pictures cut into 16x16 tiles) ----------------------------------
+TITLE_RESERVED = {0x000, 0x200, 0x24A, 0x24C, 0x202, 0x204, 0x206, 0x208, 0x20A, 0x20C}
+
+
+def map_addr(base, tx, ty):
+    return base + ((ty & 31) * 32 + (tx & 31)) * 2 + (0x800 if tx & 32 else 0) + (0x1000 if ty & 32 else 0)
+
+
+def pack_palettes(cells, slots, report, name):
+    """greedy: put each cell's colour set in the first palette (of slots) it fits"""
+    pals = {k: set() for k in slots}
+    assign = []
+    for cs in cells:
+        for k in slots:
+            if cs <= pals[k] or len(pals[k] | cs) <= 15:
+                pals[k] |= cs
+                assign.append(k)
+                break
+        else:
+            raise SystemExit('%s: no palette for a cell (%d colours)' % (name, len(cs)))
+    out = {}
+    for k, cols in pals.items():
+        lst = [0] + sorted(cols, key=lambda c: sum(rgb(c)))
+        out[k] = lst + [0] * (16 - len(lst))
+    return out, assign
+
+
+def title_skin(ov, report):
+    import title
+    import bombers
+    b1, b2 = title.bg1(), title.bg2()
+    cl = title.clouds()
+    free = [r * 32 + c * 2 for r in range(32) for c in range(8) if r * 32 + c * 2 not in TITLE_RESERVED]
+    tiles = {}            # bytes -> tile number
+
+    def put_tile(img16, pal, fixed=None):
+        idx = np.zeros((16, 16), np.int32)
+        for y in range(16):
+            for x in range(16):
+                v = int(img16[y, x])
+                idx[y, x] = 0 if v < 0 else pal.index(v)
+        key = idx.tobytes()
+        if fixed is None and key in tiles:
+            return tiles[key]
+        t = fixed if fixed is not None else free.pop(0)
+        for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
+            ov.put('vram.title', c * 32, encode4(idx[dy:dy + 8, dx:dx + 8]))
+        if fixed is None:
+            tiles[key] = t
+        return t
+
+    def cells_of(img, rows, cols):
+        out = []
+        for r in range(rows):
+            for c in range(cols):
+                cell = img[r * 16:r * 16 + 16, c * 16:c * 16 + 16]
+                out.append(((r, c), cell, set(int(v) for v in np.unique(cell) if v >= 0)))
+        return out
+    c1 = cells_of(b1, 14, 16)
+    p1, a1 = pack_palettes([cs for _, _, cs in c1], [0, 1, 2, 3], report, 'title BG1')
+    c2 = cells_of(b2, 14, 16)
+    cloud_cols = set()
+    for im in cl.values():
+        cloud_cols |= set(int(v) for v in np.unique(im) if v >= 0)
+    p2, a2 = pack_palettes([cloud_cols] + [cs for _, _, cs in c2], [4, 5], report, 'title BG2')
+    if a2[0] != 4:
+        raise SystemExit('title: clouds must be in palette 4')
+    a2 = a2[1:]
+    for ((r, c), cell, cs), pal in zip(c1, a1):
+        e = 0x2000 if not cs else (put_tile(cell, p1[pal]) | (pal << 10) | 0x2000)
+        ov.put('vram.title', map_addr(0x8000, 16 + c, r), e.to_bytes(2, 'little'))
+    for ((r, c), cell, cs), pal in zip(c2, a2):
+        e = 0x1200 if not cs else (put_tile(cell, p2[pal]) | (pal << 10))
+        ov.put('vram.title', map_addr(0xA000, c, r), e.to_bytes(2, 'little'))
+    # tiles 0 (BG1's empty 0x2000) and 0x200 (BG2's sky 0x1200) are empty: the backdrop shows
+    for t in (0x000, 0x200):
+        for c in (t, t + 1, t + 16, t + 17):
+            ov.put('vram.title', c * 32, bytes(32))
+    sm, bg = cl['small'], cl['big']
+    put_tile(sm[:, 0:16], p2[4], 0x24A)
+    put_tile(sm[:, 16:32], p2[4], 0x24C)
+    for k, t in enumerate((0x202, 0x204, 0x206)):
+        put_tile(bg[0:16, k * 16:k * 16 + 16], p2[4], t)
+    for k, t in enumerate((0x208, 0x20A, 0x20C)):
+        put_tile(bg[16:32, k * 16:k * 16 + 16], p2[4], t)
+    # palettes
+    cg = [0] * 256
+    for k, pl in {**p1, **p2}.items():
+        for i in range(1, 16):
+            cg[k * 16 + i] = pl[i]
+    cg[0] = title.SKY
+    # sprites: the cursor pod (OBJ tiles 0 / 2 / 4) and its bloom (32..46), OBJ palette 0;
+    # the four gardeners (palettes 1..4)
+    idle, burst = title.cursor_frames()
+    p_obj = auto_palette(idle + burst, 'title cursor', report)
+    base = 0xC000
+    for t, im in zip((0, 2, 4), idle):
+        obj_put(ov, 'vram.title', base, t, im, p_obj)
+    for k, im in enumerate(burst):
+        obj_put(ov, 'vram.title', base, 32 + 2 * k, im, p_obj)
+    for i in range(16):
+        cg[128 + i] = p_obj[i]
+    pieces = bombers.read_pieces()
+    sprites = []
+    for k, col in enumerate(('white', 'black', 'red', 'blue')):
+        pl = bombers.palette(col)
+        for i in range(16):
+            cg[128 + (k + 1) * 16 + i] = pl[i]
+    head, body = pieces[40], pieces[42]
+    obj_put(ov, 'vram.title', base, 64, head)
+    obj_put(ov, 'vram.title', base, 66, body)
+    for k in range(4):
+        x = 128 - 2 * 24 + k * 24 + 4
+        sprites.append({'x': x, 'y': 104, 'tile': 64, 'pal': k + 1, 'prio': 3, 'hflip': False, 'vflip': False, 'w': 16, 'h': 16})
+        sprites.append({'x': x, 'y': 120, 'tile': 66, 'pal': k + 1, 'prio': 3, 'hflip': False, 'vflip': False, 'w': 16, 'h': 16})
+    for name in ['cgram.title']:
+        ov.put(name, 0, pal_bytes(cg))
+    tc = {'idle': [{'tile': 2, 'x': 56, 'y': 144, 'pal': 0, 'frames': 5}],
+          'confirm': [{'tile': 32 + 2 * (k // 2), 'x': 56, 'y': 144, 'pal': 0} for k in range(16)]}
+    report.append('title: %d tiles, BG palettes %s' % (len(tiles), sorted(set(a1)) + sorted(set(a2))))
+    return {'title_sprites': sprites, 'title_cursor': tc}
+
+
+def strip_skin(ov, report):
+    """the menus' bottom strip and the stage select's "go" run, with the gardeners: OBJ
+    palettes 1 (white), 2 (black), 3 (the pod) in every menu CGRAM; the pieces blob is
+    replaced whole (256 bytes per piece, colour indices)"""
+    import bombers
+    import fx
+    P = bombers.read_pieces()
+    pod_imgs = [fx.pods()[32], fx.small_pods()[98]]
+    pp = auto_palette(pod_imgs, 'strip pod', report)
+    pieces, meta = [], []
+
+    def add(img, pal, colours=None):
+        if colours is not None:
+            img = np.vectorize(lambda v: 0 if v < 0 else colours.index(int(v)))(img)
+        buf = np.zeros(256, np.uint8)
+        buf[:] = np.where(img < 0, 0, img).ravel()
+        pieces.append(bytes(buf))
+        meta.append({'i': len(meta), 'w': 16, 'h': 16, 'pal': pal})
+        return len(meta) - 1
+    ids = {}
+    for name, (h, b) in {'r0': (12, 14), 'r1': (32, 34), 'r2': (36, 38), 'l0': (68, 70)}.items():
+        for k, pal in ((1, 1), (2, 2)):
+            ids[(name, k)] = (add(P[h], pal), add(P[b], pal))
+    pod = add(pod_imgs[0], 3, pp)
+    WX, BX, Y = 52, 188, 180
+
+    def gardener(k, pose, x):
+        hid, bid = ids[(pose, k)]
+        return [[hid, x, Y, 3], [bid, x, Y + 16, 3]]
+    frames = []
+    for f in range(52):
+        pcs = gardener(1, 'r0', WX) + gardener(2, 'l0', BX)
+        if f < 26:
+            pcs = [[pod, WX + 12 + 5 * f, 197, 3]] + pcs
+        frames.append({'pieces': pcs, 'duration': 1})
+    strip = {'period': 52, 'frames': frames, 'pieces': meta}
+    # "go": both turn right and walk off, the pod rolling ahead
+    walk = ['r1', 'r0', 'r2', 'r0']
+    go = []
+    for f in range(97):
+        p = walk[(f // 6) % 4]
+        pcs = gardener(1, p, WX + 2 * f) + gardener(2, p, BX + 2 * f - 6)
+        pcs = [[pod, min(250, BX + 24 + 3 * f), 197, 3]] + pcs
+        go.append(pcs)
+    blob = b''.join(pieces)
+    words = [0] * 48
+    for k, col in ((1, 'white'), (2, 'black')):
+        pl = bombers.palette(col)
+        for i in range(16):
+            words[(k - 1) * 16 + i] = pl[i]
+    for i in range(16):
+        words[32 + i] = pp[i]
+    for name in ['cgram.menu'] + ['cgram.%02d' % s for s in range(1, 11)]:
+        ov.put(name, (128 + 16) * 2, pal_bytes(words))
+    report.append('strip: %d pieces' % len(meta))
+    return blob, {'strip': strip, 'go': {'runs': [{'frames': go, 'fade_starts_frames_after_press': 98}], 'pieces': meta, 'fade_after': 98}}
+
+
+def figures_skin(report):
+    """the winner figures atlas (public/arcade/sb2/garden/figures.png) + their anims"""
+    import figures
+    from gfx import save_png
+    cols = ['white', 'black', 'red', 'blue']
+    fr = {c: figures.frames(c) for c in cols}
+    w, h = fr['white'][0][0].shape[1] + 2, fr['white'][0][0].shape[0] + 2
+    atlas = np.full((h * 4, w * 2), -1, np.int32)
+    anims = {}
+    for r, c in enumerate(cols):
+        anims[c] = {'winner': [], 'loser': []}
+        for k, (img, dur) in enumerate(fr[c]):
+            atlas[r * h:r * h + img.shape[0], k * w:k * w + img.shape[1]] = img
+            anims[c]['winner'].append([k * w, r * h, img.shape[1], img.shape[0], dur])
+        anims[c]['loser'] = [anims[c]['winner'][1][:4] + [60]]
+    save_png(atlas, os.path.join(OUT, 'figures.png'))
+    report.append('figures: 4 colours x 2 frames')
+    return {'atlas': 'figures.png', 'anims': anims}
+
+
 def contact_sheet(st, res, path):
     """every drawn cell of the stage on one sheet (16 per row), for review"""
     from PIL import Image
@@ -501,6 +702,9 @@ def main():
     gardeners(ov, report)
     mov = Overlay()
     menu_skin(mov, report)
+    menu_manifest = title_skin(mov, report)
+    strip_blob, strip_manifest = strip_skin(mov, report)
+    menu_manifest.update(strip_manifest)
     import items
     # the overlay files
     binbuf = bytearray()
@@ -511,6 +715,10 @@ def main():
         while len(binbuf) & 3:
             binbuf.append(0)
     mpatches = []
+    mblobs = {'pieces': [len(binbuf), len(strip_blob)]}
+    binbuf += strip_blob
+    while len(binbuf) & 3:
+        binbuf.append(0)
     for blob, at, data in mov.runs():
         mpatches.append([blob, at, len(binbuf), len(data)])
         binbuf += data
@@ -518,10 +726,10 @@ def main():
             binbuf.append(0)
     manifest = {
         'version': 1, 'name': 'garden', 'title': 'Bomber Garden',
-        'menu': {'patches': mpatches, 'mini': 'mini_tall.png', 'miniOrig': 'mini_orig.png'},
+        'menu': {'patches': mpatches, 'blobs': mblobs, 'mini': 'mini_tall.png', 'miniOrig': 'mini_orig.png', 'manifest': menu_manifest},
         'note': 'Garden Edition: original pixel art (tools/sb2/garden/), an overlay on the runtime pack',
         'bin': 'garden.bin',
-        'pack': {'patches': patches, 'display': {'border95': list(items.BORDER), 'objPal8': POD_PAL}},
+        'pack': {'patches': patches, 'figures': figures_skin(report), 'display': {'border95': list(items.BORDER), 'objPal8': POD_PAL}},
     }
     with open(os.path.join(OUT, 'garden.bin'), 'wb') as f:
         f.write(binbuf)

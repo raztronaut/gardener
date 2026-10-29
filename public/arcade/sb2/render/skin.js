@@ -50,6 +50,12 @@ export function skinMenuPack(mp, skin, mini = null, miniOrig = null) {
   const cache = new Map();
   const blob = (n) => {
     if (cache.has(n)) return cache.get(n);
+    if (S.blobs && S.blobs[n]) {                          // a blob the skin replaces whole
+      const [off, len] = S.blobs[n];
+      const b = skin.bin.subarray(off, off + len);
+      cache.set(n, b);
+      return b;
+    }
     const src = mp.blob(n);
     let b = src;
     if (byBlob.has(n)) {

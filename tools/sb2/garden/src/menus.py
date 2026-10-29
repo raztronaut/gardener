@@ -20,7 +20,7 @@ PANEL = C('#0f3a24')      # the panels' fill (the wall's cards)
 P4 = {1: NIGHT, 2: INK, 3: LEAF_1, 4: LEAF_2, 5: MINT_D, 6: LEAF_3, 7: LEAF_4,
       8: TEAL_D, 9: TEAL, 10: MINT, 11: GOLD_1, 12: GOLD_2, 13: GOLD_4, 14: PANEL, 15: WHITE}
 P3 = {1: NIGHT, 2: SOIL_1, 3: SOIL_2, 4: SAND_0, 5: SAND_1, 6: SAND_2, 7: SAND_3, 8: CREAM,
-      9: TEAL_D, 10: TEAL, 11: MINT, 12: WHITE, 13: PANEL, 14: PINK, 15: STONE_3}
+      9: LEAF_1, 10: LEAF_2, 11: LEAF_3, 12: WHITE, 13: PANEL, 14: PINK, 15: STONE_3}
 # palette 2: the blue ramp (the mode screen's bands under the cut-out letters, MAN / ON) ->
 # mint; the red ramp (COM, OFF) -> rose; the greens (OFF) -> leaves; 11 = the panel
 P2 = {1: NIGHT, 2: TEAL_D, 3: TEAL, 4: MINT, 5: WHITE, 6: ROSE_0, 7: ROSE_1, 8: ROSE_2, 9: PINK,
@@ -70,10 +70,10 @@ def flower_bed(seed):
     r = Rng(seed)
     for y in range(11):
         for x in range(16):
-            img[y, x] = 9 if (x + y * 3 + seed) % 5 else 3
+            img[y, x] = 10 if (x + y * 3 + seed) % 5 else (9 if (x + y) % 3 else 11)
     for _ in range(5):
         x, y = 1 + r.rand(14), 1 + r.rand(8)
-        c = [14, 12, 11][r.rand(3)]
+        c = [14, 12, 14][r.rand(3)]
         for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)):
             img[y + dy, x + dx] = c
         img[y, x] = 8
@@ -103,9 +103,9 @@ STRIP_TILES = {
     # row 10 (palette 4)
     0x24C: ('edge', 21), 0x24A: ('edge', 22), 0x2AA: ('edge', 23), 0x2E4: ('edge', 24),
     # row 11 (palette 3)
-    0xCC: ('bed', 1), 0xAE: ('bed', 2), 0x62: ('bed', 3), 0x60: ('bed', 4), 0xCA: ('bed', 5),
+    0x2CC: ('bed', 1), 0x2AE: ('bed', 2), 0x262: ('bed', 3), 0x260: ('bed', 4), 0x2CA: ('bed', 5),
     # rows 12 / 13 (palette 3)
-    0xC8: ('path', 6), 0x188: ('stone', 7), 0xEE: ('path', 8),
+    0x2C8: ('path', 6), 0x188: ('stone', 7), 0x2EE: ('path', 8),
 }
 
 
