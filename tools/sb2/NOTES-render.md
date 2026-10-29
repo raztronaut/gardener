@@ -12,6 +12,7 @@ lives in `render/display.js`. Nothing the logic reads is ever written.
 | `public/arcade/sb2/render/ppu.js` | small SNES PPU for this screen: BG1/BG2 4bpp 16x16, BG3 2bpp + priority bit, OBJ 8/16, window 1 (inverted), colour math (half-add on BG2), master brightness. Tile-cached BG layers composed per 8x8 block, sprites per frame, no per-frame allocation |
 | `public/arcade/sb2/render/display.js` | the display routines (addresses below), OAM builder, effect objects, palettes, HUD, tall adaptations |
 | `public/arcade/sb2/render/pack.js` | loads `pack/pack.json` + `pack/sb2.bin` (2 requests) |
+| `public/arcade/sb2/render/skin.js` | the Garden Edition overlay -> a skinned pack / menu pack (NOTES-garden.md) |
 | `public/arcade/sb2/audio.js` | Web Audio: looping stage music, SFX by sound id |
 | `public/arcade/sb2/app.js` | menus / match / results flow, pad mapping, game loop (pacing) |
 | `public/arcade/sb2/menu.js` | the original battle menus re-laid out for 256x455 (NOTES-menus.md) |
@@ -123,6 +124,10 @@ lives in `render/display.js`. Nothing the logic reads is ever written.
   bomb in flight / bouncing / kicked / conveyed is a mover (mode 1). Check:
   `node tools/sb2/render/glove_shots.mjs out.png [original|tall] [classic 0|1]` (every
   colour lifts, carries, throws; one contact-sheet row per bomber).
+- Skins (NOTES-garden.md): `render/skin.js` applies the Garden Edition overlay to the pack
+  and the menus' pack; app.js keeps one display per layout + skin and one menu per skin; the
+  stage select's skin row (GARDEN / CLASSIC) swaps them live. Display hooks (data only):
+  `pack.manifest.skin.border95` (C00617's two colours), `.objPal8` (the classic bomb palette).
 - Audio: AudioContext at 32040 Hz; title / menu songs, `<stage>_loop.ogg` with
   loopStart/loopEnd from audio.json; stage 4 (no loop point) streams the 620 s recording
   through a media element. SFX by `ev.sfx` / `sfx` events and the menus' $51 / $52.
