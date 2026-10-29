@@ -26,6 +26,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
+sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, 'lib'))
 sys.path.insert(0, os.path.join(HERE, 'src'))
 sys.path.insert(0, os.path.join(HERE, 'src', 'stages'))
@@ -139,7 +140,7 @@ def stage_cells(st, ov, report, art):
     importlib.reload(mod)
     pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
     ppu = pack['stages'][st - 1]['ppu']
-    res = arena.build_stage(st, mod, meta, stage_maps(), report, objects, ppu)
+    res = arena.build_stage(st, mod, meta, stage_maps(), report, objects, ppu, id_base=len(art['pics']))
     blob = 'stage%02d' % st
     rows = res['rows']
     for r, words in rows.items():
@@ -525,6 +526,8 @@ def main():
     ov = Overlay()
     report = []
     stages = list(range(1, 11))          # always all: the overlay is written whole
+    if os.environ.get('GARDEN_ONLY'):    # dev: other stages keep the original pictures
+        stages = [int(x) for x in os.environ['GARDEN_ONLY'].split(',')]
     results = {}
     art = {'pics': [], 'stages': {}}
     for st in stages:
@@ -565,9 +568,20 @@ def main():
             binbuf.append(0)
     # the cell art: pictures (256 bytes each: CGRAM index per pixel), per stage the shade
     # map and the static stacks of both layouts (per map cell: count, then u16 picture ids)
+    # (129 bytes each: the palette row (255 = a shade mask), then 4bpp indices, 2 per byte)
     art_json = {'pics': [len(binbuf), len(art['pics'])], 'stages': {}}
-    for p in art['pics']:
-        binbuf += bytes(p)
+    shade_ids = set()
+    for S in art['stages'].values():
+        shade_ids |= set(S['shadePics'])
+    for i, p in enumerate(art['pics']):
+        p = np.asarray(p, np.uint8)
+        nz = p[p > 0]
+        row = 255 if i in shade_ids else (int(nz[0]) >> 4 if len(nz) else 0)
+        if row != 255 and len(nz) and (np.any((nz >> 4) != row)):
+            raise SystemExit('picture %d mixes palette rows' % i)
+        lo = (p & 15) if row != 255 else (p > 0).astype(np.uint8)
+        binbuf.append(row)
+        binbuf += bytes((lo[0::2] | (lo[1::2] << 4)).astype(np.uint8))
     for k, S in art['stages'].items():
         j = {'shadePics': S['shadePics'], 'cls': S['cls'], 'masks': S['masks'], 'maskRefs': S['maskRefs']}
         j['shade'] = len(binbuf)

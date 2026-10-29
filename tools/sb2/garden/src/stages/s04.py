@@ -1,209 +1,108 @@
-"""Stage 4 — the IRRIGATION GARDEN: tilled soil, lavender bushes (soft), big terracotta pots
-(hard), a wooden fence; the original's fuse ring is a green garden HOSE: when a blast reaches
-it, a wave of blooms runs along the hose (the original's burning frames, same timing)."""
+"""Stage 4 — the ORCHARD: warm orchard grass with fallen apples, dandelions and clover;
+the original's fuse ring is a GRAPEVINE trained along a low wire (its fire runs along the
+vine); currant bushes, apple saplings and tall grass (soft); old fruit-tree trunks, stumps
+and boulders (hard); a dry-stone wall overgrown with ivy all round."""
 from common import *  # noqa: F401,F403
-import math
-import objects
+import terrain as TR
+import nature as N
 
-NAME = 'Irrigation Garden'
+NAME = 'Orchard'
+FLOOR_KINDS = ('floor', 'gimmick_0e')        # the vine is painted in the ground
+MASK_REFS = tuple('gimmick_0e_%d' % k for k in range(32))
 
-# the hose and its blooms live in BG palettes 1..4 (with the pods and blooms): its colours
-# are the pod outline + the two leaf greens + white
-HO, HL, HD, HW = POD_0, LEAF_4, LEAF_2, WHITE
+G = [C('#2a4a1e'), C('#3c6424'), C('#527e2e'), C('#6e9a3a'), C('#9cbc52')]
+G_SH = C('#1e3618')
+DAND = C('#ffd040')
+DAND_D = C('#d09a20')
+APPLE = C('#d83a2a')
+APPLE_H = C('#ff9a70')
+APPLE_D = C('#8a1c18')
+LEAF_Y = C('#d09a20')
+# bushes
+B = [C('#173a1c'), C('#245a26'), C('#387c30'), C('#58a040'), C('#8cc860')]
+OUT = C('#10200c')
+CURRANT = C('#c01838')
+CURRANT_H = C('#ff7088')
+BLOSSOM = C('#fff0f4')
+BLOSSOM_D = C('#f0b0c4')
+# wood / stone
+BARK = [C('#2a1a10'), C('#462c18'), C('#664224'), C('#865c34'), C('#a87a48')]  # 5 for trunks
+WOOD = [C('#7a5430'), C('#a87c48'), C('#c89e62'), C('#e2c084')]
+ST = [C('#463e36'), C('#665a4c'), C('#887a66'), C('#aa9c84'), C('#cec2a6')]
+GAP = C('#241c14')
+IVY = [C('#0e2a16'), C('#173a1c'), C('#245a26'), C('#387c30'), C('#58a040')]
+# the vine
+STEM = [C('#2a1a10'), C('#664224')]
+VLEAF = [C('#173a1c'), C('#245a26'), C('#387c30'), C('#58a040')]
+GRAPE = [C('#2c1440'), C('#5a2c78'), C('#9a6ac0')]
+WIRE = C('#887a66')
 
-
-def soil(seed=0):
-    img = blank(16, 16, SOIL_3)
-    for y in range(16):
-        for x in range(16):
-            # furrows: a darker line every 4 rows, slightly wavy
-            if (y + (1 if (x // 5) % 2 else 0)) % 4 == 3:
-                img[y, x] = SOIL_2
-            elif (y + (1 if (x // 5) % 2 else 0)) % 4 == 0 and hash2(x, y, seed) % 3 == 0:
-                img[y, x] = SOIL_4
-    return img
-
-
-def hose_h(img, y0=5, glints=(3, 11)):
-    for x in range(16):
-        img[y0, x] = HO
-        img[y0 + 1, x] = HL
-        img[y0 + 2, x] = HL
-        img[y0 + 3, x] = HD
-        img[y0 + 4, x] = HD
-        img[y0 + 5, x] = HO
-        if x % 8 == 6:                      # ribs
-            img[y0 + 1, x] = HD
-            img[y0 + 2, x] = HD
-    for g in glints:
-        img[y0 + 1, g] = HW
-    return img
-
-
-def hose_corner(img):
-    """from the right edge to the bottom edge (the original's corner tile)"""
-    for y in range(16):
-        for x in range(16):
-            r = math.hypot(x + 0.5 - 16, y + 0.5 - 16)
-            if 4.6 <= r < 11.4:
-                t = r - 4.6
-                c = HO if t < 1.0 or t >= 5.8 else HD if t < 2.9 else HL
-                img[y, x] = c
-    img[9, 9] = HW
-    img[8, 10] = HW
-    return img
+SHADE = {G[4]: G[2], G[3]: G[1], G[2]: G[0], G[1]: G_SH, G[0]: G_SH}
 
 
-def arc_bloom(f):
-    """the petal bloom following the corner's arc (radius 8 around the cell's corner)"""
-    img = blank(16, 16)
-    w = objects.BAND[f]
-    own = np.zeros((16, 16), np.int32)
-    if f >= 1:
-        for k in range(-1, 6):
-            ang = k * (math.pi / 2) / 4 + (math.pi / 16 if f == 4 else 0)
-            for side in (-1, 1):
-                rr = 8.0 + side * (w + objects.PET_OUT[f] - 0.6)
-                a2 = ang + (math.pi / 16 if side > 0 else 0)
-                cx, cy = 16 - rr * math.cos(a2), 16 - rr * math.sin(a2)
-                ax, ay = -math.cos(a2) * side, -math.sin(a2) * side
-                objects._petal_field(img, own, cx, cy, ax, ay, objects.PET_R[f], objects.PET_R[f] * 0.78, f)
-    for y in range(16):
-        for x in range(16):
-            r = math.hypot(x + 0.5 - 16, y + 0.5 - 16)
-            d = abs(r - 8.0)
-            if d <= w:
-                img[y, x] = objects._band_col(d, w, x, y, f)
-    return objects._sparkle(img, f, 77)
+def ground_tex():
+    return TR.grass_tex(G, 404, tuft=0.5, lush=0.3)
 
 
-BURN = [0, 1, 2, 4, 3, 2, 1, 0]           # the bloom's size over the 8 burning frames
+def decals():
+    d = []
+    # fallen apples
+    for s in (1, 2):
+        im = blank(16, 16)
+        r = Rng(s)
+        for k in range(1 + s % 2):
+            x, y = 3 + r.rand(9), 3 + r.rand(9)
+            for dx, dy, c in ((0, 0, APPLE_H), (1, 0, APPLE), (0, 1, APPLE), (1, 1, APPLE_D), (2, 1, G_SH), (1, 2, G_SH)):
+                im[y + dy, x + dx] = c
+            im[y - 1, x + 1] = STEM[0]
+        d.append(im)
+    d.append(TR.decal_flowers(3, [(DAND, DAND_D, DAND_D)], n=3, kinds=('plus', 'cup')))
+    d.append(TR.decal_clover(4, [G[2], G[3], G[4]], n=4))
+    d.append(TR.decal_leaves(5, [(LEAF_Y, DAND_D), (APPLE_H, APPLE_D)], n=3))
+    d.append(TR.decal_tuft(6, [G[1], G[3], G[4], C('#c0d070')], n=2))
+    d.append(TR.decal_flowers(7, [(BLOSSOM, DAND, BLOSSOM_D)], n=4, kinds=('dot',)))
+    return d
 
 
-def track_flame(ctx, x, terr):
-    t = x['entries'][0] & 0xFF
-    base = soil()
-    if 0x60 <= t <= 0x6E or 0x80 <= t <= 0x8E:
-        k = (t & 0x0F) // 2
-        vert = t >= 0x80
-        img = base.copy()
-        if k <= 4:
-            hose_h(img)
-        if k < 7:
-            over(img, objects.bloom('arm_h', BURN[k]))
-        else:
-            for (px, py) in ((3, 7), (9, 8), (13, 6)):
-                img[py, px] = PINK
-        return img.T.copy() if vert else img
-    if t in (0xA0, 0xA2, 0xA4, 0xA6):
-        img = hose_h(base.copy(), glints=())
-        sx = 4 if t in (0xA0, 0xA4) else 10
-        for (dx, dy, c) in ((0, 0, GOLD_4), (1, 0, WHITE), (0, 1, GOLD_2), (1, 1, GOLD_4), (-1, 0, GOLD_2), (2, 1, GOLD_2)):
-            img[6 + dy, sx + dx] = c
-        return img.T.copy() if t >= 0xA4 else img
-    if 0xA8 <= t <= 0xC6:
-        k = [0xA8, 0xAA, 0xAC, 0xAE, 0xC0, 0xC2, 0xC4, 0xC6].index(t)
-        img = base.copy()
-        if k <= 4:
-            hose_corner(img)
-        if k < 7:
-            over(img, arc_bloom(BURN[k]))
-        return img
-    if t in (0xC8, 0xCA):
-        img = hose_corner(base.copy())
-        cx, cy = (6, 12) if t == 0xC8 else (12, 6)
-        for (dx, dy, c) in ((0, 0, WHITE), (1, 0, GOLD_4), (0, 1, GOLD_4), (1, 1, GOLD_2)):
-            img[cy + dy, cx + dx] = c
-        return img
-    return None
+def paint(cv, L):
+    ring, pillars, field = TR.classify(L)
+    allc = set(L.cells)
+    TR.tile_tex(cv.base, ground_tex(), allc)
+    vine = {c for c in field if L.kind(*c) == 'gimmick_0e'}
+    TR.scatter(cv.decal, field - vine, decals(), 0.40, 41)
+
+    def conn(cx, cy):
+        return {d for d, (dx, dy) in (('l', (-1, 0)), ('r', (1, 0)), ('t', (0, -1)), ('b', (0, 1))) if (cx + dx, cy + dy) in vine}
+    TR.vine_path(cv.obj, vine, conn, STEM, VLEAF, grape=GRAPE, seed=3, wire=WIRE)
+    # the dry-stone wall, ivy over parts of it
+    reg = TR.rough_region(ring, 44, amp=1.2)
+    TR.stone_wall(cv.obj, reg, ST, 45, GAP, size=5.5, moss=(IVY[2], IVY[3]), outline=OUT)
+    n = N.fbm(512, 512, 46, ((32, 1.0), (16, 0.5)), period=512)
+    ivy = reg & (n > 0.52)
+    TR.mass(cv.obj2, ivy, IVY, 47, outline=OUT, dome_r=5.0, glob=0.7, r=(1.3, 2.2))
+    hard = hard_blocks()
+    for (cx, cy) in pillars:
+        cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
 
 
-def fence(role):
-    """a wooden picket fence: the top fence shows its face, the others their top rail"""
-    img = blank(16, 16)
-    if role in ('top', 'tl', 'tr'):
-        for y in range(16):
-            for x in range(16):
-                px = x % 8
-                if px in (1, 2, 3, 4, 5):
-                    c = SOIL_4 if px == 1 else SOIL_3 if px < 5 else SOIL_2
-                    if y < 2 and px in (1, 5):
-                        c = T
-                    img[y, x] = c
-                if y in (4, 5, 11, 12):
-                    img[y, x] = SOIL_3 if y in (4, 11) else SOIL_2
-        img[15, :] = INK_BROWN
-        img = outline(img, INK_BROWN)
-        base = blank(16, 16, SOIL_2)
-        return over(base, img)
-    img = blank(16, 16, SOIL_2)
-    horiz = role in ('bottom', 'bl', 'br')
-    for y in range(16):
-        for x in range(16):
-            a, b = (y, x) if horiz else (x, y)
-            if 5 <= a <= 10:
-                c = SOIL_4 if a == 5 else SOIL_3 if a < 9 else SOIL_2
-                if a in (5, 10):
-                    c = INK_BROWN if a == 10 else SOIL_4
-                img[y, x] = c
-            if b % 16 in (6, 7, 8, 9) and 4 <= a <= 11:    # a post top
-                img[y, x] = SOIL_4 if (b % 16 == 6 or a == 4) else SOIL_3 if a < 11 else INK
-    if role in ('tl', 'tr', 'bl', 'br'):
-        pass
-    return img
+def hard_blocks():
+    return [
+        TR.trunk(BARK, OUT, seed=1, moss=(IVY[2], IVY[3])),
+        TR.stump(BARK[:4], WOOD, OUT, seed=2, moss=(IVY[2], IVY[3])),
+        TR.trunk(BARK, OUT, seed=3),
+        TR.boulder(ST, OUT, seed=4, moss=[IVY[1], IVY[2], IVY[3], IVY[4]]),
+    ]
 
 
-def terrain(ctx):
-    a = {}
-    fl = soil()
-    a['floor_0'] = fl
-    a['floor_1'] = shadow_top(fl, [SOIL_4, SOIL_3, SOIL_2], [SOIL_3, SOIL_2, SOIL_2], rows=5)
-    lav = clump_bush([LILAC_0, LILAC_1, LILAC_2, LILAC_3], INK_BROWN)
-    # lavender spikes: little vertical flower stems above the bush clumps
-    for (x, y) in ((4, 2), (8, 1), (12, 2), (6, 5), (10, 5)):
-        lav[y, x] = LILAC_3
-        lav[y + 1, x] = LILAC_2
-    a['soft_block_0'] = over(fl.copy(), lav)
-    pot = grid("""
-.....g.gg.g.....
-.oooooooooooooo.
-o4ssssssssssss3o
-o44444444444443o
-o33333333333332o
-.oooooooooooooo.
-.o433333333322o.
-.o433333333322o.
-.o433333333322o.
-..o4333333322o..
-..o4333333322o..
-..o3333333322o..
-..o3333333322o..
-...o33333322o...
-...oooooooooo...
-................
-""", {'o': INK_BROWN, '4': TERRA_4, '3': TERRA_2, '2': TERRA_1, 's': SOIL_2, 'g': LEAF_2})
-    a['hard_block_0'] = over(fl.copy(), pot)
-    slab = remap(pot, [LEAF_3, LEAF_2], [SOIL_2, SOIL_2])
-    blk = blank(16, 16, TERRA_2)
-    blk[0:4, :] = TERRA_4
-    blk[:, 13:] = TERRA_1
-    blk[12:, :] = TERRA_1
-    blk = outline(blk[1:15, 1:15], INK_BROWN)
-    pb = fl.copy()
-    over(pb, blk, 0, 0)
-    a['pressure_block'] = pb
-    # the hose ring pieces (palettes 1..4)
-    a['gimmick_0e_0'] = a['gimmick_0e_3'] = a['gimmick_0e_6'] = a['gimmick_0e_9'] = hose_corner(fl.copy())
-    v = hose_h(fl.copy()).T.copy()
-    h = hose_h(fl.copy())
-    for n, x in (('gimmick_0e_1', v), ('gimmick_0e_4', v), ('gimmick_0e_7', v), ('gimmick_0e_10', v),
-                 ('gimmick_0e_2', h), ('gimmick_0e_5', h), ('gimmick_0e_8', h), ('gimmick_0e_11', h)):
-        a[n] = x
-    for n in ring_names(ctx):
-        role, _ = role_of(ctx, n)
-        if role in ('border_l', 'border_r'):
-            g = speckle(16, 16, SOIL_2, [(SOIL_3, 1), (LEAF_2, 1)], seed=hash2(len(n), 9), density=0.2)
-            a[n] = g
-        else:
-            a[n] = fence(role)
-    return a
+def soft():
+    return [
+        TR.bush(B, OUT, seed=1, berries=(CURRANT, CURRANT_H), shadow=G_SH),
+        TR.bush(B, OUT, seed=2, berries=(APPLE, APPLE_H), shadow=G_SH, lobes=7),
+        TR.bush(B, OUT, seed=3, flowers=[(BLOSSOM, DAND, BLOSSOM_D)], nflowers=6, shadow=G_SH),
+        TR.grass_clump(B, OUT, seed=4, shadow=G_SH, seeds=DAND),
+        TR.bush(B, OUT, seed=5, shadow=G_SH),
+    ]
+
+
+def pressure():
+    return TR.boulder(ST, OUT, seed=9, rx=7.4, ry=7.2, lobes=4, amp=0.05, flat=0.6)

@@ -185,12 +185,12 @@ def gravel_tex(ramp, seed, size=TEX, rake=False):
 
 
 def pebble_at(img, x, y, ramp, wrap=False, seed=0, big=False):
-    """a small stone (ramp = [shadow, dark, mid, light])"""
+    """a small stone (ramp = [outline / shadow, dark, mid, light])"""
     sh, dk, md, lt = ramp
     H, W = img.shape
-    pat = ([(0, 0, lt), (1, 0, md), (0, 1, md), (1, 1, dk), (2, 1, sh), (1, 2, sh)] if not big else
-           [(1, 0, lt), (2, 0, md), (0, 1, lt), (1, 1, md), (2, 1, md), (3, 1, dk), (0, 2, md), (1, 2, dk),
-            (2, 2, dk), (3, 2, sh), (1, 3, sh), (2, 3, sh)])
+    pat = ([(1, 0, lt), (0, 1, lt), (1, 1, md), (2, 1, dk), (0, 2, sh), (1, 2, sh), (2, 2, sh)] if not big else
+           [(1, 0, lt), (2, 0, lt), (0, 1, lt), (1, 1, md), (2, 1, md), (3, 1, dk), (0, 2, md), (1, 2, md),
+            (2, 2, dk), (3, 2, dk), (0, 3, sh), (1, 3, sh), (2, 3, sh), (3, 3, sh), (4, 2, sh)])
     for dx, dy, c in pat:
         xx, yy = x + dx, y + dy
         if wrap:
@@ -455,17 +455,21 @@ def grass_clump(ramp, outline, seed=0, shadow=None, seeds=None):
 
 # ---- hard blocks -------------------------------------------------------------------------------------
 def boulder(stone, outline, seed=0, moss=None, rx=7.0, ry=6.6, cx=8.0, cy=8.0, lobes=4, amp=0.08, cracks=1,
-            snow=None, flat=0.3):
-    """a rounded rock: stone = 5 greys dark..light; moss = 4 greens (on the lit top);
-    snow = (white, blue-white) cap"""
+            snow=None, flat=0.3, moss_amt=0.5):
+    """a rounded rock: stone = 5 greys dark..light; moss = 4 greens (a cushion on the lit
+    top, ragged); snow = (white, blue-white) cap"""
     m = N.blob(16, 16, cx, cy, rx, ry, lobes=lobes, amp=amp, seed=seed)
-    lumv = N.dome(m, 5.5, flat=flat)
+    lumv = N.dome(m, 5.0, flat=flat)
     n = N.fbm(16, 16, seed + 3, ((8, 1.0), (4, 0.5)))
-    img = N.shade(lumv + (n - 0.5) * 0.5, stone, -1.0, 1.0, dither=0.3, mask=m)
     ys, xs = np.mgrid[0:16, 0:16]
+    # a darker base where the rock meets the ground
+    base = (ys > cy + ry * 0.45)
+    img = N.shade(lumv + (n - 0.5) * 0.45 - 0.25 * base, stone, -1.0, 1.0, dither=0.3, mask=m)
     if moss:
-        mm = m & (lumv + (n - 0.5) * 1.6 > 0.35) & (ys < cy + 2)
-        mimg = N.shade(lumv + (n - 0.5) * 0.8, moss, -0.4, 1.2, dither=0.3)
+        top = (ys - cy) / ry + (xs - cx) / rx * 0.35
+        mm = m & (top + (n - 0.5) * 1.1 < -0.62 + moss_amt * 0.5)
+        ml = N.dome(mm, 2.5)
+        mimg = N.shade(ml + (n - 0.5) * 0.6, moss, -1.0, 1.0, dither=0.3)
         img[mm] = mimg[mm]
     if snow:
         wh, bw = snow
@@ -473,11 +477,11 @@ def boulder(stone, outline, seed=0, moss=None, rx=7.0, ry=6.6, cx=8.0, cy=8.0, l
         img[sm] = np.where(lumv[sm] > 0.2, wh, bw)
     r = Rng(seed + 8)
     for k in range(cracks):
-        x, y = 6 + r.rand(5), 7 + r.rand(4)
-        for j in range(4):
+        x, y = 7 + r.rand(4), 8 + r.rand(3)
+        for j in range(3):
             if m[y, x] and (img[y, x] in stone):
                 img[y, x] = stone[0]
-            x += 1 if r.rand(2) else 0
+            x += 1 if r.rand(2) else -1
             y += 1
     img = N.selout(img, outline, None)
     return img
@@ -626,3 +630,392 @@ def rough_region(cells, seed, amp=2.5, inward=None, outward=None):
     if outward is not None:
         keep |= outward
     return keep
+
+
+# ---- more plants and grounds ------------------------------------------------------------------------
+def water_tex(ramp, seed, size=TEX, ripples=True):
+    """still shallow water: ramp = [deep, dark, base, light, glint]; soft depth patches and
+    short horizontal ripple glints"""
+    deep, dark, base, light, glint = ramp
+    n = N.fbm(size, size, seed, ((32, 1.0), (16, 0.5)), period=size)
+    img = patches(n, [0.36, 0.64], [dark, base, light], dither=0.2)
+    if ripples:
+        r = Rng(seed + 1)
+        for (x, y) in N.poisson(size, size, 7.0, seed + 2):
+            x, y = int(x), int(y)
+            ln = 2 + r.rand(3)
+            for k in range(ln):
+                img[y % size, (x + k) % size] = glint if k in (1, 2) and r.rand(2) else light
+            img[(y + 1) % size, (x + 1) % size] = dark
+    return img
+
+
+def conifer(ramp, outline, seed=0, snow=None, r=7.2, shadow=None):
+    """a young fir seen from above: a star of drooping branch tiers, darker inside,
+    optional snow on the lit tips"""
+    dark, d2, mid, light, hi = ramp
+    img = blank(16, 16)
+    cx, cy = 7.6, 7.6
+    rr = Rng(seed)
+    for tier, (rad, nb, rot) in enumerate(((r, 8, 0.0), (r * 0.72, 7, 0.4), (r * 0.42, 5, 0.9))):
+        for y in range(16):
+            for x in range(16):
+                dx, dy = x + 0.5 - cx, y + 0.5 - cy
+                d = math.hypot(dx, dy)
+                a = math.atan2(dy, dx) + rot + seed * 0.37
+                edge = rad * (0.72 + 0.28 * abs(math.cos(a * nb / 2)))
+                if d > edge:
+                    continue
+                lit = (-dx * 0.55 - dy * 0.83) / (d + 0.01)
+                t = d / max(edge, 0.1)
+                v = 0.35 * lit * t + 0.25 * (1 - tier * 0.2) - 0.55 * (1 - t) * (tier == 0)
+                v += (hash2(x, y, seed + tier) % 5 - 2) * 0.06
+                c = hi if v > 0.42 else light if v > 0.18 else mid if v > -0.05 else d2 if v > -0.3 else dark
+                img[y, x] = c
+                if snow and t > 0.55 and lit > 0.2 and (x + y + tier) % 3:
+                    img[y, x] = snow[0] if lit > 0.6 else snow[1]
+    img = N.selout(img, outline, None)
+    if shadow is not None:
+        sh = N.shift(img >= 0, 1, 1) & (img < 0)
+        img[sh] = shadow
+    return img
+
+
+def lily_pads(pad, outline, flower=None, seed=0, n=3, water_shadow=None):
+    """a cluster of round lily pads (each with its notch), pad = 4 greens, flower =
+    (petal, petal shade, centre)"""
+    img = blank(16, 16)
+    rr = Rng(seed)
+    pads = []
+    for k in range(n * 5):
+        if len(pads) >= n:
+            break
+        if not pads:
+            rad, x, y = 5.6 + rr.rand(10) / 10.0, 7.0 + rr.rand(20) / 10.0, 7.0 + rr.rand(20) / 10.0
+        else:
+            rad = 2.6 + rr.rand(14) / 10.0
+            a = rr.rand(628) / 100.0
+            x, y = 8 + math.cos(a) * 5.0, 8 + math.sin(a) * 5.0
+            if any(math.hypot(x - a2, y - b2) < (rad + c2) * 0.75 for a2, b2, c2 in pads[1:]):
+                continue
+            if not (2.5 <= x <= 13.5 and 2.5 <= y <= 13.5):
+                continue
+        pads.append((x, y, rad))
+    for (px, py, rad) in pads:
+        notch = rr.rand(628) / 100.0
+        for y in range(16):
+            for x in range(16):
+                dx, dy = x + 0.5 - px, y + 0.5 - py
+                d = math.hypot(dx, dy)
+                if d > rad:
+                    continue
+                a = math.atan2(dy, dx)
+                if abs(((a - notch + math.pi) % (2 * math.pi)) - math.pi) < 0.35 and d > 0.8:
+                    continue
+                lit = (-dx * 0.55 - dy * 0.83) / rad
+                c = pad[3] if lit > 0.45 else pad[2] if lit > -0.1 else pad[1]
+                if abs(abs(a - notch) - math.pi) < 0.12 and d < rad - 0.8:
+                    c = pad[0]
+                img[y, x] = c
+    img = N.selout(img, outline, None)
+    if flower:
+        p, ps, cc = flower
+        fx, fy, _ = pads[0]
+        fx, fy = int(fx), int(fy)
+        for dx, dy, c in ((0, -2, p), (-1, -1, p), (1, -1, p), (-2, 0, p), (2, 0, ps), (-1, 1, ps), (1, 1, ps),
+                          (0, 2, ps), (0, -1, p), (-1, 0, p), (1, 0, ps), (0, 1, ps), (0, 0, cc)):
+            if 0 <= fx + dx < 16 and 0 <= fy + dy < 16:
+                img[fy + dy, fx + dx] = c
+    if water_shadow is not None:
+        sh = N.shift(img >= 0, 1, 1) & (img < 0)
+        img[sh] = water_shadow
+    return img
+
+
+def reeds(ramp, outline, head=None, seed=0, shadow=None):
+    """cattails / reeds from above-front: upright leaves with brown heads"""
+    dark, d2, mid, light, hi = ramp
+    img = blank(16, 16)
+    r = Rng(seed)
+    stems = []
+    for k in range(9):
+        stems.append((r.rand(100), 3 + r.rand(10), 8 + r.rand(6), (r.rand(9) - 4) / 10.0))
+    stems.sort()
+    for _, bx, hgt, lean in stems:
+        for j in range(hgt):
+            x = int(round(bx + lean * j))
+            y = 14 - j
+            if 0 <= x < 16 and 0 <= y < 16:
+                img[y, x] = light if j > hgt * 0.6 else mid if j > hgt * 0.3 else d2
+                if x + 1 < 16 and j < hgt * 0.5:
+                    img[y, x + 1] = dark if img[y, x + 1] < 0 else img[y, x + 1]
+        if head and hgt >= 11:
+            x = int(round(bx + lean * hgt))
+            for j in range(3):
+                y = 14 - hgt + j
+                if 0 <= x < 16 and 0 <= y < 16:
+                    img[y, x] = head[0] if j else head[1]
+                    if x + 1 < 16:
+                        img[y, x + 1] = head[2]
+    img = N.selout(img, outline, None)
+    if shadow is not None:
+        sh = N.shift(img >= 0, 1, 1) & (img < 0)
+        ys, xs = np.mgrid[0:16, 0:16]
+        img[sh & (ys >= 12)] = shadow
+    return img
+
+
+def toadstool(cap, stem, outline, size=1.0, spots=None, seed=0, shadow=None, gills=None):
+    """a toadstool seen from above-front: a domed cap (cap = 4 colours dark..light) with
+    white spots, a pale stem below; size 0..1 (regrowth)"""
+    img = blank(16, 16)
+    s = max(0.25, size)
+    rx, ry = 7.0 * s, 4.6 * s
+    cx, cy = 8.0, 15.5 - 3.2 * s - ry
+    ys, xs = np.mgrid[0:16, 0:16]
+    st = (np.abs(xs + 0.5 - cx) < 2.3 * s + 0.6) & (ys + 0.5 > cy) & (ys + 0.5 < cy + ry + 3.4 * s)
+    img[st] = np.where(xs[st] + 0.5 < cx, stem[1], stem[0])
+    m = ((xs + 0.5 - cx) / rx) ** 2 + ((ys + 0.5 - cy) / ry) ** 2 <= 1
+    m &= ys + 0.5 < cy + ry * 0.55
+    lumv = N.dome(m, max(1.5, 3.0 * s), flat=0.2)
+    c = N.shade(lumv, cap, -1.0, 1.0, dither=0.25, mask=m)
+    img[m] = c[m]
+    if gills is not None:
+        rim = m & ~N.shift(m, 0, -1)
+        img[rim & (ys > cy)] = gills
+    if spots and s > 0.5:
+        r = Rng(seed)
+        for k in range(int(5 * s)):
+            for t in range(10):
+                x, y = int(cx - rx + 1 + r.rand(int(2 * rx - 1))), int(cy - ry + 1 + r.rand(int(ry * 1.4)))
+                if m[y, x] and (x + 1 < 16 and m[y, x + 1]):
+                    img[y, x] = spots[0]
+                    img[y, x + 1] = spots[1] if (k % 2) else spots[0]
+                    break
+    img = N.selout(img, outline, None)
+    if shadow is not None:
+        sh = N.shift(img >= 0, 1, 1) & (img < 0)
+        img[sh & (ys >= 11)] = shadow
+    return img
+
+
+def cabbage(ramp, outline, seed=0, vein=None, shadow=None, r=6.6):
+    """a cabbage / lettuce from above: concentric curled leaves"""
+    dark, d2, mid, light, hi = ramp
+    img = blank(16, 16)
+    cx, cy = 8.0, 7.8
+    for y in range(16):
+        for x in range(16):
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            d = math.hypot(dx, dy)
+            a = math.atan2(dy, dx)
+            edge = r * (0.9 + 0.1 * math.cos(a * 5 + seed))
+            if d > edge:
+                continue
+            ring = (d / edge * 3.2 + 0.3 * math.cos(a * 4 + seed)) % 1.0
+            lit = (-dx * 0.55 - dy * 0.83) / (d + 0.01)
+            v = (0.6 - ring) * 0.9 + 0.3 * lit * (d / edge) + (0.25 if d < edge * 0.3 else 0)
+            img[y, x] = hi if v > 0.55 else light if v > 0.25 else mid if v > -0.05 else d2 if v > -0.3 else dark
+            if vein is not None and abs(math.sin(a * 6 + seed)) < 0.08 and d > 1.5:
+                img[y, x] = vein
+    img = N.selout(img, outline, None)
+    if shadow is not None:
+        sh = N.shift(img >= 0, 1, 1) & (img < 0)
+        img[sh] = shadow
+    return img
+
+
+def pumpkin(ramp, leaf, outline, seed=0, shadow=None):
+    """a pumpkin with its ribs and a leaf"""
+    img = blank(16, 16)
+    cx, cy = 8.0, 9.0
+    ys, xs = np.mgrid[0:16, 0:16]
+    m = ((xs + 0.5 - cx) / 6.8) ** 2 + ((ys + 0.5 - cy) / 5.6) ** 2 <= 1
+    lumv = N.dome(m, 4.0)
+    rib = np.abs(np.sin((xs + 0.5 - cx) / 6.8 * 2.6)) < 0.18
+    c = N.shade(lumv - 0.45 * rib, ramp, -1.0, 1.0, dither=0.2, mask=m)
+    img[m] = c[m]
+    for dx, dy, cc in ((0, -5, leaf[0]), (0, -4, leaf[0]), (1, -6, leaf[1]), (2, -6, leaf[2]), (3, -5, leaf[1]),
+                       (-1, -6, leaf[2]), (-2, -6, leaf[1]), (-3, -5, leaf[1]), (2, -5, leaf[1])):
+        x, y = int(cx) + dx, int(cy) + dy
+        img[y, x] = cc
+    img = N.selout(img, outline, None)
+    if shadow is not None:
+        sh = N.shift(img >= 0, 1, 1) & (img < 0)
+        img[sh] = shadow
+    return img
+
+
+def trunk(bark, outline, seed=0, moss=None, r=6.8, roots=True):
+    """a big tree trunk from above (cut by the canopy): a round mass of bark with root flare"""
+    img = blank(16, 16)
+    cx, cy = 8.0, 8.0
+    ys, xs = np.mgrid[0:16, 0:16]
+    a = np.arctan2(ys + 0.5 - cy, xs + 0.5 - cx)
+    rr = r * (1 + (0.12 * np.maximum(0, np.cos(a * 5 + seed)) if roots else 0))
+    m = np.hypot(xs + 0.5 - cx, ys + 0.5 - cy) <= rr
+    lumv = N.dome(m, 4.5)
+    grooves = (np.abs(np.sin(a * 9 + seed)) < 0.22)
+    c = N.shade(lumv - 0.4 * grooves, bark, -1.0, 1.0, dither=0.2, mask=m)
+    img[m] = c[m]
+    if moss:
+        n = N.fbm(16, 16, seed + 2, ((4, 1.0),))
+        mm = m & (n > 0.58) & (ys < 9)
+        img[mm] = np.where(lumv[mm] > 0.2, moss[1], moss[0])
+    return N.selout(img, outline, None)
+
+
+def stone_wall(cv_layer, region, ramp, seed, gap, size=5.0, moss=None, outline=None):
+    """a dry-stone wall over a region: rounded stones packed together (cells of a jittered
+    grid, staggered like courses), each lit as a little dome, dark gaps between them;
+    ramp = 5 colours dark..light, gap = the crevice colour; moss = 2 greens on some tops"""
+    ys, xs = np.nonzero(region)
+    if len(ys) == 0:
+        return
+    y0, y1, x0, x1 = max(0, ys.min() - 2), min(512, ys.max() + 3), max(0, xs.min() - 2), min(512, xs.max() + 3)
+    h, w = y1 - y0, x1 - x0
+    sx, sy = size * 1.25, size * 0.9
+    pts = []
+    for j in range(int(h / sy) + 2):
+        for i in range(int(w / sx) + 2):
+            jx = (hash2(i, j, seed) % 100) / 100.0 - 0.5
+            jy = (hash2(i, j, seed + 1) % 100) / 100.0 - 0.5
+            pts.append(((i + 0.5 * (j % 2) + jx * 0.6) * sx, (j + jy * 0.5) * sy))
+    lab = np.full((h, w), -1)
+    best = np.full((h, w), 1e9)
+    yy, xx = np.mgrid[0:h, 0:w]
+    for k, (px, py) in enumerate(pts):
+        bx0, bx1 = max(0, int(px - 2 * sx)), min(w, int(px + 2 * sx) + 1)
+        by0, by1 = max(0, int(py - 2 * sy)), min(h, int(py + 2 * sy) + 1)
+        if bx0 >= bx1 or by0 >= by1:
+            continue
+        d = ((xx[by0:by1, bx0:bx1] + 0.5 - px) / sx) ** 2 + ((yy[by0:by1, bx0:bx1] + 0.5 - py) / sy) ** 2
+        b = best[by0:by1, bx0:bx1]
+        m = d < b
+        b[m] = d[m]
+        lab[by0:by1, bx0:bx1][m] = k
+    edge = np.zeros((h, w), bool)
+    edge[:, 1:] |= lab[:, 1:] != lab[:, :-1]
+    edge[1:, :] |= lab[1:, :] != lab[:-1, :]
+    inner = ~edge
+    d = N.dist_inside(inner, cap=4)
+    t = np.clip(d / 3.0, 0, 1)
+    hgt = np.sqrt(1 - (1 - t) ** 2) * 3.0
+    gy, gx = np.gradient(hgt)
+    lumv = (-gx * N.LIGHT[0] - gy * N.LIGHT[1]) * 0.9 + 0.15 + (t - 0.5) * 0.3
+    tones = np.array([(hash2(k, 2, seed) % 5 - 2) * 0.13 for k in range(len(pts))] + [0.0])
+    lumv = lumv + tones[lab]
+    img = N.shade(lumv, ramp, -1.0, 1.0, dither=0.2, ox=x0, oy=y0)
+    img[edge] = gap
+    if moss:
+        n = N.fbm(w, h, seed + 5, ((16, 1.0), (8, 0.5)))
+        mm = inner & (lumv > 0.35) & (n > 0.56)
+        img[mm] = np.where(lumv[mm] > 0.6, moss[1], moss[0])
+    img = np.where(region[y0:y1, x0:x1], img, T)
+    if outline is not None:
+        img = N.selout(img, outline, None)
+    sub = cv_layer[y0:y1, x0:x1]
+    m = img >= 0
+    sub[m] = img[m]
+
+
+def vine_path(cv_layer, cells, conn_of, stem, leaf, grape=None, seed=0, wire=None):
+    """a grapevine trained along a path of cells: a woody stem through the cells' centres
+    (conn_of(cell) -> set of 'l','r','t','b'), leaves either side, grape bunches"""
+    r = Rng(seed)
+    for (cx, cy) in cells:
+        conn = conn_of(cx, cy)
+        x0, y0 = cx * 16, cy * 16
+        pts = []
+        for c in conn:
+            if c == 'l':
+                pts += [(x, 8) for x in range(0, 9)]
+            if c == 'r':
+                pts += [(x, 8) for x in range(8, 16)]
+            if c == 't':
+                pts += [(8, y) for y in range(0, 9)]
+            if c == 'b':
+                pts += [(8, y) for y in range(8, 16)]
+        # the wire (thin, under the stem)
+        if wire is not None:
+            for (x, y) in pts:
+                cv_layer[y0 + y, x0 + x] = wire
+        # a wavy stem along the path
+        for (x, y) in pts:
+            hz = (y == 8)
+            off = int(round(1.2 * math.sin(((x0 + x) if hz else (y0 + y)) * 0.55 + seed)))
+            xx, yy = (x, y + off) if hz else (x + off, y)
+            cv_layer[y0 + yy, x0 + xx] = stem[1]
+            if hz:
+                cv_layer[y0 + yy + 1, x0 + xx] = stem[0]
+            else:
+                cv_layer[y0 + yy, x0 + xx + 1] = stem[0]
+        # leaves (3-lobed, 4x4) alternating sides
+        for k, (x, y) in enumerate(pts[::4]):
+            hz = (y == 8)
+            side = 1 if (x + y + cx + cy) % 2 else -1
+            lx, ly = (x - 1, y + side * 3 - 1) if hz else (x + side * 3 - 1, y - 1)
+            for dx, dy, c in ((1, 0, leaf[2]), (0, 1, leaf[2]), (1, 1, leaf[1]), (2, 1, leaf[1]), (1, 2, leaf[0]),
+                              (0, 0, leaf[3]), (2, 0, leaf[2]), (2, 2, leaf[0]), (0, 2, leaf[1])):
+                xx, yy = lx + dx, ly + dy
+                if 0 <= xx < 16 and 0 <= yy < 16:
+                    cv_layer[y0 + yy, x0 + xx] = c
+        if grape and r.rand(3) == 0 and pts:
+            x, y = pts[len(pts) // 2]
+            hz = (y == 8)
+            gx, gy = (x + 2, y + 2) if hz else (x + 2, y + 2)
+            for dx, dy, c in ((0, 0, grape[2]), (1, 0, grape[1]), (2, 0, grape[1]), (0, 1, grape[1]), (1, 1, grape[1]),
+                              (2, 1, grape[0]), (1, 2, grape[0]), (0, 2, grape[1]), (1, 3, grape[0])):
+                xx, yy = gx + dx, gy + dy
+                if 0 <= xx < 16 and 0 <= yy < 16:
+                    cv_layer[y0 + yy, x0 + xx] = c
+
+
+def crowns(cv_layer, centres, ramp, seed, outline=None, r=(9.0, 12.0), clip=None, tex=None, leaf=(1.5, 2.6)):
+    """round tree crowns / shrub masses at map-space centres, drawn back to front (each
+    lit as its own mound, outlined); clip = bool mask they must stay inside (or None)"""
+    if tex is None:
+        tex = leaf_texture(TEX, seed, leaf, 1.1)
+    rng = Rng(seed + 1)
+    for (cx, cy) in sorted(centres, key=lambda c: c[1]):
+        rad = r[0] + (r[1] - r[0]) * rng.rand(100) / 100.0
+        x0, y0 = int(cx - rad - 3), int(cy - rad - 3)
+        w = h = int(2 * rad + 7)
+        m = N.blob(w, h, cx - x0, cy - y0, rad, rad * 0.92, lobes=7, amp=0.07, seed=rng.rand(1000))
+        if clip is not None:
+            sub = np.zeros((h, w), bool)
+            ys0, xs0 = max(0, y0), max(0, x0)
+            ys1, xs1 = min(512, y0 + h), min(512, x0 + w)
+            sub[ys0 - y0:ys1 - y0, xs0 - x0:xs1 - x0] = clip[ys0:ys1, xs0:xs1]
+            m &= sub
+        if not m.any():
+            continue
+        g = N.dome(m, rad * 0.8)
+        yy, xx = np.mgrid[y0:y0 + h, x0:x0 + w]
+        lt = tex[yy % TEX, xx % TEX]
+        lumv = np.where(lt > -1.2, lt + 0.9 * g, -1.4 + 0.5 * g)
+        img = N.shade(lumv, ramp, -1.0, 1.0, dither=0.25, ox=x0, oy=y0, mask=m)
+        if outline is not None:
+            img = N.selout(img, outline, None)
+        for j in range(h):
+            for i in range(w):
+                v = img[j, i]
+                if v >= 0 and 0 <= y0 + j < 512 and 0 <= x0 + i < 512:
+                    cv_layer[y0 + j, x0 + i] = v
+
+
+def ring_points(ring, step, seed, inset=4):
+    """centres spread along a ring of cells (map space px), about `step` px apart"""
+    pts = []
+    m = cell_mask(ring)
+    ys, xs = np.nonzero(m)
+    occupied = []
+    rng = Rng(seed)
+    cand = list(zip(xs[::7], ys[::7]))
+    order = sorted(range(len(cand)), key=lambda i: hash2(int(cand[i][0]), int(cand[i][1]), seed))
+    for i in order:
+        x, y = cand[i]
+        if any((x - a) ** 2 + (y - b) ** 2 < step * step for a, b in pts):
+            continue
+        pts.append((int(x), int(y)))
+    return pts

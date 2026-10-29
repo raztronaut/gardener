@@ -1,226 +1,181 @@
-"""Stage 2 — the FROST GARDEN: a frozen pond (slippery ice, dark holes in the ice), holly
-bushes capped with snow and red berries (soft), snowy boulders (hard), a ring of snowbanks
-with wooden fence posts."""
+"""Stage 2 — the FROSTY WOODLAND: a frozen forest pond (the original's slippery ice) dusted
+with snow, frozen leaves under the ice; dark frozen streams run beneath it (the
+underground track) to black water holes; snow-capped holly, frosted firs and frozen
+grass (soft); snowy boulders and stumps (hard); a fir treeline under snow all round."""
 from common import *  # noqa: F401,F403
-import math
+import terrain as TR
+import nature as N
 
-NAME = 'Frost Garden'
-FLOOR = 'gimmick_07_0'
+NAME = 'Frosty Woodland'
+FLOOR_KINDS = ('floor', 'gimmick_07')
+
+ICE = [C('#4f739c'), C('#6a92bc'), C('#88b0d4'), C('#a8cce6'), C('#d4ecf8')]
+SNOW = C('#f4faff')
+FROST = C('#c4dcee')
+LEAF_FZ = C('#b07850')
+LEAF_FZ2 = C('#7e8ea8')
+# streams / holes
+DEEP = [C('#0e1e38'), C('#1c3660'), C('#2e5486')]
+# greens (holly, firs)
+GR = [C('#0f2a24'), C('#1a4234'), C('#2a5e44'), C('#3e7a52'), C('#5c9a62')]
+OUT = C('#0a1820')
+BERRY = C('#d82838')
+BERRY_H = C('#ff8a90')
+ST = [C('#3a4250'), C('#58627a'), C('#7a86a0'), C('#a2acc2'), C('#ccd4e4')]
+BARK = [C('#2a1c18'), C('#46302a'), C('#644638'), C('#86604a')]
+WOOD = [C('#6a5040'), C('#9a7a5e'), C('#bc9c7c'), C('#dcc4a8')]
+
+SHADE = {ICE[4]: ICE[2], ICE[3]: ICE[1], ICE[2]: ICE[0], ICE[1]: DEEP[2], ICE[0]: DEEP[1], SNOW: FROST, FROST: ICE[2]}
 
 
-def ice(seed=0, dark=None):
-    """an ice tile: pale ice, two frost streaks, a soft bevel; dark = connections of a
-    darker 'shadowed ice' puddle: set of 'l', 'r', 't', 'b' (or None)"""
-    img = blank(16, 16, ICE_2)
-    for y in range(16):
-        for x in range(16):
-            if x == 15 or y == 15:
-                img[y, x] = ICE_1
-            elif x == 0 or y == 0:
-                img[y, x] = ICE_3
-    # frost streaks (diagonal, lit)
-    for k in range(5):
-        img[3 + k, 3 + k] = ICE_3
-        img[3 + k, 4 + k] = WHITE if k < 2 else ICE_3
-    for k in range(3):
-        img[9 + k, 4 + k] = ICE_3
-    img[11, 12] = ICE_3
-    img[12, 12] = ICE_3
-    if dark is not None:
-        m = np.zeros((16, 16), bool)
-        for y in range(4, 12):
-            for x in range(4, 12):
-                m[y, x] = True
-        for (x, y) in ((4, 4), (11, 4), (4, 11), (11, 11)):
-            m[y, x] = False
-        if 'l' in dark:
-            m[5:11, 0:4] = True
-        if 'r' in dark:
-            m[5:11, 12:16] = True
-        if 't' in dark:
-            m[0:4, 5:11] = True
-        if 'b' in dark:
-            m[12:16, 5:11] = True
-        for y in range(16):
-            for x in range(16):
-                if m[y, x]:
-                    edge = any(not (0 <= y + dy < 16 and 0 <= x + dx < 16) or not m[y + dy, x + dx]
-                               for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
-                    inner_edge = edge and 0 < x < 15 and 0 < y < 15
-                    img[y, x] = ICE_1 if not inner_edge else ICE_0
-        # a lit lower-right rim on the puddle
-        for y in range(1, 15):
-            for x in range(1, 15):
-                if m[y, x] and not m[y + 1, x] and img[y + 1, x] != ICE_0:
-                    img[y + 1, x] = ICE_3
+def ground_tex():
+    n = N.fbm(64, 64, 202, ((32, 1.0), (16, 0.5), (8, 0.3)), period=64)
+    img = TR.patches(n, [0.38, 0.70, 0.86], [ICE[1], ICE[2], ICE[3], FROST], dither=0.15)
+    # frost streaks (diagonal glints on the ice)
+    r = Rng(9)
+    for (x, y) in N.poisson(64, 64, 9.0, 33):
+        x, y = int(x), int(y)
+        for k in range(3 + r.rand(3)):
+            img[(y + k) % 64, (x + k) % 64] = ICE[4] if k % 2 == 0 else ICE[3]
+    # snow drifts: soft white patches
+    sn = N.fbm(64, 64, 207, ((16, 1.0), (8, 0.5)), period=64)
+    img[sn > 0.76] = SNOW
+    img[(sn > 0.71) & (sn <= 0.76)] = FROST
+    return img
+
+
+def decals():
+    d = []
+    d.append(TR.decal_leaves(1, [(LEAF_FZ, LEAF_FZ2)], n=2))
+    d.append(TR.decal_leaves(2, [(LEAF_FZ2, ICE[1])], n=3))
+    d.append(TR.decal_pebbles(3, [ICE[0], ST[1], ST[2], SNOW], n=2))
+    # a frosty grass tuft poking out of the snow
+    d.append(TR.decal_tuft(4, [GR[2], GR[3], FROST, SNOW], n=1))
+    # little ice cracks
+    for s in (5, 6):
+        im = blank(16, 16)
+        r = Rng(s)
+        x, y = 3 + r.rand(6), 3 + r.rand(6)
+        for k in range(9):
+            if 0 <= x < 16 and 0 <= y < 16:
+                im[y, x] = ICE[4] if k % 3 else SNOW
+                if y + 1 < 16:
+                    im[y + 1, x] = ICE[1]
+            x += 1
+            y += r.rand(3) - 1
+        d.append(im)
+    return d
+
+
+def stream(conn):
+    """a dark frozen stream under the ice, joining the cell edges in conn ('t','b','l','r')"""
+    img = blank(16, 16)
+    ys, xs = np.mgrid[0:16, 0:16]
+    m = np.zeros((16, 16), bool)
+    w = 3.2
+    for c in conn:
+        if c == 't':
+            m |= (np.abs(xs + 0.5 - 8) < w) & (ys < 9)
+        if c == 'b':
+            m |= (np.abs(xs + 0.5 - 8) < w) & (ys >= 7)
+        if c == 'l':
+            m |= (np.abs(ys + 0.5 - 8) < w) & (xs < 9)
+        if c == 'r':
+            m |= (np.abs(ys + 0.5 - 8) < w) & (xs >= 7)
+    m |= np.hypot(xs + 0.5 - 8, ys + 0.5 - 8) < w + 0.3
+    d = N.dist_inside(m, 4)
+    img[m] = np.where(d[m] > 2, DEEP[1], DEEP[2])
+    # bubbles trapped in the ice and a pale rim
+    for (x, y) in ((7, 7), (9, 9), (8, 5), (6, 10)):
+        if m[y, x] and d[y, x] > 1:
+            img[y, x] = ICE[2]
+    rim = N.shift(m, 0, 1) | N.shift(m, 1, 0) | N.shift(m, 0, -1) | N.shift(m, -1, 0)
+    rim &= ~m
+    img[rim] = ICE[1]
     return img
 
 
 def hole():
-    """a dark hole in the ice: open water inside a rim of ice and snow"""
-    img = ice()
-    for y in range(16):
-        for x in range(16):
-            d = math.hypot(x - 7.5, y - 7.5)
-            if d < 5.2:
-                img[y, x] = WATER_0
-            elif d < 6.2:
-                img[y, x] = WATER_1 if y > 7 else ICE_0
-            elif d < 7.4:
-                img[y, x] = WHITE if y < 8 else ICE_3
-    for (x, y) in ((6, 6), (7, 6), (9, 9)):
-        img[y, x] = WATER_1
-    return img
+    """a black water hole in the ice with a broken white rim"""
+    img = blank(16, 16)
+    ys, xs = np.mgrid[0:16, 0:16]
+    m = N.blob(16, 16, 8.0, 8.2, 5.8, 5.4, lobes=5, amp=0.1, seed=4)
+    d = N.dist_inside(m, 5)
+    img[m] = np.where(d[m] > 3, DEEP[0], np.where(d[m] > 1.5, DEEP[1], DEEP[2]))
+    # the lit far side of the water (lower right) and a glint
+    img[10, 10] = ICE[1]
+    img[10, 9] = DEEP[2]
+    rim = (N.shift(m, 1, 1) | N.shift(m, -1, -1) | N.shift(m, 1, -1) | N.shift(m, -1, 1)) & ~m
+    img[rim] = np.where(ys[rim] < 8, SNOW, ICE[3])
+    out = N.selout(img, ICE[1], None)
+    return out
 
 
-def snow_top(seed=0):
-    """snow seen from above: white drifts with pale-ice hollows and a few holly sprigs"""
-    img = blank(16, 16, WHITE)
-    for y in range(16):
-        for x in range(16):
-            v = math.sin((x + seed) * 0.7) + math.cos(y * 0.9 + seed)
-            if v > 1.2:
-                img[y, x] = ICE_3
-            elif v < -1.5:
-                img[y, x] = ICE_2
-    r = Rng(seed)
-    for _ in range(2):
-        x, y = 2 + r.rand(11), 2 + r.rand(11)
-        img[y, x] = LEAF_1
-        img[y, x + 1] = LEAF_0
-        img[y - 1, x + 1] = RED
-    return img
-
-
-def snow_ring(role, post=False, tuft=False):
-    """a hedge under snow: the top wall shows its snowy cap over the dark hedge face; the
-    others its snowed-in top with the green showing at the arena-side edge"""
-    img = snow_top(hash2(len(role), 5) % 7)
-    face = foliage_tile([LEAF_0, LEAF_0, LEAF_1, LEAF_2], seed=41, n=8)
-    if role in ('top', 'tl', 'tr'):
-        for y in range(16):
-            for x in range(16):
-                lip = 6 + (1 if (x // 3) % 2 else 0)
-                if y >= lip:
-                    img[y, x] = face[y, x]
-                if y == lip and x % 5 == 2:
-                    img[y + 1, x] = WHITE           # snow drips
-        img[14, :] = INK
-        img[15, :] = ICE_1
-    if role in ('bottom', 'bl', 'br'):
-        img[0, :] = INK
-        for x in range(16):
-            img[1, x] = LEAF_0 if x % 3 else LEAF_1
-            img[2, x] = ICE_2
-    if role in ('left', 'tl', 'bl'):
-        for y in range(16 if role == 'left' else (6 if role == 'tl' else 16)):
-            if role == 'bl' and y < 2:
-                continue
-            img[y, 15] = INK
-            img[y, 14] = LEAF_0 if y % 3 else LEAF_1
-            img[y, 13] = ICE_2
-    if role in ('right', 'tr', 'br'):
-        for y in range(16 if role == 'right' else (6 if role == 'tr' else 16)):
-            if role == 'br' and y < 2:
-                continue
-            img[y, 0] = INK
-            img[y, 1] = LEAF_0 if y % 3 else LEAF_1
-            img[y, 2] = ICE_2
-    # a low wooden fence along the arena side of the snowbank
-    def rail_v(x):
-        for y in range(16):
-            img[y, x] = WOOD_1
-            if y % 8 in (1, 2):
-                img[y, x - 1] = WOOD_2
-                img[y, x] = WOOD_2
-                if y % 8 == 1:
-                    img[y - 1 if y else y, x - 1] = WHITE
-    def rail_h(y):
-        for x in range(16):
-            img[y, x] = WOOD_1
-            if x % 8 in (3, 4):
-                img[y - 1, x] = WOOD_2
-                img[y, x] = WOOD_2
-                img[y - 2, x] = WHITE
-    if role == 'left':
-        rail_v(11)
-    if role == 'right':
-        rail_v(5)
-    if role == 'bottom':
-        rail_h(5)
-    if post:
-        px = 6
-        for y in range(2, 14):
-            for x in range(px, px + 4):
-                img[y, x] = WOOD_2 if x < px + 2 else WOOD_1
-            img[y, px - 1] = INK
-            img[y, px + 4] = INK
-        for x in range(px - 1, px + 5):
-            img[1, x] = WHITE
-            img[2, x] = WHITE if x in (px, px + 1, px + 2) else ICE_3
-        img[0, px:px + 3] = WHITE
-        img[14, px - 1:px + 5] = INK
-        img[6, px + 1] = WOOD_3
-        img[10, px + 2] = WOOD_3
-    if tuft:
-        for (x, y, c) in ((5, 6, LEAF_1), (6, 5, LEAF_2), (7, 5, LEAF_2), (8, 6, LEAF_1), (6, 6, LEAF_2), (7, 6, LEAF_1),
-                          (5, 7, LEAF_0), (6, 7, LEAF_1), (7, 7, LEAF_1), (8, 7, LEAF_0), (6, 4, WHITE), (7, 4, WHITE), (9, 6, RED), (9, 5, RED_D)):
-            img[y, x] = c
-    return img
-
-
-def terrain(ctx):
-    a = {}
-    a['gimmick_07_0'] = ice()
+def gimmicks():
+    g = {}
     for n, d in (('gimmick_08_0', 'rb'), ('gimmick_08_1', 'lb'), ('gimmick_08_2', 'tr'), ('gimmick_08_3', 'tl'),
                  ('gimmick_08_4', 'tb'), ('gimmick_08_5', 'lr'), ('gimmick_0a_0', 'tblr')):
-        a[n] = ice(dark=set(d))
-    a['gimmick_49_0'] = hole()
-    base = ice()
-    # holly under snow: dark leaves, white caps on the upper clumps, red berries
-    bush = clump_bush([LEAF_0, LEAF_1, LEAF_2, LEAF_3], INK, flowers=[(RED, RED_D)],
-                      flower_spots=[(5, 7), (11, 8), (8, 12), (3, 12), (13, 12)])
-    for y in range(16):
-        for x in range(16):
-            if bush[y, x] in (LEAF_2, LEAF_3) and y < 6:
-                bush[y, x] = WHITE if (y < 4 or (x + y) % 2) else ICE_3
-    a['soft_block_0'] = over(base.copy(), bush)
-    # a snowy boulder
-    boulder = blank(16, 16)
-    for y in range(16):
-        for x in range(16):
-            dx, dy = (x - 7.5) / 7.6, (y - 8.5) / 7.2
-            if dx * dx + dy * dy > 1:
-                continue
-            lum = -(dx * 0.7 + dy * 0.8)
-            boulder[y, x] = STONE_3 if lum > 0.3 else STONE_2 if lum > -0.3 else STONE_1
-            if dy < -0.35 + 0.15 * math.sin(x * 1.3):
-                boulder[y, x] = WHITE if dy < -0.6 else ICE_3
-    boulder = outline(boulder, INK)
-    a['hard_block_0'] = over(base.copy(), boulder)
-    # sudden death: a block of pond ice
-    blk = blank(16, 16, ICE_1)
-    for y in range(16):
-        for x in range(16):
-            if y < 5:
-                blk[y, x] = ICE_3 if y > 0 else WHITE
-            elif x > 12:
-                blk[y, x] = ICE_0
-            elif (x - y) % 7 == 0 and y > 6:
-                blk[y, x] = ICE_2
-    blk[0, :] = INK
-    blk[15, :] = INK
-    blk[:, 0] = INK
-    blk[:, 15] = INK
-    a['pressure_block'] = over(base.copy(), blk)
-    # the ring
-    posts = {'wall_8', 'wall_16', 'wall_6'}
-    tufts = {'wall_9', 'wall_12'}
-    for n in ring_names(ctx):
-        role, _ = role_of(ctx, n)
-        if role in ('border_l', 'border_r'):
-            g = speckle(16, 16, ICE_3, [(WHITE, 3), (ICE_2, 1)], seed=hash2(len(n), 3), density=0.25)
-            a[n] = g
-        else:
-            a[n] = snow_ring(role, post=n in posts, tuft=n in tufts)
-    return a
+        g[n] = stream(d)
+    g['gimmick_49_0'] = hole()
+    return g
+
+
+def paint(cv, L):
+    ring, pillars, field = TR.classify(L)
+    allc = set(L.cells)
+    TR.tile_tex(cv.base, ground_tex(), allc)
+    TR.scatter(cv.decal, field, decals(), 0.35, 21)
+    # the fir treeline: a dark mass, snow on its lit crowns
+    reg = TR.rough_region(ring, 52, amp=1.8)
+    TR.mass(cv.obj, reg, GR, 61, outline=OUT, dome_r=10.0, glob=0.9, r=(1.8, 3.2))
+    tex = TR.leaf_texture(64, 61, (1.8, 3.2), 1.1)
+    yy, xx = np.mgrid[0:512, 0:512]
+    lt = tex[yy % 64, xx % 64]
+    n = N.fbm(512, 512, 63, ((16, 1.0), (8, 0.5)), period=512)
+    snowy = reg & (cv.obj >= 0) & (cv.obj != OUT) & (lt > 0.25 - (n - 0.5) * 0.8)
+    cv.obj[snowy] = np.where(lt[snowy] > 0.55, SNOW, FROST)
+    hard = hard_blocks()
+    for (cx, cy) in pillars:
+        cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
+
+
+def hard_blocks():
+    return [
+        TR.boulder(ST, OUT, seed=1, snow=(SNOW, FROST)),
+        TR.boulder(ST, OUT, seed=2, snow=(SNOW, FROST), lobes=5),
+        TR.boulder(ST, OUT, seed=3, snow=(SNOW, FROST), rx=7.2, ry=6.2),
+        snowy_stump(),
+    ]
+
+
+def snowy_stump():
+    s = TR.stump(BARK, WOOD, OUT, seed=6)
+    ys, xs = np.mgrid[0:16, 0:16]
+    top = (s >= 0) & (s != OUT) & (ys < 9) & (((xs - 8) ** 2 / 36.0 + (ys - 6.5) ** 2 / 20.0) < 1)
+    s[top] = np.where(xs[top] + ys[top] < 13, SNOW, FROST)
+    return s
+
+
+def soft():
+    out = []
+    holly = TR.bush(GR, OUT, seed=1, berries=(BERRY, BERRY_H), shadow=ICE[0])
+    out.append(snowcap(holly, 1))
+    out.append(snowcap(TR.bush(GR, OUT, seed=2, lobes=7, shadow=ICE[0]), 2))
+    out.append(TR.conifer(GR, OUT, seed=3, snow=(SNOW, FROST), shadow=ICE[0]))
+    out.append(TR.conifer(GR, OUT, seed=4, snow=(SNOW, FROST), shadow=ICE[0], r=7.0))
+    out.append(snowcap(TR.bush(GR, OUT, seed=5, berries=(BERRY, BERRY_H), shadow=ICE[0]), 5))
+    return out
+
+
+def snowcap(img, seed):
+    n = N.fbm(16, 16, seed + 40, ((4, 1.0),))
+    ys, xs = np.mgrid[0:16, 0:16]
+    m = (img >= 0) & (img != OUT) & ((ys + n * 4) < 7.5) & (img != BERRY) & (img != BERRY_H)
+    img = img.copy()
+    img[m] = np.where(xs[m] + ys[m] < 12, SNOW, FROST)
+    return img
+
+
+def pressure():
+    # a block of pond ice
+    return TR.boulder([ICE[0], ICE[1], ICE[2], ICE[3], SNOW], OUT, seed=9, rx=7.4, ry=7.2, lobes=4, amp=0.04, flat=0.6, cracks=2)

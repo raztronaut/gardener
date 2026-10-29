@@ -1,127 +1,88 @@
-"""Stage 10 — the FOREST GARDEN: soft grass and clover, red toadstools that grow back
-(soft, with the original's 4 regrowth frames), mossy boulders (hard), a forest edge of
-ferns, tree trunks and rocks."""
+"""Stage 10 — the DEEP FOREST: a dim forest floor of moss and leaf litter with ferns and
+little mushrooms; big toadstools that grow back (soft: red, brown and orange caps with
+the original's 4 regrowth frames); ancient trunks with root flares and mossy boulders
+(hard); a dense old-growth canopy all round."""
 from common import *  # noqa: F401,F403
-import math
+import terrain as TR
+import nature as N
 
-NAME = 'Forest Garden'
+NAME = 'Deep Forest'
+
+F = [C('#1a2a14'), C('#24381a'), C('#304a20'), C('#40602a'), C('#587a36')]
+F_SH = C('#121e0e')
+LIT = [C('#5a3a1c'), C('#7a522a'), C('#a0703a')]
+CAN = [C('#0c1e10'), C('#163018'), C('#204622'), C('#30602c'), C('#4c7e3a')]
+OUT = C('#080e06')
+RED = [C('#6a1010'), C('#a81c18'), C('#e03424'), C('#ff7058')]
+BRN = [C('#4a2810'), C('#7a4420'), C('#a8683a'), C('#d09a60')]
+ORA = [C('#7a3a08'), C('#c06010'), C('#f09020'), C('#ffc060')]
+SPOT = [C('#fff8ec'), C('#d8d0c0')]
+STEM = [C('#b8ac90'), C('#ece4cc')]
+BARK = [C('#1e140c'), C('#34241a'), C('#4c3624'), C('#664a30'), C('#86643e')]
+ST = [C('#30363a'), C('#4c5458'), C('#6c7678'), C('#929c9a'), C('#bac2bc')]
+MOSS = [C('#304a20'), C('#40602a'), C('#587a36'), C('#78983e')]
+FERN = [C('#142a12'), C('#1e401a'), C('#2e5a24'), C('#467a30'), C('#689a40')]
+
+SHADE = {F[4]: F[2], F[3]: F[1], F[2]: F[0], F[1]: F_SH, F[0]: F_SH, LIT[2]: LIT[0], LIT[1]: F[0], LIT[0]: F_SH}
 
 
-def grass(seed=0, clover=False):
-    img = blank(16, 16, LEAF_3)
-    for y in range(16):
-        for x in range(16):
-            h = hash2(x, y, seed)
-            if h % 9 == 0:
-                img[y, x] = LEAF_4
-                if y > 0:
-                    img[y - 1, x] = LEAF_4 if h % 2 else img[y - 1, x]
-            elif h % 13 == 1:
-                img[y, x] = LEAF_2
-    if clover:
-        for (cx, cy, c) in ((4, 4, WHITE), (11, 10, PINK), (12, 3, WHITE)):
-            for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)):
-                img[cy + dy, cx + dx] = c
-            img[cy, cx] = GOLD_3 if False else LEAF_4
+def ground_tex():
+    img = TR.moss_tex(F, 1010)
+    n = N.fbm(64, 64, 1011, ((16, 1.0), (8, 0.5)), period=64)
+    r = Rng(12)
+    for (x, y) in N.poisson(64, 64, 3.0, 1012):
+        x, y = int(x), int(y)
+        if n[y % 64, x % 64] < 0.5:
+            continue
+        c = LIT[r.rand(3)]
+        img[y % 64, x % 64] = c
+        img[y % 64, (x + 1) % 64] = LIT[0] if c != LIT[0] else LIT[1]
     return img
 
 
-def toadstool(base, size=1.0, spots=True):
-    """a red toadstool with white spots on a cream stem; size 0..1 grows it"""
-    img = base.copy()
-    capw, caph = 7.4 * size, 5.2 * size
-    cy = 13 - 8 * size
-    stem_top = cy + caph * 0.5
-    for y in range(16):
-        for x in range(16):
-            dx, dy = (x + 0.5 - 8) / max(0.5, capw), (y + 0.5 - cy) / max(0.5, caph)
-            if dy <= 0.35 and dx * dx + dy * dy <= 1:
-                lum = -(dx * 0.6 + dy * 0.9)
-                img[y, x] = RED if lum > -0.2 else RED_D
-                if dy > 0.15:
-                    img[y, x] = CREAM if abs(dx) < 0.85 else RED_D
-            elif stem_top <= y + 0.5 <= 14.5 and abs(x + 0.5 - 8) <= 2.4 * size + 0.5:
-                img[y, x] = CREAM if x < 8 else SAND_2
-    if spots and size > 0.6:
-        for (sx, sy) in ((-3, -2), (1, -3), (3, -1), (-1, -1)):
-            x, y = int(8 + sx * size), int(cy + sy * size)
-            if 0 <= x < 15 and 0 <= y < 15 and img[y, x] in (RED, RED_D):
-                img[y, x] = WHITE
-                if img[y, x + 1] in (RED, RED_D):
-                    img[y, x + 1] = WHITE
-    # outline the toadstool
-    m = np.zeros((16, 16), bool)
-    for y in range(16):
-        for x in range(16):
-            m[y, x] = img[y, x] != base[y, x]
-    for y in range(16):
-        for x in range(16):
-            if not m[y, x]:
-                for ddx, ddy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                    xx, yy = x + ddx, y + ddy
-                    if 0 <= xx < 16 and 0 <= yy < 16 and m[yy, xx]:
-                        img[y, x] = INK
-                        break
-    return img
+def decals():
+    d = []
+    d.append(TR.decal_mushrooms(1, (BRN[1], BRN[2], BRN[3]), (STEM[0], STEM[1]), n=2))
+    d.append(TR.decal_mushrooms(2, (RED[1], RED[2], RED[3]), (STEM[0], STEM[1]), n=1, spots=SPOT[0]))
+    d.append(TR.decal_leaves(3, [(LIT[2], LIT[0]), (ORA[2], ORA[0])], n=3))
+    d.append(TR.decal_tuft(4, [FERN[1], FERN[2], FERN[3], FERN[4]], n=2))
+    d.append(TR.decal_pebbles(5, [F_SH, ST[1], ST[2], ST[3]], n=2))
+    d.append(TR.decal_leaves(6, [(LIT[1], LIT[0])], n=4))
+    return d
 
 
-def boulder(base):
-    b = blank(16, 16)
-    for y in range(16):
-        for x in range(16):
-            dx, dy = (x - 7.5) / 7.6, (y - 8.4) / 7.0
-            if dx * dx + dy * dy > 1:
-                continue
-            lum = -(dx * 0.7 + dy * 0.8)
-            b[y, x] = STONE_3 if lum > 0.35 else STONE_2 if lum > -0.3 else STONE_1
-            if dy < -0.45 + 0.18 * math.sin(x * 1.1):
-                b[y, x] = MOSS if dy > -0.75 else LEAF_4
-    for (x, y) in ((6, 9), (7, 10), (10, 7)):
-        b[y, x] = STONE_1
-    return over(base.copy(), outline(b, INK))
+CAPS = [(RED, SPOT), (BRN, (BRN[3], BRN[2])), (ORA, SPOT), (RED, SPOT)]
 
 
-def forest_edge(n, role):
-    """dense ferns; a tree trunk on some cells, a rock on others"""
-    img = foliage_tile([LEAF_0, LEAF_1, LEAF_2, LEAF_3], seed=hash2(len(n), ord(n[-1])), n=8)
-    k = hash2(len(n), ord(n[-1]), 3) % 4
-    if k == 0:
-        # a tree trunk
-        for y in range(16):
-            for x in range(5, 11):
-                img[y, x] = WOOD_2 if x < 8 else WOOD_1
-            img[y, 4] = INK
-            img[y, 11] = INK
-        for y in (3, 9, 13):
-            img[y, 6] = WOOD_1
-    elif k == 1:
-        for y in range(6, 15):
-            for x in range(3, 13):
-                d = ((x - 7.5) / 5) ** 2 + ((y - 10) / 4.5) ** 2
-                if d <= 1:
-                    img[y, x] = STONE_2 if d > 0.5 or x > 8 else STONE_3
-        img = img
-    return img
+def stool(k, size):
+    cap, sp = CAPS[k]
+    return TR.toadstool(cap, STEM, OUT, size=size, spots=sp if k != 1 else None, seed=k + 1, shadow=F_SH)
 
 
-def terrain(ctx):
-    a = {}
-    g = grass(3)
-    a['floor_0'] = g
-    a['floor_1'] = shadow_top(g, [LEAF_4, LEAF_3, LEAF_2], [LEAF_3, LEAF_2, LEAF_2], rows=5)
-    a['floor_2'] = grass(5, clover=True)
-    a['hard_block_0'] = boulder(g)
-    a['soft_block_0'] = toadstool(g, 1.0)
-    for k, sz in enumerate((0.35, 0.55, 0.75, 0.9)):
-        a['soft_regrow_%d' % k] = toadstool(g, sz, spots=k >= 2)
-    blk = blank(14, 14, STONE_2)
-    blk[0:4, :] = STONE_3
-    blk[:, 11:] = STONE_1
-    blk[10:, :] = STONE_1
-    pb = g.copy()
-    over(pb, outline(blk, INK), 0, 0)
-    a['pressure_block'] = pb
-    for n in ring_names(ctx):
-        role, _ = role_of(ctx, n)
-        a[n] = forest_edge(n, role)
-    return a
+def soft():
+    return [stool(k, 1.0) for k in range(len(CAPS))]
+
+
+def regrow():
+    return {'soft_regrow_%d' % i: [stool(k, sz) for k in range(len(CAPS))]
+            for i, sz in enumerate((0.35, 0.55, 0.75, 0.9))}
+
+
+def paint(cv, L):
+    ring, pillars, field = TR.classify(L)
+    allc = set(L.cells)
+    TR.tile_tex(cv.base, ground_tex(), allc)
+    TR.scatter(cv.decal, field, decals(), 0.42, 101)
+    reg = TR.rough_region(ring, 103, amp=2.0)
+    TR.mass(cv.obj, reg, CAN, 104, outline=OUT, dome_r=10.0, glob=0.9, r=(1.8, 3.2))
+    pts = TR.ring_points(ring, 26, 105)
+    TR.crowns(cv.obj2, pts, CAN, 106, outline=OUT, r=(9.0, 12.0), clip=reg, leaf=(1.8, 3.0))
+    hard = [TR.trunk(BARK, OUT, seed=1, moss=(MOSS[1], MOSS[3])), TR.boulder(ST, OUT, seed=2, moss=MOSS),
+            TR.trunk(BARK, OUT, seed=3, moss=(MOSS[1], MOSS[3])), TR.boulder(ST, OUT, seed=4, moss=MOSS, lobes=5),
+            TR.stump(BARK[:4], [BRN[1], BRN[2], BRN[3], STEM[1]], OUT, seed=5, moss=(MOSS[1], MOSS[3]))]
+    for (cx, cy) in pillars:
+        cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
+
+
+def pressure():
+    return TR.boulder(ST, OUT, seed=9, rx=7.4, ry=7.2, lobes=4, amp=0.05, flat=0.6)

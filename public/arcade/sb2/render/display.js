@@ -378,7 +378,20 @@ export function createDisplay(pack, opts = {}) {
     if (!S) return null;
     if (artCache.has(n)) return artCache.get(n);
     const bin = SK.artBin;
-    const pic = (id) => bin.subarray(A.pics[0] + id * 256, A.pics[0] + id * 256 + 256);
+    // pictures: 129 bytes each (palette row, 255 = shade mask; 4bpp indices, 2 per byte)
+    const picCache = new Map();
+    const pic = (id) => {
+      let p = picCache.get(id);
+      if (p) return p;
+      p = new Uint8Array(256);
+      const o = A.pics[0] + id * 129, row = bin[o];
+      for (let i = 0; i < 256; i++) {
+        const v = (bin[o + 1 + (i >> 1)] >> ((i & 1) << 2)) & 15;
+        p[i] = v ? (row === 255 ? 1 : row * 16 + v) : 0;
+      }
+      picCache.set(id, p);
+      return p;
+    };
     const shade = bin.subarray(S.shade, S.shade + 256);
     const shadePic = new Set(S.shadePics);
     // the static ground of this layout

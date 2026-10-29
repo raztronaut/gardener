@@ -1,141 +1,143 @@
-"""Stage 3 — the POND GARDEN: shallow clear water over pebbles, lily pads with pink lotus
-flowers (soft), mossy sandstone pillars (hard), a sandstone rim with two culverts at the
-top and the bottom where the water runs under (the original's tunnels)."""
+"""Stage 3 — the LILY POND: clear shallow water over a pebbly bed (duckweed, floating
+petals, little fish shadows); lily pads with lotus flowers, cattails and water hyacinth
+(soft); mossy stones standing in the water (hard); a marsh bank of reeds and sedges all
+round, cut by two stone culverts at the top and bottom (the original's tunnels)."""
 from common import *  # noqa: F401,F403
-import math
+import terrain as TR
+import nature as N
 
-NAME = 'Pond Garden'
+NAME = 'Lily Pond'
+GROUND_KEYS = (6,)          # the culverts' hidden ends above / below the screen
+
+W = [C('#174a5c'), C('#1f6070'), C('#2a7682'), C('#3c8c92'), C('#7cc4c0')]
+W_DEEP = C('#103848')
+DUCK = [C('#3e7a3a'), C('#68a446')]
+PAD = [C('#1c4a26'), C('#2e6a32'), C('#4a9040'), C('#78b858')]
+OUT = C('#0c2420')
+LOTUS = C('#ffc0d4')
+LOTUS_D = C('#e07aa0')
+GOLD = C('#ffd860')
+REED = [C('#26401c'), C('#3e5e26'), C('#5c7e32'), C('#86a444'), C('#b4c868')]
+HEAD = [C('#6a3a1c'), C('#8e5428'), C('#3a200e')]
+HYA = C('#9a88e8')
+HYA_D = C('#6a58b8')
+ST = [C('#34403c'), C('#50605a'), C('#72827a'), C('#98a49a'), C('#c0c8b8')]
+MOSS = [C('#3a6a2a'), C('#548a32'), C('#78ac40'), C('#a0c858')]
+FISH = C('#e8783a')
+
+SHADE = {W[4]: W[2], W[3]: W[1], W[2]: W[0], W[1]: W_DEEP, W[0]: W_DEEP}
 
 
-def water(seed=0):
-    img = blank(16, 16, WATER_3)
-    # ripples: short light arcs, a few pebble shadows
-    for (x, y) in ((2, 3), (3, 3), (4, 2), (10, 6), (11, 6), (12, 5), (5, 11), (6, 11), (7, 10), (13, 13), (14, 13)):
-        img[y, x] = WATER_4
-    for (x, y) in ((8, 2), (1, 8), (12, 10), (4, 14)):
-        img[y, x] = WATER_2
-        img[y, x + 1] = WATER_2
+def ground_tex():
+    img = TR.water_tex(W, 303)
+    # pebbles on the bed, seen through the water
+    for (x, y) in N.poisson(64, 64, 13.0, 41):
+        TR.pebble_at(img, int(x), int(y), [W[0], W[1], W[2], W[3]], wrap=True)
     return img
 
 
-def lily(base):
-    """a round lily pad with its notch and a pink lotus on it"""
-    img = base.copy()
-    for y in range(16):
-        for x in range(16):
-            dx, dy = x - 7.5, y - 8.0
-            d = math.hypot(dx, dy)
-            ang = math.atan2(dy, dx)
-            if d > 7.6:
-                continue
-            if -0.35 < ang < 0.05 and d > 1.5:       # the notch
-                continue
-            lum = -(dx * 0.6 + dy * 0.8) / 7.6
-            c = LEAF_4 if lum > 0.35 else LEAF_3 if lum > -0.1 else LEAF_2
-            if d > 6.7:
-                c = INK
-            # veins
-            if d > 2 and d < 6.7 and abs(math.sin(ang * 4)) < 0.12:
-                c = LEAF_2 if c != LEAF_2 else LEAF_1
-            img[y, x] = c
-    lotus = grid("""
-.....p..p.....
-....pPp.pPp...
-...pPPpppPPp..
-..pPPLPPPLPPp.
-..pPLyyyyLPPp.
-...pPLyyLPPp..
-....ppPPPpp...
-""".replace('.', '.'), {'p': ROSE_2, 'P': PINK, 'L': PINK, 'y': GOLD_3})
-    over(img, lotus, 1, 3)
-    return img
+def decals():
+    d = []
+    # duckweed
+    for s in (1, 2):
+        im = blank(16, 16)
+        r = Rng(s)
+        for (x, y) in N.poisson(12, 12, 2.2, s, wrap=False):
+            if r.rand(3):
+                im[int(y) + 2, int(x) + 2] = DUCK[r.rand(2)]
+        d.append(im)
+    # floating petals
+    d.append(TR.decal_leaves(3, [(LOTUS, LOTUS_D)], n=3))
+    # a small pad
+    # (no fish)
+    for s in ():
+        im = blank(16, 16)
+        r = Rng(s)
+        x, y = 4 + r.rand(6), 5 + r.rand(6)
+        for k, c in enumerate((FISH, FISH, FISH, W[4], FISH)):
+            im[y, x + k] = c
+        im[y - 1, x + 4] = FISH
+        im[y + 1, x + 4] = FISH
+        im[y + 1, x + 1] = W_DEEP
+        im[y + 1, x + 2] = W_DEEP
+        d.append(im)
+    d.append(TR.decal_pebbles(7, [W[0], ST[1], ST[2], ST[3]], n=2))
+    return d
 
 
-def sandstone(role, opening=None):
-    """the pond's sandstone rim: lit blocks with mortar, a wet dark edge toward the water"""
-    img = blank(16, 16, SAND_1)
-    for y in range(16):
-        for x in range(16):
-            yy = y % 8
-            sh = 4 if (y // 8) % 2 else 0
-            xx = (x + sh) % 8
-            if yy == 7 or xx == 7:
-                img[y, x] = SAND_0
-            elif yy == 0 or xx == 0:
-                img[y, x] = SAND_2
-            if hash2(x, y, 5) % 13 == 0 and img[y, x] == SAND_1:
-                img[y, x] = SAND_2
-    # moss tufts
-    for (x, y) in ((3, 6), (4, 6), (11, 14), (12, 14)):
-        img[y, x] = MOSS
-    wet = WATER_2
-    if role in ('top', 'tl', 'tr'):
-        for x in range(16):
-            img[14, x] = SAND_0
-            img[15, x] = wet
-    if role in ('bottom', 'bl', 'br'):
-        for x in range(16):
-            img[0, x] = wet
-            img[1, x] = SAND_0
-    if role in ('left', 'tl', 'bl'):
-        for y in range(16):
-            img[y, 14] = SAND_0
-            img[y, 15] = wet
-    if role in ('right', 'tr', 'br'):
-        for y in range(16):
-            img[y, 1] = SAND_0
-            img[y, 0] = wet
-    if opening:
-        # the culvert's arch beside an opening: the water side darkens under the arch
-        side = opening
+def paint(cv, L):
+    ring, pillars, field = TR.classify(L)
+    allc = set(L.cells)
+    TR.tile_tex(cv.base, ground_tex(), allc)
+    TR.scatter(cv.decal, field, decals(), 0.38, 31)
+    # culverts: the openings in the ring rows (floor cells next to the ring)
+    open_cells = [(cx, cy) for (cx, cy) in field if (cx, cy - 1) not in field and (cx, cy + 1) not in field
+                  and (cx - 1, cy) in ring and (cx + 1, cy) in ring]
+    reg = TR.rough_region(ring, 33, amp=1.8)
+    for (cx, cy) in open_cells:
+        # keep the culvert's water clear of the bank's ragged edge
+        reg[cy * 16:cy * 16 + 16, cx * 16 - 1:cx * 16 + 17] = False
+    TR.mass(cv.obj, reg, REED, 71, outline=OUT, dome_r=9.0, glob=0.9, r=(1.4, 2.6))
+    # cattail heads on the bank
+    r = Rng(8)
+    for (cx, cy) in sorted(ring):
+        for k in range(2):
+            if r.rand(3) == 0:
+                x, y = cx * 16 + 2 + r.rand(12), cy * 16 + 2 + r.rand(11)
+                if reg[y, x] and reg[y + 3, x + 1] and cv.obj[y, x] != OUT:
+                    cv.obj[y, x] = HEAD[1]
+                    cv.obj[y + 1, x] = HEAD[0]
+                    cv.obj[y + 2, x] = HEAD[0]
+                    cv.obj[y + 1, x + 1] = HEAD[2]
+                    cv.obj[y + 2, x + 1] = HEAD[2]
+    # the culverts: stone lintels on the bank either side, dark water under the bank
+    for (cx, cy) in open_cells:
+        top = (cy - 1, cy) if (cx, cy - 1) not in allc or L.at(cx, cy - 1) is None or cy < 10 else (cy, cy + 1)
+        x0, y0 = cx * 16, cy * 16
+        up = cy < 10
+        for x in range(x0 - 3, x0 + 19):
+            for k in range(4):
+                y = (y0 + k) if up else (y0 + 15 - k)
+                c = ST[3] if k == 0 else ST[2] if k < 3 else ST[0]
+                if (x - x0) % 6 == 5:
+                    c = ST[0]
+                cv.obj[y, x] = c
+        cv.noshadow[y0:y0 + 16, x0 - 3:x0 + 19] = True
         for y in range(16):
             for x in range(16):
-                t = (x if side == 'r' else 15 - x)
-                if t >= 12:
-                    img[y, x] = INK_BROWN if t >= 14 else SAND_0
-    return img
+                t = (y if up else 15 - y)
+                if t < 9:
+                    cv.shade[y0 + y, x0 + x] = True
+    for (cx, cy) in [(c[0], c[1] - 1) for c in open_cells] + [(c[0], c[1] + 1) for c in open_cells]:
+        if (cx, cy) in allc:
+            cv.base[cy * 16:cy * 16 + 16, cx * 16:cx * 16 + 16] = W_DEEP
+    hard = hard_blocks()
+    for (cx, cy) in pillars:
+        cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
 
 
-def terrain(ctx):
-    a = {}
-    w = water()
-    a['floor_0'] = w
-    a['floor_1'] = shadow_top(w, [WATER_4, WATER_3, WATER_2], [WATER_3, WATER_2, WATER_2], rows=5)
-    a['soft_block_0'] = lily(w)
-    pillar = grid("""
-.oooooooooooooo.
-o33333333333332o
-o3mm333333mm332o
-o33mm3333mmm322o
-o32222222222221o
-o2ooooooooooo21o
-o22222222222221o
-o23332223332221o
-o22222222222221o
-o2oooooooooooo1o
-o22222222222221o
-o22333222333221o
-o22222222222221o
-o21111111111111o
-o11111111111111o
-.oooooooooooooo.
-""", {'o': INK_BROWN, '3': SAND_3, '2': SAND_1, '1': SAND_0, 'm': MOSS})
-    a['hard_block_0'] = over(w.copy(), pillar)
-    slab = remap(pillar, [MOSS, SAND_3, SAND_1, SAND_0], [SAND_3, SAND_2, SAND_1, SAND_0])
-    a['pressure_block'] = over(w.copy(), slab)
-    # openings: the floor cells in the top / bottom rows; walls beside them get the arch
-    pos = ctx['pos']
-    op = [p for p in pos.get('floor_0', []) if p[1] in (3, 29)]
-    for n in ring_names(ctx):
-        role, p = role_of(ctx, n)
-        if role in ('border_l', 'border_r'):
-            a[n] = sandstone('inner')
-            continue
-        opening = None
-        if p and role in ('top', 'bottom'):
-            if (p[0] + 1, p[1]) in op:
-                opening = 'r'
-            elif (p[0] - 1, p[1]) in op:
-                opening = 'l'
-        a[n] = sandstone(role, opening)
-    return a
+def stone_in_water(seed, **kw):
+    s = TR.boulder(ST, OUT, seed=seed, moss=MOSS, moss_amt=0.3, **kw)
+    # a pale ripple ring where the stone meets the water
+    ys, xs = np.mgrid[0:16, 0:16]
+    ring = N.shift(s >= 0, 0, 1) & (s < 0) & (ys >= 9)
+    s[ring] = W[4]
+    return s
+
+
+def hard_blocks():
+    return [stone_in_water(1), stone_in_water(2, lobes=5), stone_in_water(3, rx=7.2, ry=6.0), stone_in_water(4, lobes=3)]
+
+
+def soft():
+    return [
+        TR.lily_pads(PAD, OUT, flower=(LOTUS, LOTUS_D, GOLD), seed=1, n=3, water_shadow=W[0]),
+        TR.lily_pads(PAD, OUT, flower=(LOTUS, LOTUS_D, GOLD), seed=2, n=4, water_shadow=W[0]),
+        TR.lily_pads(PAD, OUT, seed=3, n=3, water_shadow=W[0]),
+        TR.reeds(REED, OUT, head=HEAD, seed=4, shadow=W[0]),
+        TR.bush(PAD + [C('#a0d070')], OUT, seed=5, flowers=[(HYA, GOLD, HYA_D)], nflowers=5, shadow=W[0]),
+    ]
+
+
+def pressure():
+    return TR.boulder(ST, OUT, seed=9, rx=7.4, ry=7.2, lobes=4, amp=0.05, flat=0.6)

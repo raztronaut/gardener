@@ -101,40 +101,71 @@ class StageArt:
 
 def solve_rows(sets, pins_row, colour_pins, rows=GARDEN_ROWS, report=None, st=0):
     """sets: list of (colour set, pinned row or None, who). Returns {row: [16 colours]},
-    and the row of each set. Greedy: pinned first, then biggest first into the row that
-    needs the fewest new colours."""
-    pal = {r: set() for r in rows}
-    for c, r in colour_pins.items():
-        pal[r].add(c)
-    order = sorted(range(len(sets)), key=lambda i: (sets[i][1] is None, -len(sets[i][0])))
-    where = [None] * len(sets)
-    for i in order:
-        cs, pin, who = sets[i]
-        forced = {colour_pins[c] for c in cs if c in colour_pins}
-        if pin is not None:
-            forced.add(pin)
-        if len(forced) > 1:
-            raise SystemExit('stage %d: %s needs rows %s' % (st, who, forced))
-        cand = list(forced) if forced else rows
-        best = None
-        for r in cand:
-            new = len(cs - pal[r])
-            if len(pal[r] | cs) <= 15 and (best is None or new < best[0]):
-                best = (new, r)
-        if best is None:
-            msg = 'stage %d: no palette row for %s (%d colours)\n' % (st, who, len(cs))
-            for r in rows:
-                msg += '  row %d: %d colours %s\n' % (r, len(pal[r]), ' '.join('#%02x%02x%02x' % rgb(c) for c in sorted(pal[r], key=lambda c: sum(rgb(c)))))
-            raise SystemExit(msg)
-        pal[best[1]] |= cs
-        where[i] = best[1]
+    and the row of each set. Greedy (pinned first, then biggest first into the row that
+    needs the fewest new colours), retried with other orders when it does not fit."""
+    import random
+    uniq = {}
+    for i, (cs, pin, who) in enumerate(sets):
+        uniq.setdefault((frozenset(cs), pin), []).append(i)
+    keys = list(uniq)
+    fail = None
+    for attempt in range(400):
+        pal = {r: set() for r in rows}
+        for c, r in colour_pins.items():
+            pal[r].add(c)
+        free = lambda i: keys[i][1] is None and not any(c in colour_pins for c in keys[i][0])
+        order = sorted(range(len(keys)), key=lambda i: (free(i), -len(keys[i][0])))
+        if attempt:
+            rnd = random.Random(attempt)
+            order = sorted(order, key=lambda i: (free(i), -len(keys[i][0]) + rnd.random() * 6))
+        where = {}
+        ok = True
+        for i in order:
+            cs, pin = keys[i]
+            forced = {colour_pins[c] for c in cs if c in colour_pins}
+            if pin is not None:
+                forced.add(pin)
+            if len(forced) > 1:
+                raise SystemExit('stage %d: %s needs rows %s' % (st, sets[uniq[keys[i]][0]][2], forced))
+            cand = list(forced) if forced else rows
+            best = None
+            for r in cand:
+                new = len(cs - pal[r])
+                score = new - 0.01 * len(cs & pal[r])
+                if len(pal[r] | cs) <= 15 and (best is None or score < best[0]):
+                    best = (score, r)
+            if best is None:
+                ok = False
+                fail = (i, pal)
+                break
+            pal[best[1]] |= cs
+            where[i] = best[1]
+        if ok:
+            break
+    else:
+        i, pal = fail
+        cs, pin = keys[i]
+        msg = 'stage %d: no palette row for %s (%d colours)\n' % (st, sets[uniq[keys[i]][0]][2], len(cs))
+        for r in rows:
+            msg += '  row %d: %d colours %s\n' % (r, len(pal[r]), ' '.join('#%02x%02x%02x' % rgb(c) for c in sorted(pal[r], key=lambda c: sum(rgb(c)))))
+        allc = set()
+        for k in keys:
+            allc |= k[0]
+        msg += '  %d colours in all' % len(allc)
+        raise SystemExit(msg)
+    if attempt and report is not None:
+        report.append('stage %d: palette packed on attempt %d' % (st, attempt + 1))
     out = {}
     for r, cols in pal.items():
         if not cols:
             continue
         lst = [0] + sorted(cols, key=lambda c: sum(rgb(c)))
         out[r] = lst + [0] * (16 - len(lst))
-    return out, where
+    res = [None] * len(sets)
+    for i, k in enumerate(keys):
+        for j in uniq[k]:
+            res[j] = where[i]
+    return out, res
 
 
 def lum(c):
@@ -159,7 +190,7 @@ def nearest(target, cands):
     return best
 
 
-def build_stage(st, mod, meta, maps, report, objects, pack_ppu):
+def build_stage(st, mod, meta, maps, report, objects, pack_ppu, id_base=0):
     """-> dict: pics (list of (img, is_shade)), cls, stat {layout: stacks}, masks, maskRefs,
     rows (palette rows solved), shade map (colour -> colour), chars (VRAM chars to write)"""
     A = StageArt(st, report)
@@ -246,7 +277,9 @@ def build_stage(st, mod, meta, maps, report, objects, pack_ppu):
             elif n in gim:
                 v = gim[n]
                 ims = v if isinstance(v, list) else [v]
-                cls.append([key, 2, 0, [[1, 1, 2, [A.pic(im, who=n) for im in ims]]]])
+                # pictures are drawn unflipped: an entry's flips apply to them
+                fl = lambda im: (im[:, ::-1] if e & 0x4000 else im)[::-1 if e & 0x8000 else 1, :]
+                cls.append([key, 2, 0, [[1, 1, 2, [A.pic(np.ascontiguousarray(fl(im)), who=n) for im in ims]]]])
             elif k == 'bg1_overlay':
                 pass
             else:
@@ -327,7 +360,7 @@ def build_stage(st, mod, meta, maps, report, objects, pack_ppu):
             s = stacks.get((cx, cy), [])
             b.append(len(s))
             for i in s:
-                b += int(i).to_bytes(2, 'little')
+                b += int(i + id_base).to_bytes(2, 'little')
         stat_bytes[lay] = bytes(b)
     report.append('stage %d: %d pictures, rows %s, shade err %.0f' % (
         st, len(A.pics), ' '.join('%d:%d' % (r, len([c for c in P[1:] if c or True]) - P[1:].count(0)) for r, P in sorted(rows.items())), worst ** 0.5))

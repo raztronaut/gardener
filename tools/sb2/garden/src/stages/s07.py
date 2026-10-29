@@ -1,135 +1,120 @@
-"""Stage 7 — the HEDGE MAZE: gravel paths and lawn lanes between clipped topiary cubes
-(hard), white hydrangea shrubs (soft), tall hedge walls edged with a flower border; the
-original's numbered pads are wooden garden signs 1..5 and a sunflower sign for "!"."""
+"""Stage 7 — the HEDGE MAZE: pale gravel walks and lawn lanes between clipped yew hedges
+(the original's maze walls, painted as continuous hedges with rounded tops); blue and
+white hydrangeas (soft); the original's numbered speed pads are round stepping stones
+carved with the number in gold (and "!"); a tall outer hedge with a flower border."""
 from common import *  # noqa: F401,F403
-import math
+import terrain as TR
+import nature as N
 
 NAME = 'Hedge Maze'
 
+GRAV = [C('#5e5446'), C('#7e7260'), C('#9c8f78'), C('#b8ab90'), C('#d6cab0')]
+G = [C('#1e4024'), C('#2c5a2e'), C('#3c7438'), C('#548e44'), C('#78ac58')]
+G_SH = C('#16301c')
+GR_SH = C('#463e34')
+YEW = [C('#0c2414'), C('#143a1e'), C('#1f5228'), C('#2e6c32'), C('#468a40')]
+OUT = C('#081408')
+HYD_B = [C('#3a5ab8'), C('#6a8ae0'), C('#a8c0f8')]
+HYD_W = [C('#c8ccd8'), C('#f4f6ff')]
+B = [C('#14321a'), C('#1f4c24'), C('#2e6a2e'), C('#46883a'), C('#6ca850')]
+ST = [C('#4a463e'), C('#6e685c'), C('#948c7c'), C('#bab2a0'), C('#e0d8c4')]
+GOLD = [C('#8a5a10'), C('#d8a030'), C('#ffe070')]
+POPPY = C('#f04030')
+DAISY = C('#fff8f0')
+DAISY_C = C('#ffd040')
 
-def gravel(seed=0, tone=0):
-    base = [STONE_3, SAND_1][tone]
-    hi = [STONE_4, SAND_2][tone]
-    lo = [STONE_2, SAND_0][tone]
-    img = speckle(16, 16, base, [(hi, 3), (lo, 2)], seed=seed, density=0.22)
-    return img
+SHADE = {G[4]: G[2], G[3]: G[1], G[2]: G[0], G[1]: G_SH, G[0]: G_SH,
+         GRAV[4]: GRAV[2], GRAV[3]: GRAV[1], GRAV[2]: GRAV[0], GRAV[1]: GR_SH, GRAV[0]: GR_SH}
+
+
+def gravel():
+    return TR.gravel_tex(GRAV, 707)
 
 
 def lawn():
-    img = blank(16, 16, LEAF_3)
-    for y in range(16):
-        for x in range(16):
-            if (x // 4) % 2 == 0:
-                img[y, x] = LEAF_4 if (y + x) % 5 else LEAF_3
-            elif hash2(x, y, 2) % 7 == 0:
-                img[y, x] = LEAF_4
-    return img
+    return TR.grass_tex(G, 708, tuft=0.4, lush=0.4)
 
 
-def topiary(base):
-    """a crisply clipped hedge cube: lit top face, darker sides"""
-    img = base.copy()
-    fol_top = foliage_tile([LEAF_1, LEAF_2, LEAF_3, LEAF_4], seed=21, n=9, rmin=1.8, rmax=2.8)
-    fol_side = foliage_tile([LEAF_0, LEAF_0, LEAF_1, LEAF_2], seed=22, n=9, rmin=1.8, rmax=2.8)
-    for y in range(1, 15):
-        for x in range(1, 15):
-            img[y, x] = fol_top[y, x] if y < 9 else fol_side[y, x]
-    for x in range(1, 15):
-        img[9, x] = LEAF_0
-    img[1:15, 0] = INK
-    img[1:15, 15] = INK
-    img[0, 1:15] = INK
-    img[15, 1:15] = INK
-    return img
+def decals_lawn():
+    return [TR.decal_flowers(1, [(DAISY, DAISY_C, HYD_W[0])], n=3), TR.decal_clover(2, [G[2], G[3], G[4]], n=3),
+            TR.decal_tuft(3, [G[1], G[3], G[4], C('#a0c870')], n=1)]
 
 
-def sign(n, base):
-    """a wooden garden sign with a number (or a sunflower)"""
-    img = base.copy()
-    for y in range(1, 15):
-        for x in range(1, 15):
-            d = math.hypot(x - 7.5, y - 7.5)
-            if d <= 6.9:
-                img[y, x] = WOOD_2 if d < 5.9 else WOOD_1
-                if d >= 6.3:
-                    img[y, x] = INK
-    digits = {
-        1: ["..#..", ".##..", "..#..", "..#..", "..#..", ".###."],
-        2: [".##..", "#..#.", "...#.", "..#..", ".#...", "####."],
-        3: ["###..", "...#.", ".##..", "...#.", "...#.", "###.."],
-        4: ["..##.", ".#.#.", "#..#.", "####.", "...#.", "...#."],
-        5: ["####.", "#....", "###..", "...#.", "#..#.", ".##.."],
-    }
-    if n in digits:
-        for gy, row in enumerate(digits[n]):
-            for gx, c in enumerate(row):
-                if c == '#':
-                    img[5 + gy, 5 + gx] = WHITE
-                    img[5 + gy + 1, 5 + gx + 1] = img[5 + gy + 1, 5 + gx + 1] if img[5 + gy + 1, 5 + gx + 1] == WHITE else WOOD_1
-    else:
-        # a sunflower: the "!" pad
-        for y in range(16):
-            for x in range(16):
-                d = math.hypot(x - 7.5, y - 7.5)
-                ang = math.atan2(y - 7.5, x - 7.5)
-                if d < 2.2:
-                    img[y, x] = WOOD_1
-                elif d < 5.4 * (0.75 + 0.25 * abs(math.cos(4 * ang))):
-                    img[y, x] = GOLD_3 if d < 4 else GOLD_2
-    return img
+def decals_gravel():
+    return [TR.decal_pebbles(4, [GR_SH, ST[1], ST[3], ST[4]], n=3), TR.decal_pebbles(5, [GR_SH, ST[2], ST[3], ST[4]], n=2),
+            TR.decal_leaves(6, [(B[3], B[1])], n=2)]
 
 
-def hedge_wall(role, edge=True):
-    """tall clipped hedge walls with a white-and-pink flower edging toward the paths"""
-    top = foliage_tile([LEAF_1, LEAF_2, LEAF_3, LEAF_4], seed=31, n=9, rmin=2, rmax=3.2)
-    side = foliage_tile([LEAF_0, LEAF_0, LEAF_1, LEAF_2], seed=32, n=9, rmin=2, rmax=3.2)
-    img = top.copy()
-    if role in ('top', 'tl', 'tr'):
-        for y in range(8, 16):
-            img[y, :] = side[y, :]
-        img[8, :] = LEAF_0
-        if edge:
-            for x in range(16):
-                img[14, x] = WHITE if x % 4 in (0, 1) else PINK
-                img[15, x] = LEAF_1
-    flowers = [(x, WHITE if (x // 2) % 2 else PINK) for x in range(16)]
-    if role in ('bottom', 'bl', 'br') and edge:
-        for x, c in flowers:
-            img[1, x] = c
-        img[0, :] = LEAF_0
-    if role in ('left', 'tl', 'bl') and edge:
-        for y in range(16):
-            img[y, 14] = WHITE if (y // 2) % 2 else PINK
-            img[y, 15] = LEAF_0
-    if role in ('right', 'tr', 'br') and edge:
-        for y in range(16):
-            img[y, 1] = WHITE if (y // 2) % 2 else PINK
-            img[y, 0] = LEAF_0
-    return img
+DIGITS = {
+    '1': ['.#.', '##.', '.#.', '.#.', '###'], '2': ['##.', '..#', '.#.', '#..', '###'],
+    '3': ['##.', '..#', '.#.', '..#', '##.'], '4': ['#.#', '#.#', '###', '..#', '..#'],
+    '5': ['###', '#..', '##.', '..#', '##.'], '!': ['.#.', '.#.', '.#.', '...', '.#.'],
+}
 
 
-def terrain(ctx):
-    a = {}
-    g = gravel(5)
-    a['floor_0'] = g
-    a['floor_1'] = shadow_top(g, [STONE_4, STONE_3, STONE_2], [STONE_3, STONE_2, STONE_2], rows=5)
-    a['floor_2'] = gravel(9)
-    a['floor_3'] = lawn()
-    a['hard_block_0'] = topiary(g)
-    hyd = clump_bush([LEAF_1, LEAF_2, LEAF_3, LEAF_4], INK, flowers=[(WHITE, STONE_4)],
-                     flower_spots=[(4, 4), (10, 3), (7, 7), (12, 8), (3, 10), (9, 11), (6, 13), (12, 13), (6, 2)])
-    a['soft_block_0'] = over(g.copy(), hyd)
-    blk = blank(14, 14, STONE_3)
-    blk[0:4, :] = STONE_4
-    blk[:, 11:] = STONE_2
-    blk[10:, :] = STONE_2
-    pb = g.copy()
-    over(pb, outline(blk, INK), 0, 0)
-    a['pressure_block'] = pb
-    for k, n in enumerate(['gimmick_0f_0', 'gimmick_0f_1', 'gimmick_0f_2', 'gimmick_0f_3', 'gimmick_0f_4']):
-        a[n] = sign(k + 1, g)
-    a['gimmick_0f_5'] = sign('!', g)
-    for n in ring_names(ctx):
-        role, _ = role_of(ctx, n)
-        a[n] = hedge_wall(role) if role not in ('border_l', 'border_r') else foliage_tile([LEAF_0, LEAF_0, LEAF_1, LEAF_2], seed=33)
-    return a
+def pad(ch):
+    img = blank(16, 16)
+    m = N.blob(16, 16, 8.0, 8.0, 6.8, 6.2, lobes=5, amp=0.04, seed=3)
+    lv = N.dome(m, 3.0, flat=0.5)
+    img = N.shade(lv, ST[1:5], -1.0, 1.0, dither=0.2, mask=m)
+    g = DIGITS[ch]
+    for j, row in enumerate(g):
+        for i, c in enumerate(row):
+            if c == '#':
+                for dx in (0, 1):
+                    x, y = 5 + i * 2 + dx, 5 + j
+                    if dx == 0:
+                        img[y, x] = GOLD[2]
+                    else:
+                        img[y, x] = GOLD[1]
+                img[6 + j, 6 + i * 2] = GOLD[0] if img[6 + j, 6 + i * 2] not in (GOLD[1], GOLD[2]) else img[6 + j, 6 + i * 2]
+    return N.selout(img, OUT, None)
+
+
+def gimmicks():
+    g = {}
+    for k, ch in enumerate('12345'):
+        g['gimmick_0f_%d' % k] = pad(ch)
+    g['gimmick_0f_5'] = pad('!')
+    return g
+
+
+def paint(cv, L):
+    ring, pillars, field = TR.classify(L)
+    allc = set(L.cells)
+    lawn_cells = {c for c in allc if L.at(*c) in ('floor_3', 'floor_2')}
+    grav_cells = allc - lawn_cells
+    TR.tile_tex(cv.base, gravel(), grav_cells)
+    TR.tile_tex(cv.base, lawn(), lawn_cells)
+    TR.scatter(cv.decal, field & lawn_cells, decals_lawn(), 0.35, 71)
+    TR.scatter(cv.decal, field & grav_cells, decals_gravel(), 0.30, 72)
+    # the maze hedges: one clipped mass per connected wall, rounded tops
+    walls = TR.rough_region(pillars, 73, amp=0.8)
+    TR.mass(cv.obj, walls, YEW, 74, outline=OUT, dome_r=6.0, glob=1.0, r=(1.1, 1.9), density=1.3)
+    reg = TR.rough_region(ring, 75, amp=1.0)
+    TR.mass(cv.obj, reg, YEW, 76, outline=OUT, dome_r=9.0, glob=1.0, r=(1.1, 1.9), density=1.3)
+    # a flower border along the foot of the outer hedge
+    r = Rng(77)
+    for (cx, cy) in field:
+        if any((cx + dx, cy + dy) in ring for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1))) and r.rand(2):
+            for k in range(2):
+                x, y = cx * 16 + 2 + r.rand(12), cy * 16 + 2 + r.rand(12)
+                TR.flower(cv.decal, x, y, [POPPY, DAISY][r.rand(2)], DAISY_C, None, 'plus')
+
+
+def soft():
+    return [
+        TR.bush(B, OUT, seed=1, flowers=[(HYD_B[2], HYD_B[1], HYD_B[0])], nflowers=6, shadow=G_SH),
+        TR.bush(B, OUT, seed=2, flowers=[(HYD_W[1], HYD_W[0], HYD_W[0])], nflowers=6, shadow=G_SH),
+        TR.bush(B, OUT, seed=3, flowers=[(HYD_B[1], HYD_B[2], HYD_B[0]), (HYD_W[1], HYD_W[0], HYD_W[0])], nflowers=7, shadow=G_SH),
+        TR.grass_clump(B, OUT, seed=4, shadow=G_SH, seeds=DAISY_C),
+    ]
+
+
+def pressure():
+    # a clipped yew cube (the hedges' own block)
+    m = np.zeros((16, 16), bool)
+    m[1:15, 1:15] = True
+    m[1, 1] = m[1, 14] = m[14, 1] = m[14, 14] = False
+    img = N.foliage(m, YEW, seed=9, r=(1.1, 1.9), density=1.3, dome_r=4.0, glob=1.0)
+    return N.selout(img, OUT, None)
