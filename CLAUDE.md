@@ -92,6 +92,16 @@ chrome, async mount(body, ctx) }`. `mount` must not throw; do network via `ctx.f
 - `npm run iterate -- manual` — run one tending iteration now.
 - `npm run day | night | display-sync` — display energy control.
 
+## /rainforest ambience (real field recordings)
+`public/lib/rainforest.js` plays openly licensed field recordings (CC0 / PD / CC BY / CC BY-SA)
+from the gitignored `data/ambience/` (`manifest.json`: per place `beds` + `accents`;
+`credits.json`), served read-only by `GET /api/ambience/<path>` (.ogg/.json, path-guarded).
+Beds: shuffled, 14 s equal-power crossfades; accents: sparse single calls, random pan/level.
+Only the active place is decoded (AudioContext at 32 kHz). `/credits` shows the attribution
+CC BY/BY-SA require — keep it. Rebuild/extend with `tools/ambience/` (recipe: `plan.json`,
+`cands.tsv`; levels: beds -28 LUFS, calls -25 LUFS; reject hissy/traffic/voice takes).
+Never commit audio. A missing `data/ambience/` = silent rainforest + a toast, not a crash.
+
 ## Super Bomberman 2 · Tall (native port, first on the Arcade shelf)
 A faithful 9:16 re-implementation of SB2 battle mode: `public/arcade/sb2/` (core = line-by-line
 rewrite of the original routines, 46/46 tick-exact conformance vectors; render = pixel-exact vs
