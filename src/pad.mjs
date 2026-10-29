@@ -136,6 +136,7 @@ function onEvent(value, type, number) {
   }
 }
 
+let padAway = false;
 function attach() {
   const s = createReadStream(DEV, { highWaterMark: 512 });
   let buf = Buffer.alloc(0);
@@ -149,12 +150,15 @@ function attach() {
   const retry = (why) => {
     for (const v of held.values()) clearInterval(v.t);
     held.clear();
-    log(`${why} — retrying in 3s (controller asleep/unpaired?)`);
+    // log once when the controller goes away, then retry quietly (every 3 s while it
+    // sleeps was ~29k syslog lines a day)
+    if (!padAway) log(`${why} — retrying every 3s quietly until it's back (controller asleep/unpaired?)`);
+    padAway = true;
     setTimeout(attach, 3000);
   };
   s.on('error', (e) => retry(`device error: ${e.code || e.message}`));
   s.on('end', () => retry('device closed'));
-  s.on('open', () => log(`listening on ${DEV}`));
+  s.on('open', () => { log(`listening on ${DEV}${padAway ? ' (controller back)' : ''}`); padAway = false; });
 }
 
 // ---- MX Master 3 thumb buttons --------------------------------------------
