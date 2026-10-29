@@ -38,6 +38,7 @@ const STRIP_SHIFT = 15;      // original rows 10..13 (wall top, kerb, road) -> 2
 const ST_T = 2;              // stage select panel: rows 2..18
 const ST_HOLE = 3;           // preview hole rows from 3 (13 tall, 7 classic), cols 2..8
 const ST_LAYOUT_ROW = 17;    // the arena row (TALL / CLASSIC)
+const ST_SKIN_ROW = 19;      // the skin row (GARDEN / CLASSIC), when the wall has both skins
 const TITLE_D = 6;           // title: logo / items / sprites 6 rows lower, buildings at rows 24..28
 const SCREEN_COL = { mode: 0, players: 16, rules: 32, stage: 48 };
 const GREEN = 0x12EC;
@@ -112,7 +113,13 @@ export function createMenu(mp, opts = {}) {
 
   // ---- sprite pieces (strip, go) ------------------------------------------------------------
   const pieceBytes = blob('pieces');
-  const pieceGfx = (p) => { if (p.g === undefined) p.g = ppu.addGfx(pieceBytes.subarray(p.i * 256, p.i * 256 + p.w * p.h), p.w, p.h); return p.g; };
+  // per menu instance (the wall keeps one menu per skin; the pieces' objects are shared)
+  const gfxOf = new Map();
+  const pieceGfx = (p) => {
+    let g = gfxOf.get(p);
+    if (g === undefined) { g = ppu.addGfx(pieceBytes.subarray(p.i * 256, p.i * 256 + p.w * p.h), p.w, p.h); gfxOf.set(p, g); }
+    return g;
+  };
   const o = ppu.oam;
   function spr(x, y, w, h, pal, prio, gfx, hf = 0, vf = 0) {
     if (o.n >= 256) return;
@@ -139,15 +146,16 @@ export function createMenu(mp, opts = {}) {
   }
   function stageRows() {
     const s = orig.menu.stage, rows = [];
+    const bottom = skinRow ? ST_SKIN_ROW + 1 : ST_T + 16;
     for (let r = 0; r < ROWS; r++) {
       if (r >= 10 + STRIP_SHIFT) { rows.push(s[r - STRIP_SHIFT].slice()); continue; }
       const row = Array.from({ length: 16 }, (_, c) => stoneAt(r, c));
       if (r === ST_T) for (let c = 1; c <= 14; c++) row[c] = s[1][c];
-      else if (r > ST_T && r < ST_T + 16) {
+      else if (r > ST_T && r < bottom) {
         row[1] = 0x1222; row[14] = 0x1224;
         for (let c = 2; c <= 13; c++) row[c] = GREEN;
-        if (r === ST_LAYOUT_ROW - 1) { row[1] = 0x1244; row[14] = 0x1242; for (let c = 2; c <= 13; c++) row[c] = 0x1200; }
-      } else if (r === ST_T + 16) for (let c = 1; c <= 14; c++) row[c] = s[9][c];
+        if (r === ST_LAYOUT_ROW - 1 || (skinRow && r === ST_SKIN_ROW - 1)) { row[1] = 0x1244; row[14] = 0x1242; for (let c = 2; c <= 13; c++) row[c] = 0x1200; }
+      } else if (r === bottom) for (let c = 1; c <= 14; c++) row[c] = s[9][c];
       rows.push(row);
     }
     // the right column: STAGE label (orig row 2) and the number row (orig row 4)
@@ -177,7 +185,9 @@ export function createMenu(mp, opts = {}) {
   let busy = 0;                   // frames of ignored input (switches, transitions)
   const timers = [];              // [frame, fn]
   const later = (n, fn) => timers.push([frameNo + n, fn]);
-  let stageRow = 0;               // stage select: 0 = STAGE, 1 = the arena row
+  let stageRow = 0;               // stage select: 0 = STAGE, 1 = the arena row, 2 = the skin row
+  // the skin row (GARDEN / CLASSIC): only when the wall has both skins and the pack has the word
+  const skinRow = !!(opts.skins && opts.skins.length > 1 && M.words.GARDEN);
   let trans = null;               // preview transition { f, oldStage, oldLayout }
   let going = -1;                 // "go" frames after START on stage select
   let titleConfirm = -1;
@@ -247,9 +257,16 @@ export function createMenu(mp, opts = {}) {
       const c0 = 8 - (word.length >> 1);
       word.forEach((e, k) => put(BG1_MAP, c0 + k, ST_LAYOUT_ROW, e));
       layoutArrowCols = [c0 - 1, c0 + word.length];
+      if (skinRow) {
+        const sw = M.words[set.skin === 'classic' ? 'CLASSIC' : 'GARDEN'];
+        for (let c = 2; c <= 13; c++) put(BG1_MAP, c, ST_SKIN_ROW, GREEN);
+        const s0 = 8 - (sw.length >> 1);
+        sw.forEach((e, k) => put(BG1_MAP, s0 + k, ST_SKIN_ROW, e));
+        skinArrowCols = [s0 - 1, s0 + sw.length];
+      }
     }
   }
-  let layoutArrowCols = [5, 10];
+  let layoutArrowCols = [5, 10], skinArrowCols = [4, 11];
   let holeShown = '';
   // the preview hole: 7 x 13 cells (TALL) or 7 x 7 + panel green below (CLASSIC)
   function hole(layout) {
@@ -277,7 +294,8 @@ export function createMenu(mp, opts = {}) {
       const a = A[(frameNo >> 3) & 3];
       // the active row's arrows animate; the other row's stay still
       const still = A[0];
-      const s = stageRow === 0 ? a : still, l = stageRow === 1 ? a : still;
+      const s = stageRow === 0 ? a : still, l = stageRow === 1 ? a : still, k = stageRow === 2 ? a : still;
+      if (skinRow) { put(BG1_MAP, skinArrowCols[0], ST_SKIN_ROW, k.left); put(BG1_MAP, skinArrowCols[1], ST_SKIN_ROW, k.right); }
       put(BG1_MAP, 10, ST_HOLE + 2, s.left); put(BG1_MAP, 12, ST_HOLE + 2, s.right);
       put(BG1_MAP, layoutArrowCols[0], ST_LAYOUT_ROW, l.left); put(BG1_MAP, layoutArrowCols[1], ST_LAYOUT_ROW, l.right);
     }
@@ -321,7 +339,7 @@ export function createMenu(mp, opts = {}) {
   // ---- the stage preview: transition, mini map, mosaic ------------------------------------------
   const CH = M.stage_select.change_transition;
   function previewStep() {
-    if (!trans) { stageBG2(); return { mosaic: 0, showMini: set.layout === 'tall', layout: set.layout, stage: set.stage, dx: 0, dy: 0 }; }
+    if (!trans) { stageBG2(); return { mosaic: 0, showMini: set.layout === 'tall' || !!mp.miniOrig, layout: set.layout, stage: set.stage, dx: 0, dy: 0 }; }
     const e = CH[Math.min(trans.f, CH.length - 1)];
     const phase = trans.f <= 20 ? 'old' : trans.f <= 30 ? 'empty' : 'new';
     const stage = phase === 'old' ? trans.oldStage : set.stage;
@@ -335,7 +353,7 @@ export function createMenu(mp, opts = {}) {
     if (phase === 'old' && layout === 'classic' && set.layout === 'tall') { /* old 7x7 stays */ }
     trans.f++;
     if (trans.f >= 46) { trans = null; }
-    return { mosaic: e.mosaic_size, showMini: phase !== 'empty' && layout === 'tall', layout, stage, dx, dy, empty: phase === 'empty' };
+    return { mosaic: e.mosaic_size, showMini: phase !== 'empty' && (layout === 'tall' || !!mp.miniOrig), layout, stage, dx, dy, empty: phase === 'empty' };
   }
   const bmul = new Uint8Array(32);
   function holePost(pv) {
@@ -343,7 +361,8 @@ export function createMenu(mp, opts = {}) {
     const m = pv.mosaic ? pv.mosaic + 1 : 1;
     // mosaic blocks aligned like the original's (its hole was at (32, 32))
     const gx = x0 - 32, gy = y0 - 32;
-    const mini = mp.mini;
+    // the TALL preview is the port's own mini map; a skin may bring one for CLASSIC too
+    const mini = pv.layout === 'tall' ? mp.mini : mp.miniOrig;
     const b = bright;
     for (let c = 0; c < 32; c++) bmul[c] = ((b >= 15 ? c : Math.round(c * b / 15)) << 3) | ((b >= 15 ? c : Math.round(c * b / 15)) >> 2);
     if (pv.showMini && mini) {
@@ -432,7 +451,19 @@ export function createMenu(mp, opts = {}) {
     }
     if (screen === 'stage') {
       if (trans) return;
-      if (up || down) { const r = up ? 0 : 1; if (r !== stageRow) { stageRow = r; sfx(SFX_CURSOR); } return; }
+      if (up || down) {
+        const r = Math.max(0, Math.min(skinRow ? 2 : 1, stageRow + (up ? -1 : 1)));
+        if (r !== stageRow) { stageRow = r; sfx(SFX_CURSOR); }
+        return;
+      }
+      if (d && stageRow === 2) {
+        // the skin: the wall swaps the whole picture (menus included) to the other skin
+        const order = opts.skins;
+        set.skin = order[(order.indexOf(set.skin) + d + order.length) % order.length];
+        sfx(SFX_CURSOR); save();
+        if (opts.onSkin) opts.onSkin(set.skin);
+        return;
+      }
       if (d && stageRow === 0) {
         const old = set.stage;
         set.stage = ((set.stage - 1 + d + 10) % 10) + 1;
@@ -499,7 +530,7 @@ export function createMenu(mp, opts = {}) {
   return {
     out, W, H, frame, press,
     get screen() { return screen; },
-    show(name) { trans = null; going = -1; titleConfirm = -1; busy = 0; timers.length = 0; fade = null; bright = 15; enter(name); if (name === 'stage') stageRow = 0; },
+    show(name, o = {}) { trans = null; going = -1; titleConfirm = -1; busy = 0; timers.length = 0; fade = null; bright = 15; enter(name); if (name === 'stage') stageRow = o.row || 0; },
     fadeIn(name) { trans = null; going = -1; titleConfirm = -1; timers.length = 0; bright = 0; enter(name); fadeTo(15, 2, null); },
     // after a round / the match: the player table with each one's wins, the winner marked
     // (the original's cursor) and his cheering figure; A / START / B -> r.onDone()

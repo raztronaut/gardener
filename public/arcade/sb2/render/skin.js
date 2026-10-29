@@ -43,7 +43,7 @@ export function skinPack(pack, skin) {
 }
 
 // the menus' pack (menu.js loadMenuPack result: { manifest, blob(name), mini })
-export function skinMenuPack(mp, skin, mini = null) {
+export function skinMenuPack(mp, skin, mini = null, miniOrig = null) {
   const S = skin.manifest.menu || {};
   const byBlob = new Map();
   for (const p of S.patches || []) { if (!byBlob.has(p[0])) byBlob.set(p[0], []); byBlob.get(p[0]).push(p); }
@@ -60,5 +60,5 @@ export function skinMenuPack(mp, skin, mini = null) {
     return b;
   };
   const manifest = { ...mp.manifest, ...(S.manifest || {}), skin: skin.manifest.name };
-  return { manifest, blob, mini: mini || mp.mini };
+  return { manifest, blob, mini: mini || mp.mini, miniOrig };
 }

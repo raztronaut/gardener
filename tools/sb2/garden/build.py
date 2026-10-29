@@ -439,6 +439,29 @@ def stage_fx(st, ov, report, terr):
         ov.put(blob, 0x10000 + (128 + 4 * 16) * 2, pal_bytes(p4))
 
 
+# ---- the menus (menu.js: menu.json / menu.bin, patched like the battle pack) ------------------
+class MenuOverlay(Overlay):
+    pass
+
+
+def menu_skin(ov, report):
+    import menus
+    mj = read_json(os.path.join(ASSETS, 'pack', 'menu.json'))
+    if 'GARDEN' not in mj.get('words', {}):
+        report.append('menus: the menu pack has no GARDEN word (rebuild it: tools/sb2/extract/menupack.py)')
+    def tile(t, img):
+        img = np.where(img < 0, 0, img)
+        for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
+            ov.put('vram.menu', c * 32, encode4(img[dy:dy + 8, dx:dx + 8]))
+    for t, img in {**menus.wall_tiles(), **menus.strip_tiles(), **menus.icons()}.items():
+        tile(t, img)
+    for name in ['cgram.menu'] + ['cgram.%02d' % s for s in range(1, 11)]:
+        for p, P in menus.BG_PALS.items():
+            for i, c in P.items():
+                ov.put(name, (p * 16 + i) * 2, int(c).to_bytes(2, 'little'))
+    report.append('menus: %d tiles, palettes 1..4' % (len(menus.wall_tiles()) + len(menus.strip_tiles()) + len(menus.icons())))
+
+
 def contact_sheet(st, res, path):
     """every drawn cell of the stage on one sheet (16 per row), for review"""
     from PIL import Image
@@ -476,6 +499,8 @@ def main():
         if a.sheets:
             contact_sheet(st, results[st], os.path.join(SCRATCH, 'sheet_s%02d.png' % st))
     gardeners(ov, report)
+    mov = Overlay()
+    menu_skin(mov, report)
     import items
     # the overlay files
     binbuf = bytearray()
@@ -485,8 +510,15 @@ def main():
         binbuf += data
         while len(binbuf) & 3:
             binbuf.append(0)
+    mpatches = []
+    for blob, at, data in mov.runs():
+        mpatches.append([blob, at, len(binbuf), len(data)])
+        binbuf += data
+        while len(binbuf) & 3:
+            binbuf.append(0)
     manifest = {
         'version': 1, 'name': 'garden', 'title': 'Bomber Garden',
+        'menu': {'patches': mpatches, 'mini': 'mini_tall.png', 'miniOrig': 'mini_orig.png'},
         'note': 'Garden Edition: original pixel art (tools/sb2/garden/), an overlay on the runtime pack',
         'bin': 'garden.bin',
         'pack': {'patches': patches, 'display': {'border95': list(items.BORDER), 'objPal8': POD_PAL}},

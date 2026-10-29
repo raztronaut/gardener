@@ -23,9 +23,10 @@ import { createDisplay } from './render/display.js';
 import { createAudio } from './audio.js';
 import { createPacer } from './pacing.js';
 import { loadMenuPack, createMenu } from './menu.js';
+import { loadSkin, skinPack, skinMenuPack, GARDEN_BASE } from './render/skin.js';
 
-export const SB2_TITLE = 'Super Bomberman 2 · Tall';
-export const SB2_COVER = ASSET_BASE + 'pack/cover.png';
+export const SB2_TITLE = 'Bomber Garden';
+export const SB2_COVER = GARDEN_BASE + 'cover.png';
 
 const BT = { B: 1, Y: 2, SELECT: 4, START: 8, UP: 16, DOWN: 32, LEFT: 64, RIGHT: 128, A: 256, X: 512, L: 1024, R: 2048 };
 // SN30 Pro raw button index -> SNES bit (same layout as the Arcade's RAWPAD: A0 B1 X3 Y4 L6 R7 Select10 Start11)
@@ -37,13 +38,19 @@ const SETTINGS_KEY = 'garden.sb2.menu';
 // the original's defaults (rules screen), the wall's one pad: 2P = COM; COM LEVEL ★ (10,
 // core/ai_smart.js) instead of the original's 5. v: settings version (2 = the ★ default:
 // settings saved before it get ★ once)
-const DEFAULTS = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall', v: 2 };
+// skin: 'garden' (the Garden Edition, public/arcade/sb2/garden/: original art over the same
+// game) or 'classic' (the original's pictures); the stage select's skin row switches it
+const DEFAULTS = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall', skin: 'garden', v: 2 };
 
-let packPromise = null, menuPromise = null;
-const displays = new Map();    // layout -> { d, img }: kept for the page's life (see startMatch)
+let packPromise = null, menuPromise = null, skinPromise = null, gardenPack = null;
+const displays = new Map();    // layout:skin -> { d, img }: kept for the page's life (see startMatch)
 export function preloadSB2() {
   if (!packPromise) packPromise = loadPack().catch((e) => { packPromise = null; throw e; });
   return packPromise;
+}
+function preloadSkin() {
+  if (!skinPromise) skinPromise = loadSkin().catch(() => null);      // no overlay: classic only
+  return skinPromise;
 }
 function preloadMenus() {
   if (!menuPromise) menuPromise = loadMenuPack().catch((e) => { menuPromise = null; throw e; });
@@ -93,10 +100,21 @@ export async function bootSB2(host, { onExit } = {}) {
   const saveSet = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...set, time: set.time === Infinity ? null : set.time })); } catch { /* ignore */ } };
 
   // ---- assets (nothing is shown until everything is in; then the whole thing fades in) --
-  const [pack, mp] = await Promise.all([preloadSB2(), preloadMenus()]);
+  const [pack, mp, sk] = await Promise.all([preloadSB2(), preloadMenus(), preloadSkin()]);
   if (stopped) return null;
   const audio = createAudio(pack.audio);
-  const figAtlas = await loadRGBA(ASSET_BASE + ((pack.manifest.figures && pack.manifest.figures.atlas) || 'sprites/screen_bombers.png'));
+  if (sk && !gardenPack) gardenPack = skinPack(pack, sk);
+  const skins = sk ? ['garden', 'classic'] : ['classic'];
+  if (!skins.includes(set.skin)) set.skin = skins[0];
+  const packs = { classic: pack, garden: gardenPack || pack };
+  const [figClassic, figGarden, gmini, gminiOrig] = await Promise.all([
+    loadRGBA(ASSET_BASE + ((pack.manifest.figures && pack.manifest.figures.atlas) || 'sprites/screen_bombers.png')),
+    sk && gardenPack.manifest.figures && gardenPack.manifest.figures.url ? loadRGBA(gardenPack.manifest.figures.url) : null,
+    sk && sk.manifest.menu && sk.manifest.menu.mini ? loadRGBA(GARDEN_BASE + sk.manifest.menu.mini) : null,
+    sk && sk.manifest.menu && sk.manifest.menu.miniOrig ? loadRGBA(GARDEN_BASE + sk.manifest.menu.miniOrig) : null,
+  ]);
+  const figAtlases = { classic: figClassic, garden: figGarden || figClassic };
+  const mps = { classic: mp, garden: sk ? skinMenuPack(mp, sk, gmini, gminiOrig) : mp };
   await Promise.all([audio.preloadSfx(), audio.preloadMusic('title'), audio.preloadMusic('menu')]);
   if (stopped) return null;
 
@@ -145,13 +163,27 @@ export async function bootSB2(host, { onExit } = {}) {
   root.appendChild(menuScr);
   const mctx = mcanvas.getContext('2d', { alpha: false });
   let game = null;
-  const menu = createMenu(mp, {
-    audio, settings: set,
-    onChange: saveSet,
-    onStart: () => { saveSet(); startMatch(); },
-    onExit: () => exit(),
-  });
-  const mimg = new ImageData(new Uint8ClampedArray(menu.out.buffer), 256, 455);
+  const menus = {};
+  function menuFor(skin) {
+    if (!menus[skin]) {
+      const m = createMenu(mps[skin], {
+        audio, settings: set, skins,
+        onChange: saveSet,
+        onStart: () => { saveSet(); startMatch(); },
+        onExit: () => exit(),
+        onSkin: (to) => { saveSet(); setSkin(to); },
+      });
+      menus[skin] = { m, img: new ImageData(new Uint8ClampedArray(m.out.buffer), 256, 455) };
+    }
+    return menus[skin];
+  }
+  let menu = menuFor(set.skin).m, mimg = menuFor(set.skin).img;
+  // the stage select's skin row: the other skin's menus take over on the same row
+  function setSkin(to) {
+    const was = menu;
+    ({ m: menu, img: mimg } = menuFor(to));
+    if (menu !== was) { menu.show('stage', { row: 2 }); onPress = (bit) => menu.press(bit); }
+  }
   function showMenu(name, fadeIn) {
     stopLoop();
     game = null;
@@ -189,11 +221,11 @@ export async function bootSB2(host, { onExit } = {}) {
     for (let i = 0; i < 4; i++) pads[i] = i === 0 && set.players[0] === 'human' ? 0 : null;
     // one display per layout for the session: no per-match allocation, and the JIT keeps
     // its optimised render path (a fresh display per match measured 2.5x slower)
-    let dv = displays.get(layout);
+    let dv = displays.get(layout + ':' + set.skin);
     if (!dv) {
-      const d = createDisplay(pack, { layout, stage, classic: true });   // classic bomb / fire colours
+      const d = createDisplay(packs[set.skin], { layout, stage, classic: true });   // classic bomb / fire colours
       dv = { d, img: new ImageData(new Uint8ClampedArray(d.out.buffer), 256, d.H) };
-      displays.set(layout, dv);
+      displays.set(layout + ':' + set.skin, dv);
     }
     disp = dv.d; img = dv.img;
     canvas.width = 256; canvas.height = disp.H;
@@ -275,7 +307,8 @@ export async function bootSB2(host, { onExit } = {}) {
   function stopLoop() { if (raf) cancelAnimationFrame(raf); raf = 0; }
 
   // ---- results (the original's player table with the wins) -----------------------------------
-  const FIG = (pack.manifest.figures && pack.manifest.figures.anims) || {};
+  const FIGS = { classic: (pack.manifest.figures && pack.manifest.figures.anims) || {},
+    garden: (packs.garden.manifest.figures && packs.garden.manifest.figures.anims) || (pack.manifest.figures && pack.manifest.figures.anims) || {} };
   const COLKEY = ['white', 'black', 'red', 'blue'];
   function roundOver() {
     if (screen !== match || !game) return;          // left for the menus meanwhile
@@ -316,7 +349,8 @@ export async function bootSB2(host, { onExit } = {}) {
     later(back, 12000);
   }
   function figure(i, kind) {
-    const fr = (FIG[COLKEY[i]] || {})[kind] || [];
+    const fr = ((FIGS[set.skin] || FIGS.classic)[COLKEY[i]] || {})[kind] || [];
+    const figAtlas = figAtlases[set.skin];
     return fr.length && figAtlas ? { atlas: figAtlas, frames: fr.map((f) => [f[0], f[1], f[2], f[3], Math.max(1, f[4])]) } : null;
   }
 
@@ -351,7 +385,7 @@ export async function bootSB2(host, { onExit } = {}) {
     get state() { return game ? game.state : null; },
     perf,
     // QA hooks (headless tests, tools/sb2/qa/)
-    _game: () => game, _disp: () => disp, _set: set, _audio: audio, _menu: menu,
+    _game: () => game, _disp: () => disp, _set: set, _audio: audio, get _menu() { return menu; }, _setSkin: (s) => { set.skin = s; saveSet(); setSkin(s); },
   };
   window.__SB2 = ctl;
   return ctl;
