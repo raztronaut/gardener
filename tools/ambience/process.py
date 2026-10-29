@@ -69,7 +69,8 @@ for it in plan['items']:
         lic = src.get('license') or {'https://creativecommons.org/publicdomain/mark/1.0/': 'Public Domain Mark 1.0', 'http://creativecommons.org/publicdomain/mark/1.0/': 'Public Domain Mark 1.0',
             'http://creativecommons.org/publicdomain/zero/1.0/': 'CC0 1.0', 'http://creativecommons.org/licenses/by-sa/3.0/': 'CC BY-SA 3.0', 'https://creativecommons.org/licenses/by-sa/4.0/': 'CC BY-SA 4.0',
             'http://creativecommons.org/licenses/by/3.0/': 'CC BY 3.0', 'https://creativecommons.org/licenses/by/3.0/': 'CC BY 3.0'}.get(src.get('license_url'), src.get('license_url'))
-        c = {'title': src['title'], 'author': src.get('author'), 'license': lic, 'license_url': src.get('license_url'), 'source': src.get('source'),
+        author = src.get('author') or ('The British Library Board (Wildlife Sounds collection, via Europeana Sounds)' if ('W1CDR' in src['title'] or '(W ' in src['title']) else None)
+        c = {'title': src['title'], 'author': author, 'license': lic, 'license_url': src.get('license_url'), 'source': src.get('source'),
              'url': src.get('page') or src['url'], 'file_url': src['url'], 'duration_s': src.get('duration'), 'note': plan.get('notes', {}).get(it['src']), 'used_in': []}
         seen[it['src']] = c; credits.append(c)
     c['used_in'].append({'place': it['place'], 'file': name, 'role': it['role'], 'from_s': it.get('ss', 0), 'to_s': it.get('to'),
