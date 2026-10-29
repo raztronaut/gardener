@@ -1,14 +1,14 @@
 """Garden Edition — the HUD bar (BG3, 2bpp: 3 colours + transparent per palette).
 
 A dark forest-green bar like the wall's cards: a night outline, a mint rim, a vine at
-each end, the four gardeners' sun hats (a mint sprout on top) next to their win counters
+each end, the four players' helmets (a gold antenna knob on top) next to their win counters
 in night boxes, the clock in the middle, mint-and-gold flowers as end caps.
 
 Drawn as a 256x24 picture (screen lines 1..24) + the glyphs the game writes at run time
-(digits, the colon, the tipped hats of the fallen). The build cuts it along the original's
+(digits, the colon, the crossed-out helmets of the fallen). The build cuts it along the original's
 BG3 map (which char goes where, with which palette); colours must belong to that palette:
-  pal 0: night, white, mint          (the white / black hats)
-  pal 1: red, blue, night            (the red / blue hats)
+  pal 0: night, white, mint          (the white / black helmets)
+  pal 1: red, blue, night            (the red / blue helmets)
   pal 2: night, white, mint          (digit boxes, digits, the outer vines)
   pal 3: night, mint, gold           (the bar's frame, end caps, the sprouts)
 Transparent = the backdrop (CGRAM 0) = the bar's green.
@@ -27,48 +27,10 @@ FACE_COLS = (3, 8, 19, 24)
 BOXES = ((5, 7), (10, 12), (13, 18), (21, 23), (26, 28))
 BOX_Y0, BOX_Y1 = 4, 20
 
-# the hat icon, 16 wide, screen rows y 8..23 (BG3 rows 1-2): o outline, F fill,
-# h highlight (= band colour), b band
-HAT = """
-.....oooooo.....
-....oFFFFFFo....
-...oFhhFFFFFo...
-...oFhFFFFFFo...
-...oFFFFFFFFo...
-...oFFFFFFFFo...
-...obbbbbbbbo...
-.ooFFFFFFFFFFoo.
-oFhhFFFFFFFFFFFo
-.oooooooooooooo.
-................
-................
-................
-................
-................
-................
-"""
-HAT_DEAD = """
-................
-................
-.......ooo......
-.....ooFFFo.....
-....oFFFFFFo....
-...oFFFFFFFbo...
-...oFFFFFFbFo...
-..oFFFFFFFbFFo..
-..oFFFFFFbFFFo..
-...ooFFFbFFFo...
-.....oooooooo...
-................
-................
-................
-................
-................
-"""
 SPROUT = """
-......2.22......
-.....222222.....
-.......2........
+................
+.......33.......
+.......33.......
 .......2........
 """
 
@@ -109,18 +71,40 @@ def colon():
     return img
 
 
+HEAD = [
+    ".......o........",
+    "....oooooooo....",
+    "...oFFFFFFFFo...",
+    "..oFhhFFFFFFFo..",
+    "..oFvvvvvvvvFo..",
+    ".oFvv11vv22vvFo.",
+    ".oFvv11vv22vvFo.",
+    "..oFvvvvvvvvFo..",
+    "..oFFFFFFFFFFo..",
+    "...oFFFFFFFFo...",
+    "....oooooooo....",
+]
+
+
 def hat(colour, dead=False):
-    fill, outline, band = {
-        'white': (WHITE, NIGHT, MINT),
-        'black': (NIGHT, MINT, WHITE),
-        'red': (HAT_RED, NIGHT, HAT_BLUE),
-        'blue': (HAT_BLUE, NIGHT, HAT_RED),
+    """the player's icon: a bomber's round helmet with its visor (the players are the
+    original's bombers), drawn in the bar's palettes; dead = crossed-out eyes"""
+    fill, outline, visor, eye = {
+        'white': (WHITE, NIGHT, NIGHT, WHITE),
+        'black': (NIGHT, MINT, NIGHT, MINT),
+        'red': (HAT_RED, NIGHT, NIGHT, HAT_RED),
+        'blue': (HAT_BLUE, NIGHT, NIGHT, HAT_BLUE),
     }[colour]
-    hi = band if colour in ('black',) else (MINT if colour == 'white' else fill)
-    if colour == 'white':
-        hi = WHITE
-    L = {'o': outline, 'F': fill, 'b': band, 'h': hi}
-    return grid(HAT_DEAD if dead else HAT, L)
+    hi = MINT if colour == 'black' else fill
+    rows = list(HEAD)
+    if dead:
+        rows[5] = ".oFvv1vvvv2vvFo."
+        rows[6] = ".oFvvv1vvvv2vFo."
+        rows[0] = "................"
+    L = {'o': outline, 'F': fill, 'h': hi, 'v': visor, '1': eye, '2': eye}
+    img = blank(16, 16)
+    over(img, grid('\n'.join(rows), L), 0, 0)
+    return img
 
 
 def bar():
@@ -181,7 +165,7 @@ def bar():
 def picture(dead=()):
     """the bar as the game shows it at match start: hats, '0' wins, clock 2:00"""
     img = bar()
-    sp = grid(SPROUT, {'2': MINT})
+    sp = grid(SPROUT, {'2': MINT, '3': GOLD_3})
     for col, k in zip(FACE_COLS, ('white', 'black', 'red', 'blue')):
         if k not in dead:
             over(img, sp, col * 8, 4)

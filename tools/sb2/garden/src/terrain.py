@@ -951,12 +951,13 @@ def vine_path(cv_layer, cells, conn_of, stem, leaf, grape=None, seed=0, wire=Non
             else:
                 cv_layer[y0 + yy, x0 + xx + 1] = stem[0]
         # leaves (3-lobed, 4x4) alternating sides
-        for k, (x, y) in enumerate(pts[::4]):
+        for k, (x, y) in enumerate(pts[::3]):
             hz = (y == 8)
-            side = 1 if (x + y + cx + cy) % 2 else -1
+            side = 1 if (k + cx + cy) % 2 else -1
             lx, ly = (x - 1, y + side * 3 - 1) if hz else (x + side * 3 - 1, y - 1)
             for dx, dy, c in ((1, 0, leaf[2]), (0, 1, leaf[2]), (1, 1, leaf[1]), (2, 1, leaf[1]), (1, 2, leaf[0]),
-                              (0, 0, leaf[3]), (2, 0, leaf[2]), (2, 2, leaf[0]), (0, 2, leaf[1])):
+                              (0, 0, leaf[3]), (2, 0, leaf[2]), (2, 2, leaf[0]), (0, 2, leaf[1]),
+                              (3, 1, leaf[0]), (1, 3, leaf[0]), (-1, 1, leaf[2]), (1, -1, leaf[3])):
                 xx, yy = lx + dx, ly + dy
                 if 0 <= xx < 16 and 0 <= yy < 16:
                     cv_layer[y0 + yy, x0 + xx] = c
@@ -1004,14 +1005,15 @@ def crowns(cv_layer, centres, ramp, seed, outline=None, r=(9.0, 12.0), clip=None
                     cv_layer[y0 + j, x0 + i] = v
 
 
-def ring_points(ring, step, seed, inset=4):
-    """centres spread along a ring of cells (map space px), about `step` px apart"""
+def ring_points(ring, step, seed, inset=4, depth=0):
+    """centres spread along a ring of cells (map space px), about `step` px apart, at
+    least `depth` px inside the ring"""
     pts = []
     m = cell_mask(ring)
+    if depth:
+        m &= N.dist_inside(m, cap=depth + 1) >= depth
     ys, xs = np.nonzero(m)
-    occupied = []
-    rng = Rng(seed)
-    cand = list(zip(xs[::7], ys[::7]))
+    cand = list(zip(xs[::5], ys[::5]))
     order = sorted(range(len(cand)), key=lambda i: hash2(int(cand[i][0]), int(cand[i][1]), seed))
     for i in order:
         x, y = cand[i]

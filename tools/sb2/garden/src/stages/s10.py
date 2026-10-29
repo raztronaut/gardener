@@ -1,6 +1,6 @@
 """Stage 10 — the DEEP FOREST: a dim forest floor of moss and leaf litter with ferns and
 little mushrooms; big toadstools that grow back (soft: red, brown and orange caps with
-the original's 4 regrowth frames); ancient trunks with root flares and mossy boulders
+the original's 4 regrowth frames); old stumps and mossy boulders
 (hard); a dense old-growth canopy all round."""
 from common import *  # noqa: F401,F403
 import terrain as TR
@@ -8,10 +8,10 @@ import nature as N
 
 NAME = 'Deep Forest'
 
-F = [C('#1a2a14'), C('#24381a'), C('#304a20'), C('#40602a'), C('#587a36')]
-F_SH = C('#121e0e')
+F = [C('#24381a'), C('#304a20'), C('#40602a'), C('#56783a'), C('#78984a')]
+F_SH = C('#18260f')
 LIT = [C('#5a3a1c'), C('#7a522a'), C('#a0703a')]
-CAN = [C('#0c1e10'), C('#163018'), C('#204622'), C('#30602c'), C('#4c7e3a')]
+CAN = [C('#08160c'), C('#102414'), C('#183a1c'), C('#265426'), C('#3c7032')]
 OUT = C('#080e06')
 RED = [C('#6a1010'), C('#a81c18'), C('#e03424'), C('#ff7058')]
 BRN = [C('#4a2810'), C('#7a4420'), C('#a8683a'), C('#d09a60')]
@@ -37,6 +37,12 @@ def ground_tex():
         c = LIT[r.rand(3)]
         img[y % 64, x % 64] = c
         img[y % 64, (x + 1) % 64] = LIT[0] if c != LIT[0] else LIT[1]
+    # sunflecks through the canopy
+    sun = N.fbm(64, 64, 1013, ((16, 1.0), (8, 0.4)), period=64)
+    ys, xs = np.mgrid[0:64, 0:64]
+    fl = (sun > 0.66) | ((sun > 0.62) & (((xs + ys) & 1) == 0))
+    img[fl & (img == F[3])] = F[4]
+    img[fl & (img == F[2])] = F[3]
     return img
 
 
@@ -77,8 +83,8 @@ def paint(cv, L):
     TR.mass(cv.obj, reg, CAN, 104, outline=OUT, dome_r=10.0, glob=0.9, r=(1.8, 3.2))
     pts = TR.ring_points(ring, 26, 105)
     TR.crowns(cv.obj2, pts, CAN, 106, outline=OUT, r=(9.0, 12.0), clip=reg, leaf=(1.8, 3.0))
-    hard = [TR.trunk(BARK, OUT, seed=1, moss=(MOSS[1], MOSS[3])), TR.boulder(ST, OUT, seed=2, moss=MOSS),
-            TR.trunk(BARK, OUT, seed=3, moss=(MOSS[1], MOSS[3])), TR.boulder(ST, OUT, seed=4, moss=MOSS, lobes=5),
+    hard = [TR.stump(BARK[:4], [BRN[1], BRN[2], BRN[3], STEM[1]], OUT, seed=1, moss=(MOSS[1], MOSS[3])),
+            TR.boulder(ST, OUT, seed=2, moss=MOSS), TR.boulder(ST, OUT, seed=4, moss=MOSS, lobes=5),
             TR.stump(BARK[:4], [BRN[1], BRN[2], BRN[3], STEM[1]], OUT, seed=5, moss=(MOSS[1], MOSS[3]))]
     for (cx, cy) in pillars:
         cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)

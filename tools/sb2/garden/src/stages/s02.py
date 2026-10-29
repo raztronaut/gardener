@@ -8,8 +8,9 @@ import nature as N
 
 NAME = 'Frosty Woodland'
 FLOOR_KINDS = ('floor', 'gimmick_07')
+MASK_REFS = ('gimmick_07_0',)
 
-ICE = [C('#4f739c'), C('#6a92bc'), C('#88b0d4'), C('#a8cce6'), C('#d4ecf8')]
+ICE = [C('#3e6088'), C('#5680aa'), C('#709cc6'), C('#90bada'), C('#c4e2f4')]
 SNOW = C('#f4faff')
 FROST = C('#c4dcee')
 LEAF_FZ = C('#b07850')
@@ -30,7 +31,7 @@ SHADE = {ICE[4]: ICE[2], ICE[3]: ICE[1], ICE[2]: ICE[0], ICE[1]: DEEP[2], ICE[0]
 
 def ground_tex():
     n = N.fbm(64, 64, 202, ((32, 1.0), (16, 0.5), (8, 0.3)), period=64)
-    img = TR.patches(n, [0.38, 0.70, 0.86], [ICE[1], ICE[2], ICE[3], FROST], dither=0.15)
+    img = TR.patches(n, [0.36, 0.72], [ICE[1], ICE[2], ICE[3]], dither=0.15)
     # frost streaks (diagonal glints on the ice)
     r = Rng(9)
     for (x, y) in N.poisson(64, 64, 9.0, 33):
@@ -39,8 +40,8 @@ def ground_tex():
             img[(y + k) % 64, (x + k) % 64] = ICE[4] if k % 2 == 0 else ICE[3]
     # snow drifts: soft white patches
     sn = N.fbm(64, 64, 207, ((16, 1.0), (8, 0.5)), period=64)
-    img[sn > 0.76] = SNOW
-    img[(sn > 0.71) & (sn <= 0.76)] = FROST
+    img[sn > 0.80] = SNOW
+    img[(sn > 0.76) & (sn <= 0.80)] = FROST
     return img
 
 
@@ -128,12 +129,12 @@ def paint(cv, L):
     # the fir treeline: a dark mass, snow on its lit crowns
     reg = TR.rough_region(ring, 52, amp=1.8)
     TR.mass(cv.obj, reg, GR, 61, outline=OUT, dome_r=10.0, glob=0.9, r=(1.8, 3.2))
-    tex = TR.leaf_texture(64, 61, (1.8, 3.2), 1.1)
-    yy, xx = np.mgrid[0:512, 0:512]
-    lt = tex[yy % 64, xx % 64]
-    n = N.fbm(512, 512, 63, ((16, 1.0), (8, 0.5)), period=512)
-    snowy = reg & (cv.obj >= 0) & (cv.obj != OUT) & (lt > 0.25 - (n - 0.5) * 0.8)
-    cv.obj[snowy] = np.where(lt[snowy] > 0.55, SNOW, FROST)
+    # snowy fir crowns standing in the treeline, snow lying on their sunny sides
+    pts = TR.ring_points(ring, 22, 62)
+    TR.crowns(cv.obj2, pts, GR, 63, outline=OUT, r=(8.0, 11.0), clip=reg, leaf=(1.6, 2.6))
+    top = cv.obj2 >= 0
+    cv.obj2[top & (cv.obj2 == GR[4])] = SNOW
+    cv.obj2[top & (cv.obj2 == GR[3])] = FROST
     hard = hard_blocks()
     for (cx, cy) in pillars:
         cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
@@ -170,7 +171,7 @@ def soft():
 def snowcap(img, seed):
     n = N.fbm(16, 16, seed + 40, ((4, 1.0),))
     ys, xs = np.mgrid[0:16, 0:16]
-    m = (img >= 0) & (img != OUT) & ((ys + n * 4) < 7.5) & (img != BERRY) & (img != BERRY_H)
+    m = (img >= 0) & (img != OUT) & ((ys + n * 3) < 5.5) & (img != BERRY) & (img != BERRY_H)
     img = img.copy()
     img[m] = np.where(xs[m] + ys[m] < 12, SNOW, FROST)
     return img

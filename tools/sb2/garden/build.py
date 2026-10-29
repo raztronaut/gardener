@@ -176,7 +176,7 @@ def stage_cells(st, ov, report, art):
         cls.append([key, mode, row, None if layers is None else
                     [[w, h, salt, [first + i for i in ids]] for (w, h, salt, ids) in layers]])
     art['stages'][str(st)] = {'shade': res['shade'], 'shadePics': shade_ids, 'cls': cls,
-                              'masks': res['masks'], 'maskRefs': res['refs'], 'stat': res['stat']}
+                              'masks': res['masks'], 'maskRefs': res['refs'], 'fireRefs': res['xrefs'], 'stat': res['stat']}
     return res
 
 
@@ -314,13 +314,14 @@ def menu_skin(ov, report):
         for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
             ov.put('vram.menu', c * 32, encode4(img[dy:dy + 8, dx:dx + 8]))
     import menufont
-    for t, img in {**menus.wall_tiles(), **menus.strip_tiles(), **menus.icons(), **menufont.cells(mj.get('words', {}))}.items():
+    # (the player table's bomber heads stay the original's: the players are its bombers)
+    for t, img in {**menus.wall_tiles(), **menus.strip_tiles(), **menufont.cells(mj.get('words', {}))}.items():
         tile(t, img)
     for name in ['cgram.menu'] + ['cgram.%02d' % s for s in range(1, 11)]:
         for p, P in menus.BG_PALS.items():
             for i, c in P.items():
                 ov.put(name, (p * 16 + i) * 2, int(c).to_bytes(2, 'little'))
-    report.append('menus: %d tiles, palettes 1..4' % (len(menus.wall_tiles()) + len(menus.strip_tiles()) + len(menus.icons())))
+    report.append('menus: %d tiles, palettes 1..4' % (len(menus.wall_tiles()) + len(menus.strip_tiles())))
 
 
 # ---- the title screen (vram.title: pictures cut into 16x16 tiles) ----------------------------------
@@ -352,7 +353,6 @@ def pack_palettes(cells, slots, report, name):
 
 def title_skin(ov, report):
     import title
-    import bombers
     b1, b2 = title.bg1(), title.bg2()
     cl = title.clouds()
     free = [r * 32 + c * 2 for r in range(32) for c in range(8) if r * 32 + c * 2 not in TITLE_RESERVED]
@@ -425,83 +425,13 @@ def title_skin(ov, report):
         obj_put(ov, 'vram.title', base, 32 + 2 * k, im, p_obj)
     for i in range(16):
         cg[128 + i] = p_obj[i]
-    pieces = bombers.read_pieces()
-    sprites = []
-    for k, col in enumerate(('white', 'black', 'red', 'blue')):
-        pl = bombers.palette(col)
-        for i in range(16):
-            cg[128 + (k + 1) * 16 + i] = pl[i]
-    head, body = pieces[40], pieces[42]
-    obj_put(ov, 'vram.title', base, 64, head)
-    obj_put(ov, 'vram.title', base, 66, body)
-    for k in range(4):
-        x = 128 - 2 * 24 + k * 24 + 4
-        sprites.append({'x': x, 'y': 104, 'tile': 64, 'pal': k + 1, 'prio': 3, 'hflip': False, 'vflip': False, 'w': 16, 'h': 16})
-        sprites.append({'x': x, 'y': 120, 'tile': 66, 'pal': k + 1, 'prio': 3, 'hflip': False, 'vflip': False, 'w': 16, 'h': 16})
+    sprites = []          # (no gardeners: the players are the original's bombers)
     for name in ['cgram.title']:
-        ov.put(name, 0, pal_bytes(cg))
+        ov.put(name, 0, pal_bytes(cg[:144]))
     tc = {'idle': [{'tile': 2, 'x': 56, 'y': 144, 'pal': 0, 'frames': 5}],
           'confirm': [{'tile': 32 + 2 * (k // 2), 'x': 56, 'y': 144, 'pal': 0} for k in range(16)]}
     report.append('title: %d tiles, BG palettes %s' % (len(tiles), sorted(set(a1)) + sorted(set(a2))))
     return {'title_sprites': sprites, 'title_cursor': tc}
-
-
-def strip_skin(ov, report):
-    """the menus' bottom strip and the stage select's "go" run, with the gardeners: OBJ
-    palettes 1 (white), 2 (black), 3 (the pod) in every menu CGRAM; the pieces blob is
-    replaced whole (256 bytes per piece, colour indices)"""
-    import bombers
-    import fx
-    P = bombers.read_pieces()
-    pod_imgs = [fx.pods()[32], fx.small_pods()[98]]
-    pp = auto_palette(pod_imgs, 'strip pod', report)
-    pieces, meta = [], []
-
-    def add(img, pal, colours=None):
-        if colours is not None:
-            img = np.vectorize(lambda v: 0 if v < 0 else colours.index(int(v)))(img)
-        buf = np.zeros(256, np.uint8)
-        buf[:] = np.where(img < 0, 0, img).ravel()
-        pieces.append(bytes(buf))
-        meta.append({'i': len(meta), 'w': 16, 'h': 16, 'pal': pal})
-        return len(meta) - 1
-    ids = {}
-    for name, (h, b) in {'r0': (12, 14), 'r1': (32, 34), 'r2': (36, 38), 'l0': (68, 70)}.items():
-        for k, pal in ((1, 1), (2, 2)):
-            ids[(name, k)] = (add(P[h], pal), add(P[b], pal))
-    pod = add(pod_imgs[0], 3, pp)
-    WX, BX, Y = 52, 188, 180
-
-    def gardener(k, pose, x):
-        hid, bid = ids[(pose, k)]
-        return [[hid, x, Y, 3], [bid, x, Y + 16, 3]]
-    frames = []
-    for f in range(52):
-        pcs = gardener(1, 'r0', WX) + gardener(2, 'l0', BX)
-        if f < 26:
-            pcs = [[pod, WX + 12 + 5 * f, 197, 3]] + pcs
-        frames.append({'pieces': pcs, 'duration': 1})
-    strip = {'period': 52, 'frames': frames, 'pieces': meta}
-    # "go": both turn right and walk off, the pod rolling ahead
-    walk = ['r1', 'r0', 'r2', 'r0']
-    go = []
-    for f in range(97):
-        p = walk[(f // 6) % 4]
-        pcs = gardener(1, p, WX + 2 * f) + gardener(2, p, BX + 2 * f - 6)
-        pcs = [[pod, min(250, BX + 24 + 3 * f), 197, 3]] + pcs
-        go.append(pcs)
-    blob = b''.join(pieces)
-    words = [0] * 48
-    for k, col in ((1, 'white'), (2, 'black')):
-        pl = bombers.palette(col)
-        for i in range(16):
-            words[(k - 1) * 16 + i] = pl[i]
-    for i in range(16):
-        words[32 + i] = pp[i]
-    for name in ['cgram.menu'] + ['cgram.%02d' % s for s in range(1, 11)]:
-        ov.put(name, (128 + 16) * 2, pal_bytes(words))
-    report.append('strip: %d pieces' % len(meta))
-    return blob, {'strip': strip, 'go': {'runs': [{'frames': go, 'fade_starts_frames_after_press': 98}], 'pieces': meta, 'fade_after': 98}}
 
 
 def contact_sheet(st, res, path):
@@ -546,8 +476,7 @@ def main():
     mov = Overlay()
     menu_skin(mov, report)
     menu_manifest = title_skin(mov, report)
-    strip_blob, strip_manifest = strip_skin(mov, report)
-    menu_manifest.update(strip_manifest)
+    strip_blob = b''        # the menus' strip and "go" run: the original's (its bombers)
     # the overlay files
     binbuf = bytearray()
     patches = []
@@ -557,10 +486,7 @@ def main():
         while len(binbuf) & 3:
             binbuf.append(0)
     mpatches = []
-    mblobs = {'pieces': [len(binbuf), len(strip_blob)]}
-    binbuf += strip_blob
-    while len(binbuf) & 3:
-        binbuf.append(0)
+    mblobs = {}
     for blob, at, data in mov.runs():
         mpatches.append([blob, at, len(binbuf), len(data)])
         binbuf += data
@@ -583,7 +509,7 @@ def main():
         binbuf.append(row)
         binbuf += bytes((lo[0::2] | (lo[1::2] << 4)).astype(np.uint8))
     for k, S in art['stages'].items():
-        j = {'shadePics': S['shadePics'], 'cls': S['cls'], 'masks': S['masks'], 'maskRefs': S['maskRefs']}
+        j = {'shadePics': S['shadePics'], 'cls': S['cls'], 'masks': S['masks'], 'maskRefs': S['maskRefs'], 'fireRefs': S['fireRefs']}
         j['shade'] = len(binbuf)
         binbuf += S['shade']
         j['stat'] = {}

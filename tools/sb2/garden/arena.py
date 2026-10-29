@@ -235,6 +235,7 @@ def build_stage(st, mod, meta, maps, report, objects, pack_ppu, id_base=0):
     cls = []
     masks = []
     refs = []
+    xrefs = []      # the original's fire / burning-block colours (never the floor's)
     soft = S.soft()
     soft_ids = [A.pic(im, who='soft %d' % k) for k, im in enumerate(soft)]
     regrow = S.regrow() if hasattr(S, 'regrow') else {}
@@ -286,6 +287,8 @@ def build_stage(st, mod, meta, maps, report, objects, pack_ppu, id_base=0):
                 unknown.append(n)
             if k in floor_kinds or n in mask_ref_names:
                 refs.append(e)
+            if (k == 'flame' and x.get('piece') == 'center') or (k == 'soft_destroy' and x.get('frame') == 0):
+                xrefs.append(e)
     for key in getattr(S, 'GROUND_KEYS', ()):
         cls.append([key, 1, 0, None])
     if unknown:
@@ -364,6 +367,6 @@ def build_stage(st, mod, meta, maps, report, objects, pack_ppu, id_base=0):
         stat_bytes[lay] = bytes(b)
     report.append('stage %d: %d pictures, rows %s, shade err %.0f' % (
         st, len(A.pics), ' '.join('%d:%d' % (r, len([c for c in P[1:] if c or True]) - P[1:].count(0)) for r, P in sorted(rows.items())), worst ** 0.5))
-    return {'pics': out_pics, 'cls': cls, 'stat': stat_bytes, 'masks': masks, 'refs': refs,
+    return {'pics': out_pics, 'cls': cls, 'stat': stat_bytes, 'masks': masks, 'refs': refs, 'xrefs': xrefs,
             'rows': rows, 'shade': bytes(shade), 'chars': chars, 'anims': anims,
             'cycles': getattr(S, 'CYCLES', {}), 'colour_pics': A.pics, 'pic_row': pic_row}

@@ -9,12 +9,12 @@ import nature as N
 NAME = 'Rose Garden'
 CHAR_CELLS = {'gimmick_50_0': 255, 'gimmick_50_1': 255}
 
-G = [C('#1e4024'), C('#2c5a2e'), C('#3c7438'), C('#548e44'), C('#78ac58')]
-G_SH = C('#16301c')
 PET = [C('#e04a6a'), C('#ff90aa')]
 DAISY = C('#fff8f0')
 DAISY_C = C('#ffd040')
 B = [C('#14321a'), C('#1f4c24'), C('#2e6a2e'), C('#46883a'), C('#6ca850')]
+G = [B[1], B[2], C('#3c7838'), B[3], C('#7cb058')]
+G_SH = B[0]
 OUT = C('#0c1a0e')
 RED = [C('#7a1020'), C('#c01c34'), C('#f04058')]
 PINK = [C('#c8507a'), C('#f88cb0'), C('#ffd0e0')]
@@ -96,22 +96,26 @@ def urn(seed, plant='lav'):
     img[rim] = np.where(v[rim] > 0.55, TERRA[4], np.where(v[rim] > 0.1, TERRA[3], np.where(v[rim] > -0.4, TERRA[2], TERRA[1])))
     soil = d <= 4.6
     img[soil] = SOIL
+    pot = N.selout(img, OUT, None)
+    # the planting (a second layer): a domed mound of foliage spilling over the rim
+    img = blank(16, 16)
+    m = N.blob(16, 16, 7.8, 6.6, 5.6, 5.0, lobes=6, amp=0.12, seed=seed)
+    fol = N.foliage(m, B, seed=seed + 3, r=(1.1, 1.9), density=1.0, dome_r=4.0, glob=0.8)
+    img[m] = fol[m]
     r = Rng(seed)
     if plant == 'lav':
-        for k in range(9):
-            x, y = 5 + r.rand(6), 4 + r.rand(7)
-            img[y, x] = B[3]
-            img[y - 1, x] = LAV[0]
-            img[y - 2, x] = LAV[1]
+        for k in range(10):
+            x, y = 3 + r.rand(10), 3 + r.rand(7)
+            if m[y, x]:
+                img[y, x] = LAV[1]
+                if y + 1 < 16 and m[y + 1, x]:
+                    img[y + 1, x] = LAV[0]
     else:
-        for k in range(7):
-            x, y = 4 + r.rand(8), 4 + r.rand(8)
-            for dx, dy, c in ((0, 0, B[3]), (1, 0, B[2]), (0, 1, B[2]), (1, 1, B[1])):
-                img[y + dy, x + dx] = c
-        for k in range(4):
-            x, y = 4 + r.rand(8), 4 + r.rand(8)
-            img[y, x] = DAISY
-    return N.selout(img, OUT, None)
+        for k in range(6):
+            x, y = 4 + r.rand(8), 3 + r.rand(7)
+            if m[y, x]:
+                TR.flower(img, x, y, DAISY, DAISY_C, WROSE[0], 'plus')
+    return pot, N.selout(img, OUT, None)
 
 
 def birdbath(frame):
@@ -186,7 +190,9 @@ def paint(cv, L):
         cv.obj[y + 1, x + 1] = dk
     hard = [urn(1), urn(2, 'daisy'), urn(3), urn(4, 'daisy')]
     for (cx, cy) in pillars:
-        cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
+        pot, plant = hard[TR.cell_hash(cx, cy, 5) % len(hard)]
+        cv.put('obj', pot, cx * 16, cy * 16)
+        cv.put('obj2', plant, cx * 16, cy * 16)
 
 
 def soft():

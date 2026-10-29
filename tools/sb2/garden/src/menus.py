@@ -7,13 +7,12 @@ small PPU; the skin recolours them and redraws their scenery).
   wall       the stone wall behind the panels -> a hedge of leaves with a few flowers
   strip      the bottom strip: the wall top -> a flowering hedge edge, the kerb -> a stone
              edging with flowers, the road -> a gravel garden path
-  icons      the player table's bomber heads -> the gardeners' sun hats
+  icons      the player table's bomber heads stay the original's (the players are its bombers)
 Pictures are palette-index grids in the original's palette rows (the build writes them
 as characters into the menu VRAM at the original tile numbers).
 """
 from common import *  # noqa: F401,F403
 import math
-import bombers
 
 # ---- palettes (BG rows 1..4: colour index -> garden colour) ---------------------------------
 PANEL = C('#0f3a24')      # the panels' fill (the wall's cards)
@@ -25,9 +24,9 @@ P3 = {1: NIGHT, 2: SOIL_1, 3: SOIL_2, 4: SAND_0, 5: SAND_1, 6: SAND_2, 7: SAND_3
 # mint; the red ramp (COM, OFF) -> rose; the greens (OFF) -> leaves; 11 = the panel
 P2 = {1: NIGHT, 2: TEAL_D, 3: TEAL, 4: MINT, 5: WHITE, 6: ROSE_0, 7: ROSE_1, 8: ROSE_2, 9: PINK,
       10: LEAF_1, 11: PANEL, 12: LEAF_3, 13: LEAF_4, 14: STONE_3, 15: WHITE}
-W, B, R, U = bombers.IDENTITY['white'], bombers.IDENTITY['black'], bombers.IDENTITY['red'], bombers.IDENTITY['blue']
-P1 = {1: NIGHT, 2: C(U[0]), 3: C(W[0]), 4: C(W[1]), 5: MINT, 6: C(W[2]), 7: C(B[0]), 8: C(B[1]), 9: GOLD_3,
-      10: C(R[1]), 11: C(R[2]), 12: C(R[0]), 13: C(U[1]), 14: C(U[2]), 15: PANEL}
+# palette 1: the player table's bomber heads keep the original's colours; only the panel
+# behind them (15) becomes the garden's
+P1 = {15: PANEL}
 BG_PALS = {1: P1, 2: P2, 3: P3, 4: P4}
 
 # ---- the hedge wall behind the panels (palette 4: 1 night, 2 ink, 3..7 leaves, 13 gold) ----------
@@ -116,38 +115,3 @@ def strip_tiles():
     return out
 
 
-# ---- the player table's icons: sun hats (palette 1) ----------------------------------------------
-HAT_ICON = """
-................
-................
-................
-......oooo......
-.....oFFFFo.....
-....oFHFFFFo....
-....oFFFFFFo....
-....oBBBBBBo....
-..ooFFFFFFFFoo..
-.oFHFFFFFFFFFFo.
-..oooooooooooo..
-................
-................
-................
-................
-................
-"""
-
-
-def icons():
-    sets = {0x2C0: (3, 4, 5, 3), 0x2C2: (7, 8, 3, 7), 0x2C4: (10, 11, 9, 12), 0x2C6: (13, 14, 9, 2)}
-    out = {}
-    for t, (F, D, Bd, H) in sets.items():
-        L = {'o': 1, 'F': F, 'B': Bd, 'H': H}
-        img = grid(HAT_ICON, L)
-        img[img < 0] = 15                     # the panel behind the icon
-        # the hat's right side in shade
-        for y in range(16):
-            for x in range(10, 15):
-                if img[y, x] == F:
-                    img[y, x] = D
-        out[t] = img
-    return out

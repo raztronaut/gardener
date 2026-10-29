@@ -22,6 +22,7 @@ ST = [C('#3a3c3e'), C('#5a5e5e'), C('#7e8280'), C('#a4a8a2'), C('#cccec6')]
 GOLD = [C('#8a5a10'), C('#d09a28'), C('#ffd860')]
 WOOD = [C('#5a3a20'), C('#8a5e34'), C('#b88850')]
 LILAC = [C('#8a6ac8'), C('#c4a8f0')]
+LEAF = [C('#3a7c30'), C('#5aa040')]
 INK = C('#24160c')
 
 SHADE = {M[4]: M[2], M[3]: M[1], M[2]: M[0], M[1]: M_SH, M[0]: M_SH}
@@ -76,8 +77,8 @@ def paint(cv, L):
     reg = TR.rough_region(ring, 55, amp=1.4)
     TR.mass(cv.obj, reg, FERN, 56, outline=OUT, dome_r=8.0, glob=0.9, r=(1.3, 2.3))
     # red maples standing in the hedge: round crowns on the ring
-    pts = TR.ring_points(ring, 30, 57)
-    TR.crowns(cv.obj2, pts, MAPLE, 58, outline=OUT, r=(8.0, 11.0), clip=reg)
+    pts = TR.ring_points(ring, 30, 57, depth=9)
+    TR.crowns(cv.obj2, pts, MAPLE, 58, outline=OUT, r=(8.0, 11.0))
     hard = hard_blocks()
     for (cx, cy) in pillars:
         cv.put('obj', hard[TR.cell_hash(cx, cy, 5) % len(hard)], cx * 16, cy * 16)
@@ -125,18 +126,25 @@ def pergola(piece, frame=0):
             for xx in range(cx, cx + 3):
                 if col * 16 <= xx < col * 16 + 16 and row * 16 <= yy < row * 16 + 16:
                     img[yy - row * 16, xx - col * 16] = INK if xx == cx + 2 or yy == cy + 3 else WOOD[1]
-    # wisteria over the slats (every column), the middle swaying with the frame
+    # wisteria vines twining over the beams and slats: leaf clusters, hanging racemes
+    for y in range(16):
+        for x in range(16):
+            X, Y = col * 16 + x, row * 16 + y
+            h = hash2(X // 2, Y // 2, 55)
+            if img[y, x] >= 0 and img[y, x] != INK and h % 5 < 2:
+                img[y, x] = LEAF[1] if (X + Y) % 3 else LEAF[0]
+            elif img[y, x] < 0 and (h % 9 == 0) and 3 <= X <= 44 and 3 <= Y <= 28:
+                img[y, x] = LEAF[0]
     sway = [0, 1, 0, -1][frame % 4] if col == 1 else 0
-    for k, x0 in enumerate((3, 8, 12)):
-        if col != 1 and k == 1:
-            continue
-        length = (8 + (k % 2) * 3 if row == 0 else 6 + (k % 2) * 2) - (3 if col != 1 else 0)
+    for k, x0 in enumerate((2, 6, 10, 14)):
+        length = (7 + (k % 2) * 3 if row == 0 else 5 + (k % 2) * 2)
+        y0 = (5 + (k % 3)) if row == 0 else 0
         for i in range(length):
-            yy = (6 if row == 0 else 0) + i
+            yy = y0 + i
             xx = x0 + (sway if i > 2 else 0) + (1 if (i % 3 == 2) else 0)
             if 0 <= xx < 16 and 0 <= yy < 16:
                 img[yy, xx] = LILAC[1] if i % 2 == 0 else LILAC[0]
-                if 0 <= xx + 1 < 16 and i % 3 == 1:
+                if 0 <= xx + 1 < 16 and i % 3 == 1 and i < length - 2:
                     img[yy, xx + 1] = LILAC[0]
     return img
 

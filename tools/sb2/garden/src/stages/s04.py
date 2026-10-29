@@ -1,7 +1,7 @@
 """Stage 4 — the ORCHARD: warm orchard grass with fallen apples, dandelions and clover;
 the original's fuse ring is a GRAPEVINE trained along a low wire (its fire runs along the
-vine); currant bushes, apple saplings and tall grass (soft); old fruit-tree trunks, stumps
-and boulders (hard); a dry-stone wall overgrown with ivy all round."""
+vine); currant bushes, apple saplings and tall grass (soft); old fruit-tree stumps and
+boulders (hard); a dry-stone wall overgrown with ivy all round."""
 from common import *  # noqa: F401,F403
 import terrain as TR
 import nature as N
@@ -87,9 +87,9 @@ def paint(cv, L):
 
 def hard_blocks():
     return [
-        TR.trunk(BARK, OUT, seed=1, moss=(IVY[2], IVY[3])),
+        TR.stump(BARK[:4], WOOD, OUT, seed=1, moss=(IVY[2], IVY[3])),
         TR.stump(BARK[:4], WOOD, OUT, seed=2, moss=(IVY[2], IVY[3])),
-        TR.trunk(BARK, OUT, seed=3),
+        TR.boulder(ST, OUT, seed=3, lobes=5),
         TR.boulder(ST, OUT, seed=4, moss=[IVY[1], IVY[2], IVY[3], IVY[4]]),
     ]
 

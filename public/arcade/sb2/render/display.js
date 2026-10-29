@@ -429,6 +429,15 @@ export function createDisplay(pack, opts = {}) {
         return out;
       };
       const refs = (S.maskRefs || []).map(cellCols);
+      // floor colours that are never the fire's: a pixel of such a colour is floor even
+      // where the original's cell was baked over a plainer floor than its floor tiles
+      const fireCols = new Set();
+      for (const e of S.fireRefs || []) {
+        const c = cellCols(e);
+        for (let y = 4; y < 12; y++) for (let x = 4; x < 12; x++) fireCols.add(c[y * 16 + x]);
+      }
+      const floorCols = new Set();
+      for (const r of refs) for (const v of r) if (v >= 0 && !fireCols.has(v)) floorCols.add(v);
       const stack = new Int32Array(256);
       for (const [key, e] of S.masks || []) {
         const c = cellCols(e);
@@ -437,15 +446,17 @@ export function createDisplay(pack, opts = {}) {
         const m = new Uint8Array(256);
         if (best) {
           // the floor = matching pixels connected to the cell's edge
+          const isFloor = (i) => c[i] === best[i] || floorCols.has(c[i]);
           let sp = 0;
           for (let i = 0; i < 256; i++) {
             const x = i & 15, y = i >> 4;
-            if ((x === 0 || y === 0 || x === 15 || y === 15) && c[i] === best[i]) { m[i] = 1; stack[sp++] = i; }
+            if ((x === 0 || y === 0 || x === 15 || y === 15) && isFloor(i)) { m[i] = 1; stack[sp++] = i; }
+            else if (floorCols.has(c[i])) m[i] = 1;        // a floor-only colour: floor anywhere
           }
           while (sp) {
             const i = stack[--sp], x = i & 15, y = i >> 4;
             const nb = [x > 0 ? i - 1 : -1, x < 15 ? i + 1 : -1, y > 0 ? i - 16 : -1, y < 15 ? i + 16 : -1];
-            for (const j of nb) if (j >= 0 && !m[j] && c[j] === best[j]) { m[j] = 1; stack[sp++] = j; }
+            for (const j of nb) if (j >= 0 && !m[j] && isFloor(j)) { m[j] = 1; stack[sp++] = j; }
           }
         }
         mask[key] = m;
