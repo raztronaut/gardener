@@ -112,6 +112,9 @@ function makeWorld() {
     roundKey: -1,
     budget: 0,                               // searches left this tick (all ★ bombers)
     ringList: new Int16Array(64), ringN2: 0,
+    // stage 10 hop paths (hopPath), valid while gridVer is unchanged
+    gridVer: 1, code: new Uint8Array(NC), hopVer: new Int32Array(NC * 4), hopOff: new Int32Array(NC * 4),
+    hopLen: new Int16Array(NC * 4), hopC: new Int16Array(32768), hopT: new Int16Array(32768), hopN: 0,
   };
 }
 
@@ -122,6 +125,7 @@ function worldRound(W) {
   W.bombSeen.fill(-1); W.bombKey.fill(-1); W.bombDet.fill(-1); W.moverSeen.fill(-1);
   W.fireSeen.fill(-1);
   W.ring.fill(0); W.ringN = 0; W.ringN2 = 0; W.tele.fill(-1);
+  W.gridVer++; W.hopN = 0;
   for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
     const c = cy * 32 + cx;
     if (W.stageId === 5 && (cellUnder(c) === 0x0E || cellCode(c) === 0x0E)) { W.ring[c] = 1; W.ringN++; if (W.ringN2 < 64) W.ringList[W.ringN2++] = c; }
@@ -161,17 +165,29 @@ function worldUpdate(W) {
     else { W.moverVX[s] = W.moverVX[s] * 0.5 + (((x - W.moverPX[s]) << 16) >> 16) * 0.5; W.moverVY[s] = W.moverVY[s] * 0.5 + (((y - W.moverPY[s]) << 16) >> 16) * 0.5; }
     W.moverPX[s] = x; W.moverPY[s] = y;
   }
+  let changed = false;
   for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
     const c = cy * 32 + cx, v = cellCode(c);
     if (v === 0x01 || v === 0x41) { if (W.fireSeen[c] < 0) W.fireSeen[c] = t; }
     else W.fireSeen[c] = -1;
+    if (v !== W.code[c]) { W.code[c] = v; changed = true; }
   }
+  if (changed) { W.gridVer++; W.hopN = 0; }
   W.walk.fill(0); W.skull.fill(0);
   for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
     const c = cy * 32 + cx;
     W.walk[c] = walkable(c, W) ? 1 : 0;
     W.belt[c] = isBelt(W, c) ? 1 : 0;
     if (cellCode(c) === 0x44 && (cellTile(c) & 0xFF) === IT_SKULL) W.skull[c] = 1;
+  }
+  // a kicked bomb that stands still (still a mover, +52 $20, its cell not $43) blocks a
+  // bomber walking into it (move.js moverAhead) like a bomb
+  for (let s = 4; s < 32; s++) {
+    if (W.moverSeen[s] < 0 || W.moverSeen[s] === t) continue;
+    const o = 0x8000 + 0x100 * s;
+    if (!(g16(o + 0x52) & 0x20) || Math.abs(W.moverVX[s]) + Math.abs(W.moverVY[s]) > 0.05) continue;
+    const c = (((W.moverPY[s] + 23) >> 4) & 31) * 32 + (((W.moverPX[s] + 8) >> 4) & 31);
+    W.walk[c] = 0;
   }
   // burning soft blocks (the burn list $7F0000; visible: the block's burning frames)
   for (let e = 0; e < 32; e++) {
@@ -221,7 +237,7 @@ function makeBot(slot, seed) {
     // decisions
     goal: -1, goalUntil: 0, goalKind: 0, goalScore: 0,
     aHeld: false, lastA: -100, hesitate: 0, holdLift: false, liftAt: -100,
-    yAt: -100, yOk: true, lastCell: -1, cellSince: 0, prevX: 0, prevY: 0, vx: 0, vy: 0,
+    yAt: -100, yOk: true, carryD: -1, carryDT: 0, kickCell: -1, kickSince: 0, kickLast: -100, kickBan: -1, kickBanUntil: 0, lastCell: -1, cellSince: 0, prevX: 0, prevY: 0, vx: 0, vy: 0,
     attackSkip: 0, mode: 0, hLo: -1, hHi: -1, liftT: -100,
   };
   bot.react = 6 + Math.floor(rnd(bot.rs) * 5);
@@ -322,8 +338,11 @@ function gatherBombs(bot, W, now) {
     const b = 0x12000 + 0x100 * k, f = g16(b);
     if (!(f & 0x8000)) continue;
     const own = (m[b + 6] & 3) === me;
-    if (!own && W.bombSeen[k] >= 0 && now - W.bombSeen[k] < bot.react) continue;   // not perceived yet
     if (f & 0x1000) continue;           // carried / moving: from its mover below
+    // a bomb placed a moment ago is not "perceived" yet (reaction delay), but it is on the
+    // screen: a blast that reaches it sets it off (a chain through it). A fresh bomb's own
+    // fuse is 140 ticks away, so it is kept with its real window (only chains matter now).
+    if (!own && W.bombSeen[k] >= 0 && now - W.bombSeen[k] < bot.react && m[b + 4] < 60) continue;
     const i = bot.nb++;
     bot.bc[i] = giToCell(g16(b + 0x0A));
     bot.bR[i] = m[b + 7] + 1;
@@ -412,9 +431,11 @@ function rays(bot, W, D, i, c0, lo, hi, chain) {
         dAdd(D, c, lo + 1, hi + 30);
         continue;
       }
-      if (!D) { if (rk === 5) break; continue; }
+      if (!D) continue;
       if (rk === 3) { dAdd(D, c, lo + 1, hi + 44); continue; }   // pierce through soft / item
-      if (rk === 5) { dAdd(D, c, lo + 1, hi + 44); break; }       // item burns (kills) longer
+      // an item burns (kills longer) and stops the ray — unless someone picks it up before
+      // the blast (a foe walking / hopping through): assume the ray goes on
+      if (rk === 5) { dAdd(D, c, lo + 1, hi + 44); continue; }
       dAdd(D, c, lo + 1, hi + 30);
       if (W.ring[c]) ring = 1;
     }
@@ -537,7 +558,7 @@ function addBomb(bot, W, D, c0, R, pierce, lo, hi, depth) {
         continue;
       }
       if (rk === 3) { dAdd(D, c, lo + 1, hi + 44); continue; }
-      if (rk === 5) { dAdd(D, c, lo + 1, hi + 44); break; }
+      if (rk === 5) { dAdd(D, c, lo + 1, hi + 44); continue; }   // (see rays)
       dAdd(D, c, lo + 1, hi + 30);
       if (W.ring[c]) ring = 1;
     }
@@ -609,9 +630,18 @@ function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe, stopAt = 0) {
       if (W.tele[v] >= 0 && cellCode(W.tele[v]) !== 0x43) land = W.tele[v];
       // first step from an off-centre start: shorter / longer
       let s = step, half = step / 2;
+      const off = u === c0 ? (d === 0 ? -oy : d === 1 ? oy : d === 2 ? -ox : ox) : 0;
       if (u === c0) {
-        const off = d === 0 ? -oy : d === 1 ? oy : d === 2 ? -ox : ox;
         s = Math.max(1, (16 - off) / Math.max(0.25, speed)); half = Math.max(0.5, (8 - off) / Math.max(0.25, speed));
+      }
+      // stage 8: a belt adds its speed along it, takes it off against it (measured: 0.5625
+      // px/tick, fast ~2.3); against a fast belt a slow bomber stands still
+      if (W.stageId === 9 && (W.belt[u] || W.belt[land])) {
+        const bs = (g16(0x5CBE) & 1) ? 2.3125 : 0.5625;
+        const bu = W.belt[u] ? beltDir(u) : -1, bv = W.belt[land] ? beltDir(land) : -1;
+        const eu = speed + (bu === d ? bs : bu === OPP[d] ? -bs : 0), ev = speed + (bv === d ? bs : bv === OPP[d] ? -bs : 0);
+        if (eu < 0.2 || ev < 0.2) continue;
+        half = Math.max(0.5, (8 - off) / eu); s = half + 8 / ev;
       }
       // earliest departure: v must be clear while the centre is in it
       let td = tu, ok = false;
@@ -633,7 +663,7 @@ function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe, stopAt = 0) {
       S.dep[land] = u === c0 ? Math.floor(td) : S.dep[u];
       hpush(S, land, tv);
     }
-    if (W.stageId === 0xB) jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed);
+    if (W.stageId === 0xB) jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed, isFoe);
   }
 }
 
@@ -648,49 +678,92 @@ function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe, stopAt = 0) {
 // ticks after the landing (k = cells entered). The hop dies in a sudden-death block ($C1).
 const JT = [30, 40, 32, 32];              // landing tick after the take-off tick (late bound)
 const JW = [3, 4, 1, 1];                  // ... uncertainty (landing in [JT - JW, JT])
-const JE = { t: 0, e: -1 };
-// the cell after c in direction d with the wrap (JE.t += the virtual cell's 16 ticks)
-function stepWrap(W, c, d) {
-  const cx = c & 31, cy = c >> 5;
-  if (d === 2 && cx <= 1) { JE.t += 16; return (cy << 5) | 15; }
-  if (d === 3 && cx >= 15) { JE.t += 16; return (cy << 5) | 1; }
-  if (d === 0 && cy <= 3) return (W.rows << 5) | cx;
-  if (d === 1 && cy >= W.rows) return (3 << 5) | cx;
-  return c + DC[d];
+const JE = { t: 0, e: -1, far: 0 };
+// The hop, simulated like the core does it (move.js / movers.js bomberMode): from the
+// landing cell's centre 1 px per tick in d; the wrap C12F6C (centre over a tile word 0 =
+// outside the drawn arena: 16 px steps until a drawn tile; position masks x & $FF, y & $FF
+// (tall $1FF)); the cell under the centre (C0BFE2) solid ($80) or a bomb: on, else it ends
+// there. Columns / rows differ: on the tall field a hop up out of most columns runs through
+// rows 2..0 and back in from below (150 ticks), out of others straight to the bottom border.
+// Cached per landing cell and direction while no cell of the arena changes: the cells the
+// hop passes (entering tick after the landing), the last entry = the free end cell.
+const HOP_POOL = 32768;
+function hopPath(W, cL, d) {
+  const key = cL * 4 + d;
+  if (W.hopVer[key] === W.gridVer) return key;
+  W.hopVer[key] = W.gridVer;
+  if (W.hopN + 160 > HOP_POOL) { W.gridVer++; W.hopVer[key] = W.gridVer; W.hopN = 0; }
+  const P = W.hopC, T = W.hopT, off = W.hopN;
+  W.hopOff[key] = off;
+  let n = 0;
+  const ox = g16(0x5F01), oy = g16(0x5EFB), ym = g16(0x5D3C), xm = g16(0x5D3E);
+  let x = 16 * (cL & 31), y = (16 * (cL >> 5) - 16) & ym;
+  const sx = d === 2 ? -1 : d === 3 ? 1 : 0, sy = d === 0 ? -1 : d === 1 ? 1 : 0;
+  let prevGi = -1;
+  for (let t = 1; t <= 220; t++) {
+    x = (x + sx) & 0xFFFF; y = (y + sy) & 0xFFFF;
+    for (let k = 0; k < 40; k++) {                 // C12F6C
+      const ti = ((((oy + y) & 0x1F0) << 2) + (((ox + x) & 0x1F0) >> 3)) & 0x7FF;
+      if (g16(0x1A000 + ti) & 0x03FF) break;
+      if (sx) x = (x + (sx > 0 ? 0x10 : 0x1F0)) & 0x1FF; else y = (y + (sy > 0 ? 0x10 : 0x1F0)) & 0x1FF;
+    }
+    let gi = (((((y + oy) & 0x3F0) << 3) + (((x + ox) & 0x3F0) >> 3)) & 0xFFFF);
+    if ((gi & 0x7F) >= 0x40) gi &= 0xFFBF;
+    gi &= 0x0FFF;
+    const v = m[0x1C000 + gi];
+    if (gi !== prevGi || !((v & 0x80) || v === 0x43)) {
+      if (n >= 150) break;
+      prevGi = gi;
+      P[off + n] = v === 0xC1 ? -2 : giToCell(gi); T[off + n] = t; n++;
+      if (v === 0xC1) break;                       // C08302: a hopping bomber dies in a $C1
+      if (!(v & 0x80) && v !== 0x43) { W.hopLen[key] = n; W.hopN += n; return key; }
+    }
+    x &= xm; y &= ym;                              // C0A146
+  }
+  W.hopLen[key] = -1; W.hopN += n;
+  return key;
 }
+// the cell after c in direction d (the landing cell; the border cells are cells)
+const stepCell = (c, d) => c + DC[d];
 // where a jump from u in direction d (d = 4: in place) taking off on tick tk ends: the cell,
 // JE.t = the tick it stands there (death checks from then on); -1 if the end is unknown /
-// lethal (JE.e = the end of the lethal interval at the end cell if waiting may help, else -1)
+// lethal (JE.e = a later take-off tick that may clear it, else -1). JE.far = ticks to the end.
 function jumpEnd(bot, W, D, u, d, tk) {
   JE.e = -1;
   if (d === 4) {
-    JE.t = tk + 32;
+    JE.t = tk + 32; JE.far = 32;
     const e = dHit(D, u, tk + 31, tk + 34);
     if (e >= 0) { JE.e = e - 31; return -1; }
     return u;
   }
   const tl = tk + JT[d];
-  JE.t = tl;
-  let c = stepWrap(W, u, d);
-  for (let k = 0; ; k++) {
-    const v = cellCode(c);
-    if (v === 0xC1) return -1;                         // sudden-death block: lethal
-    if (!(v & 0x80) && v !== 0x43) break;              // free: the jump / hop ends here
-    // a solid cell passed between JE.t and JE.t + 16: it must stay solid (a doomed soft
-    // block may be gone, a bomb may go off: fire there ends the hop in the fire)
-    if (v === 0xC2 && (W.burnT[c] === W.tick || bot.doomBase[c] === bot.baseStamp)) return -1;
-    if (dHit(D, c, JE.t - 2, JE.t + 18) >= 0) return -1;
-    if (k >= 14) return -1;
-    JE.t += k === 0 ? 8 : 16;
-    c = stepWrap(W, c, d);
+  const L = stepCell(u, d);
+  const vL = cellCode(L);
+  let c = L, t = tl, lo = tl - JW[d] - 1;
+  if (vL === 0xC1) return -1;
+  if ((vL & 0x80) || vL === 0x43) {
+    const key = hopPath(W, L, d), n = W.hopLen[key], off = W.hopOff[key];
+    if (n < 0) return -1;
+    const lim = MARG < 0 ? 200 : 72;               // long hops: the world changes meanwhile
+    if (W.hopT[off + n - 1] > lim) return -1;
+    // the landing cell and every solid cell passed must stay solid (a doomed soft block may
+    // be gone, a bomb may go off: the hop would end in the fire)
+    for (let k = -1; k < n - 1; k++) {
+      const q = k < 0 ? L : W.hopC[off + k], tq = k < 0 ? tl : tl + W.hopT[off + k];
+      if ((q >> 5) < 3 || (q >> 5) > W.rows) continue;   // outside the arena: never changes
+      const v = cellCode(q);
+      if (v === 0xC2 && (W.burnT[q] === W.tick || bot.doomBase[q] === bot.baseStamp)) return -1;
+      if (dHit(D, q, tq - 2, tq + 18) >= 0) return -1;
+    }
+    c = W.hopC[off + n - 1]; t = tl + W.hopT[off + n - 1]; lo = t - 2;
+    if (c < 0 || (c & 31) < 2 || (c & 31) > 14 || (c >> 5) < 4 || (c >> 5) > W.rows - 1) return -1;
   }
-  const t = JE.t, lo = JE.t === tl ? tl - JW[d] - 1 : t - 2;
-  JE.t = t + 1;
+  JE.t = t + 1; JE.far = t + 1 - tk;
   const e = dHit(D, c, lo, t + 3);
   if (e >= 0) { JE.e = c === u ? -1 : e - (lo - tk); return -1; }
   return c;
 }
-function jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed) {
+function jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed, isFoe) {
   for (let d = 0; d < 4; d++) {
     // take-off: the tick after the arrival (pads go in the next tick); vertical jumps from
     // the start cell only when centred (else the landing row is off)
@@ -706,6 +779,8 @@ function jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed) {
     }
     if (land < 0 || land === u) continue;
     if (bot.blocked[land]) continue;
+    // a long flight: no foe close to where it ends (he has time to bomb it)
+    if (!isFoe && JE.far > 48 && foeNear(land, 2)) continue;
     // waiting at u until the take-off (that tick has no death check)
     if (dHit(D, u, tu, td - 1) >= 0) continue;
     const tv = JE.t;
@@ -1045,7 +1120,7 @@ function decide(bot, W) {
           bot.aHeld = true; bot.lastA = now; bot.goal = -1;
           // glove: lift it right away and throw it at a foe in line (if nothing else
           // threatens this cell meanwhile)
-          if (m[p + 0xFE] && val < 600 && throwLine(bot, W, c) >= 0 && dNext(bot.A, c, now) > now + 80) bot.liftAt = now + 2;
+          if (m[p + 0xFE] && W.stageId !== 0xB && val < 600 && throwLine(bot, W, c) >= 0 && dNext(bot.A, c, now) > now + 80) bot.liftAt = now + 2;   // (stage 10: carrying = no jumps)
           return B_A;
         }
       }
@@ -1064,7 +1139,7 @@ function decide(bot, W) {
     const d = S.first[target] - 4;
     if (d < 2 && Math.abs(oy) > 2) pad = oy > 0 ? B_UP : B_DOWN;
     else if (S.dep[target] <= now + 1 && bot.yOk) { pad = DIRBIT[d] | B_Y; bot.goalUntil = Math.max(bot.goalUntil, now + 2); }
-    if (debug.on) bot.dbg += ' jump' + 'UDLR'[d];
+    if (debug.on) bot.dbg += ' jump' + 'UDLR'[d] + (pad & B_Y ? '!' : '') + '>' + (target & 31) + ',' + (target >> 5) + '@' + (S.arr[target] - now);
   } else if (target >= 0 && S.stamp[target] === S.cur && S.first[target] >= 0) {
     if (S.dep[target] > now + 1) { pad = W.stageId === 1 ? iceStop(bot, W, c, ox, oy) : 0; bot.why = 1; }   // wait here for a blast to pass
     else pad = steer(bot, W, S.first[target], ox, oy, c, target, speed);
@@ -1180,6 +1255,7 @@ function kickPad(bot, W, now, c, ox, oy, speed) {
   for (let d = 0; d < 4; d++) {
     const bc = c + DC[d];
     if (cellCode(bc) !== 0x43) continue;
+    if (bc === bot.kickBan && now < bot.kickBanUntil) continue;
     let k = -1;
     for (let j = 0; j < bot.nb; j++) if (bot.bc[j] === bc && bot.bMove[j] < 0) { k = j; break; }
     if (k < 0) continue;
@@ -1209,6 +1285,11 @@ function kickPad(bot, W, now, c, ox, oy, speed) {
     bot.bc[k] = save;
     search(bot, W, bot.B, bot.O, c, now + 4, speed, 0, 0, now + 200, false, 1);
     if (countRefuges(bot.B, bot.O, 2, W) < 1) continue;
+    // the same kick tried for a while without the bomb moving (a belt holds us back,
+    // stage 8): give it up for a few seconds
+    if (bot.kickCell !== bc || now - bot.kickLast > 2) { bot.kickCell = bc; bot.kickSince = now; }
+    bot.kickLast = now;
+    if (now - bot.kickSince > 20) { bot.kickBan = bc; bot.kickBanUntil = now + 180; bot.kickCell = -1; continue; }
     bot.goal = -1;
     return DIRBIT[d];
   }
@@ -1276,8 +1357,15 @@ function carryPad(bot, W, now, c, ox, oy, speed, S) {
   const fd = facingDir(bot.p);
   bot.holdLift = true;
   const held = now - bot.liftT;
-  let d = throwLine(bot, W, c);
-  if (d >= 0 && throwSafe(bot, W, now, c, d, speed) < 0) d = -1;
+  // keep the direction chosen a moment ago (turning = a step, which may change the cell and
+  // with it the foe in line: up / down / up ... until the bomb went off in our hands)
+  let d = -1;
+  if (bot.carryD >= 0 && now - bot.carryDT < 16 && throwSafe(bot, W, now, c, bot.carryD, speed) >= 0) d = bot.carryD;
+  if (d < 0) { d = throwLine(bot, W, c); if (d >= 0 && throwSafe(bot, W, now, c, d, speed) < 0) d = -1; }
+  // a blast coming here: get rid of it (any safe direction, the facing one first)
+  if (d < 0 && dNext(bot.A, c, now) < now + 30) {
+    for (let k = 0; k < 4 && d < 0; k++) { const dd = (fd + k) & 3; if (throwSafe(bot, W, now, c, dd, speed) >= 0) d = dd; }
+  }
   if (d < 0 && held > 40) {
     // no target: throw where it is safe, preferably towards the nearest foe
     let best = -1, bd = 99;
@@ -1291,13 +1379,20 @@ function carryPad(bot, W, now, c, ox, oy, speed, S) {
     d = best;
   }
   if (d >= 0) {
-    if (fd === d) { bot.holdLift = false; bot.aHeld = false; return 0; }   // release A: throw
+    if (d !== bot.carryD) { bot.carryD = d; bot.carryDT = now; }
+    if (fd === d) { bot.holdLift = false; bot.aHeld = false; bot.carryD = -1; return 0; }   // release A: throw
     return B_A | DIRBIT[d];                       // turn (and step) while holding
   }
   // keep out of danger while carrying
   if (!dFree(bot.A, c, now)) {
     const t = bestRefuge(bot, W, bot.A, S, foeX, foeY, nFoe);
     if (t >= 0 && S.first[t] >= 0 && S.first[t] < 4 && S.dep[t] <= now + 1) return B_A | DIRBIT[S.first[t]];
+    // stage 10: the way out is a jump (it drops the bomb, C0A743: it flies off at random)
+    if (t >= 0 && S.first[t] >= 4 && S.dep[t] <= now + 1 && bot.yOk && dNext(bot.A, c, now) < now + 30) {
+      const d = S.first[t] - 4;
+      bot.holdLift = false;
+      if (d >= 2 || Math.abs(g16(bot.p + 0x18) - (16 * (c >> 5) - 16)) <= 2) return DIRBIT[d] | B_Y;
+    }
   }
   return B_A;
 }
@@ -1311,6 +1406,22 @@ function jumpOut(bot, W, now, c) {
   const ok = land >= 0 && dNext(bot.A, c, now) <= now + 8;
   MARG = 2;
   return ok ? B_Y : 0;
+}
+
+// tools (ai-eval/jumpcheck.mjs): where the ★ model says a jump from cell (cx, cy) in
+// direction d (0 U 1 D 2 L 3 R) taking off on tick tk ends: {cell: [cx, cy], t} or null
+export function jumpPredict(game, cx, cy, d, tk) {
+  m = game.mem;
+  if (!game._smartWorld) { game._smartWorld = makeWorld(); game._smartBots = [null, null, null, null]; }
+  const W = game._smartWorld;
+  worldUpdate(W);
+  const bot = makeBot(0, 1);
+  dClear(bot.A, W.rows);
+  nFoe = 0;
+  MARG = -2;                              // (no hop length limit)
+  const c = jumpEnd(bot, W, bot.A, cy * 32 + cx, d, tk);
+  MARG = 2;
+  return c < 0 ? null : { cell: [c & 31, c >> 5], t: JE.t };
 }
 
 // ======================================================================================
@@ -1329,7 +1440,7 @@ export function fillPads(game, pads, out) {
     if (!bot) bot = game._smartBots[i] = makeBot(i, (game.opts && game.opts.seed) || 1);
     if (bot.round !== W.roundKey || bot.lastTick > W.tick) {
       bot.round = W.roundKey; bot.goal = -1; bot.aHeld = false; bot.holdLift = false;
-      bot.lastA = -100; bot.liftAt = -100; bot.yAt = -100; bot.yOk = true; bot.goalUntil = 0; bot.cellSince = 0; bot.lastCell = -1; bot.hesitate = 0; bot.react = 6 + Math.floor(rnd(bot.rs) * 5); bot.prevX = g16(bot.p + 0x10); bot.prevY = g16(bot.p + 0x18); }
+      bot.lastA = -100; bot.liftAt = -100; bot.yAt = -100; bot.yOk = true; bot.kickBan = -1; bot.kickCell = -1; bot.carryD = -1; bot.goalUntil = 0; bot.cellSince = 0; bot.lastCell = -1; bot.hesitate = 0; bot.react = 6 + Math.floor(rnd(bot.rs) * 5); bot.prevX = g16(bot.p + 0x10); bot.prevY = g16(bot.p + 0x18); }
     if (stats.timing) {
       const t0 = performance.now();
       out[i] = decide(bot, W);
