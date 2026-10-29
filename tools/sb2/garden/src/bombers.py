@@ -15,7 +15,7 @@ SHARED = {
     1: C('#140c10'),       # outline
     2: C('#ffcfa4'),       # skin
     3: C('#e08a64'),       # skin shade
-    10: C('#ffffff'),      # white (eyes' shine, sleeves)
+    10: C('#fff0c4'),      # the shirt (sleeves) and small highlights: warm cream
     11: C('#8ee05a'),      # leaf / glove light
     12: C('#2e9a3c'),      # leaf / glove dark
     13: C('#9a5a2c'),      # brown (hair, wellies)
@@ -25,7 +25,7 @@ SHARED = {
 
 # hat light / hat / hat dark, outfit light / outfit / outfit dark
 IDENTITY = {
-    'white': ['#ffffff', '#dfe8e0', '#98a8a0', '#f4f8f4', '#c8d4cc', '#7c8c86'],
+    'white': ['#ffffff', '#dfe8e0', '#98a8a0', '#d8e4ec', '#a4b4c0', '#64748a'],
     'black': ['#6a6a7a', '#3a3a48', '#1e1e28', '#5a5a6a', '#34343e', '#1a1a22'],
     'red':   ['#ff8a6a', '#e83a30', '#8a1418', '#ff6a50', '#d02828', '#7a1014'],
     'blue':  ['#8ac8ff', '#3a7af0', '#1a3a9a', '#6aaaff', '#2a5ae0', '#142a80'],

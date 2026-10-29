@@ -187,15 +187,25 @@ def pod(kind, frame):
         ]
         return grid(rows[[0, 1, 2, 1][frame]], L)
     if kind == 'pierce':
-        # a thorny pod: rose thorns all around the dark body
+        # a thorny pod: rose thorns (2 px, pink tips) all around the dark body
         img = _pod_base(size)
-        thorns = {0: [(3, 7), (2, 10), (13, 9), (12, 6), (6, 14), (10, 14)],
-                  1: [(2, 7), (1, 10), (14, 9), (13, 6), (5, 15), (11, 15), (8, 4)],
-                  2: [(1, 7), (0, 10), (15, 9), (14, 6), (4, 15), (12, 15), (7, 3)]}[size]
-        for (x, y) in thorns:
-            if 0 <= x < 16 and 0 <= y < 16:
-                img[y, x] = ROSE_2
-        # a pink tip on each thorn's neighbour toward the body for weight
+        m = img >= 0
+        cy = [9.5, 9.0, 8.5][size]
+        cx = 7.5
+        for k in range(8):
+            ang = k * math.pi / 4 + math.pi / 8
+            dx, dy = math.cos(ang), math.sin(ang)
+            # walk out from the centre to the rim, then grow the thorn
+            r = 0
+            while True:
+                x, y = int(round(cx + dx * r)), int(round(cy + dy * r))
+                if not (0 <= x < 16 and 0 <= y < 16) or not m[y, x]:
+                    break
+                r += 0.5
+            for t, c in ((0, ROSE_2), (1, PINK)):
+                x, y = int(round(cx + dx * (r + t))), int(round(cy + dy * (r + t)))
+                if 0 <= x < 16 and 0 <= y < 16 and img[y, x] < 0:
+                    img[y, x] = c
         return img
     if kind == 'power':
         # a big pod with a golden sun band
