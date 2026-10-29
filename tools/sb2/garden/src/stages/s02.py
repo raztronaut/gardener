@@ -126,6 +126,28 @@ def snow_ring(role, post=False, tuft=False):
             img[y, 0] = INK
             img[y, 1] = LEAF_0 if y % 3 else LEAF_1
             img[y, 2] = ICE_2
+    # a low wooden fence along the arena side of the snowbank
+    def rail_v(x):
+        for y in range(16):
+            img[y, x] = WOOD_1
+            if y % 8 in (1, 2):
+                img[y, x - 1] = WOOD_2
+                img[y, x] = WOOD_2
+                if y % 8 == 1:
+                    img[y - 1 if y else y, x - 1] = WHITE
+    def rail_h(y):
+        for x in range(16):
+            img[y, x] = WOOD_1
+            if x % 8 in (3, 4):
+                img[y - 1, x] = WOOD_2
+                img[y, x] = WOOD_2
+                img[y - 2, x] = WHITE
+    if role == 'left':
+        rail_v(11)
+    if role == 'right':
+        rail_v(5)
+    if role == 'bottom':
+        rail_h(5)
     if post:
         px = 6
         for y in range(2, 14):
