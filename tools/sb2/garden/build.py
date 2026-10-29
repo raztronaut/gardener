@@ -211,6 +211,38 @@ def stage_arena(st, ov, report):
     return {'cells': cells, 'sol': sol, 'terr': terr, 'meta': meta}
 
 
+# ---- the gardeners (ROM C5 pose graphics + C1 palettes) ------------------------------------
+PAL_HEALTHY = [0xE2BC, 0xE2DC, 0xE2FC, 0xE31C]     # C1D7B0[colour] for colours 0..3 (white black red blue)
+PAL_SICK = [0xE55C, 0xE57C, 0xE59C, 0xE5BC]        # C1D7DA[colour]
+PAL_GOLD, PAL_GOLD_SICK = 0xDCFC, 0xDD1C
+COLOURS = ['white', 'black', 'red', 'blue']
+
+
+def pal_bytes(words):
+    return b''.join(int(w).to_bytes(2, 'little') for w in words)
+
+
+def gardeners(ov, report):
+    import bombers
+    pieces = bombers.read_pieces()
+    for t, g in pieces.items():
+        for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
+            ov.put('rom.C5', (c & 0x7FF) << 5, encode4(g[dy:dy + 8, dx:dx + 8]))
+    # the pointer tables are checked against the pack (the palettes are rewritten in place)
+    pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
+    with open(os.path.join(ASSETS, 'pack', pack['bin']), 'rb') as f:
+        f.seek(pack['blobs']['rom.C1'][0])
+        c1 = f.read(0x10000)
+    w16 = lambda a: c1[a] | (c1[a + 1] << 8)
+    for i in range(4):
+        assert w16(0xD7B0 + 2 * i) == PAL_HEALTHY[i] and w16(0xD7DA + 2 * i) == PAL_SICK[i], 'C1 palette table moved'
+        ov.put('rom.C1', PAL_HEALTHY[i], pal_bytes(bombers.palette(COLOURS[i])))
+        ov.put('rom.C1', PAL_SICK[i], pal_bytes(bombers.palette(COLOURS[i], sick=True)))
+    ov.put('rom.C1', PAL_GOLD, pal_bytes(bombers.palette('gold')))
+    ov.put('rom.C1', PAL_GOLD_SICK, pal_bytes(bombers.palette('gold', sick=True)))
+    report.append('gardeners: %d pieces, 10 palettes' % len(pieces))
+
+
 def contact_sheet(st, res, path):
     """every drawn cell of the stage on one sheet (16 per row), for review"""
     from PIL import Image
@@ -245,6 +277,7 @@ def main():
         results[st] = stage_arena(st, ov, report)
         if a.sheets:
             contact_sheet(st, results[st], os.path.join(SCRATCH, 'sheet_s%02d.png' % st))
+    gardeners(ov, report)
     import items
     # the overlay files
     binbuf = bytearray()

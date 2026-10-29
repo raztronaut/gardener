@@ -32,6 +32,10 @@ export function createDisplay(pack, opts = {}) {
   const ppu = createPPU(H);
   const out = new Uint32Array(256 * H);
   const { rom8, rom16, rom24 } = pack;
+  // a skin (render/skin.js: the Garden Edition) may bring its own item-border colours and
+  // the classic held / moving bomb palette; none for the original pack
+  const SK = (pack.manifest && pack.manifest.skin) || {};
+  const BORDER95 = SK.border95 || [0x00BF, 0x7D83];
   let st = null;               // stage pack
   let M = null;                // game.mem
   const r8 = (a) => M[a];
@@ -255,7 +259,7 @@ export function createDisplay(pack, opts = {}) {
   function palettesAfterTick() {
     const c60 = g16(0x5C60);
     // C00617: item border colour 95, toggled with $5C60 b4
-    ppu.cgram[95] = (c60 & 0x10) ? 0x7D83 : 0x00BF;
+    ppu.cgram[95] = (c60 & 0x10) ? BORDER95[1] : BORDER95[0];
     // C006B7 / C0076B / C0081D / C008CF: bomber palettes
     for (let i = 0; i < 4; i++) {
       const on = 0x0800 >> i, tg = 0x0008 >> i;
@@ -371,7 +375,8 @@ export function createDisplay(pack, opts = {}) {
     for (const e of fx) e.fill(0);
     pal.c60 = g16(0x5C60) ^ 0x0F00;                // re-derive every bomber palette once
     for (let i = 0; i < 4; i++) bomberPalette(i, false);
-    loadPal(256, 0xC10000 | rom16(0xC1D7B0 + 2 * 1));   // classic: black's healthy OBJ palette (8)
+    if (SK.objPal8) for (let i = 0; i < 16; i++) ppu.cgram[256 + i] = SK.objPal8[i];
+    else loadPal(256, 0xC10000 | rom16(0xC1D7B0 + 2 * 1));   // classic: black's healthy OBJ palette (8)
     pal.c60 = g16(0x5C60);
     pal.ph8a = pal.ph8b = pal.ph9 = -1;
     if (id === 9) { pal.ph8a = g16(0x5CBA) & 3; pal.ph8b = g16(0x5CC2) & 1; }
