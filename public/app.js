@@ -490,6 +490,26 @@ function reservePanelSize(title) {
 // Baked liquid glass (lib/glassbake.js) — computed once, shown as an image.
 // (The live version, lib/lgr.js, ran the panel at 29 fps / cards at 13 fps.)
 let GB = null;
+// Volume pill (MX Master thumb wheel → pad.mjs → 'volup'/'voldown'): speaker icon, a bar
+// and the percent, fading in at the top of the wall and out ~1.4 s after the last notch.
+let volEl = null, volT = 0;
+async function showVolume() {
+  let v = null; try { v = await (await fetch('/api/volume', { cache: 'no-store' })).json(); } catch { /* ignore */ }
+  if (!v || v.volume == null) return;
+  if (!volEl) {
+    volEl = h('div', { id: 'volpill' });
+    (document.getElementById('zoomroot') || document.body).appendChild(volEl);
+  }
+  const pct = Math.max(0, Math.min(100, v.volume));
+  const icon = v.mute || pct === 0 ? 'M3 9v6h4l5 4V5L7 9H3zm13.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3z'
+    : pct < 50 ? 'M3 9v6h4l5 4V5L7 9H3zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z'
+    : 'M3 9v6h4l5 4V5L7 9H3zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM12 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z';
+  volEl.innerHTML = `<svg viewBox="0 0 24 24"><path fill="currentColor" d="${icon}"/></svg><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}</b>`;
+  volEl.classList.add('on');
+  UI_SOUND('nav'); // hear the new level
+  clearTimeout(volT); volT = setTimeout(() => volEl.classList.remove('on'), 1400);
+}
+
 // /rainforest — a generative rainforest soundscape (lib/rainforest.js). Its on/off state
 // survives reloads; it ducks out while an Arcade game owns the speakers.
 let RF = null;
@@ -1816,6 +1836,7 @@ function wirePad() {
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
+    if (action === 'volup' || action === 'voldown') { showVolume(); return; } // MX thumb wheel (pad.mjs set it)
     // controller sounds: a soft tick on moves, a brighter press on A (silent in games — uisound)
     if (/^f?(up|down|left|right)$/.test(action)) UI_SOUND('nav');
     else if (action === 'ok' || action === 'fopen') UI_SOUND('select');

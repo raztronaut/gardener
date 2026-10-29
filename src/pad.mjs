@@ -178,9 +178,31 @@ function attachMouse() {
       const m = /^button press\s+(\d+)/.exec(l.trim());
       if (m && m[1] === '9') send('mxup');
       else if (m && m[1] === '8') send('mxdown');
+      else if (m && (m[1] === '6' || m[1] === '7')) volumeStep(m[1] === '7' ? +1 : -1); // thumb wheel
     }
   });
   p.on('exit', () => { log('mouse: xinput exited — retrying in 5s'); setTimeout(attachMouse, 5000); });
+}
+
+// MX Master 3 thumb wheel (horizontal scroll = X buttons 6 left / 7 right) → system
+// volume, 2 % per notch, 0–100 %. Notches are coalesced so a fast swipe is one pactl call
+// per ~60 ms; the wall is told after each change ('volup'/'voldown' → it shows the level).
+let volPending = 0, volBusy = false;
+function volumeStep(dir) {
+  volPending += dir;
+  if (volBusy) return;
+  volBusy = true;
+  setTimeout(() => {
+    const n = volPending; volPending = 0;
+    const env = { ...process.env };
+    let cur = 50;
+    try { cur = parseInt(/(\d+)%/.exec(execFileSync('pactl', ['get-sink-volume', '@DEFAULT_SINK@'], { env, timeout: 3000 }).toString())[1], 10); } catch { /* keep 50 */ }
+    const next = Math.max(0, Math.min(100, cur + n * 2));
+    try { execFileSync('pactl', ['set-sink-volume', '@DEFAULT_SINK@', `${next}%`], { env, timeout: 3000 }); } catch (e) { log(`volume: ${e.message}`); }
+    send(n > 0 ? 'volup' : 'voldown');
+    volBusy = false;
+    if (volPending) volumeStep(0);
+  }, 60);
 }
 
 log('SN30 Pro bridge starting');

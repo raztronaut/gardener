@@ -743,3 +743,13 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 .ev-drive .ev-leave.late { color: var(--gold); }
 .ev-no { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; margin-right: 8px; border-radius: 11px;
   background: #74f7b0; color: #06140f; font: 700 12.5px var(--font); vertical-align: 2px; }
+
+/* volume pill (MX thumb wheel) — fades only */
+#volpill { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); z-index: 400; display: flex; align-items: center; gap: 12px;
+  padding: 10px 18px; border-radius: 999px; background: rgba(4,14,11,.82); border: 1px solid var(--stroke-strong); color: var(--ink);
+  opacity: 0; transition: opacity .25s ease; pointer-events: none; }
+#volpill.on { opacity: 1; }
+#volpill svg { width: 22px; height: 22px; color: var(--mint); }
+#volpill .bar { width: 180px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
+#volpill .bar i { display: block; height: 100%; background: var(--mint); border-radius: 3px; transition: width .12s linear; }
+#volpill b { font: 600 16px var(--font); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }

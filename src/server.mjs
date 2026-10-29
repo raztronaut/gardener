@@ -4,7 +4,7 @@
 // keyless public APIs without CORS headaches.
 import http from 'node:http';
 import { promises as fs, readFileSync, appendFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 import { join, normalize, extname, resolve, basename } from 'node:path';
@@ -734,6 +734,13 @@ const server = http.createServer(async (req, res) => {
       padClients.add(res);
       req.on('close', () => padClients.delete(res));
       return; // held open
+    }
+    if (req.method === 'GET' && p === '/api/volume') { // the speakers' level (pactl default sink)
+      try {
+        const v = execFileSync('pactl', ['get-sink-volume', '@DEFAULT_SINK@'], { timeout: 3000 }).toString();
+        const mute = /yes/.test(execFileSync('pactl', ['get-sink-mute', '@DEFAULT_SINK@'], { timeout: 3000 }).toString());
+        return json(res, 200, { volume: parseInt(/(\d+)%/.exec(v)[1], 10), mute });
+      } catch { return json(res, 200, { volume: null }); }
     }
     if (req.method === 'POST' && p === '/api/pad/action') {
       let action = '';
