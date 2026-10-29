@@ -1,0 +1,96 @@
+d_dorset	default	bed	C	File:Dawnchorus-uk.ogg
+d_sussex	default	bed	C	File:0426AM Dawn Chorus 07-May-2023 (edit).ogg
+d_matutinho	default	bed	C	File:Birdsong morning 01.ogg
+d_leersum	default	bed	C	File:Early morning Birdsong Leersum.wav
+d_grgar	default	bed	C	File:Grgar, ob potoku Slatna.flac
+d_cusackpool	default	bed	IA	aporee_66878_77372
+d_cusackthrush	default	bed	IA	aporee_27852_32098
+d_reinsamba	default	bed	C	File:Reinsamba - evening in the forest (cc-by) (freesound).wav
+d_mixedforest	default	bed	C	File:Birds in mixed forest.wav
+d_fontainebleau	default	bed	C	File:Chaffinch singing in Fontainbleau forest.flac
+d_atmo	default	bed	C	File:Atmo – Vögel Standard.mp3
+d_nightingale	default	acc	C	File:Common Nightingale (Luscinia megarhynchos) (W1CDR0001376 BD18).ogg
+d_robin	default	acc	C	File:European Robin (Erithacus rubecula) (W1CDR0001425 BD16).ogg
+d_blackbird	default	acc	C	File:Common Blackbird (Turdus merula) (W1CDR0001425 BD22).ogg
+d_wren	default	acc	C	File:Eurasian Wren (Troglodytes troglodytes) (W1CDR0001461 BD5).ogg
+d_chaffinch	default	acc	C	File:Chaffinch (Fringilla coelebs) (W1CDR0001527 BD14).ogg
+d_willow	default	acc	C	File:Willow Warbler (Phylloscopus trochilus) (W1CDR0001510 BD23).ogg
+d_woodlark	default	acc	C	File:Woodlark (Lullula arborea) (W1CDR0001500 BD8).ogg
+d_treepipit	default	acc	C	File:Tree Pipit (Anthus trivialis) (W1CDR0001425 BD8).ogg
+a_tamb1	amazon	bed	IA	aporee_40904_46689
+a_tamb2	amazon	bed	IA	aporee_40905_46690
+a_woodpecker	amazon	bed	IA	aporee_38140_43624
+a_piha	amazon	bed	IA	aporee_38530_44041
+a_chorrera	amazon	bed	IA	aporee_41138_46945
+a_mapia	amazon	bed	IA	aporee_49028_55851
+a_yarina	amazon	bed	IA	aporee_71750_83776
+a_urubu	amazon	bed	IA	aporee_11164_13177
+a_cacique	amazon	bed	IA	aporee_38549_44060
+a_toucans	amazon	acc	C	File:404114 felix-blume toucans-singing-in-the-amazonian-rainforest-brazil.ogg
+a_titi	amazon	acc	IA	aporee_47817_54335
+a_pihacc0	amazon	acc	C	File:Lipaugus vociferans singing and whistling.ogg
+a_mealy	amazon	acc	C	File:Mealy Amazon (Amazona farinosa) (W AMAZONA FARINOSA R1 C5).ogg
+a_bambla	amazon	acc	C	File:Microcerculus bambla Wing-banded Wren; Presidente Figueiredo, Amazonas, Brazil.mp3
+a_nightwren	amazon	acc	C	File:Microcerculus marginatus - Scaly-brested Wren song; Careiro, Amazonas, Brazil.mp3
+a_howler	amazon	acc	C	File:BioAcoustica 2- howler cuevas short.flac
+t_carpas	atlantic	bed	IA	aporee_34302_39433
+t_macucu1	atlantic	bed	IA	aporee_34420_39570
+t_macucu2	atlantic	bed	IA	aporee_34421_39571
+t_macucu3	atlantic	bed	IA	aporee_34422_39572
+t_cachoeira3	atlantic	bed	IA	aporee_34417_39567
+t_iracambi	atlantic	bed	IA	aporee_37284_42702
+t_rioacima	atlantic	bed	IA	aporee_37000_42398
+t_serinha	atlantic	bed	IA	aporee_41750_47601
+t_grama	atlantic	bed	IA	aporee_56410_64527
+t_grama2	atlantic	bed	IA	aporee_56168_64226
+t_figueiras	atlantic	bed	IA	aporee_34337_39472
+t_teresopolis	atlantic	bed	IA	aporee_27700_31932
+t_sabia1	atlantic	acc	C	File:Turdus rufiventris.ogg
+t_sabia2	atlantic	acc	C	File:Turdus rufiventris - Rufous-bellied Thrush XC202063.mp3
+t_sabia3	atlantic	acc	C	File:Turdus rufiventris brasilian.ogg
+t_howlers	atlantic	acc	IA	aporee_34338_39473
+t_whitenecked	atlantic	acc	C	File:Turdus albicollis - White-necked Thrush XC433671.mp3
+t_tinamou	atlantic	acc	C	File:Crypturellus tataupa - Tataupa Tinamou XC433997.mp3
+t_azurejay	atlantic	acc	C	File:Cyanocorax caeruleus - Azure Jay XC433994.mp3
+b_bako	borneo	bed	IA	soundica-fs-333225-bako-national-park-borneo-island-rain-fo
+b_kubah	borneo	bed	IA	aporee_48267_54897
+b_similajau	borneo	bed	IA	aporee_48269_54899
+b_kubafrog	borneo	bed	IA	soundscapeBorneofrogpoolKubaNP
+b_tamannegara	borneo	bed	IA	aporee_16752_19494
+b_gibbon1	borneo	acc	C	File:Hylobates-pileatus-pileated-gibbon-calling-singing-1.oga
+b_gibbon2	borneo	acc	C	File:Hylobates-pileatus-pileated-gibbon-calling-singing-2.oga
+b_trogon	borneo	acc	C	File:Red-naped Trogon (Harpactes kasumba) (W HARPACTES KASUMBA R1 C3).ogg
+n_lamington	daintree	bed	C	File:Short nature soundscape, Lamington National Park, Australia.ogg
+n_myall	daintree	bed	IA	aporee_23316_27080
+n_sorrow	daintree	bed	IA	aporee_23320_27084
+n_jr446856	daintree	bed	C	File:Sonus naturalis - Soundscape XC446856.mp3
+n_jr442616	daintree	bed	C	File:Sonus naturalis - Soundscape XC442616.mp3
+n_whipbird	daintree	acc	C	File:Eastern Whipbird (Psophodes olivaceus) (W PSOPHODES OLIVACEUS R1 C2).ogg
+n_whipbird2	daintree	acc	C	File:Eastern Whipbird.ogg
+n_kooka1	daintree	acc	C	File:Dacelo novaeguineae ANWC X00518.opus
+n_kooka2	daintree	acc	C	File:LaughingKookaburra.ogg
+o_firstday	olympic	bed	IAF	sounds-of-spring|first day of spring.mp3
+o_rainy	olympic	bed	IAF	sounds-of-spring|rainy morning.mp3
+o_varied	olympic	bed	IAF	sounds-of-spring|varied choir.mp3
+o_thunder	olympic	bed	IA	aporee_41654_47494
+o_hornby	olympic	bed	IA	aporee_32989_37902
+o_saltspring	olympic	bed	IA	aporee_66152_76474
+o_wren	olympic	acc	C	File:Troglodytes pacificus - Pacific Wren XC120847.ogg
+o_jay	olympic	acc	C	File:Cyanocitta stelleri - Steller's Jay - XC109653.ogg
+o_swainson	olympic	acc	C	File:Catharus ustulatus - Swainson's Thrush XC613535.mp3
+o_hermit	olympic	acc	C	File:Catharus guttatus - Hermit Thrush XC175229.mp3
+y_bigmeadows	yosemite	bed	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-DawnAmbientROMO6816BigMeadowsFinal1.mp3
+y_sunvalley	yosemite	bed	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-DawnAmbientROMO6916SunValleyTrailFinal1.mp3
+y_lawnlake	yosemite	bed	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-ForestAmbientNearLawnLakeROMO52616Final1.mp3
+y_stream	yosemite	bed	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-StreamAmbientROMO52516BlackCanyonTrailFinal1.mp3
+y_wind	yosemite	bed	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-WindAmbientGemLakeROMO52516Final1.mp3
+y_finch	yosemite	bed	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-FinchLakeAmbientROMO62016Final1.mp3
+y_owens	yosemite	bed	IA	aporee_58248_66808
+y_aspen	yosemite	bed	IA	aporee_58287_66859
+y_applegate	yosemite	bed	IA	aporee_64371_74287
+y_angeles	yosemite	bed	IA	aporee_65517_75673
+y_nutcracker	yosemite	acc	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-ClarksNutcrackerYOSE.mp3
+y_hermit	yosemite	acc	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-HermitThrushYOSE.mp3
+y_nuthatch	yosemite	acc	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-RedbreastedNuthatchYOSE.mp3
+y_flicker	yosemite	acc	URL	https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-NorthernFlickerYOSE.mp3
+y_jay	yosemite	acc	C	File:Cyanocitta stelleri - Steller's Jay XC109653.mp3

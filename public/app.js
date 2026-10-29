@@ -539,12 +539,13 @@ async function showVolume() {
   clearTimeout(volT); volT = setTimeout(() => volEl.classList.remove('on'), 1400);
 }
 
-// /rainforest — a generative rainforest soundscape (lib/rainforest.js). Its on/off state
-// survives reloads; it ducks out while an Arcade game owns the speakers.
+// /rainforest — forest ambience from real field recordings (lib/rainforest.js; audio in the
+// gitignored data/ambience/, credits via /credits). Its on/off state survives reloads; it
+// ducks out while an Arcade game owns the speakers.
 let RF = null;
 // line icons per forest (24×24, stroke) for the top-right button and its menu
 const RF_ICON = {
-  default: 'M7 15a4 4 0 0 1 .4-8 5.5 5.5 0 0 1 10.4 1.6A3.3 3.3 0 0 1 17.3 15zM8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5',
+  default: 'M3.5 15.5c3 1.8 7.5 2 10.5-.5 2-1.7 3-4 3.3-6.5l3.2-1-3.3-1.3c-1-1.6-3.2-2-4.7-.6-1.3 1.2-1.4 3.2-.5 4.6L7 13.5zM14.6 7.6h.01M9.5 17.6 8.8 20.5M12.2 17.4l.4 3.1',
   amazon: 'M12.5 21c0-4.5.4-7.6 1.6-10.6M14 10.4c-1.8-2.7-5.6-3-7.8-1M14 10.4c.9-2.9 4.6-4 7-2.1M14 10.4c-3 .2-5.8 2.2-6.8 5M14 10.4c3 .1 5.6 2 6.3 4.8',
   atlantic: 'M5 19C5 11 10 5 19 5c0 9-6 14-14 14zM5 19l9.5-9.5M9.5 14.5l-.3-3.4M12 12l3.2.2',
   borneo: 'M12 21v-7M7.4 14a3.8 3.8 0 0 1 .2-7.6 4.6 4.6 0 0 1 8.8 0 3.8 3.8 0 0 1 .2 7.6z',
@@ -592,13 +593,13 @@ function wireRainforestButton() {
   updateRfButton();
 }
 const RAINFOREST_PLACES = [ // [arg, icon, label, description] — the presets in lib/rainforest.js
-  ['default', '🌧', 'Rainforest', 'tropical rain, cicadas, birds, frogs, distant thunder'],
-  ['amazon', '🦜', 'Amazon', 'heavy rain, dense insects, macaws, howler monkeys'],
-  ['atlantic', '🌿', 'Mata Atlântica', 'light rain, cicada waves, songbirds, the araponga'],
-  ['borneo', '🐒', 'Borneo', 'loud cicadas, gibbon calls'],
-  ['daintree', '🐦', 'Daintree', 'kookaburras, whipbirds, frogs'],
-  ['olympic', '🌲', 'Olympic', 'temperate drizzle, wind, a creek, wrens'],
-  ['yosemite', '🏔', 'Yosemite', 'wind in the pines, a creek, jays, woodpeckers'],
+  ['default', '🐦', 'Forest morning', 'dawn chorus in European woods: thrushes, robins, blackbirds, wrens, a nightingale'],
+  ['amazon', '🦜', 'Amazon', 'Peru & Brazil rainforest: caciques, oropendolas, toucans, titi monkeys, soft insects'],
+  ['atlantic', '🌿', 'Mata Atlântica', 'Brazil: sabiá-laranjeira, distant bugio howlers, wind in the trees, a dawn river'],
+  ['borneo', '🐒', 'Borneo', 'Sarawak: Kubah frog pool at dusk, magpie-robins, trogons, gibbon song'],
+  ['daintree', '🐦', 'Daintree', 'Cape Tribulation morning + Blue Mountains forest: whipbirds, kookaburras, king parrots'],
+  ['olympic', '🌲', 'Olympic', 'Pacific Northwest spring: Pacific wren, varied & hermit thrushes, Steller\'s jay, a creek'],
+  ['yosemite', '🏔', 'Yosemite', 'mountain conifer dawns: Clark\'s nutcracker, hermit thrush, jays, wind in pines, a creek'],
 ];
 // /rainforest → toggle (last place, default first); /rainforest amazon → that place
 // (switches with a crossfade if another is playing; the same one again turns it off).
@@ -610,9 +611,9 @@ async function toggleRainforest(arg = '', force) {
   if (arg && !key) { toast(`No forest "${arg}" — try ${Object.keys(RF.PRESETS).join(', ')}`); return; }
   const want = force ?? (key ? RF.current() !== key : !RF.isOn());
   const place = key || last;
-  if (want) RF.start(place); else RF.stop();
+  if (want) { RF.start(place); setTimeout(() => { const s = RF.status?.(); if (s && s.on && s.error) toast(`Rainforest: ${s.error}`); }, 9000); } else RF.stop();
   try { localStorage.setItem('garden.rainforest', want ? '1' : '0'); localStorage.setItem('garden.rainforest.place', place); } catch { /* ignore */ }
-  if (force === undefined) toast(want ? `🌧 ${RF.PRESETS[place].label}` : 'Rainforest off');
+  if (force === undefined) toast(want ? `🌿 ${RF.PRESETS[place].label}` : 'Rainforest off');
   updateRfButton();
 }
 if (!SCREENSHOT) {
@@ -785,6 +786,24 @@ async function showNotes() {
       })
     : [h('div', { class: 'cl-empty' }, 'No notes yet — just start typing to plant one.')];
   openPanel('Planted notes — delete any you’ve changed your mind about', h('div', { class: 'cl' }, ...rows));
+}
+
+// /credits — the field recordists behind /rainforest (data/ambience/credits.json). CC BY and
+// CC BY-SA ask for attribution; this is where it lives on the wall.
+async function showCredits() {
+  let data = { sources: [] };
+  try { data = await (await fetch('/api/ambience/credits.json', { cache: 'no-store' })).json(); } catch { /* not built */ }
+  const PLACE = Object.fromEntries(RAINFOREST_PLACES.map(([k, , label]) => [k, label]));
+  const list = (data.sources || []).slice().sort((x, y) => String(x.author || '').localeCompare(String(y.author || '')));
+  const rows = list.length
+    ? list.map((c) => h('div', { class: 'cl-row' },
+        h('div', { class: 'cl-id' }, '🎙'),
+        h('div', { class: 'cl-main' },
+          h('div', { class: 'cl-phrase' }, `${c.title}`),
+          h('div', { class: 'cl-meta' }, `${c.author || 'unknown'} · ${c.license}${c.note ? ' · ' + c.note : ''} · ${c.source} · ${[...new Set((c.used_in || []).map((u) => PLACE[u.place] || u.place))].join(', ')}`),
+          h('div', { class: 'cl-meta' }, c.url || ''))))
+    : [h('div', { class: 'cl-empty' }, 'No recordings installed yet.')];
+  openPanel('Sound credits — field recordings used by /rainforest (processed: trimmed, filtered, level-matched)', h('div', { class: 'cl' }, ...rows));
 }
 
 // /grow — run a tending cycle right now on the currently-planted notes. Shows the
@@ -1333,7 +1352,7 @@ const COMMANDS = [
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
-  { cmd: 'rainforest', aliases: ['rain', 'forest'], icon: '🌧', desc: 'rainforest sounds — pick a place', run: (arg) => toggleRainforest(arg),
+  { cmd: 'rainforest', aliases: ['rain', 'forest', 'birds'], icon: '🌿', desc: 'forest sounds (real recordings) — pick a place', run: (arg) => toggleRainforest(arg),
     options: () => {
       const playing = RF && RF.isOn() ? RF.current() : null;
       const opts = RAINFOREST_PLACES.map(([arg, icon, label, desc]) => ({ arg, icon, label, desc: (playing === arg ? '▶ playing · ' : '') + label + ' — ' + desc, on: playing === arg }));
@@ -1343,6 +1362,7 @@ const COMMANDS = [
   { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
+  { cmd: 'credits', aliases: ['sounds'], icon: '🎙', desc: 'who recorded the forest sounds (licences)', run: () => showCredits() },
   { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },

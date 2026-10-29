@@ -1,0 +1,913 @@
+{
+ "bed_lufs": -28,
+ "accent_lufs": -25,
+ "places": {
+  "default": {
+   "label": "Forest morning",
+   "description": "a temperate dawn chorus: thrushes, robins, blackbirds, chaffinches, wrens",
+   "accentEvery": [
+    20,
+    55
+   ]
+  },
+  "amazon": {
+   "label": "Amazon",
+   "description": "Tambopata and Tefé rainforest: caciques, oropendolas, toucans, titi monkeys",
+   "accentEvery": [
+    25,
+    65
+   ]
+  },
+  "atlantic": {
+   "label": "Mata Atlântica",
+   "description": "Atlantic forest, Brazil: sabiá-laranjeira, distant bugios, soft cicadas",
+   "accentEvery": [
+    22,
+    60
+   ]
+  },
+  "borneo": {
+   "label": "Borneo",
+   "description": "Sarawak rainforest: magpie-robins, trogons, gibbon song",
+   "accentEvery": [
+    25,
+    70
+   ]
+  },
+  "daintree": {
+   "label": "Daintree",
+   "description": "Queensland rainforest: whipbirds, kookaburras, catbirds",
+   "accentEvery": [
+    25,
+    65
+   ]
+  },
+  "olympic": {
+   "label": "Olympic",
+   "description": "Pacific Northwest woods: Pacific wren, varied thrush, a creek",
+   "accentEvery": [
+    15,
+    45
+   ]
+  },
+  "yosemite": {
+   "label": "Yosemite",
+   "description": "Sierra mornings: nutcrackers, Steller's jays, hermit thrush, wind in pines, a creek",
+   "accentEvery": [
+    25,
+    70
+   ]
+  }
+ },
+ "notes": {},
+ "items": [
+  {
+   "place": "default",
+   "out": "leersum-1",
+   "role": "bed",
+   "src": "d_leersum",
+   "ss": 1,
+   "to": 203,
+   "hp": 100
+  },
+  {
+   "place": "default",
+   "out": "leersum-2",
+   "role": "bed",
+   "src": "d_leersum",
+   "ss": 203,
+   "to": 405,
+   "hp": 100
+  },
+  {
+   "place": "default",
+   "out": "matutinho",
+   "role": "bed",
+   "src": "d_matutinho",
+   "ss": 124,
+   "to": 431,
+   "hp": 100,
+   "extra": [
+    "acompressor=threshold=-34dB:ratio=2.5:attack=20:release=600:knee=6"
+   ]
+  },
+  {
+   "place": "default",
+   "out": "cologne-evening",
+   "role": "bed",
+   "src": "d_reinsamba",
+   "ss": 1,
+   "to": 154,
+   "hp": 100,
+   "notch": [
+    7880
+   ],
+   "extra": [
+    "acompressor=threshold=-34dB:ratio=2.5:attack=20:release=600:knee=6"
+   ]
+  },
+  {
+   "place": "default",
+   "out": "fen-covert",
+   "role": "bed",
+   "src": "d_cusackpool",
+   "ss": 1,
+   "to": 139,
+   "hp": 150
+  },
+  {
+   "place": "default",
+   "out": "vogelsang",
+   "role": "bed",
+   "src": "d_cusackthrush",
+   "ss": 1,
+   "to": 137,
+   "hp": 120
+  },
+  {
+   "place": "default",
+   "out": "sallandse",
+   "role": "bed",
+   "src": "d_mixedforest",
+   "ss": 1,
+   "to": 228,
+   "hp": 100
+  },
+  {
+   "place": "default",
+   "out": "sussex-dawn-a-1",
+   "role": "bed",
+   "src": "d_sussex",
+   "ss": 497,
+   "to": 797,
+   "hp": 150
+  },
+  {
+   "place": "default",
+   "out": "sussex-dawn-a-2",
+   "role": "bed",
+   "src": "d_sussex",
+   "ss": 797,
+   "to": 1097,
+   "hp": 150
+  },
+  {
+   "place": "amazon",
+   "out": "tambopata-b-1",
+   "role": "bed",
+   "src": "a_tamb2",
+   "ss": 1,
+   "to": 228,
+   "lp": 9000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "amazon",
+   "out": "tambopata-b-2",
+   "role": "bed",
+   "src": "a_tamb2",
+   "ss": 228,
+   "to": 456,
+   "lp": 9000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "amazon",
+   "out": "tefe-caciques",
+   "role": "bed",
+   "src": "a_cacique",
+   "ss": 1,
+   "to": 264,
+   "lp": 9000,
+   "extra": [
+    "acompressor=threshold=-34dB:ratio=2.5:attack=20:release=600:knee=6",
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "amazon",
+   "out": "ucayali-oropendolas",
+   "role": "bed",
+   "src": "a_yarina",
+   "ss": 1,
+   "to": 229,
+   "hp": 150,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "amazon",
+   "out": "la-chorrera-1",
+   "role": "bed",
+   "src": "a_chorrera",
+   "ss": 1,
+   "to": 176,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "amazon",
+   "out": "la-chorrera-2",
+   "role": "bed",
+   "src": "a_chorrera",
+   "ss": 176,
+   "to": 352,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "atlantic",
+   "out": "rio-acima-dawn",
+   "role": "bed",
+   "src": "t_rioacima",
+   "ss": 1,
+   "to": 179,
+   "hp": 150,
+   "extra": [
+    "acompressor=threshold=-34dB:ratio=2.5:attack=20:release=600:knee=6"
+   ]
+  },
+  {
+   "place": "atlantic",
+   "out": "cantareira-macucu-a",
+   "role": "bed",
+   "src": "t_macucu1",
+   "ss": 46,
+   "to": 118,
+   "lp": 6000
+  },
+  {
+   "place": "atlantic",
+   "out": "cantareira-macucu-c",
+   "role": "bed",
+   "src": "t_macucu3",
+   "ss": 50,
+   "to": 119,
+   "lp": 6000
+  },
+  {
+   "place": "atlantic",
+   "out": "vila-santos-bugios",
+   "role": "bed",
+   "src": "t_howlers",
+   "ss": 1,
+   "to": 119,
+   "lp": 7000
+  },
+  {
+   "place": "atlantic",
+   "out": "grama-wind-birds",
+   "role": "bed",
+   "src": "t_grama",
+   "ss": 1,
+   "to": 127,
+   "lp": 8000,
+   "extra": [
+    "acompressor=threshold=-34dB:ratio=2.5:attack=20:release=600:knee=6"
+   ]
+  },
+  {
+   "place": "atlantic",
+   "out": "serrinha-wood",
+   "role": "bed",
+   "src": "t_serinha",
+   "ss": 1,
+   "to": 179,
+   "lp": 6500
+  },
+  {
+   "place": "borneo",
+   "out": "kubah-pool-afternoon-1",
+   "role": "bed",
+   "src": "b_kubafrog",
+   "ss": 2,
+   "to": 182,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "borneo",
+   "out": "kubah-pool-afternoon-2",
+   "role": "bed",
+   "src": "b_kubafrog",
+   "ss": 182,
+   "to": 362,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "borneo",
+   "out": "kubah-pool-dusk-1",
+   "role": "bed",
+   "src": "b_kubafrog",
+   "ss": 2758,
+   "to": 2938,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "borneo",
+   "out": "kubah-pool-dusk-2",
+   "role": "bed",
+   "src": "b_kubafrog",
+   "ss": 2938,
+   "to": 3118,
+   "lp": 7000,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "borneo",
+   "out": "similajau-magpie-robins",
+   "role": "bed",
+   "src": "b_similajau",
+   "ss": 1,
+   "to": 278,
+   "hp": 300,
+   "lp": 6500
+  },
+  {
+   "place": "borneo",
+   "out": "taman-negara-noon",
+   "role": "bed",
+   "src": "b_tamannegara",
+   "ss": 1,
+   "to": 119,
+   "lp": 8000,
+   "notch": [
+    3700,
+    7400
+   ]
+  },
+  {
+   "place": "daintree",
+   "out": "cape-tribulation-morning",
+   "role": "bed",
+   "src": "n_myall",
+   "ss": 271,
+   "to": 571,
+   "lp": 6500,
+   "extra": [
+    "highshelf=f=4500:g=-6"
+   ]
+  },
+  {
+   "place": "olympic",
+   "out": "spring-morning-a",
+   "role": "bed",
+   "src": "o_firstday",
+   "ss": 6,
+   "to": 306,
+   "hp": 150
+  },
+  {
+   "place": "olympic",
+   "out": "varied-thrushes",
+   "role": "bed",
+   "src": "o_varied",
+   "ss": 95,
+   "to": 190,
+   "hp": 150
+  },
+  {
+   "place": "olympic",
+   "out": "thunder-creek",
+   "role": "bed",
+   "src": "o_thunder",
+   "ss": 1,
+   "to": 211,
+   "lp": 2500,
+   "lufs": -31
+  },
+  {
+   "place": "yosemite",
+   "out": "conifer-dawn-a",
+   "role": "bed",
+   "src": "y_sunvalley",
+   "ss": 400,
+   "to": 700,
+   "hp": 120,
+   "extra": [
+    "acompressor=threshold=-42dB:ratio=3:attack=15:release=700:knee=6"
+   ]
+  },
+  {
+   "place": "yosemite",
+   "out": "conifer-dawn-b",
+   "role": "bed",
+   "src": "y_sunvalley",
+   "ss": 12,
+   "to": 312,
+   "hp": 120,
+   "extra": [
+    "acompressor=threshold=-42dB:ratio=3:attack=15:release=700:knee=6"
+   ]
+  },
+  {
+   "place": "yosemite",
+   "out": "finch-lake-a",
+   "role": "bed",
+   "src": "y_finch",
+   "ss": 174,
+   "to": 474,
+   "hp": 120,
+   "extra": [
+    "acompressor=threshold=-42dB:ratio=3:attack=15:release=700:knee=6"
+   ]
+  },
+  {
+   "place": "yosemite",
+   "out": "owens-river-sunrise",
+   "role": "bed",
+   "src": "y_owens",
+   "ss": 4,
+   "to": 284,
+   "hp": 120
+  },
+  {
+   "place": "yosemite",
+   "out": "wind-in-pines",
+   "role": "bed",
+   "src": "y_wind",
+   "ss": 1,
+   "to": 270,
+   "lp": 3000,
+   "lufs": -31
+  },
+  {
+   "place": "yosemite",
+   "out": "mountain-creek",
+   "role": "bed",
+   "src": "y_stream",
+   "ss": 1,
+   "to": 299,
+   "lp": 2500,
+   "lufs": -31
+  },
+  {
+   "place": "default",
+   "out": "acc-nightingale-1",
+   "role": "acc",
+   "src": "d_nightingale",
+   "ss": 200,
+   "to": 218,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-nightingale-2",
+   "role": "acc",
+   "src": "d_nightingale",
+   "ss": 17,
+   "to": 35,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-robin",
+   "role": "acc",
+   "src": "d_robin",
+   "ss": 33,
+   "to": 51,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-blackbird",
+   "role": "acc",
+   "src": "d_blackbird",
+   "ss": 34,
+   "to": 52,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-wren",
+   "role": "acc",
+   "src": "d_wren",
+   "ss": 4,
+   "to": 22,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-chaffinch",
+   "role": "acc",
+   "src": "d_chaffinch",
+   "ss": 26,
+   "to": 44,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-willow-warbler",
+   "role": "acc",
+   "src": "d_willow",
+   "ss": 49,
+   "to": 67,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-woodlark",
+   "role": "acc",
+   "src": "d_woodlark",
+   "ss": 5,
+   "to": 23,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "default",
+   "out": "acc-tree-pipit",
+   "role": "acc",
+   "src": "d_treepipit",
+   "ss": 123,
+   "to": 141,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-toucans-1",
+   "role": "acc",
+   "src": "a_toucans",
+   "ss": 137,
+   "to": 155,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-toucans-2",
+   "role": "acc",
+   "src": "a_toucans",
+   "ss": 16,
+   "to": 34,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-screaming-piha",
+   "role": "acc",
+   "src": "a_pihacc0",
+   "ss": 52,
+   "to": 70,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-mealy-amazon",
+   "role": "acc",
+   "src": "a_mealy",
+   "ss": 0,
+   "to": 15,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-wing-banded-wren",
+   "role": "acc",
+   "src": "a_bambla",
+   "ss": 54,
+   "to": 72,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-nightingale-wren",
+   "role": "acc",
+   "src": "a_nightwren",
+   "ss": 25,
+   "to": 43,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "amazon",
+   "out": "acc-titi-monkeys",
+   "role": "acc",
+   "src": "a_titi",
+   "ss": 60,
+   "to": 80,
+   "hp": 100,
+   "fade": 0.6
+  },
+  {
+   "place": "atlantic",
+   "out": "acc-sabia-1",
+   "role": "acc",
+   "src": "t_sabia1",
+   "ss": 0,
+   "to": 18,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "atlantic",
+   "out": "acc-sabia-2",
+   "role": "acc",
+   "src": "t_sabia1",
+   "ss": 37,
+   "to": 55,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "atlantic",
+   "out": "acc-sabia-3",
+   "role": "acc",
+   "src": "t_sabia2",
+   "ss": 4,
+   "to": 22,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "atlantic",
+   "out": "acc-azure-jay",
+   "role": "acc",
+   "src": "t_azurejay",
+   "ss": 18,
+   "to": 36,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "atlantic",
+   "out": "acc-forest-edge-bird",
+   "role": "acc",
+   "src": "t_grama2",
+   "ss": 22,
+   "to": 40,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "borneo",
+   "out": "acc-gibbon-1",
+   "role": "acc",
+   "src": "b_gibbon1",
+   "ss": 35,
+   "to": 73,
+   "hp": 200,
+   "fade": 0.6
+  },
+  {
+   "place": "borneo",
+   "out": "acc-gibbon-2",
+   "role": "acc",
+   "src": "b_gibbon2",
+   "ss": 28,
+   "to": 60,
+   "hp": 200,
+   "fade": 0.6
+  },
+  {
+   "place": "borneo",
+   "out": "acc-red-naped-trogon",
+   "role": "acc",
+   "src": "b_trogon",
+   "ss": 33,
+   "to": 51,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "borneo",
+   "out": "acc-magpie-robin-1",
+   "role": "acc",
+   "src": "b_similajau",
+   "ss": 38,
+   "to": 56,
+   "hp": 300,
+   "fade": 0.6,
+   "lp": 6500
+  },
+  {
+   "place": "borneo",
+   "out": "acc-magpie-robin-2",
+   "role": "acc",
+   "src": "b_similajau",
+   "ss": 17,
+   "to": 35,
+   "hp": 300,
+   "fade": 0.6,
+   "lp": 6500
+  },
+  {
+   "place": "yosemite",
+   "out": "acc-clarks-nutcracker",
+   "role": "acc",
+   "src": "y_nutcracker",
+   "ss": 0,
+   "to": 2.4,
+   "hp": 150,
+   "fade": 0.2
+  },
+  {
+   "place": "yosemite",
+   "out": "acc-hermit-thrush",
+   "role": "acc",
+   "src": "y_hermit",
+   "ss": 0,
+   "to": 7.3,
+   "hp": 150,
+   "fade": 0.3
+  },
+  {
+   "place": "yosemite",
+   "out": "acc-northern-flicker",
+   "role": "acc",
+   "src": "y_flicker",
+   "ss": 0,
+   "to": 4.3,
+   "hp": 150,
+   "fade": 0.2
+  },
+  {
+   "place": "daintree",
+   "out": "blue-mountains-forest",
+   "role": "bed",
+   "src": "n_jr442616",
+   "ss": 215,
+   "to": 515,
+   "hp": 400,
+   "extra": [
+    "acompressor=threshold=-42dB:ratio=3:attack=15:release=700:knee=6"
+   ]
+  },
+  {
+   "place": "daintree",
+   "out": "acc-eastern-whipbird-1",
+   "role": "acc",
+   "src": "n_whipbird",
+   "ss": 8,
+   "to": 24,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "daintree",
+   "out": "acc-eastern-whipbird-2",
+   "role": "acc",
+   "src": "n_whipbird",
+   "ss": 36,
+   "to": 52,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "daintree",
+   "out": "acc-eastern-whipbird-3",
+   "role": "acc",
+   "src": "n_whipbird2",
+   "ss": 22,
+   "to": 38,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "daintree",
+   "out": "acc-eastern-whipbird-4",
+   "role": "acc",
+   "src": "n_whipbird2",
+   "ss": 1,
+   "to": 17,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "daintree",
+   "out": "acc-kookaburras-1",
+   "role": "acc",
+   "src": "n_kooka1",
+   "ss": 125,
+   "to": 141,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "daintree",
+   "out": "acc-kookaburras-2",
+   "role": "acc",
+   "src": "n_kooka1",
+   "ss": 64,
+   "to": 80,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "olympic",
+   "out": "acc-pacific-wren-2",
+   "role": "acc",
+   "src": "o_wren",
+   "ss": 64,
+   "to": 80,
+   "hp": 300,
+   "fade": 0.6
+  },
+  {
+   "place": "olympic",
+   "out": "acc-stellers-jay",
+   "role": "acc",
+   "src": "o_jay",
+   "ss": 0,
+   "to": 16,
+   "hp": 300,
+   "fade": 0.6,
+   "lp": 8000
+  },
+  {
+   "place": "olympic",
+   "out": "acc-swainsons-thrush",
+   "role": "acc",
+   "src": "o_swainson",
+   "ss": 5,
+   "to": 21,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "olympic",
+   "out": "acc-hermit-thrush-1",
+   "role": "acc",
+   "src": "o_hermit",
+   "ss": 38,
+   "to": 54,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "olympic",
+   "out": "acc-hermit-thrush-2",
+   "role": "acc",
+   "src": "o_hermit",
+   "ss": 19,
+   "to": 35,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "yosemite",
+   "out": "acc-stellers-jay",
+   "role": "acc",
+   "src": "y_jay",
+   "ss": 0,
+   "to": 16,
+   "hp": 300,
+   "fade": 0.6,
+   "lp": 8000
+  },
+  {
+   "place": "yosemite",
+   "out": "acc-hermit-thrush-2",
+   "role": "acc",
+   "src": "o_hermit",
+   "ss": 38,
+   "to": 54,
+   "hp": 150,
+   "fade": 0.6
+  },
+  {
+   "place": "daintree",
+   "out": "blue-mountains-forest-b",
+   "role": "bed",
+   "src": "n_jr442616",
+   "ss": 886,
+   "to": 1186,
+   "hp": 400,
+   "extra": [
+    "acompressor=threshold=-42dB:ratio=3:attack=15:release=700:knee=6"
+   ]
+  }
+ ]
+}

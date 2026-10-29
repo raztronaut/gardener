@@ -1,0 +1,1460 @@
+{
+ "about": "Real field recordings used by the /rainforest ambience. All openly licensed; CC BY / CC BY-SA require attribution (given here and in the /credits view). Our processed excerpts of CC BY-SA recordings are themselves CC BY-SA.",
+ "version": "2bbb713c33",
+ "sources": [
+  {
+   "title": "Early morning Birdsong Leersum.wav",
+   "author": "Tammo Heikens",
+   "license": "CC BY-SA 3.0 nl",
+   "license_url": "https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Early_morning_Birdsong_Leersum.wav",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/c/cd/Early_morning_Birdsong_Leersum.wav",
+   "duration_s": 406.89215419501136,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/leersum-1.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 203,
+     "processing": "trimmed, high-pass 100 Hz, loudness-normalised (8.4 dB), Opus"
+    },
+    {
+     "place": "default",
+     "file": "default/leersum-2.ogg",
+     "role": "bed",
+     "from_s": 203,
+     "to_s": 405,
+     "processing": "trimmed, high-pass 100 Hz, loudness-normalised (4.5 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Birdsong morning 01.ogg",
+   "author": "Matutinho",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Birdsong_morning_01.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Birdsong_morning_01.ogg",
+   "duration_s": 432.5984353741497,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/matutinho.ogg",
+     "role": "bed",
+     "from_s": 124,
+     "to_s": 431,
+     "processing": "trimmed, high-pass 100 Hz, loudness-normalised (8.7 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "Reinsamba - evening in the forest (cc-by) (freesound).wav",
+   "author": "reinsamba",
+   "license": "CC BY 3.0",
+   "license_url": "https://creativecommons.org/licenses/by/3.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Reinsamba_-_evening_in_the_forest_(cc-by)_(freesound).wav",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Reinsamba_-_evening_in_the_forest_%28cc-by%29_%28freesound%29.wav",
+   "duration_s": 155.97240362811792,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/cologne-evening.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 154,
+     "processing": "trimmed, high-pass 100 Hz, notch 7880 Hz, loudness-normalised (2.2 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "Fen Covert beside the woodland pool, audio stream April 17/18 2021, 7JW5+PF Halesworth, UK - Mid-afternoon atmopshere beside the pool surrounded by trees",
+   "author": "Peter Cusack",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_66878_77372",
+   "file_url": "https://archive.org/download/aporee_66878_77372/2104171625atmoswindchfinchtitchurredit.mp3",
+   "duration_s": 140.21,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/fen-covert.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 139,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (12.5 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Song thrush and woodpecker drumming, Vogelsang, ex Soviet base, Germany - Song thrush and woodpecker drumming",
+   "author": "Peter Cusack",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_27852_32098",
+   "file_url": "https://archive.org/download/aporee_27852_32098/songthrushwoodpeckeredit.mp3",
+   "duration_s": 138.1,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/vogelsang.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 137,
+     "processing": "trimmed, high-pass 120 Hz, loudness-normalised (13.4 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Birds in mixed forest.wav",
+   "author": "De Auditieve Dienst",
+   "license": "CC BY-SA 3.0 nl",
+   "license_url": "https://creativecommons.org/licenses/by-sa/3.0/nl/deed.en",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Birds_in_mixed_forest.wav",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/8/8e/Birds_in_mixed_forest.wav",
+   "duration_s": 229.3,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/sallandse.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 228,
+     "processing": "trimmed, high-pass 100 Hz, loudness-normalised (23.8 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "0426AM Dawn Chorus 07-May-2023 (edit).ogg",
+   "author": "A.Wendt",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:0426AM_Dawn_Chorus_07-May-2023_(edit).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/7/7d/0426AM_Dawn_Chorus_07-May-2023_%28edit%29.ogg",
+   "duration_s": 3988.3149166666667,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/sussex-dawn-a-1.ogg",
+     "role": "bed",
+     "from_s": 497,
+     "to_s": 797,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (23.7 dB), Opus"
+    },
+    {
+     "place": "default",
+     "file": "default/sussex-dawn-a-2.ogg",
+     "role": "bed",
+     "from_s": 797,
+     "to_s": 1097,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (28.1 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Reserva Nacional Tambopata, Peru - Rainforest atmospere",
+   "author": "Thijs Geritz",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_40905_46690",
+   "file_url": "https://archive.org/download/aporee_40905_46690/ReservaNacionalTambopataJuly620181210.mp3",
+   "duration_s": 457.3,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/tambopata-b-1.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 228,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 9000 Hz, loudness-normalised (10.8 dB), Opus, highshelf"
+    },
+    {
+     "place": "amazon",
+     "file": "amazon/tambopata-b-2.ogg",
+     "role": "bed",
+     "from_s": 228,
+     "to_s": 456,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 9000 Hz, loudness-normalised (12.4 dB), Opus, highshelf"
+    }
+   ]
+  },
+  {
+   "title": "Tauary (Amazonian Rainforest) - Yellow Cacique",
+   "author": "Felix BLUME",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_38549_44060",
+   "file_url": "https://archive.org/download/aporee_38549_44060/YellowrumpedCaciqueORTFBR170921T08.mp3",
+   "duration_s": 266.0,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/tefe-caciques.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 264,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 9000 Hz, loudness-normalised (5.1 dB), Opus, acompressor, highshelf"
+    }
+   ]
+  },
+  {
+   "title": "Enrico home, Yarinacocha, Ucayali, Peru - afternoon amazon forest sounds",
+   "author": "3gatti",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_71750_83776",
+   "file_url": "https://archive.org/download/aporee_71750_83776/forestdaysounds.mp3",
+   "duration_s": 231.0,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/ucayali-oropendolas.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 229,
+     "processing": "trimmed, high-pass 150 Hz, low-pass 7000 Hz, loudness-normalised (-6.4 dB), Opus, highshelf"
+    }
+   ]
+  },
+  {
+   "title": "La Chorrera, Amazonas, Colombia - AMBIENTE SELVA",
+   "author": "eltemplario8",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_41138_46945",
+   "file_url": "https://archive.org/download/aporee_41138_46945/AmbientedaLaChorrera.mp3",
+   "duration_s": 353.23,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/la-chorrera-1.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 176,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (8.9 dB), Opus, highshelf"
+    },
+    {
+     "place": "amazon",
+     "file": "amazon/la-chorrera-2.ogg",
+     "role": "bed",
+     "from_s": 176,
+     "to_s": 352,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (9.3 dB), Opus, highshelf"
+    }
+   ]
+  },
+  {
+   "title": "Rio Acima, Minas Gerais - Birds in the countryside at dawn, river in background in Brazil (Minas de Gerais)",
+   "author": "Felix BLUME",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_37000_42398",
+   "file_url": "https://archive.org/download/aporee_37000_42398/BresilaubepourAporee.mp3",
+   "duration_s": 180.84,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/rio-acima-dawn.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 179,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-0.2 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "Parque da Cantareira - Núcleo do Engordador - Trilha do Macucu - i",
+   "author": "melissapons@gma...",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_34420_39570",
+   "file_url": "https://archive.org/download/aporee_34420_39570/T06101200320RXimg.wav",
+   "duration_s": 120.05,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/cantareira-macucu-a.ogg",
+     "role": "bed",
+     "from_s": 46,
+     "to_s": 118,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 6000 Hz, loudness-normalised (15 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Parque da Cantareira - Núcleo do Engordador - Trilha do Macucu - iii",
+   "author": "melissapons@gma...",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_34422_39572",
+   "file_url": "https://archive.org/download/aporee_34422_39572/T06305070707RXimg.wav",
+   "duration_s": 120.73,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/cantareira-macucu-c.ogg",
+     "role": "bed",
+     "from_s": 50,
+     "to_s": 119,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 6000 Hz, loudness-normalised (13.3 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Vila Santos, São Paulo - State of São Paulo, Brazil - Howler Monkeys and Cicadas",
+   "author": "melissapons@gma...",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_34338_39473",
+   "file_url": "https://archive.org/download/aporee_34338_39473/T07602000212RXimg.wav",
+   "duration_s": 120.02,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/vila-santos-bugios.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 119,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (-2.1 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Wind and birds in the subtropical forest, autumn, São Sebastião da Grama - SP, Brasil - Wind and birds in the subtropical forest, autumn.",
+   "author": "pedrolotti",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_56410_64527",
+   "file_url": "https://archive.org/download/aporee_56410_64527/ventoeavesnooutono.wav",
+   "duration_s": 128.09,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/grama-wind-birds.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 127,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 8000 Hz, loudness-normalised (12.3 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "Serinha - Small wood in the Brazilian countryside, insects and birds",
+   "author": "Felix BLUME",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_41750_47601",
+   "file_url": "https://archive.org/download/aporee_41750_47601/SerinhaBR180310T03.mp3",
+   "duration_s": 180.8,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/serrinha-wood.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 179,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 6500 Hz, loudness-normalised (0.3 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "soundscape Borneo frogpool Kuba NP",
+   "author": "alwin.t@live.nl",
+   "license": "CC BY 3.0",
+   "license_url": "http://creativecommons.org/licenses/by/3.0/",
+   "source": "Internet Archive",
+   "url": "https://archive.org/details/soundscapeBorneofrogpoolKubaNP",
+   "file_url": "https://archive.org/download/soundscapeBorneofrogpoolKubaNP/2frogpooldag1.mp3",
+   "duration_s": 4562.81,
+   "note": null,
+   "used_in": [
+    {
+     "place": "borneo",
+     "file": "borneo/kubah-pool-afternoon-1.ogg",
+     "role": "bed",
+     "from_s": 2,
+     "to_s": 182,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (-1.6 dB), Opus, highshelf"
+    },
+    {
+     "place": "borneo",
+     "file": "borneo/kubah-pool-afternoon-2.ogg",
+     "role": "bed",
+     "from_s": 182,
+     "to_s": 362,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (0.1 dB), Opus, highshelf"
+    },
+    {
+     "place": "borneo",
+     "file": "borneo/kubah-pool-dusk-1.ogg",
+     "role": "bed",
+     "from_s": 2758,
+     "to_s": 2938,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (-2.8 dB), Opus, highshelf"
+    },
+    {
+     "place": "borneo",
+     "file": "borneo/kubah-pool-dusk-2.ogg",
+     "role": "bed",
+     "from_s": 2938,
+     "to_s": 3118,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 7000 Hz, loudness-normalised (-2.7 dB), Opus, highshelf"
+    }
+   ]
+  },
+  {
+   "title": "Q2711 Jalan Similajau National Park, 97000 Bintulu, Sarawak, Maleisië - songbird and sea in Similajau NP",
+   "author": "gerrit.kalsbeek",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_48269_54899",
+   "file_url": "https://archive.org/download/aporee_48269_54899/11similajauzeeekstervink1048.mp3",
+   "duration_s": 648.23,
+   "note": null,
+   "used_in": [
+    {
+     "place": "borneo",
+     "file": "borneo/similajau-magpie-robins.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 278,
+     "processing": "trimmed, high-pass 300 Hz, low-pass 6500 Hz, loudness-normalised (0.3 dB), Opus"
+    },
+    {
+     "place": "borneo",
+     "file": "borneo/acc-magpie-robin-1.ogg",
+     "role": "acc",
+     "from_s": 38,
+     "to_s": 56,
+     "processing": "trimmed, high-pass 300 Hz, low-pass 6500 Hz, loudness-normalised (-1.8 dB), Opus"
+    },
+    {
+     "place": "borneo",
+     "file": "borneo/acc-magpie-robin-2.ogg",
+     "role": "acc",
+     "from_s": 17,
+     "to_s": 35,
+     "processing": "trimmed, high-pass 300 Hz, low-pass 6500 Hz, loudness-normalised (-1.8 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Taman Negara Rainforest, Malaysia - drone log 19/02/2013",
+   "author": "carsten stabenow",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_16752_19494",
+   "file_url": "https://archive.org/download/aporee_16752_19494/dronelog19022013bukitteresek.mp3",
+   "duration_s": 120.82,
+   "note": null,
+   "used_in": [
+    {
+     "place": "borneo",
+     "file": "borneo/taman-negara-noon.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 119,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 8000 Hz, notch 3700/7400 Hz, loudness-normalised (-5.5 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Cape Tribulation, QLD, Australia - littoral rainforest by myall beach",
+   "author": "Jeremy Hegge",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_23316_27080",
+   "file_url": "https://archive.org/download/aporee_23316_27080/myallbeachforestmorning.mp3",
+   "duration_s": 626.19,
+   "note": null,
+   "used_in": [
+    {
+     "place": "daintree",
+     "file": "daintree/cape-tribulation-morning.ogg",
+     "role": "bed",
+     "from_s": 271,
+     "to_s": 571,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 6500 Hz, loudness-normalised (14.1 dB), Opus, highshelf"
+    }
+   ]
+  },
+  {
+   "title": "Sounds of Spring — first day of spring.mp3",
+   "author": "Hummingcrow & Co.",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "source": "Internet Archive",
+   "url": "https://archive.org/details/sounds-of-spring",
+   "file_url": "https://archive.org/download/sounds-of-spring/first%20day%20of%20spring.mp3",
+   "duration_s": 839.92,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/spring-morning-a.ogg",
+     "role": "bed",
+     "from_s": 6,
+     "to_s": 306,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (20.3 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Sounds of Spring — varied choir.mp3",
+   "author": "Hummingcrow & Co.",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+   "source": "Internet Archive",
+   "url": "https://archive.org/details/sounds-of-spring",
+   "file_url": "https://archive.org/download/sounds-of-spring/varied%20choir.mp3",
+   "duration_s": 191.84,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/varied-thrushes.ogg",
+     "role": "bed",
+     "from_s": 95,
+     "to_s": 190,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (19.3 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Thunder Creek Bridge - Water Flowing Under Thunder Creek",
+   "author": "Sam Moss",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_41654_47494",
+   "file_url": "https://archive.org/download/aporee_41654_47494/23OCT2018ThunderCreek.wav",
+   "duration_s": 212.48,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/thunder-creek.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 211,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 2500 Hz, loudness-normalised (6.3 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "romo-DawnAmbientROMO6916SunValleyTrailFinal1.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-DawnAmbientROMO6916SunValleyTrailFinal1.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-DawnAmbientROMO6916SunValleyTrailFinal1.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/conifer-dawn-a.ogg",
+     "role": "bed",
+     "from_s": 400,
+     "to_s": 700,
+     "processing": "trimmed, high-pass 120 Hz, loudness-normalised (11.9 dB), Opus, acompressor"
+    },
+    {
+     "place": "yosemite",
+     "file": "yosemite/conifer-dawn-b.ogg",
+     "role": "bed",
+     "from_s": 12,
+     "to_s": 312,
+     "processing": "trimmed, high-pass 120 Hz, loudness-normalised (13.5 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "romo-FinchLakeAmbientROMO62016Final1.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-FinchLakeAmbientROMO62016Final1.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-FinchLakeAmbientROMO62016Final1.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/finch-lake-a.ogg",
+     "role": "bed",
+     "from_s": 174,
+     "to_s": 474,
+     "processing": "trimmed, high-pass 120 Hz, loudness-normalised (14.2 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "JX97+JH Lone Pine, CA, USA - Birds at Sunrise on Owen's River",
+   "author": "dlee",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_58248_66808",
+   "file_url": "https://archive.org/download/aporee_58248_66808/OVMAPDAWNCHORUS220220923233422.mp3",
+   "duration_s": 565.44,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/owens-river-sunrise.ogg",
+     "role": "bed",
+     "from_s": 4,
+     "to_s": 284,
+     "processing": "trimmed, high-pass 120 Hz, loudness-normalised (-10.5 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "romo-WindAmbientGemLakeROMO52516Final1.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-WindAmbientGemLakeROMO52516Final1.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-WindAmbientGemLakeROMO52516Final1.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/wind-in-pines.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 270,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 3000 Hz, loudness-normalised (2.8 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "romo-StreamAmbientROMO52516BlackCanyonTrailFinal1.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-StreamAmbientROMO52516BlackCanyonTrailFinal1.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/imr/avElement/romo-StreamAmbientROMO52516BlackCanyonTrailFinal1.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/mountain-creek.ogg",
+     "role": "bed",
+     "from_s": 1,
+     "to_s": 299,
+     "processing": "trimmed, high-pass 80 Hz, low-pass 2500 Hz, loudness-normalised (-4.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Common Nightingale (Luscinia megarhynchos) (W1CDR0001376 BD18).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Common_Nightingale_(Luscinia_megarhynchos)_(W1CDR0001376_BD18).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/5/59/Common_Nightingale_%28Luscinia_megarhynchos%29_%28W1CDR0001376_BD18%29.ogg",
+   "duration_s": 301.70229024943313,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-nightingale-1.ogg",
+     "role": "acc",
+     "from_s": 200,
+     "to_s": 218,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-6.5 dB), Opus"
+    },
+    {
+     "place": "default",
+     "file": "default/acc-nightingale-2.ogg",
+     "role": "acc",
+     "from_s": 17,
+     "to_s": 35,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-5.9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "European Robin (Erithacus rubecula) (W1CDR0001425 BD16).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:European_Robin_(Erithacus_rubecula)_(W1CDR0001425_BD16).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/a/a5/European_Robin_%28Erithacus_rubecula%29_%28W1CDR0001425_BD16%29.ogg",
+   "duration_s": 176.88922902494332,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-robin.ogg",
+     "role": "acc",
+     "from_s": 33,
+     "to_s": 51,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-7.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Common Blackbird (Turdus merula) (W1CDR0001425 BD22).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Common_Blackbird_(Turdus_merula)_(W1CDR0001425_BD22).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/2/29/Common_Blackbird_%28Turdus_merula%29_%28W1CDR0001425_BD22%29.ogg",
+   "duration_s": 63.021473922902494,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-blackbird.ogg",
+     "role": "acc",
+     "from_s": 34,
+     "to_s": 52,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-3.5 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Eurasian Wren (Troglodytes troglodytes) (W1CDR0001461 BD5).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Eurasian_Wren_(Troglodytes_troglodytes)_(W1CDR0001461_BD5).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Eurasian_Wren_%28Troglodytes_troglodytes%29_%28W1CDR0001461_BD5%29.ogg",
+   "duration_s": 63.20433106575964,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-wren.ogg",
+     "role": "acc",
+     "from_s": 4,
+     "to_s": 22,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-9.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Chaffinch (Fringilla coelebs) (W1CDR0001527 BD14).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Chaffinch_(Fringilla_coelebs)_(W1CDR0001527_BD14).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/4/41/Chaffinch_%28Fringilla_coelebs%29_%28W1CDR0001527_BD14%29.ogg",
+   "duration_s": 74.43698412698413,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-chaffinch.ogg",
+     "role": "acc",
+     "from_s": 26,
+     "to_s": 44,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-9.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Willow Warbler (Phylloscopus trochilus) (W1CDR0001510 BD23).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Willow_Warbler_(Phylloscopus_trochilus)_(W1CDR0001510_BD23).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/1/1b/Willow_Warbler_%28Phylloscopus_trochilus%29_%28W1CDR0001510_BD23%29.ogg",
+   "duration_s": 68.48106575963719,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-willow-warbler.ogg",
+     "role": "acc",
+     "from_s": 49,
+     "to_s": 67,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-9.9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Woodlark (Lullula arborea) (W1CDR0001500 BD8).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Woodlark_(Lullula_arborea)_(W1CDR0001500_BD8).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/d/da/Woodlark_%28Lullula_arborea%29_%28W1CDR0001500_BD8%29.ogg",
+   "duration_s": 66.18229024943311,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-woodlark.ogg",
+     "role": "acc",
+     "from_s": 5,
+     "to_s": 23,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-8.9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Tree Pipit (Anthus trivialis) (W1CDR0001425 BD8).ogg",
+   "author": "",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Tree_Pipit_(Anthus_trivialis)_(W1CDR0001425_BD8).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/7/79/Tree_Pipit_%28Anthus_trivialis%29_%28W1CDR0001425_BD8%29.ogg",
+   "duration_s": 143.16514739229024,
+   "note": null,
+   "used_in": [
+    {
+     "place": "default",
+     "file": "default/acc-tree-pipit.ogg",
+     "role": "acc",
+     "from_s": 123,
+     "to_s": 141,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-9.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "404114 felix-blume toucans-singing-in-the-amazonian-rainforest-brazil.ogg",
+   "author": "Felix Blume",
+   "license": "CC0",
+   "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:404114_felix-blume_toucans-singing-in-the-amazonian-rainforest-brazil.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/8/87/404114_felix-blume_toucans-singing-in-the-amazonian-rainforest-brazil.ogg",
+   "duration_s": 433.77066666666667,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/acc-toucans-1.ogg",
+     "role": "acc",
+     "from_s": 137,
+     "to_s": 155,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-12 dB), Opus"
+    },
+    {
+     "place": "amazon",
+     "file": "amazon/acc-toucans-2.ogg",
+     "role": "acc",
+     "from_s": 16,
+     "to_s": 34,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-11.2 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Lipaugus vociferans singing and whistling.ogg",
+   "author": "felix.blume",
+   "license": "CC0",
+   "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Lipaugus_vociferans_singing_and_whistling.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/b/b0/Lipaugus_vociferans_singing_and_whistling.ogg",
+   "duration_s": 120.00072562358277,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/acc-screaming-piha.ogg",
+     "role": "acc",
+     "from_s": 52,
+     "to_s": 70,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-11.2 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Mealy Amazon (Amazona farinosa) (W AMAZONA FARINOSA R1 C5).ogg",
+   "author": "",
+   "license": "CC BY 4.0",
+   "license_url": "https://creativecommons.org/licenses/by/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Mealy_Amazon_(Amazona_farinosa)_(W_AMAZONA_FARINOSA_R1_C5).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/3/36/Mealy_Amazon_%28Amazona_farinosa%29_%28W_AMAZONA_FARINOSA_R1_C5%29.ogg",
+   "duration_s": 15.226303854875283,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/acc-mealy-amazon.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 15,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-4.4 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Microcerculus bambla Wing-banded Wren; Presidente Figueiredo, Amazonas, Brazil.mp3",
+   "author": "Hector Bottai",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Microcerculus_bambla_Wing-banded_Wren;_Presidente_Figueiredo,_Amazonas,_Brazil.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Microcerculus_bambla_Wing-banded_Wren%3B_Presidente_Figueiredo%2C_Amazonas%2C_Brazil.mp3",
+   "duration_s": 74.22188136068208,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/acc-wing-banded-wren.ogg",
+     "role": "acc",
+     "from_s": 54,
+     "to_s": 72,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (2.8 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Microcerculus marginatus - Scaly-brested Wren song; Careiro, Amazonas, Brazil.mp3",
+   "author": "Hector Bottai",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Microcerculus_marginatus_-_Scaly-brested_Wren_song;_Careiro,_Amazonas,_Brazil.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Microcerculus_marginatus_-_Scaly-brested_Wren_song%3B_Careiro%2C_Amazonas%2C_Brazil.mp3",
+   "duration_s": 45.92327755756228,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/acc-nightingale-wren.ogg",
+     "role": "acc",
+     "from_s": 25,
+     "to_s": 43,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (7.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Tauary, Amazonas - Zogzog monkey yelling in the Amazonian Rainforest",
+   "author": "Felix BLUME",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "http://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_47817_54335",
+   "file_url": "https://archive.org/download/aporee_47817_54335/SingeZogzogforetTauaryBR200215T12.mp3",
+   "duration_s": 240.94,
+   "note": null,
+   "used_in": [
+    {
+     "place": "amazon",
+     "file": "amazon/acc-titi-monkeys.ogg",
+     "role": "acc",
+     "from_s": 60,
+     "to_s": 80,
+     "processing": "trimmed, high-pass 100 Hz, loudness-normalised (-12.9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Turdus rufiventris.ogg",
+   "author": "Eurico Zimbres",
+   "license": "CC BY-SA 2.5",
+   "license_url": "https://creativecommons.org/licenses/by-sa/2.5",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Turdus_rufiventris.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/8/81/Turdus_rufiventris.ogg",
+   "duration_s": 84.47078125,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/acc-sabia-1.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 18,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-9.2 dB), Opus"
+    },
+    {
+     "place": "atlantic",
+     "file": "atlantic/acc-sabia-2.ogg",
+     "role": "acc",
+     "from_s": 37,
+     "to_s": 55,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-11.8 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Turdus rufiventris - Rufous-bellied Thrush XC202063.mp3",
+   "author": "Gabriele Magurno",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Turdus_rufiventris_-_Rufous-bellied_Thrush_XC202063.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/d/dc/Turdus_rufiventris_-_Rufous-bellied_Thrush_XC202063.mp3",
+   "duration_s": 60.1033,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/acc-sabia-3.ogg",
+     "role": "acc",
+     "from_s": 4,
+     "to_s": 22,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-5.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Cyanocorax caeruleus - Azure Jay XC433994.mp3",
+   "author": "maria belotti",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Cyanocorax_caeruleus_-_Azure_Jay_XC433994.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/8/82/Cyanocorax_caeruleus_-_Azure_Jay_XC433994.mp3",
+   "duration_s": 36.05784819041962,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/acc-azure-jay.ogg",
+     "role": "acc",
+     "from_s": 18,
+     "to_s": 36,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (10.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "bird's soundscape and wind noise in trees, São Sebastião da Grama - SP, Brasil -  bird's soundscape and wind noise in trees",
+   "author": "pedrolotti",
+   "license": "Public Domain Mark 1.0",
+   "license_url": "https://creativecommons.org/publicdomain/mark/1.0/",
+   "source": "Internet Archive (radio aporee)",
+   "url": "https://archive.org/details/aporee_56168_64226",
+   "file_url": "https://archive.org/download/aporee_56168_64226/somdeavecomventodeembabasmixagem20220410014421.wav",
+   "duration_s": 63.96,
+   "note": null,
+   "used_in": [
+    {
+     "place": "atlantic",
+     "file": "atlantic/acc-forest-edge-bird.ogg",
+     "role": "acc",
+     "from_s": 22,
+     "to_s": 40,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (6.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Hylobates-pileatus-pileated-gibbon-calling-singing-1.oga",
+   "author": "Rushenb",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Hylobates-pileatus-pileated-gibbon-calling-singing-1.oga",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/4/4d/Hylobates-pileatus-pileated-gibbon-calling-singing-1.oga",
+   "duration_s": 74.30530612244898,
+   "note": null,
+   "used_in": [
+    {
+     "place": "borneo",
+     "file": "borneo/acc-gibbon-1.ogg",
+     "role": "acc",
+     "from_s": 35,
+     "to_s": 73,
+     "processing": "trimmed, high-pass 200 Hz, loudness-normalised (-9.2 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Hylobates-pileatus-pileated-gibbon-calling-singing-2.oga",
+   "author": "Rushenb",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Hylobates-pileatus-pileated-gibbon-calling-singing-2.oga",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Hylobates-pileatus-pileated-gibbon-calling-singing-2.oga",
+   "duration_s": 62.72,
+   "note": null,
+   "used_in": [
+    {
+     "place": "borneo",
+     "file": "borneo/acc-gibbon-2.ogg",
+     "role": "acc",
+     "from_s": 28,
+     "to_s": 60,
+     "processing": "trimmed, high-pass 200 Hz, loudness-normalised (-9.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Red-naped Trogon (Harpactes kasumba) (W HARPACTES KASUMBA R1 C3).ogg",
+   "author": "",
+   "license": "CC BY 4.0",
+   "license_url": "https://creativecommons.org/licenses/by/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Red-naped_Trogon_(Harpactes_kasumba)_(W_HARPACTES_KASUMBA_R1_C3).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Red-naped_Trogon_%28Harpactes_kasumba%29_%28W_HARPACTES_KASUMBA_R1_C3%29.ogg",
+   "duration_s": 76.92643990929706,
+   "note": null,
+   "used_in": [
+    {
+     "place": "borneo",
+     "file": "borneo/acc-red-naped-trogon.ogg",
+     "role": "acc",
+     "from_s": 33,
+     "to_s": 51,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-3.3 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "nri-ClarksNutcrackerYOSE.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-ClarksNutcrackerYOSE.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-ClarksNutcrackerYOSE.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/acc-clarks-nutcracker.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 2.4,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-13.9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "nri-HermitThrushYOSE.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-HermitThrushYOSE.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-HermitThrushYOSE.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/acc-hermit-thrush.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 7.3,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-6.9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "nri-NorthernFlickerYOSE.mp3",
+   "author": "U.S. National Park Service",
+   "license": "Public domain (U.S. National Park Service)",
+   "license_url": null,
+   "source": "NPS",
+   "url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-NorthernFlickerYOSE.mp3",
+   "file_url": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-NorthernFlickerYOSE.mp3",
+   "duration_s": null,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/acc-northern-flicker.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 4.3,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (3.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Sonus naturalis - Soundscape XC442616.mp3",
+   "author": "James Ray",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Sonus_naturalis_-_Soundscape_XC442616.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/2/2c/Sonus_naturalis_-_Soundscape_XC442616.mp3",
+   "duration_s": 1208.5505625417481,
+   "note": null,
+   "used_in": [
+    {
+     "place": "daintree",
+     "file": "daintree/blue-mountains-forest.ogg",
+     "role": "bed",
+     "from_s": 215,
+     "to_s": 515,
+     "processing": "trimmed, high-pass 400 Hz, loudness-normalised (20.3 dB), Opus, acompressor"
+    },
+    {
+     "place": "daintree",
+     "file": "daintree/blue-mountains-forest-b.ogg",
+     "role": "bed",
+     "from_s": 886,
+     "to_s": 1186,
+     "processing": "trimmed, high-pass 400 Hz, loudness-normalised (19.8 dB), Opus, acompressor"
+    }
+   ]
+  },
+  {
+   "title": "Eastern Whipbird (Psophodes olivaceus) (W PSOPHODES OLIVACEUS R1 C2).ogg",
+   "author": "",
+   "license": "CC BY 4.0",
+   "license_url": "https://creativecommons.org/licenses/by/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Eastern_Whipbird_(Psophodes_olivaceus)_(W_PSOPHODES_OLIVACEUS_R1_C2).ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/0/0d/Eastern_Whipbird_%28Psophodes_olivaceus%29_%28W_PSOPHODES_OLIVACEUS_R1_C2%29.ogg",
+   "duration_s": 70.50444444444445,
+   "note": null,
+   "used_in": [
+    {
+     "place": "daintree",
+     "file": "daintree/acc-eastern-whipbird-1.ogg",
+     "role": "acc",
+     "from_s": 8,
+     "to_s": 24,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (2.9 dB), Opus"
+    },
+    {
+     "place": "daintree",
+     "file": "daintree/acc-eastern-whipbird-2.ogg",
+     "role": "acc",
+     "from_s": 36,
+     "to_s": 52,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-0.2 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Eastern Whipbird.ogg",
+   "author": "Wardie44",
+   "license": "Public domain",
+   "license_url": null,
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Eastern_Whipbird.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/e/ef/Eastern_Whipbird.ogg",
+   "duration_s": 38.47256235827665,
+   "note": null,
+   "used_in": [
+    {
+     "place": "daintree",
+     "file": "daintree/acc-eastern-whipbird-3.ogg",
+     "role": "acc",
+     "from_s": 22,
+     "to_s": 38,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-11.2 dB), Opus"
+    },
+    {
+     "place": "daintree",
+     "file": "daintree/acc-eastern-whipbird-4.ogg",
+     "role": "acc",
+     "from_s": 1,
+     "to_s": 17,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-5.6 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Dacelo novaeguineae ANWC X00518.opus",
+   "author": "Powys, V.",
+   "license": "CC BY 3.0",
+   "license_url": "https://creativecommons.org/licenses/by/3.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Dacelo_novaeguineae_ANWC_X00518.opus",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Dacelo_novaeguineae_ANWC_X00518.opus",
+   "duration_s": 185.76,
+   "note": null,
+   "used_in": [
+    {
+     "place": "daintree",
+     "file": "daintree/acc-kookaburras-1.ogg",
+     "role": "acc",
+     "from_s": 125,
+     "to_s": 141,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-7.2 dB), Opus"
+    },
+    {
+     "place": "daintree",
+     "file": "daintree/acc-kookaburras-2.ogg",
+     "role": "acc",
+     "from_s": 64,
+     "to_s": 80,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (-6.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Troglodytes pacificus - Pacific Wren XC120847.ogg",
+   "author": "Alejandro Erickson",
+   "license": "CC BY-SA 3.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Troglodytes_pacificus_-_Pacific_Wren_XC120847.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/6/68/Troglodytes_pacificus_-_Pacific_Wren_XC120847.ogg",
+   "duration_s": 111.17820861678004,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/acc-pacific-wren-2.ogg",
+     "role": "acc",
+     "from_s": 64,
+     "to_s": 80,
+     "processing": "trimmed, high-pass 300 Hz, loudness-normalised (3.2 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Cyanocitta stelleri - Steller's Jay - XC109653.ogg",
+   "author": "Jonathon Jongsma",
+   "license": "CC BY-SA 3.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Cyanocitta_stelleri_-_Steller%27s_Jay_-_XC109653.ogg",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/d/d6/Cyanocitta_stelleri_-_Steller%27s_Jay_-_XC109653.ogg",
+   "duration_s": 37.1654375,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/acc-stellers-jay.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 16,
+     "processing": "trimmed, high-pass 300 Hz, low-pass 8000 Hz, loudness-normalised (-7.1 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Catharus ustulatus - Swainson's Thrush XC613535.mp3",
+   "author": "Doug Hynes",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Catharus_ustulatus_-_Swainson%27s_Thrush_XC613535.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/3/3f/Catharus_ustulatus_-_Swainson%27s_Thrush_XC613535.mp3",
+   "duration_s": 26.451,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/acc-swainsons-thrush.ogg",
+     "role": "acc",
+     "from_s": 5,
+     "to_s": 21,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (9 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Catharus guttatus - Hermit Thrush XC175229.mp3",
+   "author": "Jonathon Jongsma",
+   "license": "CC BY-SA 4.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Catharus_guttatus_-_Hermit_Thrush_XC175229.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/1/12/Catharus_guttatus_-_Hermit_Thrush_XC175229.mp3",
+   "duration_s": 110.36533333333334,
+   "note": null,
+   "used_in": [
+    {
+     "place": "olympic",
+     "file": "olympic/acc-hermit-thrush-1.ogg",
+     "role": "acc",
+     "from_s": 38,
+     "to_s": 54,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (2.7 dB), Opus"
+    },
+    {
+     "place": "olympic",
+     "file": "olympic/acc-hermit-thrush-2.ogg",
+     "role": "acc",
+     "from_s": 19,
+     "to_s": 35,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (2.7 dB), Opus"
+    },
+    {
+     "place": "yosemite",
+     "file": "yosemite/acc-hermit-thrush-2.ogg",
+     "role": "acc",
+     "from_s": 38,
+     "to_s": 54,
+     "processing": "trimmed, high-pass 150 Hz, loudness-normalised (2.7 dB), Opus"
+    }
+   ]
+  },
+  {
+   "title": "Cyanocitta stelleri - Steller's Jay XC109653.mp3",
+   "author": "Jonathon Jongsma",
+   "license": "CC BY-SA 3.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+   "source": "Wikimedia Commons",
+   "url": "https://commons.wikimedia.org/wiki/File:Cyanocitta_stelleri_-_Steller%27s_Jay_XC109653.mp3",
+   "file_url": "https://upload.wikimedia.org/wikipedia/commons/d/df/Cyanocitta_stelleri_-_Steller%27s_Jay_XC109653.mp3",
+   "duration_s": 37.2235625,
+   "note": null,
+   "used_in": [
+    {
+     "place": "yosemite",
+     "file": "yosemite/acc-stellers-jay.ogg",
+     "role": "acc",
+     "from_s": 0,
+     "to_s": 16,
+     "processing": "trimmed, high-pass 300 Hz, low-pass 8000 Hz, loudness-normalised (-7.5 dB), Opus"
+    }
+   ]
+  }
+ ]
+}
