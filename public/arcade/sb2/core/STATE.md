@@ -68,7 +68,7 @@ sprite pixel (x-8, y-24) top-left.
 
 Bomber: `{slot, active, dying, gone (death animation finished, removed), x, y, xf, yf,
 cx, cy, facing ('up'|'down'|'left'|'right'), moving, input, anim:{set, id, timer, script,
-pose}, state (+52), busy, carrying, lifting, stunned, jumping, com, level, gold, hidden
+pose}, state (+52), busy, carrying, lifting, stunned, jumping (stage 10 airborne), hopping (stage 10: sliding out of a solid / bomb cell after a landing), com, level, gold, hidden
 (skull blink: don't draw), flicker (shield hit), offscreen, speedLevel, speedBase,
 bombsCap, bombsHand, bombsOut, fire (reach = fire+1), bombType, kick, glove, wallPass,
 bombPass, shield, disease (blink|diarrhea|constipation|fast|slow|weak|null), wins}`.

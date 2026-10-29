@@ -49,7 +49,10 @@ export function buildState(game) {
       input: r16(p + 0x6E),
       anim: { set: r16(p + 0x50), id: r16(p + 0x6A), timer: r16(p + 0x0C), script: r24(p + 0x70), pose: r24(p + 0x79) },
       state: s52, busy: !!(s52 & 1), carrying: (s52 & 0x7F) === 6 || !!(s52 & 2), lifting: (s52 & 0x7F) === 3,
-      stunned: (s52 & 0xFF) === 0x81, jumping: !!(r16(p + 0x52) & 0x1000),
+      stunned: (s52 & 0xFF) === 0x81,
+      // stage 10: airborne (+02 b0, +52 $0801) / hopping out of a solid or bomb cell after
+      // the landing (+52 $0809); no death check in either (NOTES-core-ai.md)
+      jumping: !(f & 0x0800) && !!(r16(p + 2) & 1), hopping: !(f & 0x0800) && (s52 & 0x0809) === 0x0809,
       com: !!(f04 & 1) || !!((r8(0x7001) >> i) & 1), star: !!((r8(0x7001) >> i) & 1),
       level: (r8(0x7001) >> i) & 1 ? 10 : r16(p + 0xD2) + 1, gold: !!(f04 & 0x100),
       hidden: !!(f04 & 0x40), flicker: !!(f04 & 0x20), offscreen: !!(f & 0x2000),
