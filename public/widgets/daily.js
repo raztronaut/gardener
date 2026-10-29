@@ -2,7 +2,7 @@
 // jungles and the living world, from a CURATED list (public/lib/paintings.js,
 // generated + verified against the Art Institute of Chicago and Met open-access APIs
 // by tools/paintings.mjs). Rotates deterministically by day of year.
-// The tile IS the painting (cover-cropped at the entry's focal point) with a single
+// The tile IS the painting (shown whole, fitted — never cropped) with a single
 // caption line — title · artist; fullscreen shows it whole with date, medium, museum,
 // a short plain-language story and a QR to the museum's page. The image loads
 // straight from the museum (small for the tile, ~843 px only in fullscreen) and fades
@@ -63,6 +63,12 @@ export default {
          paint; the picture fades in only once decoded (no loading text). */
       .dly-tile { display:flex; flex-direction:column; gap:10px; height:100%; min-height:0; }
       .dly-tile .dly-pimg { flex:1 1 auto; min-height:0; }
+      /* the whole painting, never cropped: fitted into the frame (contain), centred,
+         the rounding and hairline on the picture itself; the frame stays invisible */
+      .dly-tile .dly-pimg { display:flex; align-items:center; justify-content:center; background:none; border-radius:0; overflow:visible; }
+      .dly-tile .dly-pimg::after { display:none; }
+      .dly-tile .dly-pic { position:static; width:auto; height:auto; max-width:100%; max-height:100%;
+        object-fit:contain; border-radius:10px; box-shadow:0 0 0 1px var(--stroke), 0 10px 26px rgba(0,0,0,.35); }
       .dly-pimg { position:relative; border-radius:14px; overflow:hidden; background:rgba(255,255,255,.035); }
       .dly-pimg::after { content:''; position:absolute; inset:0; border-radius:inherit;
         box-shadow:inset 0 0 0 1px var(--stroke); pointer-events:none; }
