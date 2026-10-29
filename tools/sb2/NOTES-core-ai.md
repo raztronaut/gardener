@@ -112,3 +112,96 @@ COM level (+D2 = level − 1, honoured on tall): only CHASE / BOMBBOX / STUCK / 
 stages): L1 → L5 → L9 idle 71 → 66 → 43%, cells/s 1.9 → 2.1 → 3.1, bombs/min 6.5 → 10.7 →
 12.1, own-bomb deaths/min 0.31 → 0.60 → 0.80 (original; tall the same trend). A higher
 level is busier, not safer: vs the scripted human, human wins 22 / 33 / 32%.
+
+## Stage 10 jump (measured, Oct 2026)
+Recorded from the ORIGINAL: `conformance/jump_vectors.py` (state `mt4_stage10`: 4 humans on
+stage 10 via the multitap; 12 scenarios with WRAM pokes and per-frame pads, some decided
+from the original's WRAM, e.g. "Y n ticks after the fire reached my cell"); all 12 replay
+tick-identically through the JS core (`jump_vectors.py --check`, run.mjs on
+`data/sb2/conformance/jump_vectors`); `conformance/jumpreport.mjs` prints what happened.
+The tall field (no original to compare) follows from the same code; `ai-eval/jumpcheck.mjs`
+compares the ★ model with the core on every floor cell x 4 directions, both layouts.
+- **When Y is accepted** (C06616): on the Y press edge (latch +0E b8, cleared by a tick
+  without Y while not busy), when not busy (+52 b0: jumping, hopping, lifting, stunned,
+  dying) and the screen is bright. **Standing still is NOT required**: Y works while
+  walking (any offset; x keeps its offset, the vertical arc lands a few px further after
+  walking). Carrying a bomb: allowed, the bomb is dropped (C0A743) and flies off in a
+  random direction (it bounced on and stunned two bombers in jump_carry).
+  (`state.bombers[i].jumping` read +52 b12, never set: fixed to +02 b0; new `hopping`.)
+- **Direction**: the pad on the take-off tick, else the first later tick with one (a
+  late direction = a partial move, off-centre landing); none = jump in place. Y held
+  does not repeat.
+- **Distance / time** (take-off tick T = the tick Y is read): L/R x ±16 exactly, lands at
+  T+32; U lands at T+28..30, 14..16 px up; D at T+37..40, 16..21 px down (the landing y
+  moves 1 px per even tick and the arc must catch it). From a centred start the landing
+  cell is always the next one. In place: T+32.
+- **No collision**: the landing cell can be anything. Landing on a solid cell ($80: rock,
+  soft block, border, sudden-death block) or a bomb: hop-out C0838C, snap to that cell's
+  centre and slide at 1 px/tick in the jump direction through every solid / bomb cell
+  until the centre enters a free cell (then snapped to its centre): the end comes
+  8 + 16(k-1) ticks after the landing (k = cells entered). E.g. (4,4) R onto the rock
+  (5,4): through 6..10 soft and the rock 11 to (12,4), 104 ticks after the landing;
+  (2,6) D onto soft (2,7): through (2,8) s, (2,9) rock, (2,10) s, (2,11) s to (2,12).
+- **Wrap** (C12F6C, the hop over a tile word 0 = outside the drawn arena: 16 px steps to
+  the next drawn tile; masks x & $FF, y & $FF / tall $1FF): original — L/R from the side
+  columns: the border cell, one virtual cell, the opposite border, the playfield
+  ((2,4) L ends at (14,4) 41 ticks after the landing); U/D: top border row <-> bottom
+  border row directly (24 ticks to the playfield). Tall: columns differ — out of some
+  columns straight to row 29/28 like the original, out of others the hop runs up through
+  rows 2..0 and back in from below (rows 33..29) — up to ~150 ticks. A hop through a
+  sudden-death block kills (C08302).
+- **Fire**: no death check from the take-off tick until the landing tick (+52 $0801 skips
+  C0A5C9) nor while hopping ($0809). The landing tick checks the landing cell; a hop end
+  is checked from the next tick. Fire is written at D+2 and kills on the next tick; it
+  burns 28 ticks; a jump started on the tick after the fire appeared at the cell (or up to
+  ~3 ticks before) and landing in place 32 ticks later survives (jump_fire_a/b); landing
+  in a cell still burning kills (jump_fire_b P2 / P3, jump_fire_c P1).
+- **Landing on**: a bomber — nothing (no collision); an item — picked up; a soft block /
+  rock / border — hop; a bomb — hop on (one more cell if free); fire — dies.
+
+## COM ★ (ai_smart.js) on stage 10 and the other stages (Oct 2026)
+The ★ was trapped on stage 10: its start pocket is closed by rocks and regrowing soft
+blocks, the planner had no jump edges (only "hop an adjacent bomb when cornered"): idle
+88-90 %, sealed 40-70 %, 23 % of its tall deaths by sudden-death blocks.
+- The jump is a move of the timed-safe search (stage 10 only, own and foe searches):
+  take-off on the tick after arriving (vertical: |oy| <= 2 first), the take-off cell safe
+  until then, the end cell (landing or hop end, `hopPath` simulates the hop like the core,
+  cached while no cell changes) safe around the arrival; every solid cell passed must
+  stay solid (no doomed soft block, no bomb going off). Waiting for the end cell to clear
+  is allowed. Long flights (> 48 ticks) not near a foe; hops > 72 ticks only in an
+  emergency. Cornered (no refuge even with the relaxed margin): jump in place over the
+  blast. Y latch respected; no glove lift on stage 10 (carrying = no jump; a carried bomb
+  is dropped by a jump only to escape).
+- Found while checking the deaths (all stages): an item stops a ray only if nobody takes
+  it first (a foe did, mid-jump) -> rays pass items in the danger model; a bomb placed a
+  moment ago (not yet "perceived") still chains our blast through it; a kicked bomb that
+  stands still is still a mover and blocks walking; carrying with the glove dithered
+  up/down between two cells until the bomb went off (direction hysteresis, throw anywhere
+  safe before a blast); stage 8: walking against a fast belt made no progress for 1000+
+  ticks (belt speed now in the search: +-0.5625 / 2.3125 px/tick); a rubber bomb kicked
+  rolls back (swept both ways, never kicked).
+- Measured, one ★ vs three level-5 COMs (`eval.mjs --modes mix1v3 --level 10 --vs 5`,
+  16 seeds x 3 rounds per stage and layout, 480 ★-rounds per layout):
+
+  | | orig before | orig after | tall before | tall after |
+  |---|---|---|---|---|
+  | ★ win % | 72.9 | 84.6 | 73.8 | 86.0 |
+  | deaths / round | 0.27 | 0.15 | 0.26 | 0.14 |
+  | self-kills / min | 0.16 | 0.12 | 0.14 | 0.09 |
+  | SD-block deaths % | 0.8 | 0 | 4.8 | 0 |
+  | idle % (not busy) | 40.8 | 29.5 | 36.6 | 23.6 |
+  | sealed % | 6.2 | 1.7 | 10.3 | 0.9 |
+
+  Stage 10 alone: win 39.6 -> 97.9 % (orig), 45.8 -> 97.9 % (tall); idle 88 -> 6 % /
+  90 -> 7 %; sealed 43 -> 12 % / 67 -> 8 % (the eval's "sealed" ignores jumps: stage 10's
+  pockets stay sealed for walking); SD deaths 3 / 19 % -> 0; 34-38 jumps / min.
+  Other stages: no sealed / stuck pattern (sealed 0-0.2 %); the ice "stuck" 12 % is
+  sub-pixel acceleration (x / y unchanged for a few ticks), not a stall.
+- human3 (scripted human vs three ★, 8 seeds): human wins 3.3 / 5.4 % -> 3.3 / 2.5 %; ★
+  stage-10 deaths by SD blocks 69 / 98 % -> 2 / 0 %, but three ★ that dodge by jumping
+  rarely kill each other there: time-up draws on stage 10 0 -> 50 / 71 % (stages 3 and 6
+  already had 50-70 %).
+- Cost: `ai-eval/starcost.mjs` 0.032 ms per ★ bomber per tick on average (all stages,
+  both layouts; stage 10 0.03), single-tick spikes up to ~2-5 ms (first ticks / GC).
+  Pacing (`lagcheck.mjs --sim-only`): non-★ rows unchanged; ★ rows lag more because the
+  games are busier (4 ★: 18.4 -> 20.7 % orig, 18.9 -> 24.9 % tall).

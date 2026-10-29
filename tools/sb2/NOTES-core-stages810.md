@@ -52,7 +52,8 @@ logic ranges, wdiff; run.mjs passes all three — see "needed elsewhere").
   tick. Lands when y ≥ +C0 after the apex (32 ticks for a full arc): shadow freed,
   velocities zeroed, state restored. **No block check at take-off**: landing on a bomb
   (`+B4 == $43` → `$5D02`) calls the hop-out C0838C (movers.js); landing in a solid cell
-  is handled by the movers' mode-0 hop-out.
+  is handled by the movers' mode-0 hop-out. Measured rules (timings, wrap, fire, items,
+  carrying) and the original-vs-core check: NOTES-core-ai.md "Stage 10 jump".
 - **Soft-block regrowth (not in SPEC)**, C0D8E8 every tick before the objects: after a
   delay `$5D0A = $C5E366[$0400&$1E]` (64..1280 ticks; skipped while `$5D7E < 0`), the
   index `$5D0C += $0402&$1E` walks the regrow list `$7F0300` (built at init by C0F428:

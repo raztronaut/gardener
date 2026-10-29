@@ -327,10 +327,15 @@ permanent block); 8 (conveyor direction), 9 (arrows) and 10 (layout) are not sym
 - 8 random removals.
 
 ### Stage 10 — forest, jumping ($1A=$B)
-- **Y button = jump** (`C06616`→`C068B6`/`C06658`, verified): the bomber hops one cell
-  (16 px) in its facing direction over 32 ticks (forward 0.5 px/tick; visual arc up ~30 px
-  with vy ≈3 decelerating), no control meanwhile. Into a hard/soft block: no move. Onto a
-  bomb cell: lands on it and slides one more cell (measured: (2,4)→(4,4) over a bomb at (3,4)).
+- **Y button = jump** (`C06616`→`C068B6`/`C06658`, verified): the bomber jumps one cell
+  in the direction of the pad on its first airborne tick (not the facing one; no
+  direction = in place) over 32 ticks (forward 0.5 px/tick; arc vy 4 decelerating 0.25),
+  no control meanwhile. CORRECTED (Oct 2026, jump_vectors.py, 12 scenarios recorded from
+  the original, all tick-identical in the core): **a hard/soft block does not stop it** —
+  the bomber lands IN the solid cell and hops on at 1 px/tick through every solid / bomb
+  cell (wrapping at the border) to the first free cell; onto a bomb cell the same (so
+  (2,4)→(4,4) over a bomb at (3,4) is the 1-cell case). Full rules: NOTES-core-ai.md
+  "Stage 10 jump".
 - Hand-drawn hard layout, 57 fixed soft blocks, no random removal.
 
 ## Notes for a taller arena (same 13 columns, more rows)
