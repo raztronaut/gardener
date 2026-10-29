@@ -517,7 +517,10 @@ export default {
       if (!btns.length) return;
       sel = (i + btns.length) % btns.length;
       btns.forEach((b, k) => b.classList.toggle('row-sel', k === sel));
-      btns[sel].scrollIntoView({ block: 'nearest', inline: 'center' });
+      // scroll ONLY the shelf: scrollIntoView also scrolls every clipped ancestor (the
+      // Arcade card itself), which slid the whole library row out past the card's edge
+      const shelf = btns[sel].parentElement, b = btns[sel];
+      if (shelf) shelf.scrollLeft = Math.max(0, b.offsetLeft - shelf.offsetLeft - (shelf.clientWidth - b.offsetWidth) / 2);
       updateDetail();
     }
 
