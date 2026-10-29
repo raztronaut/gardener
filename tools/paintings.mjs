@@ -71,7 +71,6 @@ const SEED = [
   // ---- Pissarro: kitchen gardens, orchards, country lanes --------------------
   ['met', 437301, 'Flower beds and strolling families in a town garden.', 'A public garden in Pontoise with bright flower beds, trees and families out walking in the sun.'],
   ['met', 437299, 'Hillside fields and cottages near Pontoise.', 'A green hillside above Pontoise, patterned with fields, gardens and farmhouses.'],
-  ['aic', 55787, 'A woman working in a vegetable garden.', 'An etching of a woman bending among the rows of a kitchen garden, one of Pissarro\'s favourite rural subjects.'],
   ['met', 339649, 'Two women chatting in a garden.', 'A drawing of two women talking among the plants of a country garden.'],
   ['met', 358714, 'A field of cabbages near the village.', 'Rows of cabbages in a market-garden field, drawn with the etching needle.'],
 
@@ -83,7 +82,6 @@ const SEED = [
 
   // ---- Frans Post: 17th-century Brazil -----------------------------------------
   ['met', 437323, 'One of the first European paintings of the Brazilian landscape.', 'Frans Post travelled to Dutch Brazil in the 1630s and painted its tropical plants, sugar plantations and wide river plains.'],
-  ['met', 371022, 'A tropical coast drawn by the first painter of Brazil.', 'A tropical coastline drawn by Frans Post, who spent seven years in northeastern Brazil.'],
 
   // ---- Church: the Andes and the tropics ---------------------------------------
   ['met', 10481, 'A whole rainforest world in one canvas, from Church\'s South American journeys.', 'Church built this panorama from sketches made in Ecuador and Colombia: a waterfall, a jungle of tropical trees, and snowy Andes beyond.'],
@@ -97,7 +95,7 @@ const SEED = [
   ['met', 399922, 'A botanical study by Merian, naturalist of the Surinam rainforest.', 'Maria Sibylla Merian studied plants and insects together. Here capers and gorse share the page with a beetle.'],
   ['met', 697703, 'A climbing lily painted by "the Raphael of flowers".', 'Redouté painted this flame-coloured climbing lily with the precision that made him the most famous botanical painter of his age.'],
   ['met', 697702, 'A South African heath, painted for a botanical record.', 'A spray of flowering heath (Erica), a plant family at home in South Africa\'s Cape, painted by Redouté.'],
-  ['met', 762055, 'A rose from Redouté\'s celebrated book Les Roses.', 'A plate from Les Roses, Redouté\'s celebrated portrait gallery of roses.'],
+  ['met', 762055, 'A rose from Redouté\'s celebrated book Les Roses.', 'A plate from Les Roses, Redouté\'s celebrated portrait gallery of roses.', { title: '‘Empress Josephine’ Rose' }],
   ['met', 762064, 'Crown imperial fritillary, from Les Liliacées.', 'A crown imperial — a tall spring bulb with a ring of hanging orange bells — from Redouté\'s book of lilies and their relatives.'],
   ['aic', 22459, 'A glory lily from The Temple of Flora, a famous botanical book.', 'The Temple of Flora set exotic plants in dramatic, theatrical landscapes. This is the climbing glory lily.'],
   ['aic', 22468, 'Auriculas, prized by Georgian gardeners.', 'A group of auricula primulas, flowers that 18th-century gardeners collected and showed off on special shelves.'],
@@ -111,14 +109,12 @@ const SEED = [
   ['aic', 149035, 'A great urn of flowers by van Huysum, master of Dutch flower painting.', 'Jan van Huysum was the most celebrated flower painter of 18th-century Holland. This drawing plans a tumbling bouquet in a carved urn.'],
   ['met', 11938, 'An American abundance of flowers and fruit.', 'Severin Roesen painted lavish still lifes for American homes, crowded with flowers, grapes and fruit.'],
   ['aic', 141413, 'Peonies from an 18th-century book of bouquets.', 'An engraved bouquet of peonies, from an 18th-century French collection of flower prints.'],
-  ['aic', 141416, 'Tulips from an 18th-century book of bouquets.', 'An engraved bouquet of tulips, the flower that once set off a buying frenzy in Holland.'],
   ['met', 436634, 'A vase of flowers by Margareta Haverman, van Huysum\'s only pupil.', 'Margareta Haverman was the only pupil of the great Jan van Huysum, and was later elected to the French Royal Academy in Paris.'],
   ['met', 827660, 'A bouquet by Clara Peeters, a pioneer of still-life painting.', 'Clara Peeters was one of the earliest still-life painters in the Low Countries and one of very few women painters of her time.'],
   ['met', 437920, 'An early Dutch vase of flowers.', 'An early Dutch flower piece: each blossom is painted as a portrait, many of them prized garden flowers of the day.'],
   ['met', 435814, 'A basket brimming with flowers.', 'A basket overflowing with blossoms, by Jan Brueghel the Younger, son of the great flower painter.'],
   ['met', 816523, 'Fruit and flowers by an Italian nun-painter.', 'Orsola Maddalena Caccia was an Ursuline nun who painted flowers and fruit in her convent in Piedmont.'],
   ['met', 437864, 'A vase of flowers with a conch shell.', 'Anne Vallayer-Coster was one of the most admired still-life painters at the court of Marie Antoinette.'],
-  ['met', 436026, 'Spring flowers by Courbet.', 'Courbet, the great realist of rocks and forests, also painted lush bouquets of flowers.'],
   ['met', 436175, 'A basket of flowers by Delacroix.', 'Delacroix, better known for drama and history, painted a series of flower pieces in the late 1840s.'],
   ['met', 436961, 'Peonies, by Manet.', 'Manet painted peonies, then newly fashionable in French gardens, several times in the mid-1860s.'],
   ['met', 406106, 'An American narcissus by Ehret, the great botanical artist.', 'Georg Dionysius Ehret was the leading botanical artist of 18th-century Europe. This is a spider lily from the Americas.'],
@@ -126,7 +122,7 @@ const SEED = [
   ['aic', 20534, 'Garden roses heaped in a bowl.', 'Full-blown roses loosely arranged in a bowl, painted with Fantin-Latour\'s soft, velvety touch.'],
   ['aic', 110982, 'A dreamlike bouquet by Odilon Redon.', 'Late in life Redon painted flowers as glowing, almost floating shapes of colour.'],
   ['aic', 94240, 'Poppies and daisies, an early flower study by Redon.', 'A small, early study of red poppies and white daisies.'],
-  ['aic', 76395, 'Flowers drifting like clouds.', 'Redon\'s pastel of flowers drifting like clouds — half garden, half dream.'],
+  ['aic', 76395, 'Flowers drifting like clouds.', 'Redon\'s pastel of flowers drifting like clouds — half garden, half dream.', { focus: '50% 12%' }],
   ['aic', 16617, 'A bowl of autumn chrysanthemums.', 'Renoir\'s chrysanthemums, painted in feathery strokes of pink, yellow and white.'],
   ['aic', 14561, 'Tulips in a vase, by Cézanne.', 'A vase of tulips on a table with fruit, built up in Cézanne\'s careful blocks of colour.'],
 
@@ -134,7 +130,7 @@ const SEED = [
   ['met', 436965, 'Monet with his watering can, tending his garden at Argenteuil.', 'Manet visited Monet at Argenteuil and painted his friend at work in the garden, watering can in hand, while Camille and their son Jean rest on the lawn.'],
   ['met', 436177, 'George Sand\'s country garden at Nohant.', 'Delacroix often stayed with the writer George Sand at Nohant, in central France, and painted a corner of her garden there.'],
   ['met', 437462, 'A sunlit garden in Spain.', 'A bright Spanish garden of clipped hedges, flowers and sunlight, by the Spanish painter Martín Rico.'],
-  ['met', 436647, 'A Dutch palace and its formal garden.', 'The Huis ten Bosch palace at The Hague with its geometric parterres, painted by Jan van der Heyden, who loved crisp, exact detail.'],
+  ['met', 436647, 'A Dutch palace and its formal garden.', 'The Huis ten Bosch palace at The Hague with its geometric parterres, painted by Jan van der Heyden, who loved crisp, exact detail.', { title: 'The Huis ten Bosch and Its Formal Garden' }],
   ['met', 437313, 'The Tuileries Garden in Paris on a spring morning.', 'Late in life Pissarro painted the Tuileries Garden again and again from an apartment window above the rue de Rivoli.'],
   ['met', 439065, 'A family among potted plants in a Berlin conservatory.', 'A 19th-century family gathered in their glass conservatory among potted palms and flowering plants.'],
   ['met', 441364, 'A study of palm trees from Egypt.', 'Gérôme painted this oil study of palms on his travels in Egypt.'],
@@ -168,7 +164,7 @@ const SEED = [
   // ---- Hudson River School: American forests ---------------------------------
   ['aic', 57163, 'A New England valley in summer.', 'An idealised New England landscape with woods, fields, a church and a river — Thomas Cole\'s portrait of American countryside.'],
   ['met', 10501, 'Early autumn on the Catskill Creek.', 'Cole\'s view of the Catskill Creek, with the first autumn colour in the trees and the mountains beyond.'],
-  ['met', 10497, 'The Oxbow: wilderness meeting farmland.', 'A storm clears over a bend of the Connecticut River: wild forest on the left, cultivated fields on the right.'],
+  ['met', 10497, 'The Oxbow: wilderness meeting farmland.', 'A storm clears over a bend of the Connecticut River: wild forest on the left, cultivated fields on the right.', { title: 'The Oxbow' }],
   ['met', 10786, 'A path through great beech trees.', 'Durand loved to paint trees from life; here tall beeches frame a view into a sunlit landscape.'],
   ['met', 10790, 'Inside a forest, like a cathedral of trees.', 'Durand\'s famous forest interior: tall trunks rise like columns in the green shade.'],
   ['aic', 71971, 'Mist rising at sunset in the Catskills.', 'A golden haze fills a mountain valley as the sun sets.'],
@@ -192,7 +188,6 @@ const SEED = [
   ['aic', 109142, 'A forest full of wild animals, drawn in Bruegel\'s time.', 'A dense forest with wild animals, from the circle of Pieter Bruegel the Elder.'],
   ['aic', 53058, 'The forest of Compiègne.', 'Berthe Morisot\'s quick, airy view of the Compiègne forest.'],
   ['aic', 25838, 'A pistachio tree in a Provençal courtyard.', 'Cézanne\'s watercolour of a pistachio tree at the Château Noir, near Aix-en-Provence.'],
-  ['aic', 124986, 'Gathering lily-of-the-valley in the woods.', 'People gathering lily-of-the-valley in a spring forest, a French May Day tradition.'],
   ['aic', 69533, 'A bird\'s nest hidden among ferns.', 'Fidelia Bridges painted small corners of nature up close: here a nest tucked into a bank of ferns.'],
   ['aic', 196261, 'A tropical scene with palms and lush plants.', 'A colour print of tropical scenery, with palms and exotic plants.'],
 
@@ -232,23 +227,19 @@ const SEED = [
   ['aic', 21202, 'Cranes in an iris pond at sunrise.', 'Cranes stand in an iris-filled pond as the sun rises.'],
   ['aic', 21188, 'A parrot on a quince tree.', 'A parrot in a flowering quince tree.'],
   ['aic', 22021, 'An orchid and a bird.', 'A small bird beside a blooming orchid.'],
-  ['aic', 14245, 'Three kinds of chrysanthemum.', 'Three varieties of chrysanthemum, the flower that Edo gardeners bred into hundreds of forms.'],
   ['aic', 81378, 'Spring flowers for a poetry circle.', 'A cluster of spring flowers, from a print series made for a group of poets.', { title: 'Various Spring Flowers' }],
   ['aic', 197424, 'A red parrot on a flowering branch, after Ito Jakuchu.', 'A woodblock print after Ito Jakuchu, the great 18th-century painter of birds and plants.'],
   ['aic', 23783, 'Irises and morning glories arranged in vases.', 'Flower arrangements of irises and morning glories, by Kitagawa Utamaro.'],
   ['aic', 127737, 'Hydrangeas, by Kamisaka Sekka.', 'A bold, modern design of blue hydrangeas from Sekka\'s celebrated print book Momoyogusa.', { title: 'Hydrangeas' }],
   ['aic', 57703, 'A pine tree and camellias.', 'A pine and red camellias, two evergreens of the Japanese garden.'],
-  ['aic', 271417, 'The pine forest at Miho beneath Mount Fuji.', 'Mount Fuji rises over the famous pine groves of Miho, painted by the eccentric Soga Shohaku.'],
   ['aic', 127643, 'Flowering cherry and autumn maples.', 'Spring cherry blossom and autumn maple leaves with hanging poem slips, from a Japanese folding screen.'],
-  ['aic', 49328, 'Mushrooms, painted by Shibata Zeshin.', 'A loose, lively painting of mushrooms by Shibata Zeshin.'],
 
   // ---- Chinese and Korean flower painting -----------------------------------
   ['aic', 80510, 'Birds, flowers and insects in the Chinese tradition.', 'Li Shan, one of the "Eight Eccentrics" of Yangzhou, painted birds, flowers and insects in a free, expressive style.'],
   ['aic', 187050, 'Orchids, a favourite subject of Korean scholar painters.', 'Orchids were a symbol of the cultivated, modest gentleman. Kim Eung-won was famous for painting them.'],
-  ['aic', 46466, 'Birds on a red plum tree.', 'Birds gather on a blossoming red plum, painted by Ren Yi in Shanghai.', { title: 'Birds on Red Plum' }],
 
   // ---- Birds of America (Audubon, engraved by Havell) --------------------------
-  ['aic', 18880, 'An indigo bunting among wild plants, from Audubon\'s Birds of America.', 'Audubon painted every American bird he could find, life-size and among the plants it lived with. Robert Havell engraved the plates.'],
+  ['aic', 18880, 'An indigo bunting among wild plants, from Audubon\'s Birds of America.', 'Audubon painted every American bird he could find, life-size and among the plants it lived with. Robert Havell engraved the plates.', { focus: '50% 30%' }],
   ['aic', 18878, 'Florida jays on a branch.', 'Florida scrub jays, from The Birds of America.'],
   ['aic', 18883, 'A bay-breasted warbler on a branch.', 'A small warbler among leaves, from The Birds of America.'],
   ['aic', 18876, 'A great American shrike among branches.', 'A shrike perched among leafy branches, from The Birds of America.'],
