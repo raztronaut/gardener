@@ -453,7 +453,8 @@ def menu_skin(ov, report):
         img = np.where(img < 0, 0, img)
         for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
             ov.put('vram.menu', c * 32, encode4(img[dy:dy + 8, dx:dx + 8]))
-    for t, img in {**menus.wall_tiles(), **menus.strip_tiles(), **menus.icons()}.items():
+    import menufont
+    for t, img in {**menus.wall_tiles(), **menus.strip_tiles(), **menus.icons(), **menufont.cells(mj.get('words', {}))}.items():
         tile(t, img)
     for name in ['cgram.menu'] + ['cgram.%02d' % s for s in range(1, 11)]:
         for p, P in menus.BG_PALS.items():

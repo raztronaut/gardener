@@ -71,25 +71,26 @@ o22222222222222o
 
 
 def tray(base):
-    t = grid("""
-................
-.oooooooooooooo.
-o55555555555554o
-o5o4o44o4o44o44o
-o5gGlgGlgGlgGl4o
-ogGlgGlgGlgGlgGo
-oGlgGlgGlgGlgGlo
-ogGlgGlgGlgGlgGo
-oGlgGlgGlgGlgGlo
-ogGlgGlgGlgGlgGo
-o4lgGlgGlgGlgG3o
-o44444444444433o
-o33333333333332o
-.oooooooooooooo.
-..oo........oo..
-................
-""", {'o': INK, '5': STONE_5, '4': STONE_4, '3': STONE_3, '2': SLATE_1, 'g': LEAF_4, 'G': LEAF_2, 'l': LEAF_3})
-    return over(base.copy(), t)
+    """a hydroponic tray: a white tray holding four round lettuce heads"""
+    img = base.copy()
+    for y in range(1, 16):
+        for x in range(0, 16):
+            edge = x in (0, 15) or y in (1, 15)
+            img[y, x] = INK if edge else (STONE_5 if y < 3 else STONE_4 if x < 14 else STONE_3)
+    img[1, 0] = img[1, 15] = base[1, 0]
+    for (cx, cy) in ((4.5, 6.0), (11.5, 6.0), (4.5, 11.5), (11.5, 11.5)):
+        for y in range(16):
+            for x in range(16):
+                d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
+                if d <= 3.4:
+                    ring = int(d * 1.6)
+                    c = [LEAF_2, LEAF_3, LEAF_4, LEAF_4, LEAF_3, INK][min(5, ring)]
+                    if d > 3.0:
+                        c = INK
+                    elif (x + y) % 3 == 0 and ring >= 2:
+                        c = LEAF_2
+                    img[y, x] = c
+    return img
 
 
 def frame(role):
