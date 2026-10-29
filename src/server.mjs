@@ -816,6 +816,24 @@ const server = http.createServer(async (req, res) => {
         return res.end(req.method === 'HEAD' ? undefined : data);
       } catch { return send(res, 404, 'text/plain', 'not found'); }
     }
+    // /rainforest ambience (public/lib/rainforest.js): real field recordings, processed into
+    // the gitignored data/ambience/ (manifest.json, credits.json, <place>/*.ogg). Read-only,
+    // path-guarded like the sb2 route: no dot segments, confined to that dir, .ogg/.json only.
+    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/api/ambience/')) {
+      const AMB_TYPES = { '.json': 'application/json; charset=utf-8', '.ogg': 'audio/ogg' };
+      let rel = '';
+      try { rel = decodeURIComponent(p.slice('/api/ambience/'.length)); } catch { return send(res, 400, 'text/plain', 'bad path'); }
+      const root = resolve(join(paths.DATA, 'ambience'));
+      const full = resolve(root, rel);
+      const type = AMB_TYPES[extname(full).toLowerCase()];
+      if (!rel || rel.split('/').some((s) => !s || s.startsWith('.')) || !full.startsWith(root + '/') || !type) return send(res, 404, 'text/plain', 'not found');
+      try {
+        const data = await fs.readFile(full);
+        res.writeHead(200, { 'Content-Type': type, 'Content-Length': data.length,
+          'Cache-Control': type === 'audio/ogg' ? 'public, max-age=604800' : 'no-cache' });
+        return res.end(req.method === 'HEAD' ? undefined : data);
+      } catch { return send(res, 404, 'text/plain', 'not found'); }
+    }
 
     // Hearth (household app) — READ-ONLY status for the wall cleaning widget.
     // Localhost wall surface: reads, PLUS the chore-logging write so the Roots
