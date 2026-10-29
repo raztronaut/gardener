@@ -15,6 +15,7 @@
 
 const qs = new URLSearchParams(location.search);
 const SCREENSHOT = qs.has('screenshot');
+let UI_SOUND = () => {}; // interface sounds — set once lib/uisound.js loads (see below)
 
 // ---- global error markers (read by smoke test via --dump-dom) --------------
 const counters = { core: 0, import: 0, mount: 0 };
@@ -402,7 +403,11 @@ function checkOverflow() {
 }
 
 // ---- night veil -------------------------------------------------------------
-function setNight(on) { document.body.classList.toggle('night', !!on && !SCREENSHOT); }
+function setNight(on) {
+  const was = document.body.classList.contains('night');
+  document.body.classList.toggle('night', !!on && !SCREENSHOT);
+  if (was && !on) UI_SOUND('wake'); // the wall wakes up (07:00 / leaving night mode)
+}
 
 // ---- growth bloom beside the wordmark (the tending count) -------------------
 function setIterBadge(n, model) {
@@ -485,9 +490,34 @@ function reservePanelSize(title) {
 // Baked liquid glass (lib/glassbake.js) — computed once, shown as an image.
 // (The live version, lib/lgr.js, ran the panel at 29 fps / cards at 13 fps.)
 let GB = null;
+// /rainforest — a generative rainforest soundscape (lib/rainforest.js). Its on/off state
+// survives reloads; it ducks out while an Arcade game owns the speakers.
+let RF = null;
+// /rainforest → toggle (last place, default first); /rainforest amazon → that place
+// (switches with a crossfade if another is playing; the same one again turns it off).
+async function toggleRainforest(arg = '', force) {
+  RF ||= await import(`/lib/rainforest.js?v=${window.__GARDEN_VERSION || ''}`);
+  let last = 'default'; try { last = localStorage.getItem('garden.rainforest.place') || 'default'; } catch { /* ignore */ }
+  const key = arg ? RF.resolve(arg) : null;
+  if (arg && !key) { toast(`No forest "${arg}" — try ${Object.keys(RF.PRESETS).join(', ')}`); return; }
+  const want = force ?? (key ? RF.current() !== key : !RF.isOn());
+  const place = key || last;
+  if (want) RF.start(place); else RF.stop();
+  try { localStorage.setItem('garden.rainforest', want ? '1' : '0'); localStorage.setItem('garden.rainforest.place', place); } catch { /* ignore */ }
+  if (force === undefined) toast(want ? `🌧 ${RF.PRESETS[place].label}` : 'Rainforest off');
+}
+if (!SCREENSHOT) {
+  try { if (localStorage.getItem('garden.rainforest') === '1') setTimeout(() => toggleRainforest('', true), 1500); } catch { /* ignore */ }
+  let ducked = false; // only act when a game starts or ends, not on every class change (idle, night…)
+  new MutationObserver(() => { const g = document.body.classList.contains('arcade-full'); if (g !== ducked) { ducked = g; if (RF && RF.isOn()) RF.duck(g); } })
+    .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+}
+// Interface sounds (lib/uisound.js): loaded once, then fire-and-forget.
+if (!SCREENSHOT) import(`/lib/uisound.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { UI_SOUND = m.uiSound; m.wireClickSounds(); }).catch(() => {});
 const GB_READY = import(`/lib/glassbake.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => (GB = m)).catch(() => null);
 function openPanel(title, bodyEl, { keepStack = false } = {}) {
   const p = document.getElementById('panel'); if (!p) return;
+  UI_SOUND(keepStack || panelOpen() ? 'tick' : 'open');
   if (!keepStack) reservePanelSize(title);
   if (!keepStack) { panelStack.length = 0; stopPanelWidget(); } // fresh top-level view resets any stacked detail
   updateCloseHint();
@@ -558,6 +588,7 @@ function openSubPanel(title, bodyEl) {
 }
 function closePanel() {
   const p = document.getElementById('panel'); if (!p) return;
+  if (panelOpen()) UI_SOUND(panelStack.length ? 'tick' : 'close');
   stopPanelWidget();
   const prev = panelStack.pop();
   if (prev) { // restore the underlying list view
@@ -1192,6 +1223,7 @@ const COMMANDS = [
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
+  { cmd: 'rainforest', aliases: ['rain', 'forest'], icon: '🌧', desc: 'rainforest sounds — /rainforest [amazon|atlantic|borneo|daintree|olympic|yosemite]', run: (arg) => toggleRainforest(arg) },
   { cmd: 'touch', aliases: ['calibrate'], icon: '👆', desc: 'calibrate camera touch (9 targets)', run: () => { if (panelOpen()) closePanel(); import(`/lib/touch.js?v=${window.__GARDEN_VERSION}`).then((m) => m.runSession()); } },
   { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
@@ -1470,7 +1502,9 @@ function focusCards() { return [...document.querySelectorAll('#garden > .card[da
 function setFocus(i) {
   const cards = focusCards();
   if (!cards.length) return;
+  const prevIdx = focusIdx;
   focusIdx = Math.max(-1, Math.min(cards.length - 1, i));
+  if (focusIdx !== prevIdx && focusIdx >= 0) UI_SOUND('nav');
   cards.forEach((c, k) => c.classList.toggle('focused', k === focusIdx));
   clearTimeout(focusClearT);
   // In keyboard selection mode the highlight stays put; the right-stick highlight
@@ -1761,6 +1795,9 @@ function wirePad() {
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
+    // controller sounds: a soft tick on moves, a brighter press on A (silent in games — uisound)
+    if (/^f?(up|down|left|right)$/.test(action)) UI_SOUND('nav');
+    else if (action === 'ok' || action === 'fopen') UI_SOUND('select');
     // Dashboard combos ('dash' + combo code) always win — they toggle dashboards
     // even mid-game (the same combo that opened a dashboard closes it).
     if (/^dash[a-d]+$/.test(action)) {
@@ -2076,12 +2113,13 @@ function wireFeedback() {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
+    UI_SOUND(text[0] === '/' ? 'tick' : 'confirm');
     if (text[0] === '/') { // slash command, not feedback
       const cmd = text.slice(1).toLowerCase().split(/\s+/)[0];
       input.value = '';
       hidePalette();
       const found = COMMANDS.find((c) => c.cmd === cmd || c.aliases.includes(cmd));
-      if (found) return found.run();
+      if (found) return found.run(text.slice(1).trim().split(/\s+/).slice(1).join(' ').toLowerCase());
       toast(`Unknown command "/${cmd}" — try /help`);
       return;
     }
