@@ -178,7 +178,7 @@ function attachMouse() {
       const m = /^button press\s+(\d+)/.exec(l.trim());
       if (m && m[1] === '9') send('mxup');
       else if (m && m[1] === '8') send('mxdown');
-      else if (m && (m[1] === '6' || m[1] === '7')) volumeStep(m[1] === '7' ? +1 : -1); // thumb wheel
+      else if (m && (m[1] === '6' || m[1] === '7')) volumeStep(m[1] === '6' ? +1 : -1); // thumb wheel: towards the palm (6) = louder
     }
   });
   p.on('exit', () => { log('mouse: xinput exited — retrying in 5s'); setTimeout(attachMouse, 5000); });
