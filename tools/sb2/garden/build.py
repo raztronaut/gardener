@@ -243,6 +243,134 @@ def gardeners(ov, report):
     report.append('gardeners: %d pieces, 10 palettes' % len(pieces))
 
 
+# ---- the HUD (BG3 2bpp, map $5C00 / chars $A000 in every stage) ----------------------------
+HUD_MAP, HUD_CHR = 0xB800, 0xA000
+HUD_DIGIT = [0x8F, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E]      # display.js DIGIT
+HUD_DEAD = {'white': (0, 0x60), 'black': (0, 0x62), 'red': (1, 0x64), 'blue': (1, 0x66)}
+
+
+def hud_chars(vram, report):
+    """{char: 16 bytes} for every HUD char, cut from the garden bar along the original's map"""
+    import hud
+    out, who = {}, {}
+
+    def put(t, pal, img8, hf=0, vf=0, name=''):
+        if hf:
+            img8 = img8[:, ::-1]
+        if vf:
+            img8 = img8[::-1, :]
+        P = hud.PALS[pal]
+        idx = np.zeros((8, 8), np.int32)
+        for y in range(8):
+            for x in range(8):
+                v = int(img8[y, x])
+                if v < 0:
+                    continue
+                if v not in P[1:]:
+                    raise SystemExit('HUD %s: colour #%02x%02x%02x not in BG3 palette %d' % ((name,) + rgb(v) + (pal,)))
+                idx[y, x] = P.index(v, 1)
+        b = encode2(idx)
+        if t in out and out[t] != b:
+            report.append('HUD: char $%02X drawn twice differently (%s, %s)' % (t, who[t], name))
+        out[t] = b
+        who[t] = name
+
+    pic = hud.picture()
+    for r in range(3):
+        for c in range(32):
+            e = vram[HUD_MAP + (r * 32 + c) * 2] | (vram[HUD_MAP + (r * 32 + c) * 2 + 1] << 8)
+            if e == 0:
+                continue
+            put(e & 0x3FF, (e >> 10) & 7, pic[r * 8:r * 8 + 8, c * 8:c * 8 + 8], (e >> 14) & 1, (e >> 15) & 1, 'map %d,%d' % (c, r))
+    for d in range(10):
+        put(HUD_DIGIT[d], 2, hud.digit(str(d)), name='digit %d' % d)
+    dead = hud.picture(dead=('white', 'black', 'red', 'blue'))
+    put(0xD0, 2, dead[0:8, 24:32], name='dead top')
+    put(0xD1, 2, dead[0:8, 32:40], name='dead top')
+    for k, (pal, base) in HUD_DEAD.items():
+        cx = hud.FACE_COLS[['white', 'black', 'red', 'blue'].index(k)] * 8
+        for dy, add in ((8, 0), (16, 0x10)):
+            put(base + add, pal, dead[dy:dy + 8, cx:cx + 8], name='dead ' + k)
+            put(base + add + 1, pal, dead[dy:dy + 8, cx + 8:cx + 16], name='dead ' + k)
+    return out
+
+
+def stage_hud(st, ov, report, cache={}):
+    import hud
+    pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
+    blob = 'stage%02d' % st
+    with open(os.path.join(ASSETS, 'pack', pack['bin']), 'rb') as f:
+        f.seek(pack['blobs'][blob][0])
+        vram = f.read(0x10000)
+    key = bytes(vram[HUD_MAP:HUD_MAP + 192])
+    if key not in cache:
+        cache[key] = hud_chars(vram, report)
+    for t, b in cache[key].items():
+        ov.put(blob, HUD_CHR + t * 16, b)
+    words = []
+    for p in range(4):
+        words += hud.PALS[p]
+    ov.put(blob, 0x10000, pal_bytes(words))
+
+
+# ---- sprite effects (fixed OBJ tiles in every stage's VRAM) ---------------------------------
+def auto_palette(images, name, report):
+    cols = set()
+    for im in images:
+        cols |= set(int(v) for v in np.unique(im) if v >= 0)
+    if len(cols) > 15:
+        raise SystemExit('OBJ palette %s: %d colours' % (name, len(cols)))
+    pal = [0] + sorted(cols, key=lambda c: sum(rgb(c)))
+    return pal + [0] * (16 - len(pal))
+
+
+def obj_put(ov, blob, base, t, img, pal=None):
+    """an OBJ tile (8x8 or 16x16) -> chars at the OBJ name base; pal = colour list (img in
+    colours) or None (img already palette indices)"""
+    size = img.shape[0]
+    for ty in range(0, size, 8):
+        for tx in range(0, size, 8):
+            n = (t & 0x100) | ((t + (ty << 1)) & 0xF0) | ((t + (tx >> 3)) & 0x0F)
+            q = img[ty:ty + 8, tx:tx + 8]
+            if pal is not None:
+                q = np.vectorize(lambda v: 0 if v < 0 else pal.index(int(v)))(q)
+            else:
+                q = np.where(q < 0, 0, q)
+            ov.put(blob, (base + n * 32) & 0xFFFF, encode4(q))
+
+
+POD_PAL = None
+
+
+def stage_fx(st, ov, report, terr):
+    global POD_PAL
+    import fx
+    pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
+    ppu = pack['stages'][st - 1]['ppu']
+    base = (ppu['obj_name_base'] * 2) & 0xFFFF
+    blob = 'stage%02d' % st
+    pods = {**fx.pods(), **fx.small_pods(), **fx.sparkles()}
+    if POD_PAL is None:
+        POD_PAL = auto_palette(list(pods.values()), 'pod', report)
+    for t, im in pods.items():
+        obj_put(ov, blob, base, t, im, POD_PAL)
+    obj_put(ov, blob, base, 64, fx.shadow())
+    for t, im in fx.cards().items():
+        obj_put(ov, blob, base, t, im)
+    six = {**fx.puffs(), **fx.seeds(), **fx.hurry()}
+    six[142] = terr['pressure_block']
+    six[188] = np.full((8, 8), -1, np.int32)
+    p6 = auto_palette(list(six.values()), 'fx6 stage %d' % st, report)
+    for t, im in six.items():
+        obj_put(ov, blob, base, t, im, p6)
+    ov.put(blob, 0x10000 + (128 + 6 * 16) * 2, pal_bytes(p6))
+    if st == 2:
+        sb = fx.snowball()
+        p4 = auto_palette([sb], 'fx4', report)
+        obj_put(ov, blob, base, 96, sb, p4)
+        ov.put(blob, 0x10000 + (128 + 4 * 16) * 2, pal_bytes(p4))
+
+
 def contact_sheet(st, res, path):
     """every drawn cell of the stage on one sheet (16 per row), for review"""
     from PIL import Image
@@ -275,6 +403,8 @@ def main():
             report.append('stage %d: no source yet' % st)
             continue
         results[st] = stage_arena(st, ov, report)
+        stage_hud(st, ov, report)
+        stage_fx(st, ov, report, results[st]['terr'])
         if a.sheets:
             contact_sheet(st, results[st], os.path.join(SCRATCH, 'sheet_s%02d.png' % st))
     gardeners(ov, report)
@@ -291,7 +421,7 @@ def main():
         'version': 1, 'name': 'garden', 'title': 'Bomber Garden',
         'note': 'Garden Edition: original pixel art (tools/sb2/garden/), an overlay on the runtime pack',
         'bin': 'garden.bin',
-        'pack': {'patches': patches, 'display': {'border95': list(items.BORDER)}},
+        'pack': {'patches': patches, 'display': {'border95': list(items.BORDER), 'objPal8': POD_PAL}},
     }
     with open(os.path.join(OUT, 'garden.bin'), 'wb') as f:
         f.write(binbuf)
