@@ -490,6 +490,27 @@ function reservePanelSize(title) {
 // Baked liquid glass (lib/glassbake.js) — computed once, shown as an image.
 // (The live version, lib/lgr.js, ran the panel at 29 fps / cards at 13 fps.)
 let GB = null;
+// Arcade volume: entering the Arcade remembers the wall's speaker level and switches to
+// the Arcade's (42 % by default); leaving keeps whatever level the game ended at as the
+// Arcade's next default and restores the wall's.
+let wallVol = null;
+async function arcadeVolume(entering) {
+  const get = async () => { try { return (await (await fetch('/api/volume', { cache: 'no-store' })).json()).volume; } catch { return null; } };
+  const set = (v) => fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: v }) }).catch(() => {});
+  if (entering) {
+    wallVol = await get();
+    if (wallVol != null) try { localStorage.setItem('garden.wallVol', String(wallVol)); } catch { /* ignore */ }
+    let av = 42; try { av = parseInt(localStorage.getItem('garden.arcadeVol') || '42', 10); } catch { /* ignore */ }
+    if (Number.isFinite(av)) set(av);
+  } else {
+    const now = await get();
+    if (now != null) try { localStorage.setItem('garden.arcadeVol', String(now)); } catch { /* ignore */ }
+    if (wallVol == null) try { wallVol = parseInt(localStorage.getItem('garden.wallVol') || '', 10); } catch { /* ignore */ } // reloaded mid-game
+    if (Number.isFinite(wallVol)) set(wallVol);
+    wallVol = null;
+  }
+}
+
 // Volume pill (MX Master thumb wheel → pad.mjs → 'volup'/'voldown'): speaker icon, a bar
 // and the percent, fading in at the top of the wall and out ~1.4 s after the last notch.
 let volEl = null, volT = 0;
@@ -590,7 +611,7 @@ if (!SCREENSHOT) {
   setTimeout(wireRainforestButton, 0);
   try { if (localStorage.getItem('garden.rainforest') === '1') setTimeout(() => toggleRainforest('', true), 1500); } catch { /* ignore */ }
   let ducked = false; // only act when a game starts or ends, not on every class change (idle, night…)
-  new MutationObserver(() => { const g = document.body.classList.contains('arcade-full'); if (g !== ducked) { ducked = g; if (RF && RF.isOn()) RF.duck(g); } })
+  new MutationObserver(() => { const g = document.body.classList.contains('arcade-full'); if (g !== ducked) { ducked = g; if (RF && RF.isOn()) RF.duck(g); arcadeVolume(g); } })
     .observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }
 // Interface sounds (lib/uisound.js): loaded once, then fire-and-forget.

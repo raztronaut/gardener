@@ -742,6 +742,13 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { volume: parseInt(/(\d+)%/.exec(v)[1], 10), mute });
       } catch { return json(res, 200, { volume: null }); }
     }
+    if (req.method === 'POST' && p === '/api/volume') { // { volume: 0..100 } → the speakers (pactl)
+      let v; try { v = Number(JSON.parse(await readBody(req, 256)).volume); } catch { return json(res, 400, { error: 'bad json' }); }
+      if (!Number.isFinite(v)) return json(res, 400, { error: 'volume 0..100' });
+      v = Math.max(0, Math.min(100, Math.round(v)));
+      try { execFileSync('pactl', ['set-sink-volume', '@DEFAULT_SINK@', `${v}%`], { timeout: 3000 }); } catch { return json(res, 500, { error: 'pactl failed' }); }
+      return json(res, 200, { volume: v });
+    }
     if (req.method === 'POST' && p === '/api/pad/action') {
       let action = '';
       try { action = String(JSON.parse(await readBody(req)).action || ''); } catch { return json(res, 400, { error: 'bad json' }); }
