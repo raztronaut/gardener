@@ -130,185 +130,57 @@ def stage_maps():
     return _MAPS
 
 
-def stage_arena(st, ov, report):
+# ---- the arena as cell art (arena.py; display.js stageArt) -----------------------------------
+def stage_cells(st, ov, report, art):
     import objects
-    import items
+    import arena
     meta = read_json(os.path.join(ASSETS, 'stages', 'stage%02d' % st, 'stage.json'))
     mod = importlib.import_module('s%02d' % st)
     importlib.reload(mod)
-    maps = stage_maps()
-    byent = {}
-    for x in meta['metatiles']:
-        for e in x['entries']:
-            byent.setdefault(e, x['name'])
-    grid_, pos = {}, {}
-    rows = maps['tall%d' % st]
-    for cy in range(2, 31):
-        for cx in range(0, 17):
-            n = byent.get(rows[cy][cx])
-            grid_[(cx, cy)] = n
-            if n:
-                pos.setdefault(n, []).append((cx, cy))
-    ctx = {'stage': st, 'meta': meta, 'grid': grid_, 'pos': pos, 'at': lambda cx, cy: grid_.get((cx, cy))}
-    terr = mod.terrain(ctx)
-    base_name = getattr(mod, 'FLOOR', 'floor_0')
-    base = terr[base_name]
-    item_art = items.all_items()
-    cells = []          # (metatile, img16)
-    missing = []
-    soft = terr.get('soft_block_0')
-    plain = set()
-    for x in meta['metatiles']:
-        for e in x['entries']:
-            if not (e & 0xC000):
-                plain.add(e & 0x3FF)
-    for x in meta['metatiles']:
-        k, n = x['kind'], x['name']
-        img = None
-        if (k not in ('bomb', 'flame', 'soft_destroy', 'item_burn', 'item') or (k == 'flame' and not x.get('piece'))) and all((e & 0xC000) and (e & 0x3FF) in plain for e in x['entries']):
-            missing.append(x)          # a mirror of a drawn cell: its characters come from that one
-            continue
-        if k == 'bomb':
-            img = over(base.copy(), objects.pod(x['bomb_type'], x['frame']))
-        elif k == 'flame':
-            if x.get('piece'):
-                img = over(base.copy(), objects.bloom(x['piece'], x['frame']))
-            else:
-                img = mod.track_flame(ctx, x, terr) if hasattr(mod, 'track_flame') else None
-        elif k == 'soft_destroy':
-            img = over(base.copy(), objects.shed(soft, x['frame']))
-        elif k == 'item_burn':
-            img = over(base.copy(), objects.wilt(x['frame']))
-        elif k == 'item':
-            img = item_art.get(x['item'])
-        else:
-            img = terr.get(n)
-            if img is None and hasattr(mod, 'cell'):
-                img = mod.cell(ctx, x, terr)
-        if img is None:
-            missing.append(x)
-            continue
-        if (img < 0).any() and k != 'bg1_overlay':
-            # BG2 cells are opaque (the backdrop would show): fill holes with the floor
-            img = over(base.copy(), img)
-        cells.append((x, img))
-    # characters
-    chars = {}          # char number -> (slot, 8x8 image, who)
-    pals = Palettes()
-    pals.pin('bg5', 15, items.BORDER[0])
-    for x, img in cells:
-        for e in x['entries']:
-            t, pal, hf, vf = e & 0x3FF, (e >> 10) & 7, (e >> 14) & 1, (e >> 15) & 1
-            canon = img
-            if hf:
-                canon = canon[:, ::-1]
-            if vf:
-                canon = canon[::-1, :]
-            slot = slot_of(pal)
-            for q, c in zip(quads(canon), (t, t + 1, t + 16, t + 17)):
-                q = np.ascontiguousarray(q)
-                prev = chars.get(c)
-                if prev is not None:
-                    if prev[0] == slot and np.array_equal(prev[1], q):
-                        continue
-                    if prev[0] != slot and np.array_equal(prev[1], q):
-                        pals.need(slot, set(int(v) for v in np.unique(q) if v >= 0), x['name'])
-                        continue
-                    report.append('stage %d: char $%03X drawn twice differently: %s vs %s' % (st, c, prev[2], x['name']))
-                    continue
-                chars[c] = (slot, q, x['name'])
-                pals.need(slot, set(int(v) for v in np.unique(q) if v >= 0), x['name'])
-    anims = terr.get('__anims__', [])
-    for an in anims:
-        for fr, im in an['frames']:
-            pals.need(slot_of(an['pal']), set(int(v) for v in np.unique(im) if v >= 0), 'anim $%02X' % an['tile'])
-    notdrawn = []
-    for x in missing:
-        ok = True
-        for e in x['entries']:
-            t = e & 0x3FF
-            if any(c not in chars for c in (t, t + 1, t + 16, t + 17)):
-                ok = False
-        if not ok:
-            notdrawn.append(x['name'])
-    if notdrawn:
-        report.append('stage %d: NOT DRAWN %d: %s' % (st, len(notdrawn), ', '.join(notdrawn)))
-    sol = pals.solve()
-    # the owner palettes 1..4 are one garden palette (the bloom / pod colours + the floor)
     pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
     ppu = pack['stages'][st - 1]['ppu']
-    chr_base = (ppu['bg2_char_base'] * 2) & 0xFFFF
+    res = arena.build_stage(st, mod, meta, stage_maps(), report, objects, ppu)
     blob = 'stage%02d' % st
-    for c, (slot, q, who) in chars.items():
-        pal = sol[slot]
-        idx = np.zeros((8, 8), np.int32)
-        for yy in range(8):
-            for xx in range(8):
-                v = int(q[yy, xx])
-                idx[yy, xx] = 0 if v < 0 else pal.index(v)
-        ov.put(blob, (chr_base + c * 32) & 0xFFFF, encode4(idx))
-    # animated characters (C1340A sources at WRAM $7E4828 + frame*32, 16 chars per row)
-    for an in anims:
-        pal = sol[slot_of(an['pal'])]
+    rows = res['rows']
+    for r, words in rows.items():
+        ov.put(blob, 0x10000 + r * 32, pal_bytes(words))
+    # characters still drawn the SNES way: animated cells (their sources in WRAM) and BG1
+    # overlays; {(bg, tile): (row, 16x16 image)} (transparent = colour 0: the ground shows)
+    for (bg, t), (row, img) in res['chars'].items():
+        base = (ppu['bg%d_char_base' % bg] * 2) & 0xFFFF
+        P = rows[row]
+        idx = np.vectorize(lambda v: 0 if v < 0 else P.index(int(v), 1))(img)
+        for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
+            ov.put(blob, (base + c * 32) & 0xFFFF, encode4(idx[dy:dy + 8, dx:dx + 8]))
+    for an in res['anims']:
+        P = rows[an['pal']]
         for fr, im in an['frames']:
             for (dy, dx), k in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (0, 1, 16, 17)):
                 q = im[dy:dy + 8, dx:dx + 8]
-                idx = np.vectorize(lambda v: 0 if v < 0 else pal.index(int(v)))(q)
+                idx = np.vectorize(lambda v: 0 if v < 0 else P.index(int(v), 1))(q)
                 ov.put(blob, 0x10200 + 0x828 + ((fr & 0x7F) + k) * 32, encode4(idx))   # C1340A: frame & $7F
-    # palette cycles (stage 8 / 9: the display loads whole BG palettes from ROM C1 per
-    # phase): phase p = the solved palette with each cycling colour C[k] -> C[(k - p) % n]
-    for slot_pal, cyc in terr.get('__cycles__', {}).items():
-        pal = sol[slot_of(slot_pal)]
+    # palette cycles (stage 8 / 9: whole BG rows loaded from ROM C1 per phase)
+    for row, cyc in res['cycles'].items():
+        pal = rows[row]
         cols, base_addr, phases = cyc['colours'], cyc['rom'], cyc['phases']
         n = len(cols)
-        for c in cols:
-            if c not in pal:
-                raise SystemExit('stage %d: cycling colour not in palette %d' % (st, slot_pal))
         for ph in range(phases):
             words = [cols[(cols.index(c) - ph) % n] if c in cols else c for c in pal]
             ov.put('rom.C1', base_addr + 32 * ph, pal_bytes(words))
-    cg = 0x10000      # CGRAM offset in the stage blob
-    for p in range(1, 8):
-        slot = slot_of(p)
-        if slot not in sol:
-            continue
-        words = sol[slot]
-        ov.put(blob, cg + p * 32, b''.join(int(w).to_bytes(2, 'little') for w in words))
-    report.append('stage %d: %d cells, %d chars, palettes %s' % (st, len(cells), len(chars),
-                  ' '.join('%s:%d' % (s, len(set(v)) - 1) for s, v in sorted(sol.items()))))
-    return {'cells': cells, 'sol': sol, 'terr': terr, 'meta': meta}
-
-
-# ---- the gardeners (ROM C5 pose graphics + C1 palettes) ------------------------------------
-PAL_HEALTHY = [0xE2BC, 0xE2DC, 0xE2FC, 0xE31C]     # C1D7B0[colour] for colours 0..3 (white black red blue)
-PAL_SICK = [0xE55C, 0xE57C, 0xE59C, 0xE5BC]        # C1D7DA[colour]
-PAL_GOLD, PAL_GOLD_SICK = 0xDCFC, 0xDD1C
-COLOURS = ['white', 'black', 'red', 'blue']
+    first = len(art['pics'])
+    art['pics'] += res['pics']
+    shade_ids = [first + i for i, p in enumerate(res['colour_pics']) if p[1]]
+    cls = []
+    for key, mode, row, layers in res['cls']:
+        cls.append([key, mode, row, None if layers is None else
+                    [[w, h, salt, [first + i for i in ids]] for (w, h, salt, ids) in layers]])
+    art['stages'][str(st)] = {'shade': res['shade'], 'shadePics': shade_ids, 'cls': cls,
+                              'masks': res['masks'], 'maskRefs': res['refs'], 'stat': res['stat']}
+    return res
 
 
 def pal_bytes(words):
     return b''.join(int(w).to_bytes(2, 'little') for w in words)
-
-
-def gardeners(ov, report):
-    import bombers
-    pieces = bombers.read_pieces()
-    for t, g in pieces.items():
-        for (dy, dx), c in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (t, t + 1, t + 16, t + 17)):
-            ov.put('rom.C5', (c & 0x7FF) << 5, encode4(g[dy:dy + 8, dx:dx + 8]))
-    # the pointer tables are checked against the pack (the palettes are rewritten in place)
-    pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
-    with open(os.path.join(ASSETS, 'pack', pack['bin']), 'rb') as f:
-        f.seek(pack['blobs']['rom.C1'][0])
-        c1 = f.read(0x10000)
-    w16 = lambda a: c1[a] | (c1[a + 1] << 8)
-    for i in range(4):
-        assert w16(0xD7B0 + 2 * i) == PAL_HEALTHY[i] and w16(0xD7DA + 2 * i) == PAL_SICK[i], 'C1 palette table moved'
-        ov.put('rom.C1', PAL_HEALTHY[i], pal_bytes(bombers.palette(COLOURS[i])))
-        ov.put('rom.C1', PAL_SICK[i], pal_bytes(bombers.palette(COLOURS[i], sick=True)))
-    ov.put('rom.C1', PAL_GOLD, pal_bytes(bombers.palette('gold')))
-    ov.put('rom.C1', PAL_GOLD_SICK, pal_bytes(bombers.palette('gold', sick=True)))
-    report.append('gardeners: %d pieces, 10 palettes' % len(pieces))
 
 
 # ---- the HUD (BG3 2bpp, map $5C00 / chars $A000 in every stage) ----------------------------
@@ -410,7 +282,9 @@ def obj_put(ov, blob, base, t, img, pal=None):
 POD_PAL = None
 
 
-def stage_fx(st, ov, report, terr):
+def stage_fx(st, ov, report):
+    """the held / kicked / thrown pods (the garden's bombs): fixed OBJ tiles in the classic
+    bomb palette (objPal8); every other sprite is the original's"""
     global POD_PAL
     import fx
     pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
@@ -422,21 +296,6 @@ def stage_fx(st, ov, report, terr):
         POD_PAL = auto_palette(list(pods.values()), 'pod', report)
     for t, im in pods.items():
         obj_put(ov, blob, base, t, im, POD_PAL)
-    obj_put(ov, blob, base, 64, fx.shadow())
-    for t, im in fx.cards().items():
-        obj_put(ov, blob, base, t, im)
-    six = {**fx.puffs(), **fx.seeds(), **fx.hurry()}
-    six[142] = terr['pressure_block']
-    six[188] = np.full((8, 8), -1, np.int32)
-    p6 = auto_palette(list(six.values()), 'fx6 stage %d' % st, report)
-    for t, im in six.items():
-        obj_put(ov, blob, base, t, im, p6)
-    ov.put(blob, 0x10000 + (128 + 6 * 16) * 2, pal_bytes(p6))
-    if st == 2:
-        sb = fx.snowball()
-        p4 = auto_palette([sb], 'fx4', report)
-        obj_put(ov, blob, base, 96, sb, p4)
-        ov.put(blob, 0x10000 + (128 + 4 * 16) * 2, pal_bytes(p4))
 
 
 # ---- the menus (menu.js: menu.json / menu.bin, patched like the battle pack) ------------------
@@ -644,36 +503,14 @@ def strip_skin(ov, report):
     return blob, {'strip': strip, 'go': {'runs': [{'frames': go, 'fade_starts_frames_after_press': 98}], 'pieces': meta, 'fade_after': 98}}
 
 
-def figures_skin(report):
-    """the winner figures atlas (public/arcade/sb2/garden/figures.png) + their anims"""
-    import figures
-    from gfx import save_png
-    cols = ['white', 'black', 'red', 'blue']
-    fr = {c: figures.frames(c) for c in cols}
-    w, h = fr['white'][0][0].shape[1] + 2, fr['white'][0][0].shape[0] + 2
-    atlas = np.full((h * 4, w * 2), -1, np.int32)
-    anims = {}
-    for r, c in enumerate(cols):
-        anims[c] = {'winner': [], 'loser': []}
-        for k, (img, dur) in enumerate(fr[c]):
-            atlas[r * h:r * h + img.shape[0], k * w:k * w + img.shape[1]] = img
-            anims[c]['winner'].append([k * w, r * h, img.shape[1], img.shape[0], dur])
-        anims[c]['loser'] = [anims[c]['winner'][1][:4] + [60]]
-    save_png(atlas, os.path.join(OUT, 'figures.png'))
-    report.append('figures: 4 colours x 2 frames')
-    return {'atlas': 'figures.png', 'anims': anims}
-
-
 def contact_sheet(st, res, path):
-    """every drawn cell of the stage on one sheet (16 per row), for review"""
-    from PIL import Image
-    cells = res['cells']
-    n = len(cells)
-    rows = (n + 15) // 16
+    """every picture of the stage on one sheet (16 per row), for review"""
+    pics = [p for p in res['colour_pics'] if not p[1]]
+    rows = (len(pics) + 15) // 16
     sheet = np.full((rows * 17, 16 * 17), -1, np.int32)
-    for i, (x, img) in enumerate(cells):
+    for i, p in enumerate(pics):
         r, c = divmod(i, 16)
-        sheet[r * 17:r * 17 + 16, c * 17:c * 17 + 16] = img
+        sheet[r * 17:r * 17 + 16, c * 17:c * 17 + 16] = p[0]
     from gfx import save_png
     save_png(sheet, path, scale=3, bg=(20, 10, 30))
 
@@ -689,24 +526,25 @@ def main():
     report = []
     stages = list(range(1, 11))          # always all: the overlay is written whole
     results = {}
+    art = {'pics': [], 'stages': {}}
     for st in stages:
         try:
-            importlib.import_module('s%02d' % st)
+            m = importlib.import_module('s%02d' % st)
         except ModuleNotFoundError:
-            report.append('stage %d: no source yet' % st)
+            m = None
+        if m is None or not hasattr(m, 'paint'):
+            report.append('stage %d: no source yet (the original pictures)' % st)
             continue
-        results[st] = stage_arena(st, ov, report)
+        results[st] = stage_cells(st, ov, report, art)
         stage_hud(st, ov, report)
-        stage_fx(st, ov, report, results[st]['terr'])
+        stage_fx(st, ov, report)
         if a.sheets and (not a.stage or st in a.stage):
             contact_sheet(st, results[st], os.path.join(SCRATCH, 'sheet_s%02d.png' % st))
-    gardeners(ov, report)
     mov = Overlay()
     menu_skin(mov, report)
     menu_manifest = title_skin(mov, report)
     strip_blob, strip_manifest = strip_skin(mov, report)
     menu_manifest.update(strip_manifest)
-    import items
     # the overlay files
     binbuf = bytearray()
     patches = []
@@ -725,12 +563,28 @@ def main():
         binbuf += data
         while len(binbuf) & 3:
             binbuf.append(0)
+    # the cell art: pictures (256 bytes each: CGRAM index per pixel), per stage the shade
+    # map and the static stacks of both layouts (per map cell: count, then u16 picture ids)
+    art_json = {'pics': [len(binbuf), len(art['pics'])], 'stages': {}}
+    for p in art['pics']:
+        binbuf += bytes(p)
+    for k, S in art['stages'].items():
+        j = {'shadePics': S['shadePics'], 'cls': S['cls'], 'masks': S['masks'], 'maskRefs': S['maskRefs']}
+        j['shade'] = len(binbuf)
+        binbuf += S['shade']
+        j['stat'] = {}
+        for lay, b in S['stat'].items():
+            j['stat'][lay] = len(binbuf)
+            binbuf += b
+        while len(binbuf) & 3:
+            binbuf.append(0)
+        art_json['stages'][k] = j
     manifest = {
         'version': 1, 'name': 'garden', 'title': 'Bomber Garden',
         'menu': {'patches': mpatches, 'blobs': mblobs, 'mini': 'mini_tall.png', 'miniOrig': 'mini_orig.png', 'manifest': menu_manifest},
         'note': 'Garden Edition: original pixel art (tools/sb2/garden/), an overlay on the runtime pack',
         'bin': 'garden.bin',
-        'pack': {'patches': patches, 'figures': figures_skin(report), 'display': {'border95': list(items.BORDER), 'objPal8': POD_PAL}},
+        'pack': {'patches': patches, 'display': {'objPal8': POD_PAL, 'art': art_json}},
     }
     with open(os.path.join(OUT, 'garden.bin'), 'wb') as f:
         f.write(binbuf)

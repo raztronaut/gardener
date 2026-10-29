@@ -139,6 +139,10 @@ export function createPPU(H) {
         // tile top-left on screen
         const sx0 = ((tx0 + c) << shift) - bx0, sy0 = ((ty0 + r) << shift) - by0;
         const t = e & 0x3FF, pal = (e >> 10) & 7, pr = (e >> 13) & 1, hf = (e >> 14) & 1, vf = (e >> 15) & 1;
+        if (art !== null && l.id === 2) {
+          const key = t | ((e >> 4) & 0xC00), mode = art.mode[key];
+          if (mode !== 0) { artTile(l, e, key, mode, tx0 + c, ty0 + r, sx0, sy0, pr); continue; }
+        }
         const pbase = pal * palMul;
         for (let y = 0; y < ts; y++) {
           const sy = sy0 + y;
@@ -159,13 +163,67 @@ export function createPPU(H) {
             }
           }
         }
-        // mark the covered 8x8 screen blocks
-        for (let by = Math.max(0, sy0 >> 3); by <= Math.min(BH - 1, (sy0 + ts - 1) >> 3); by++) {
-          for (let bx = Math.max(0, sx0 >> 3); bx <= Math.min(BW - 1, (sx0 + ts - 1) >> 3); bx++) blockDirty[by * BW + bx] = 1;
-        }
+        markBlocks(sx0, sy0, ts);
       }
     }
     l.force = false;
+  }
+  // mark the 8x8 screen blocks a tile covers
+  function markBlocks(sx0, sy0, ts) {
+    for (let by = Math.max(0, sy0 >> 3); by <= Math.min(BH - 1, (sy0 + ts - 1) >> 3); by++) {
+      for (let bx = Math.max(0, sx0 >> 3); bx <= Math.min(BW - 1, (sx0 + ts - 1) >> 3); bx++) blockDirty[by * BW + bx] = 1;
+    }
+  }
+
+  // ---- skin cell art (BG2 only; null for the original pictures) ----------------------------
+  // A skin may paint the arena per map cell instead of per character (display.js builds it
+  // from the overlay, render/skin.js): art.under = the cell's static ground (CGRAM indices,
+  // 512 x 512 = the 32 x 32 map), art.mode[key] (key = tile | flips << 10):
+  //   1 = the ground only, 2 = picture layers over the ground (a variant per cell by a
+  //   stable hash), 3 = the characters over the ground (art.row[key] = their palette row,
+  //   255 = the entry's own; art.mask[key] = pixels that show the ground instead).
+  let art = null;
+  const cellBuf = new Uint8Array(256);
+  function setArt(a) { art = a; L[2].force = true; allDirty = true; }
+  function artTile(l, e, key, mode, tx, ty, sx0, sy0, pr) {
+    const mtx = tx & 31, mty = ty & 31;
+    const U = art.under, ub = mty * 16 * 512 + mtx * 16;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) cellBuf[y * 16 + x] = U[ub + y * 512 + x];
+    if (mode === 2) {
+      const layers = art.layers[key];
+      for (let k = 0; k < layers.length; k++) {
+        const pic = art.pick(layers[k], mtx, mty);
+        for (let i = 0; i < 256; i++) if (pic[i]) cellBuf[i] = pic[i];
+      }
+    } else if (mode === 3) {
+      const m = art.mask[key], rw = art.row[key];
+      const pbase = (rw === 255 ? (e >> 10) & 7 : rw) * 16;
+      const t = e & 0x3FF, hf = (e >> 14) & 1, vf = (e >> 15) & 1;
+      for (let y = 0; y < 16; y++) {
+        const ty2 = vf ? 15 - y : y;
+        for (let half = 0; half < 2; half++) {
+          const cx = hf ? 1 - half : half;
+          const ch = (t + (ty2 >= 8 ? 16 : 0) + cx) & 0x3FF;
+          charRow((l.chr + ch * 32) & 0xFFFF, 4, ty2 & 7, rowBuf, 0);
+          for (let x = 0; x < 8; x++) {
+            const v = rowBuf[hf ? 7 - x : x], i = y * 16 + half * 8 + x;
+            if (v && !(m && m[i])) cellBuf[i] = pbase + v;
+          }
+        }
+      }
+    }
+    for (let y = 0; y < 16; y++) {
+      const sy = sy0 + y;
+      if (sy < 0 || sy >= l.maxY) continue;
+      for (let x = 0; x < 16; x++) {
+        const sx = sx0 + x;
+        if (sx < 0 || sx >= W) continue;
+        const i = sy * W + sx;
+        l.idx[i] = cellBuf[y * 16 + x];
+        l.pri[i] = pr;
+      }
+    }
+    markBlocks(sx0, sy0, 16);
   }
 
   // ---- composed background (BG layers + backdrop, colour math with BG3) ------------------
@@ -333,7 +391,7 @@ export function createPPU(H) {
 
   return {
     W, H, vram, cgram, oam, L, state,
-    configure, setWindowLines, render, writeVram, forceAll, addGfx, vramObj, clearObjCache,
+    configure, setWindowLines, render, writeVram, forceAll, addGfx, vramObj, clearObjCache, setArt,
     set brightness(b) { brightness = b & 15; }, get brightness() { return brightness; },
     setObjBase(a, b) { objBase = a; objBase2 = b; clearObjCache(); },
   };

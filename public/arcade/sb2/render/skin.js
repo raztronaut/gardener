@@ -38,6 +38,12 @@ export function skinPack(pack, skin) {
   const S = skin.manifest.pack || {};
   const bin = patchBlobs(pack.manifest.blobs, pack.bin, S.patches || [], skin.bin);
   const manifest = { ...pack.manifest, skin: { name: skin.manifest.name, ...(S.display || {}) } };
+  if (S.display && S.display.art) {
+    // the cell art (display.js stageArt) reads its pictures from the skin's bin, and the
+    // ORIGINAL stage (characters + colours) to find the floor in the original's own cells
+    manifest.skin.artBin = skin.bin;
+    manifest.skin.origStage = (n) => pack.stage(n);
+  }
   if (S.figures) manifest.figures = { ...S.figures, url: skin.base + S.figures.atlas };
   return makePack(manifest, bin);
 }

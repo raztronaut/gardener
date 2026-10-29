@@ -97,7 +97,7 @@ export function createDisplay(pack, opts = {}) {
       const b2 = rom8(pose + 2), b3 = rom8(pose + 3), b4 = rom8(pose + 4);
       const large = (b3 & 0x80) ? 1 : 0;
       const size = large ? 16 : 8;
-      let attr, gfx, xp = 0;
+      let attr, gfx, xp = 0, gfxTile = -1;
       if (kind === 0) {
         attr = b2 & 0xFE;
         const tid = ((b3 & 0x0F) << 8) | b4;
@@ -114,6 +114,7 @@ export function createDisplay(pack, opts = {}) {
         attr = b2 | (b3 & 1);
         const t = ((attr & 1) << 8) | ((kind === 2 ? b4 + A[p + 0x88] : b4) & 0xFF);
         gfx = ppu.vramObj(t, size);
+        gfxTile = t;
       }
       if (!(f06 & 0x8000)) attr = (attr & 0xF1) | ((f06 << 1) & 0x0E);   // C0A056
       if (!(f04 & 0x40)) {                         // C09F9A: hidden objects write nothing
@@ -122,6 +123,9 @@ export function createDisplay(pack, opts = {}) {
         // classic: a kicked / thrown / bouncing / conveyed bomb (mover mode 1) and a held
         // bomb (above) in black's healthy palette
         if (xp || (classic && kind === 1 && (A[p + 0x7F] & 0x0F) === 1)) S.xpal[slot & 0x7F] = 1;
+        // a skin's own bomb picture: a bomb mover in mode 2 (drawn in the pose's palette 0)
+        // takes the bomb palette too
+        else if (classic && SK.objPal8 && kind === 1 && (A[p + 0x7F] & 0x0F) === 2 && (gfxTile & 0x1F0) === 0x20 && (gfxTile & 0x0F) < 10) S.xpal[slot & 0x7F] = 1;
       }
       if (kind === 0) slot++;
     }
@@ -353,6 +357,92 @@ export function createDisplay(pack, opts = {}) {
     }
   }
 
+  // ---- skin cell art (ppu.setArt; render/skin.js, NOTES-garden.md) ----------------------------
+  // The skin's arena: per map cell a static ground (picture stacks, shaded where a wall
+  // casts its shadow), picture layers for the cells that come and go (variants by a stable
+  // per-cell hash), and the original's own characters (fire, burning blocks, items) drawn
+  // over the ground where they are not the original's floor (masks measured on the
+  // ORIGINAL pack at run time: nothing of the original is in the skin).
+  const artCache = new Map();
+  function artHash(x, y, salt) {
+    let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(salt, 2246822519)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+  function artPick(L, tx, ty) {
+    const d = L.n > 1 ? artHash((tx / L.w) | 0, (ty / L.h) | 0, L.salt) % L.n : 0;
+    return L.pics[d * L.w * L.h + (tx % L.w) + (ty % L.h) * L.w];
+  }
+  function stageArt(n) {
+    const A = SK.art, S = A && A.stages[n];
+    if (!S) return null;
+    if (artCache.has(n)) return artCache.get(n);
+    const bin = SK.artBin;
+    const pic = (id) => bin.subarray(A.pics[0] + id * 256, A.pics[0] + id * 256 + 256);
+    const shade = bin.subarray(S.shade, S.shade + 256);
+    const shadePic = new Set(S.shadePics);
+    // the static ground of this layout
+    const under = new Uint8Array(512 * 512);
+    let o = S.stat[tall ? 'tall' : 'original'];
+    for (let cell = 0; cell < 1024; cell++) {
+      const cnt = bin[o++], ub = (cell >> 5) * 16 * 512 + (cell & 31) * 16;
+      for (let k = 0; k < cnt; k++, o += 2) {
+        const id = bin[o] | (bin[o + 1] << 8), p = pic(id), sh = shadePic.has(id);
+        for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+          const v = p[y * 16 + x];
+          if (!v) continue;
+          const i = ub + y * 512 + x;
+          under[i] = sh ? shade[under[i]] : v;
+        }
+      }
+    }
+    const mode = new Uint8Array(4096), row = new Uint8Array(4096), layers = [], mask = [];
+    for (const [key, m, rw, ls] of S.cls) {
+      mode[key] = m; row[key] = rw;
+      if (ls) layers[key] = ls.map(([w, h, salt, ids]) => ({ w, h, salt, n: ids.length / (w * h), pics: ids.map(pic) }));
+    }
+    // the original's fire / burning blocks / items: which of their pixels are its floor
+    const O = SK.origStage ? SK.origStage(n) : null;
+    if (O) {
+      const chr = (O.ppu.bg2_char_base * 2) & 0xFFFF;
+      const cellCols = (e) => {
+        const out = new Int32Array(256), t = e & 0x3FF, pl = (e >> 10) & 7, hf = (e >> 14) & 1, vf = (e >> 15) & 1;
+        for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+          const sx = hf ? 15 - x : x, sy = vf ? 15 - y : y;
+          const ch = t + (sy >= 8 ? 16 : 0) + (sx >= 8 ? 1 : 0), a = (chr + ch * 32 + (sy & 7) * 2) & 0xFFFF, s = 7 - (sx & 7);
+          const v = ((O.vram[a] >> s) & 1) | (((O.vram[a + 1] >> s) & 1) << 1) | (((O.vram[a + 16] >> s) & 1) << 2) | (((O.vram[a + 17] >> s) & 1) << 3);
+          out[y * 16 + x] = v ? (O.cgram[2 * (pl * 16 + v)] | (O.cgram[2 * (pl * 16 + v) + 1] << 8)) : -1;
+        }
+        return out;
+      };
+      const refs = (S.maskRefs || []).map(cellCols);
+      const stack = new Int32Array(256);
+      for (const [key, e] of S.masks || []) {
+        const c = cellCols(e);
+        let best = null, bn = -1;
+        for (const r of refs) { let k = 0; for (let i = 0; i < 256; i++) if (c[i] === r[i]) k++; if (k > bn) { bn = k; best = r; } }
+        const m = new Uint8Array(256);
+        if (best) {
+          // the floor = matching pixels connected to the cell's edge
+          let sp = 0;
+          for (let i = 0; i < 256; i++) {
+            const x = i & 15, y = i >> 4;
+            if ((x === 0 || y === 0 || x === 15 || y === 15) && c[i] === best[i]) { m[i] = 1; stack[sp++] = i; }
+          }
+          while (sp) {
+            const i = stack[--sp], x = i & 15, y = i >> 4;
+            const nb = [x > 0 ? i - 1 : -1, x < 15 ? i + 1 : -1, y > 0 ? i - 16 : -1, y < 15 ? i + 16 : -1];
+            for (const j of nb) if (j >= 0 && !m[j] && c[j] === best[j]) { m[j] = 1; stack[sp++] = j; }
+          }
+        }
+        mask[key] = m;
+      }
+    }
+    const a = { under, mode, row, layers, mask, pick: artPick };
+    artCache.set(n, a);
+    return a;
+  }
+
   // ---- rounds and ticks ----------------------------------------------------------------------
   const animPrev = new Int32Array(4).fill(-1);
   const pendingPuffs = [];
@@ -370,6 +460,7 @@ export function createDisplay(pack, opts = {}) {
     // tall: BG3 (the HUD) is a 256-line map; it would wrap and repeat below line 256
     if (tall) ppu.L[3].maxY = 256;
     if (tall && id === 6) tallPlates();
+    ppu.setArt(SK.art ? stageArt(stage) : null);
     ppu.setObjBase((st.ppu.obj_name_base * 2) & 0xFFFF, (st.ppu.obj_name_base2 * 2) & 0xFFFF);
     ppu.forceAll();
     for (const e of fx) e.fill(0);

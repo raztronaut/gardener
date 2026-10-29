@@ -1,43 +1,99 @@
-"""Stage 1 — the KITCHEN GARDEN: sandy paths between the beds, round lettuce bushes with
-white pea flowers (soft), stone planters with a sprout of chives (hard, and the ring),
-a red-brick garden wall beyond."""
+"""Stage 1 — the MEADOW: lush summer grass with daisies, buttercups, clover and pebbles;
+round flowering shrubs, berry bushes and tall grass clumps (soft); mossy boulders and old
+tree stumps (hard); a dark hawthorn hedgerow all round, sprinkled with wild roses."""
 from common import *  # noqa: F401,F403
+import terrain as TR
+import nature as N
 
-NAME = 'Kitchen Garden'
+NAME = 'Meadow'
 
-PLANTER = """
-.oooooooooooooo.
-o44444444444443o
-o4oooooooooooo3o
-o4oTTTTTTTTTTo3o
-o4oTTTgTTTTlTo3o
-o4oTTgLgTTlLlo3o
-o4oTTgLgTTTlTo3o
-o3oooooooooooo2o
-o33333333333332o
-o22222222222221o
-o22232222223221o
-o11111111111111o
-o22222322222221o
-o23222222232221o
-o11111111111111o
-.oooooooooooooo.
-"""
+# ground
+G = [C('#1d4426'), C('#2a6030'), C('#3a7c38'), C('#529a44'), C('#7cb853')]
+G_SH = C('#16331d')
+WHITE_D = C('#d8e0d0')
+BUTTER = C('#f6d44a')
+BUTTER_D = C('#c89a28')
+VIOLET = C('#9a70d8')
+VIOLET_D = C('#6a48a8')
+# bushes
+B = [C('#173d1e'), C('#25602a'), C('#3c8636'), C('#62ac46'), C('#9cd468')]
+B_OUT = C('#0c2312')
+ROSE = C('#f08aa8')
+ROSE_D = C('#c05478')
+BERRY = C('#d02838')
+# stone / wood
+ST = [C('#3a4244'), C('#566264'), C('#7a8684'), C('#a0aaa2'), C('#c8d0c2')]
+MOSS = [C('#3c6a26'), C('#5c8c30'), C('#84b040'), C('#a8cc58')]
+BARK = [C('#2e1c10'), C('#4c3018'), C('#6c4826'), C('#8c6234')]
+WOOD = [C('#7a5430'), C('#a87c48'), C('#c89e62'), C('#e2c084')]
+INKB = C('#1a120a')
+# hedge
+H = [C('#0f2a16'), C('#1a4222'), C('#28602c'), C('#3c7e34'), C('#5a9c40')]
 
-def terrain(ctx):
-    a = {}
-    floor = speckle(16, 16, SAND_1, [(SAND_2, 3), (SAND_0, 2)], seed=11, density=0.09)
-    pebbles(floor, (SAND_2, SAND_1, SAND_0), 2, seed=3)
-    a['floor_0'] = floor
-    a['floor_1'] = shadow_top(floor, [SAND_2, SAND_1, SAND_0], [SAND_1, SAND_0, SAND_0], rows=5)
-    a['soft_block_0'] = over(floor.copy(), clump_bush([LEAF_1, LEAF_2, LEAF_3, LEAF_4], INK, flowers=(WHITE, SAND_2)))
-    L = {'o': INK, '4': STONE_4, '3': STONE_3, '2': STONE_2, '1': STONE_1, 'T': TERRA_1, 'g': LEAF_2, 'L': LEAF_4, 'l': LEAF_3}
-    a['hard_block_0'] = over(floor.copy(), grid(PLANTER, L))
-    # beyond the ring: the red-brick garden wall seen from above
-    a['border_0'] = bricks(16, 16, TERRA_2, SAND_0, TERRA_2, TERRA_1, seed=2)
-    # the sudden-death block: a heavy terracotta-capped stone slab
-    slab = grid(PLANTER.replace('T', '3').replace('g', '3').replace('L', '4').replace('l', '3'), L)
-    slab = remap(slab, [STONE_4, STONE_3], [TERRA_2, TERRA_2])
-    slab[1, 1:15] = STONE_4
-    a['pressure_block'] = over(floor.copy(), slab)
-    return a
+SHADE = {G[4]: G[2], G[3]: G[1], G[2]: G[0], G[1]: G_SH, G[0]: G_SH}
+
+
+def ground_tex():
+    return TR.grass_tex(G, 101, tuft=0.7)
+
+
+def decals():
+    d = []
+    d.append(TR.decal_flowers(1, [(WHITE, BUTTER, WHITE_D)], n=3))
+    d.append(TR.decal_flowers(2, [(BUTTER, BUTTER_D, BUTTER_D)], n=3, kinds=('plus', 'dot')))
+    d.append(TR.decal_flowers(3, [(VIOLET, BUTTER, VIOLET_D)], n=2))
+    d.append(TR.decal_clover(4, [G[2], G[3], G[4]], n=4, bloom=(WHITE, WHITE_D)))
+    d.append(TR.decal_clover(5, [G[2], G[3], G[4]], n=3))
+    d.append(TR.decal_pebbles(6, [G_SH, ST[1], ST[2], ST[3]], n=3))
+    d.append(TR.decal_tuft(7, [G[1], G[3], G[4], C('#a8d470')], n=2))
+    d.append(TR.decal_flowers(8, [(WHITE, BUTTER, WHITE_D), (BUTTER, BUTTER_D, BUTTER_D)], n=4, kinds=('dot', 'plus')))
+    d.append(TR.decal_tuft(9, [G[1], G[3], G[4], C('#a8d470')], n=1))
+    return d
+
+
+def paint(cv, L):
+    ring, pillars, field = TR.classify(L)
+    allc = set(L.cells)
+    TR.tile_tex(cv.base, ground_tex(), allc)
+    TR.scatter(cv.decal, field, decals(), 0.42, 11)
+    # the hedgerow: a leafy mass over the ring with a ragged inner edge
+    reg = TR.rough_region(ring, 31, amp=1.6)
+    TR.mass(cv.obj, reg, H, 41, outline=B_OUT, dome_r=10.0, glob=0.9)
+    # wild roses on the hedge's sunny faces
+    r = Rng(7)
+    for (cx, cy) in sorted(ring):
+        if r.rand(5) == 0:
+            x, y = cx * 16 + 3 + r.rand(10), cy * 16 + 3 + r.rand(10)
+            if reg[y, x] and reg[y + 2, x + 2] and cv.obj[y, x] in H[2:]:
+                TR.flower(cv.obj, x, y, ROSE, BUTTER, ROSE_D, 'plus')
+    # hard: boulders and stumps by hash
+    hard = hard_blocks()
+    for (cx, cy) in pillars:
+        h = TR.cell_hash(cx, cy, 5)
+        cv.put('obj', hard[h % len(hard)], cx * 16, cy * 16)
+
+
+def hard_blocks():
+    return [
+        TR.boulder(ST, INKB, seed=1, moss=MOSS),
+        TR.boulder(ST, INKB, seed=2, moss=MOSS, lobes=5),
+        TR.boulder(ST, INKB, seed=3, moss=MOSS, rx=7.2, ry=6.2),
+        TR.stump(BARK, WOOD, INKB, seed=4, moss=MOSS),
+        TR.boulder(ST, INKB, seed=5, moss=MOSS, lobes=3),
+    ]
+
+
+def soft():
+    out = []
+    out.append(TR.bush(B, B_OUT, seed=1, flowers=[(ROSE, BUTTER, ROSE_D)], shadow=G_SH))
+    out.append(TR.bush(B, B_OUT, seed=2, flowers=[(WHITE, BUTTER, WHITE_D)], shadow=G_SH))
+    out.append(TR.bush(B, B_OUT, seed=3, berries=(BERRY, ROSE), shadow=G_SH))
+    out.append(TR.bush(B, B_OUT, seed=4, shadow=G_SH, lobes=7))
+    out.append(TR.grass_clump([B[0], B[1], B[2], B[3], B[4]], B_OUT, seed=5, shadow=G_SH, seeds=BUTTER))
+    out.append(TR.bush(B, B_OUT, seed=6, flowers=[(ROSE, BUTTER, ROSE_D), (WHITE, BUTTER, WHITE_D)], nflowers=4, shadow=G_SH))
+    return out
+
+
+def pressure():
+    # the sudden-death block: a heavy grey field stone (like the falling block)
+    return TR.boulder(ST, INKB, seed=9, rx=7.4, ry=7.2, lobes=4, amp=0.05, flat=0.6)
