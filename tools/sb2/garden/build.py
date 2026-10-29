@@ -116,13 +116,40 @@ def slot_of(pal):
     return 'obj' if pal in OWNER else 'bg%d' % pal
 
 
+_MAPS = None
+
+
+def stage_maps():
+    global _MAPS
+    if _MAPS is None:
+        p = os.path.join(SCRATCH, 'maps.json')
+        if not os.path.exists(p):
+            import subprocess
+            subprocess.check_call(['node', os.path.join(HERE, 'mapdump.mjs'), p])
+        _MAPS = read_json(p)
+    return _MAPS
+
+
 def stage_arena(st, ov, report):
     import objects
     import items
     meta = read_json(os.path.join(ASSETS, 'stages', 'stage%02d' % st, 'stage.json'))
     mod = importlib.import_module('s%02d' % st)
     importlib.reload(mod)
-    ctx = {'stage': st, 'meta': meta}
+    maps = stage_maps()
+    byent = {}
+    for x in meta['metatiles']:
+        for e in x['entries']:
+            byent.setdefault(e, x['name'])
+    grid_, pos = {}, {}
+    rows = maps['tall%d' % st]
+    for cy in range(2, 31):
+        for cx in range(0, 17):
+            n = byent.get(rows[cy][cx])
+            grid_[(cx, cy)] = n
+            if n:
+                pos.setdefault(n, []).append((cx, cy))
+    ctx = {'stage': st, 'meta': meta, 'grid': grid_, 'pos': pos, 'at': lambda cx, cy: grid_.get((cx, cy))}
     terr = mod.terrain(ctx)
     base_name = getattr(mod, 'FLOOR', 'floor_0')
     base = terr[base_name]
@@ -130,9 +157,17 @@ def stage_arena(st, ov, report):
     cells = []          # (metatile, img16)
     missing = []
     soft = terr.get('soft_block_0')
+    plain = set()
+    for x in meta['metatiles']:
+        for e in x['entries']:
+            if not (e & 0xC000):
+                plain.add(e & 0x3FF)
     for x in meta['metatiles']:
         k, n = x['kind'], x['name']
         img = None
+        if (k not in ('bomb', 'flame', 'soft_destroy', 'item_burn', 'item') or (k == 'flame' and not x.get('piece'))) and all((e & 0xC000) and (e & 0x3FF) in plain for e in x['entries']):
+            missing.append(x)          # a mirror of a drawn cell: its characters come from that one
+            continue
         if k == 'bomb':
             img = over(base.copy(), objects.pod(x['bomb_type'], x['frame']))
         elif k == 'flame':
@@ -151,14 +186,12 @@ def stage_arena(st, ov, report):
             if img is None and hasattr(mod, 'cell'):
                 img = mod.cell(ctx, x, terr)
         if img is None:
-            missing.append(n)
+            missing.append(x)
             continue
         if (img < 0).any() and k != 'bg1_overlay':
             # BG2 cells are opaque (the backdrop would show): fill holes with the floor
             img = over(base.copy(), img)
         cells.append((x, img))
-    if missing:
-        report.append('stage %d: NOT DRAWN %d: %s' % (st, len(missing), ', '.join(missing)))
     # characters
     chars = {}          # char number -> (slot, 8x8 image, who)
     pals = Palettes()
@@ -185,6 +218,21 @@ def stage_arena(st, ov, report):
                     continue
                 chars[c] = (slot, q, x['name'])
                 pals.need(slot, set(int(v) for v in np.unique(q) if v >= 0), x['name'])
+    anims = terr.get('__anims__', [])
+    for an in anims:
+        for fr, im in an['frames']:
+            pals.need(slot_of(an['pal']), set(int(v) for v in np.unique(im) if v >= 0), 'anim $%02X' % an['tile'])
+    notdrawn = []
+    for x in missing:
+        ok = True
+        for e in x['entries']:
+            t = e & 0x3FF
+            if any(c not in chars for c in (t, t + 1, t + 16, t + 17)):
+                ok = False
+        if not ok:
+            notdrawn.append(x['name'])
+    if notdrawn:
+        report.append('stage %d: NOT DRAWN %d: %s' % (st, len(notdrawn), ', '.join(notdrawn)))
     sol = pals.solve()
     # the owner palettes 1..4 are one garden palette (the bloom / pod colours + the floor)
     pack = read_json(os.path.join(ASSETS, 'pack', 'pack.json'))
@@ -199,6 +247,26 @@ def stage_arena(st, ov, report):
                 v = int(q[yy, xx])
                 idx[yy, xx] = 0 if v < 0 else pal.index(v)
         ov.put(blob, (chr_base + c * 32) & 0xFFFF, encode4(idx))
+    # animated characters (C1340A sources at WRAM $7E4828 + frame*32, 16 chars per row)
+    for an in anims:
+        pal = sol[slot_of(an['pal'])]
+        for fr, im in an['frames']:
+            for (dy, dx), k in zip(((0, 0), (0, 8), (8, 0), (8, 8)), (0, 1, 16, 17)):
+                q = im[dy:dy + 8, dx:dx + 8]
+                idx = np.vectorize(lambda v: 0 if v < 0 else pal.index(int(v)))(q)
+                ov.put(blob, 0x10200 + 0x828 + ((fr & 0x7F) + k) * 32, encode4(idx))   # C1340A: frame & $7F
+    # palette cycles (stage 8 / 9: the display loads whole BG palettes from ROM C1 per
+    # phase): phase p = the solved palette with each cycling colour C[k] -> C[(k - p) % n]
+    for slot_pal, cyc in terr.get('__cycles__', {}).items():
+        pal = sol[slot_of(slot_pal)]
+        cols, base_addr, phases = cyc['colours'], cyc['rom'], cyc['phases']
+        n = len(cols)
+        for c in cols:
+            if c not in pal:
+                raise SystemExit('stage %d: cycling colour not in palette %d' % (st, slot_pal))
+        for ph in range(phases):
+            words = [cols[(cols.index(c) - ph) % n] if c in cols else c for c in pal]
+            ov.put('rom.C1', base_addr + 32 * ph, pal_bytes(words))
     cg = 0x10000      # CGRAM offset in the stage blob
     for p in range(1, 8):
         slot = slot_of(p)
