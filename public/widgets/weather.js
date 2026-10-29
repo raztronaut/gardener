@@ -6,7 +6,7 @@
 //   2. Sun        — plain-words sunrise / sunset (this line predates and is separate
 //                   from the banned Sun & Moon widget — it stays)
 //   3. Stats      — Humidity · UV
-//   4. Next days  — Tomorrow + the two days after: icon, high & low in °F and °C
+//   4. Next days  — Tomorrow + the two days after: icon, temps at 10 am · 3 pm · 8 pm (°F, °C)
 //   5. Hourly     — a smooth temperature curve with temps / icons / times beneath
 // Icons are self-hosted Meteocons SVGs in public/assets/weather/.
 //
@@ -269,7 +269,7 @@ export default {
   async mount(body, ctx) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
-      .wx { display:flex; flex-direction:column; height:100%; gap:6px; }
+      .wx { display:flex; flex-direction:column; height:100%; gap:4px; }
       .wx-sec { font-size:12.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
 
       /* 1 · now */
@@ -292,29 +292,29 @@ export default {
 
       /* 3 · stats — open columns, no boxes */
       .wx-stats { display:flex; }
-      .wx-stat { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+      .wx-stat { flex:1; min-width:0; display:flex; align-items:baseline; gap:8px; } /* label + value on one line */
       .wx-stat .k { font-size:12.5px; letter-spacing:.04em; color:var(--ink-faint); white-space:nowrap; }
-      .wx-stat .v { font-family:var(--font-display); font-size:22px; color:var(--ink); line-height:1.05;
+      .wx-stat .v { font-family:var(--font-display); font-size:20px; color:var(--ink); line-height:1.05;
         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .wx-stat .v small { font-family:var(--font); font-size:14px; color:var(--ink-soft); margin-left:4px; }
 
       /* 4 · next days — a small table, tomorrow first, °F with °C beside it */
-      .wx-days { display:grid; grid-template-columns:minmax(0,1fr) 26px auto auto; column-gap:12px; row-gap:0; align-items:center; }
+      .wx-days { display:grid; grid-template-columns:minmax(0,1fr) 26px repeat(3, 66px); column-gap:8px; row-gap:0; align-items:center; }
       .wx-days .h { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); text-align:right; }
       .wx-days .wx-sec { margin:0; text-align:left; grid-column:1 / 3; }
       .wx-days .dn { font-size:16px; line-height:27px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .wx-days .dn.tm { color:var(--ink); font-weight:600; }
       .wx-days .dn .pp { color:#9cc0ff; font-size:13px; font-weight:600; margin-left:6px; }
       .wx-days img { display:block; width:26px; height:26px; }
-      .wx-days .t { text-align:right; white-space:nowrap; line-height:27px; }
+      .wx-days .t { white-space:nowrap; display:flex; align-items:baseline; justify-content:flex-end; gap:4px; line-height:27px; }
       .wx-days .t span { line-height:1; }
       .wx-days .t .f { font-family:var(--font-display); font-size:20px; color:var(--ink); }
-      .wx-days .t.lo .f { color:var(--ink-soft); }
-      .wx-days .t .c { font-size:13.5px; color:var(--ink-faint); margin-left:5px; }
+      .wx-days .t .c { font-size:11.5px; color:var(--ink-faint); }
 
       /* 5 · hourly curve */
       .wx-hours { margin-top:auto; }
-      .wx-plot { position:relative; height:26px; margin:0 6px; }
+      .wx-plot { position:relative; height:42px; margin:4px 0 0; }
+      .wx-plot .dot { position:absolute; width:7px; height:7px; margin:-3.5px 0 0 -3.5px; border-radius:50%; background:var(--mint); }
       .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
       .wx-plot .now { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
         background:#fff; box-shadow:0 0 0 2px #10261f; }
@@ -385,19 +385,23 @@ export default {
       }
       const uv = uvVal == null ? null : Math.round(uvVal);
       const [uvLabel, uvColor] = uvBand(uv);
-      // Next days: tomorrow + two more, each in °F and °C.
+      // Next days: tomorrow + two more — the temperature at 10 am, 3 pm and 8 pm (from the
+      // hourly forecast; °F with °C under it), instead of high/low (humans, 2026-10-29).
+      const AT = [10, 15, 20];
+      const hourIdx = new Map((d.hourly.time || []).map((t, k) => [t, k]));
+      const tAt = (iso, hr) => { const k = hourIdx.get(`${iso}T${String(hr).padStart(2, '0')}:00`); const v = k == null ? null : d.hourly.temperature_2m[k]; return Number.isFinite(v) ? Math.round(v) : null; };
       const days = [];
       for (let i = 1; i <= 3; i++) {
         const iso = d.daily.time?.[i];
-        const dhi = d.daily.temperature_2m_max?.[i], dlo = d.daily.temperature_2m_min?.[i];
-        if (iso == null || !Number.isFinite(dhi) || !Number.isFinite(dlo)) continue;
+        if (iso == null) continue;
+        const temps = AT.map((hr) => tAt(iso, hr));
+        if (temps.every((v) => v == null)) continue;
         const pp = d.daily.precipitation_probability_max?.[i];
-        days.push({ i, iso, code: d.daily.weather_code?.[i], hi: Math.round(dhi), lo: Math.round(dlo),
-          pp: Number.isFinite(pp) ? Math.round(pp) : null });
+        days.push({ i, iso, code: d.daily.weather_code?.[i], temps, pp: Number.isFinite(pp) ? Math.round(pp) : null });
       }
       const wcls = (f) => { const w = warmth(f); return w.cls ? ` w-${w.cls}` : ''; };
-      const tempCell = (f, cls) => h('div', { class: `t ${cls}`, title: warmth(f).hint || null },
-        h('span', { class: `f${wcls(f)}` }, `${f}°F`), h('span', { class: 'c' }, `${fToC(f)}°C`));
+      const tempCell = (f) => (f == null ? h('div', { class: 't' }, '—') : h('div', { class: 't', title: warmth(f).hint || null },
+        h('span', { class: `f${wcls(f)}` }, `${f}°`), h('span', { class: 'c' }, `${fToC(f)}°C`)));
       const dayRows = days.flatMap((x) => {
         const wd = weekdayIdx(x.iso);
         const [lbl, s] = WMO(x.code);
@@ -407,8 +411,7 @@ export default {
             x.i === 1 ? 'Tomorrow' : (wd == null ? '—' : WD[wd]),
             wet ? h('span', { class: 'pp' }, `💧${x.pp}%`) : null),
           h('div', { title: lbl }, icon(s, 26)),
-          tempCell(x.hi, 'hi'),
-          tempCell(x.lo, 'lo'),
+          ...x.temps.map((f) => tempCell(f)),
         ];
       });
 
@@ -433,8 +436,11 @@ export default {
       if (pts.length >= 2 && fine.length >= 2) {
         const vs = fine.map((f) => f[1]);
         const tMin = Math.min(...vs), span = (Math.max(...vs) - tMin) || 1;
-        const yOf = (v) => 80 - ((v - tMin) / span) * 60; // 20%..80%
-        const P = fine.map(([k, v]) => [(k / HOURS) * 100, yOf(v)]);
+        // the curve uses most of the plot's height (12%..88%) and its x runs through the
+        // CENTRE of each hour column below, where a dot marks that column's reading
+        const yOf = (v) => 88 - ((v - tMin) / span) * 76;
+        const xOf = (k) => (((k / STEP) + 0.5) / pts.length) * 100;
+        const P = fine.map(([k, v]) => [xOf(k), yOf(v)]);
         const line = smoothPath(P);
         const area = `${line} L${P[P.length - 1][0].toFixed(2)},100 L${P[0][0].toFixed(2)},100 Z`;
         const plot = h('div', { class: 'wx-plot', html: `
@@ -446,7 +452,7 @@ export default {
             <path d="${line}" fill="none" stroke="var(--mint)" stroke-width="2.4" stroke-linejoin="round"
               stroke-linecap="round" vector-effect="non-scaling-stroke"/>
           </svg>` });
-        plot.appendChild(h('div', { class: 'now', style: { left: '0%', top: `${P[0][1]}%` } }));
+        pts.forEach((p, i) => plot.appendChild(h('div', { class: i === 0 ? 'now' : 'dot', style: { left: `${xOf(i * STEP)}%`, top: `${yOf(p.t)}%` } })));
         hoursEl = h('div', { class: 'wx-hours' },
           anyWet ? null : h('div', { class: 'wx-sec' }, 'Next hours'), // label yields its row to the rain line
           plot,
@@ -481,7 +487,7 @@ export default {
             h('div', { class: 'v' }, `${uv ?? '—'}`, h('small', { style: { color: uvColor } }, uvLabel)))),
         days.length ? h('div', {},
           h('div', { class: 'wx-days' },
-            h('div', { class: 'wx-sec' }, 'Next days'), h('div', { class: 'h' }, 'High'), h('div', { class: 'h' }, 'Low'),
+            h('div', { class: 'wx-sec' }, 'Next days'), h('div', { class: 'h' }, '10a'), h('div', { class: 'h' }, '3p'), h('div', { class: 'h' }, '8p'),
             ...dayRows)) : null,
         hoursEl));
     };
