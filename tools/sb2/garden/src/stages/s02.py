@@ -177,6 +177,11 @@ def snowcap(img, seed):
     return img
 
 
+def pushed():
+    """the soft block sliding when pushed (a sprite: OBJ tile 96): the first holly variant"""
+    return soft()[0]
+
+
 def pressure():
     # a block of pond ice
     return TR.boulder([ICE[0], ICE[1], ICE[2], ICE[3], SNOW], OUT, seed=9, rx=7.4, ry=7.2, lobes=4, amp=0.04, flat=0.6, cracks=2)

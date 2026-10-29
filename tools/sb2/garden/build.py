@@ -297,6 +297,14 @@ def stage_fx(st, ov, report):
         POD_PAL = auto_palette(list(pods.values()), 'pod', report)
     for t, im in pods.items():
         obj_put(ov, blob, base, t, im, POD_PAL)
+    # stage 2: a pushed soft block slides as a sprite (OBJ tile 96, palette 4): the garden's
+    # own soft block, so it does not turn into the original's while it moves
+    mod = importlib.import_module('s%02d' % st)
+    if hasattr(mod, 'pushed'):
+        im = mod.pushed()
+        p4 = auto_palette([im], 'pushed block', report)
+        obj_put(ov, blob, base, 96, im, p4)
+        ov.put(blob, 0x10000 + (128 + 4 * 16) * 2, pal_bytes(p4))
 
 
 # ---- the menus (menu.js: menu.json / menu.bin, patched like the battle pack) ------------------

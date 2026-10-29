@@ -106,6 +106,11 @@ basin switches; lanterns with flickering lights; bamboo grove) · 9 vegetable te
 - **HUD** (BG3 2bpp, map $5C00, chars $A000): the bar cut along the original's map; CGRAM 0
   (the backdrop) = the bar's green; palettes 0..3 = night/white/mint, red/blue/night,
   night/white/mint, night/mint/gold. Digits 0x86..0x8F, crossed-out helmets 0xD0/D1 + 0x60..0x66.
+  Screen line 24 (the picture's last row) must stay EMPTY like the original's: it lies over the
+  arena's top row, and a BG3 pixel there is half-added onto BG2 (stage 3's culvert cells). That
+  blend() in ppu.render's per-pixel loop, never reached on the original's screens, kept V8
+  deoptimising render in Chrome ("insufficient type feedback" / OSR loops): 2.6 ms per draw
+  instead of 1.5 for the rest of the page's life. Found with --js-flags=--trace-deopt.
 - **Pods** (every stage's OBJ base): 32 34 36 38 40 (normal remote power pierce rubber), 42..47
   sparkles, 98..110 small pods, in `objPal8` (OBJ palette 8): classic mode puts kicked / thrown /
   held bombs there; with a skin `objPal8` a bomb mover in mode 2 (drawn in its pose's palette 0,
