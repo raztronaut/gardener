@@ -114,6 +114,8 @@ def bar():
     # outer vines (x 0..7 and 248..255): a mint stem with leaves and white buds
     for x0 in (0, 248):
         for y in range(H):
+            if y % 8 == 7:
+                continue        # (a gap per char row: the same char ends the bar's last line, empty)
             sx = x0 + 3 + [0, 1, 1, 0, 0, -1, -1, 0][y % 8]
             img[y, sx] = MINT
             if y % 8 == 1:
@@ -175,4 +177,7 @@ def picture(dead=()):
     for c, ch in ((14, '2'), (16, '0'), (17, '0')):
         over(img, digit(ch), c * 8, 8)
     over(img, colon(), 15 * 8, 8)
+    # screen line 24 (the picture's last row) lies over the arena's top row, where the
+    # original's bar is empty: a BG3 pixel there would be half-added onto BG2 (colour math)
+    img[23, :] = T
     return img
