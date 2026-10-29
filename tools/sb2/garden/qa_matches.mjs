@@ -57,13 +57,15 @@ await waitFor(`window.__SB2.screen === 'menu:mode'`, 8000); await idle();
 const report = [];
 for (const st of STAGES) {
   // SINGLE MATCH -> players -> rules -> stage select, the stage set, START
-  for (let w = 0; w < 12 && (await sb2('s.screen')) !== 'menu:stage'; w++) { await idle(); await pad.tap('A'); await sleep(450); }
+  const setStage = () => sb2(`(s._set.stage = ${st}, s._set.layout = 'tall', s._set.skin = '${SKIN}', 1)`);
+  for (let w = 0; w < 12 && (await sb2('s.screen')) !== 'menu:stage'; w++) { await setStage(); await idle(); await pad.tap('A'); await sleep(450); }
   await idle(5000);
-  await sb2(`(s._set.stage = ${st}, s._set.layout = 'tall', s._set.skin = '${SKIN}', 1)`);
+  await setStage();
   await sleep(200);
   await pad.tap('A');
   if (!await waitFor(`window.__SB2.screen === 'match'`, 15000)) { report.push({ stage: st, error: 'no match' }); continue; }
   await sleep(500);
+  const playedStage = await sb2('s.state ? s.state.stage : null');
   await sb2(`(() => { const g = s._game(); g.mem[0x5E10] = 0; g.mem[0x5E11] = 0; g.mem[0x5E12] = 48; g.mem[0x5E13] = 0; return 1; })()`);
   const p0 = await sb2('({ t: s.perf.ticks, tm: s.perf.tickMs, f: s.perf.frames, dm: s.perf.drawMs, lag: s.perf.lagFrames })');
   // P1 wanders and drops pods
@@ -86,9 +88,18 @@ for (const st of STAGES) {
   await waitFor(`window.__SB2.screen === 'results'`, 30000);
   await sleep(900);
   await grab(`s${String(st).padStart(2, '0')}_results`);
-  for (let w = 0; w < 40 && (await sb2('s.screen')) !== 'menu:mode'; w++) { await pad.tap('A'); await sleep(700); }
+  // a draw continues the match (another round on the same garden): play it out
+  for (let w = 0; w < 600 && (await sb2('s.screen')) !== 'menu:mode'; w++) {
+    const scr = await sb2('s.screen');
+    if (scr === 'results' && !(await sb2('s._menu.busy'))) await pad.tap('A');
+    if (scr === 'match') {
+      await sb2(`(() => { const g = s._game(); if (g && g.mem[0x5E10] > 0) { g.mem[0x5E10] = 0; g.mem[0x5E12] = 40; } return 1; })()`);
+      await pad.dir('x', moves[w % 4] === 'l' ? 'l' : 'r'); await sleep(200); await pad.dir('x', 'c');
+    }
+    await sleep(400);
+  }
   await idle();
-  const r = { stage: st, ticks: p1.t - p0.t, msPerTick: +((p1.tm - p0.tm) / Math.max(1, p1.t - p0.t)).toFixed(3),
+  const r = { stage: st, played: playedStage, ticks: p1.t - p0.t, msPerTick: +((p1.tm - p0.tm) / Math.max(1, p1.t - p0.t)).toFixed(3),
     msPerDraw: +((p1.dm - p0.dm) / Math.max(1, p1.f - p0.f)).toFixed(3), lagFrames: p1.lag - p0.lag, play: shotPlay, sudden: shotSD };
   report.push(r);
   console.log(JSON.stringify(r));

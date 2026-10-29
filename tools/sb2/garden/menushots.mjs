@@ -110,3 +110,19 @@ if (process.argv.includes('--cover')) {
   fs.writeFileSync(out, encodePNG(crop, 256, H, 2));
   console.log(out);
 }
+
+if (process.argv.includes('--go')) {
+  const set = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 4, layout: 'tall', skin: 'garden' };
+  const menu = createMenu(packs.garden, { settings: set, skins: ['garden', 'classic'], onStart: () => {} });
+  const shots = [];
+  menu.show('title'); for (let i = 0; i < 10; i++) menu.frame(0);
+  menu.press(256);                                   // A on BATTLE GAME: the pod blooms
+  for (let i = 0; i < 12; i++) { menu.frame(0); if (i === 3 || i === 9) shots.push(new Uint8Array(menu.out.buffer.slice(0))); }
+  menu.show('stage'); for (let i = 0; i < 60; i++) menu.frame(0);
+  menu.press(256);                                   // START: the gardeners walk off
+  for (let i = 0; i < 100; i++) { menu.frame(0); if (i === 30 || i === 70) shots.push(new Uint8Array(menu.out.buffer.slice(0))); }
+  const W = 256 * shots.length + 6 * (shots.length - 1), H = 455, sheet = new Uint8Array(W * H * 4);
+  shots.forEach((px, k) => { for (let y = 0; y < H; y++) for (let x = 0; x < 256; x++) { const s2 = (y * 256 + x) * 4, d = (y * W + k * 262 + x) * 4; sheet[d] = px[s2]; sheet[d + 1] = px[s2 + 1]; sheet[d + 2] = px[s2 + 2]; sheet[d + 3] = 255; } });
+  fs.writeFileSync(path.join(outDir, 'menus_go.png'), encodePNG(sheet, W, H, scale));
+  console.log(path.join(outDir, 'menus_go.png'));
+}

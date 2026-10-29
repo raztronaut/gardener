@@ -65,34 +65,27 @@ def petal_ring(frame):
 
 
 def urn(base):
+    """a white stone pedestal with a ball finial (the rose garden's hard block)"""
     u = grid("""
-................
-.oooooooooooooo.
-o44444444444443o
-o33333333333332o
-.oooooooooooooo.
-.o443333333322o.
-o4433333333332 2o
-o4433333333333 2o
-""".replace(' ', ''), {'o': INK, '4': WHITE, '3': STONE_4, '2': STONE_3}) if False else grid("""
-................
-.oooooooooooooo.
-o44444444444443o
-o33333333333332o
+......oooo......
+.....o4443o.....
+....o444433o....
+....o443333o....
+.....o3332o.....
+...oooooooooo...
+..o4444444443o..
 .oooooooooooooo.
 .o443333333322o.
-o44333333333322o
-o43333333333322o
-o43333333333322o
 .o433333333322o.
-..oo43333322oo..
-....o433332o....
-...oo433332oo...
-..o4433333322o..
-..o3333333322o..
-..oooooooooooo..
+.o433333333322o.
+.o433333333322o.
+.o432222222222o.
+oo444444444443oo
+o33333333333332o
+oooooooooooooooo
 """, {'o': INK, '4': WHITE, '3': STONE_4, '2': STONE_3})
-    for (x, y, c) in ((5, 1, LEAF_2), (6, 0, LEAF_3), (9, 0, LEAF_3), (10, 1, LEAF_2), (7, 1, RED), (8, 1, RED)):
+    # a climbing rose on the pedestal
+    for (x, y, c) in ((3, 9, LEAF_2), (3, 10, LEAF_3), (4, 11, LEAF_2), (3, 12, LEAF_3), (4, 9, RED), (4, 8, RED_D)):
         u[y, x] = c
     return over(base.copy(), u)
 
@@ -132,7 +125,7 @@ def terrain(ctx):
         {'tile': 0x46, 'pal': 6, 'frames': [(k * 2, birdbath(k)) for k in range(4)]},
         {'tile': 0x2A, 'pal': 6, 'frames': [(8 + k * 2, petal_ring(k)) for k in range(4)]},
     ]
-    rose = clump_bush([LEAF_0, LEAF_1, LEAF_2, LEAF_3], INK)
+    rose = clump_bush([LEAF_1, LEAF_2, LEAF_3, LEAF_4], INK)
     for (fx, fy) in ((4, 4), (11, 3), (8, 8), (3, 11), (12, 10), (7, 13)):
         for (dx, dy, c) in ((0, 0, RED), (1, 0, RED_D), (0, 1, RED_D), (1, 1, RED), (-1, 0, PINK), (0, -1, PINK), (1, -1, RED), (-1, 1, RED_D)):
             if 0 <= fx + dx < 16 and 0 <= fy + dy < 16 and rose[fy + dy, fx + dx] not in (INK, -1):
