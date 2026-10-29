@@ -513,6 +513,55 @@ async function showVolume() {
 // /rainforest — a generative rainforest soundscape (lib/rainforest.js). Its on/off state
 // survives reloads; it ducks out while an Arcade game owns the speakers.
 let RF = null;
+// line icons per forest (24×24, stroke) for the top-right button and its menu
+const RF_ICON = {
+  default: 'M7 15a4 4 0 0 1 .4-8 5.5 5.5 0 0 1 10.4 1.6A3.3 3.3 0 0 1 17.3 15zM8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5',
+  amazon: 'M12.5 21c0-4.5.4-7.6 1.6-10.6M14 10.4c-1.8-2.7-5.6-3-7.8-1M14 10.4c.9-2.9 4.6-4 7-2.1M14 10.4c-3 .2-5.8 2.2-6.8 5M14 10.4c3 .1 5.6 2 6.3 4.8',
+  atlantic: 'M5 19C5 11 10 5 19 5c0 9-6 14-14 14zM5 19l9.5-9.5M9.5 14.5l-.3-3.4M12 12l3.2.2',
+  borneo: 'M12 21v-7M7.4 14a3.8 3.8 0 0 1 .2-7.6 4.6 4.6 0 0 1 8.8 0 3.8 3.8 0 0 1 .2 7.6z',
+  daintree: 'M6 20.5c3.2-2.2 6.3-6.4 8.2-14.5M8.4 16.8 5.4 15.6M10.4 13.8 7.6 11.8M12 10.8 10.2 8M10.2 16l3.2-.2M12.1 12.8l3.1-.7M13.3 9.5l2.7-1.2',
+  olympic: 'M12 2.8l4.8 6.6h-2.9l3.9 5.6h-3.6l3.1 4.3H6.7l3.1-4.3H6.2l3.9-5.6H7.2zM12 19.3V22',
+  yosemite: 'M2.5 19.5 8.6 9l3.9 6.2 2.4-3.6 6.6 7.9zM8.6 9c.6-2.6 2.6-4.4 5.4-4.4',
+};
+const rfSvg = (k, px = 24) => `<svg width="${px}" height="${px}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${RF_ICON[k] || RF_ICON.default}"/></svg>`;
+// top-right button: shows the playing forest's icon (mint) or the last one (dimmed)
+function updateRfButton() {
+  const b = document.getElementById('rfBtn'); if (!b) return;
+  let last = 'default'; try { last = localStorage.getItem('garden.rainforest.place') || 'default'; } catch { /* ignore */ }
+  const playing = RF && RF.isOn() ? RF.current() : null;
+  b.innerHTML = rfSvg(playing || last, 28);
+  b.classList.toggle('on', !!playing);
+}
+function rainforestMenu() {
+  const b = document.getElementById('rfBtn'); if (!b) return;
+  document.getElementById('rfMenu')?.remove();
+  const playing = RF && RF.isOn() ? RF.current() : null;
+  const close = () => { menu.remove(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc, true); };
+  const outside = (e) => { if (!menu.contains(e.target) && e.target !== b && !b.contains(e.target)) close(); };
+  const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const row = (key, label, desc, run, on) => h('button', { class: 'rfm-row' + (on ? ' on' : ''), type: 'button', onclick: () => { close(); run(); } },
+    h('span', { class: 'ic', html: key === 'off' ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>' : rfSvg(key) }),
+    h('span', { class: 'tx' }, h('b', {}, label), h('small', {}, desc)));
+  const menu = h('div', { id: 'rfMenu' },
+    ...(playing ? [row('off', 'Off', 'stop the rainforest', () => toggleRainforest('off'), false)] : []),
+    ...RAINFOREST_PLACES.map(([k, , label, desc]) => row(k, label, desc, () => toggleRainforest(k), playing === k)));
+  (document.getElementById('zoomroot') || document.body).appendChild(menu);
+  const r = b.getBoundingClientRect(), root = (document.getElementById('zoomroot') || document.body).getBoundingClientRect();
+  const z = root.width / ((document.getElementById('zoomroot') || document.body).offsetWidth || root.width) || 1;
+  menu.style.top = `${Math.round((r.bottom - root.top) / z + 8)}px`;
+  menu.style.right = `${Math.round((root.right - r.right) / z)}px`;
+  setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); }, 0);
+}
+function wireRainforestButton() {
+  const b = document.getElementById('rfBtn'); if (!b) return;
+  b.addEventListener('click', () => toggleRainforest());
+  b.addEventListener('contextmenu', async (e) => {
+    e.preventDefault();
+    RF ||= await import(`/lib/rainforest.js?v=${window.__GARDEN_VERSION || ''}`);
+    rainforestMenu();
+  });
+  updateRfButton();
+}
 const RAINFOREST_PLACES = [ // [arg, icon, label, description] — the presets in lib/rainforest.js
   ['default', '🌧', 'Rainforest', 'tropical rain, cicadas, birds, frogs, distant thunder'],
   ['amazon', '🦜', 'Amazon', 'heavy rain, dense insects, macaws, howler monkeys'],
@@ -527,7 +576,7 @@ const RAINFOREST_PLACES = [ // [arg, icon, label, description] — the presets i
 async function toggleRainforest(arg = '', force) {
   RF ||= await import(`/lib/rainforest.js?v=${window.__GARDEN_VERSION || ''}`);
   let last = 'default'; try { last = localStorage.getItem('garden.rainforest.place') || 'default'; } catch { /* ignore */ }
-  if (arg === 'off') { RF.stop(); try { localStorage.setItem('garden.rainforest', '0'); } catch { /* ignore */ } toast('Rainforest off'); return; }
+  if (arg === 'off') { RF.stop(); try { localStorage.setItem('garden.rainforest', '0'); } catch { /* ignore */ } toast('Rainforest off'); updateRfButton(); return; }
   const key = arg ? RF.resolve(arg) : null;
   if (arg && !key) { toast(`No forest "${arg}" — try ${Object.keys(RF.PRESETS).join(', ')}`); return; }
   const want = force ?? (key ? RF.current() !== key : !RF.isOn());
@@ -535,8 +584,10 @@ async function toggleRainforest(arg = '', force) {
   if (want) RF.start(place); else RF.stop();
   try { localStorage.setItem('garden.rainforest', want ? '1' : '0'); localStorage.setItem('garden.rainforest.place', place); } catch { /* ignore */ }
   if (force === undefined) toast(want ? `🌧 ${RF.PRESETS[place].label}` : 'Rainforest off');
+  updateRfButton();
 }
 if (!SCREENSHOT) {
+  setTimeout(wireRainforestButton, 0);
   try { if (localStorage.getItem('garden.rainforest') === '1') setTimeout(() => toggleRainforest('', true), 1500); } catch { /* ignore */ }
   let ducked = false; // only act when a game starts or ends, not on every class change (idle, night…)
   new MutationObserver(() => { const g = document.body.classList.contains('arcade-full'); if (g !== ducked) { ducked = g; if (RF && RF.isOn()) RF.duck(g); } })

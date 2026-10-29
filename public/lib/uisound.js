@@ -57,7 +57,9 @@ function wake(t) {
 export function uiSound(kind = 'tick') {
   if (quiet() || !ready()) return;
   const now = performance.now();
-  if (kind === 'nav' && now - last < 45) return; // held d-pad: no machine-gun ticks
+  // one action = one sound: a click that opens something already ticked, so a tick/nav
+  // within 150 ms of any other sound is dropped (the HN row tap + its reader opening)
+  if ((kind === 'tick' || kind === 'nav') && now - last < 150) return;
   last = now;
   const t = ctx.currentTime + 0.005;
   if (kind === 'tick') { click(t, 3800, 0.012, 0.22); blip(t, 2300, 0.035, 0.05); }

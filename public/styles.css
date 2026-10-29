@@ -753,3 +753,19 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 #volpill .bar { width: 180px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
 #volpill .bar i { display: block; height: 100%; background: var(--mint); border-radius: 3px; transition: width .12s linear; }
 #volpill b { font: 600 16px var(--font); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* rainforest button (top right) + its right-click menu */
+.gbtn.icon.rfbtn svg { width: 28px; height: 28px; }
+.rfbtn { color: var(--ink-faint); opacity: .7; }
+.rfbtn.on { color: var(--mint); opacity: 1; }
+#rfMenu { position: absolute; z-index: 350; min-width: 330px; padding: 8px; border-radius: 18px;
+  background: rgba(4,14,11,.94); border: 1px solid var(--stroke-strong); box-shadow: 0 14px 40px rgba(0,0,0,.45);
+  display: flex; flex-direction: column; gap: 2px; animation: rfIn .14s linear both; }
+@keyframes rfIn { from { opacity: 0; } to { opacity: 1; } }
+.rfm-row { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border: 0; border-radius: 12px; background: none;
+  color: var(--ink); text-align: left; cursor: var(--c-hand); font: inherit; }
+body:not(.idle) .rfm-row:hover { background: rgba(116,247,176,.08); }
+.rfm-row .ic { display: flex; flex: 0 0 26px; color: var(--ink-soft); } #rfMenu .rfm-row .ic svg { width: 26px; height: 26px; flex: 0 0 auto; }
+.rfm-row .tx { display: flex; flex-direction: column; gap: 1px; }
+.rfm-row b { font-size: 16px; font-weight: 600; } .rfm-row small { font-size: 13px; color: var(--ink-faint); }
+.rfm-row.on b, .rfm-row.on .ic { color: var(--mint); }
