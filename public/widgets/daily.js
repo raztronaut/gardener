@@ -1,14 +1,12 @@
 // Daily Almanac — three stacked "of the day" sections that roll over at midnight:
-//   📖 Word of the day   — a LIVE word drawn each day from Datamuse (a keyless API):
-//        one of ~56 evocative theme seeds per day surfaces kindred words with their
-//        definition, part of speech and pronunciation. Dull over-common words are
-//        filtered out, and a rolling localStorage memory skips any word shown in the
-//        last ~45 days — so the word has genuine, ever-fresh variety instead of
-//        recycling the same vocabulary every few weeks. The day's pick is cached so it
-//        stays stable across refreshes/reloads. Datamuse's ARPAbet pronunciation is
-//        rendered as the same plain-English "say-it-like" respelling used by the curated
-//        words. If the network is unavailable it falls back to a curated, fully-annotated
-//        OFFLINE word (IPA, etymology, example, "≈ synonyms ≠ antonyms"), so it never fails.
+//   🖼 Painting of the day — one public-domain artwork about gardens, flowers,
+//        forests, jungles and the living world, from a CURATED list
+//        (public/lib/paintings.js, generated + verified against the Art Institute of
+//        Chicago and Met open-access APIs by tools/paintings.mjs). Rotates
+//        deterministically by day of year (pickByDay). The image loads straight from
+//        the museum's image server (no proxy), small for the tile and ~843 px only in
+//        fullscreen; it fades in once decoded, inside a box that is always full size.
+//        Replaced the Word of the Day on 2026-10-28 (humans' request).
 //   📜 On this day        — a rotating mix of today's historical events plus the
 //        notable people born and who died on this date, from Wikipedia's keyless
 //        onthisday feed; each birth/death is tagged so it reads unambiguously.
@@ -18,442 +16,6 @@
 // Sits beside the Weather card (both 'tall'). Network is best-effort: initial load
 // retries with short backoff, periodic refresh fetches BEFORE replacing the DOM so a
 // failure keeps the last good render. Embedded data guarantees content fully offline.
-
-// ---- WORD OF THE DAY — curated, deterministic, no network ------------------
-const WORDS = [
-  { word: 'serendipity', pron: '/ˌsɛrənˈdɪpɪti/', pos: 'noun', def: 'The occurrence of happy or beneficial events by chance, in a fortunate accident.', ex: 'By pure serendipity, she found the missing letter tucked inside a library book.' },
-  { word: 'petrichor', pron: '/ˈpɛtrɪkɔːr/', pos: 'noun', def: 'The earthy scent produced when rain falls on dry soil after a warm, dry spell.', ex: 'The first summer rain released a petrichor that drew everyone out onto their porches.' },
-  { word: 'ephemeral', pron: '/ɪˈfɛmərəl/', pos: 'adjective', def: 'Lasting for a very short time; fleeting and quick to fade away.', ex: 'Cherry blossoms are beloved precisely because their beauty is so ephemeral.' },
-  { word: 'sonder', pron: '/ˈsɒndər/', pos: 'noun', def: 'The realization that each passer-by is living a life as vivid and complex as your own.', ex: 'Watching the lit windows of the passing train, he was overcome by a quiet sonder.' },
-  { word: 'limerence', pron: '/ˈlɪmərəns/', pos: 'noun', def: 'The state of being infatuated, marked by an involuntary longing for reciprocation.', ex: 'The early weeks of the romance were a haze of sleepless limerence.' },
-  { word: 'mellifluous', pron: '/mɛˈlɪfluəs/', pos: 'adjective', def: 'Sweet or musical; pleasant to hear, as a smooth and flowing voice or sound.', ex: 'The cellist’s mellifluous tone lingered in the hall long after the final note.' },
-  { word: 'halcyon', pron: '/ˈhælsiən/', pos: 'adjective', def: 'Denoting a period that is idyllically happy and peaceful, often in fond memory.', ex: 'They spoke of their college years as halcyon days that could never quite return.' },
-  { word: 'susurrus', pron: '/suːˈsʌrəs/', pos: 'noun', def: 'A soft, whispering or rustling sound, like leaves or hushed voices.', ex: 'A susurrus of wind moved through the wheat as dusk settled over the field.' },
-  { word: 'apricity', pron: '/əˈprɪsɪti/', pos: 'noun', def: 'The warmth of the sun felt on a cold winter day.', ex: 'We lingered on the bench, grateful for the apricity of the winter afternoon.' },
-  { word: 'nepenthe', pron: '/nɪˈpɛnθi/', pos: 'noun', def: 'A drug or thing that brings forgetfulness of grief or suffering.', ex: 'He wished for some nepenthe to soften the memory of that long, hard year.' },
-  { word: 'eloquence', pron: '/ˈɛləkwəns/', pos: 'noun', def: 'Fluent, persuasive, and graceful speaking or writing.', ex: 'Her closing argument was delivered with an eloquence that silenced the room.' },
-  { word: 'quixotic', pron: '/kwɪkˈsɒtɪk/', pos: 'adjective', def: 'Exceedingly idealistic; unrealistic and impractical in a romantic, lofty way.', ex: 'His quixotic plan to sail around the world both charmed and worried his friends.' },
-  { word: 'sublime', pron: '/səˈblaɪm/', pos: 'adjective', def: 'Of such excellence or beauty as to inspire great admiration or awe.', ex: 'From the summit the valley opened into a view that was simply sublime.' },
-  { word: 'ineffable', pron: '/ɪnˈɛfəbl/', pos: 'adjective', def: 'Too great or extreme to be expressed or described in words.', ex: 'There was an ineffable calm in the empty cathedral at dawn.' },
-  { word: 'luminescence', pron: '/ˌluːmɪˈnɛsns/', pos: 'noun', def: 'The emission of light by a substance that has not been heated, as a soft glow.', ex: 'A faint luminescence rippled through the waves as we walked the darkened beach.' },
-  { word: 'wanderlust', pron: '/ˈwɒndəlʌst/', pos: 'noun', def: 'A strong, innate desire to travel and explore the world.', ex: 'A single postcard was enough to reawaken her old wanderlust.' },
-  { word: 'effervescent', pron: '/ˌɛfəˈvɛsnt/', pos: 'adjective', def: 'Vivacious and enthusiastic; bubbling with high spirits.', ex: 'The host’s effervescent welcome put every guest instantly at ease.' },
-  { word: 'solitude', pron: '/ˈsɒlɪtjuːd/', pos: 'noun', def: 'The state of being alone, often by choice and felt as restful.', ex: 'He treasured the solitude of early mornings before the city woke.' },
-  { word: 'aurora', pron: '/ɔːˈrɔːrə/', pos: 'noun', def: 'A natural light display in the sky, mainly seen in high-latitude regions.', ex: 'They drove north for hours, hoping to glimpse the aurora over the pines.' },
-  { word: 'reverie', pron: '/ˈrɛvəri/', pos: 'noun', def: 'A state of being pleasantly lost in one’s thoughts; a daydream.', ex: 'The whistle of the kettle pulled her out of a long reverie.' },
-  { word: 'gossamer', pron: '/ˈɡɒsəmər/', pos: 'noun', def: 'A fine, filmy substance of cobwebs; anything delicate, light, and insubstantial.', ex: 'Dew clung to the gossamer threads strung between the fence posts.' },
-  { word: 'incandescent', pron: '/ˌɪnkænˈdɛsnt/', pos: 'adjective', def: 'Emitting light from being heated; full of strong, intense emotion.', ex: 'She was incandescent with joy when the letter finally arrived.' },
-  { word: 'vellichor', pron: '/ˈvɛlɪkɔːr/', pos: 'noun', def: 'The strange wistfulness of used bookstores, steeped in time and old paper.', ex: 'Browsing the dim aisles, he felt the vellichor of a thousand unread lives.' },
-  { word: 'numinous', pron: '/ˈnjuːmɪnəs/', pos: 'adjective', def: 'Having a strong religious or spiritual quality; suggesting the presence of divinity.', ex: 'The old grove had a numinous stillness that hushed even the children.' },
-  { word: 'evanescent', pron: '/ˌɛvəˈnɛsnt/', pos: 'adjective', def: 'Soon passing out of sight, memory, or existence; quickly fading.', ex: 'Fame proved evanescent, gone almost before he understood he had it.' },
-  { word: 'plethora', pron: '/ˈplɛθərə/', pos: 'noun', def: 'A very large or excessive amount of something; an abundance.', ex: 'The market offered a plethora of ripe fruit at the height of summer.' },
-  { word: 'panacea', pron: '/ˌpænəˈsiːə/', pos: 'noun', def: 'A solution or remedy supposed to cure all problems or diseases.', ex: 'No single policy is a panacea for so tangled a problem.' },
-  { word: 'zephyr', pron: '/ˈzɛfər/', pos: 'noun', def: 'A soft, gentle breeze, especially one from the west.', ex: 'A gentle zephyr carried the scent of jasmine across the courtyard.' },
-  { word: 'felicity', pron: '/fɪˈlɪsɪti/', pos: 'noun', def: 'Intense happiness; the ability to find apt and pleasing expression.', ex: 'She wrote with a felicity that made difficult ideas feel effortless.' },
-  { word: 'verdant', pron: '/ˈvɜːdnt/', pos: 'adjective', def: 'Green with growing plants and vegetation; lush and flourishing.', ex: 'After the rains, the hills turned a deep, verdant green.' },
-  { word: 'sanguine', pron: '/ˈsæŋɡwɪn/', pos: 'adjective', def: 'Optimistic or positive, especially in an apparently difficult situation.', ex: 'Despite the setbacks, the coach remained sanguine about the season.' },
-  { word: 'aplomb', pron: '/əˈplɒm/', pos: 'noun', def: 'Self-confidence or assurance, especially in a demanding situation; poise.', ex: 'The young pianist handled the slip with remarkable aplomb.' },
-  { word: 'lagom', pron: '/ˈlɑːɡɒm/', pos: 'noun', def: 'Swedish: not too much and not too little — the comfortable balance of just right.', ex: 'They furnished the flat with a lagom sense of just enough and no more.' },
-  { word: 'hiraeth', pron: '/ˈhɪraɪθ/', pos: 'noun', def: 'A Welsh longing or homesickness for a home you cannot return to, or never was.', ex: 'Hearing the old song filled him with a hiraeth he could not quite name.' },
-  { word: 'meraki', pron: '/meˈraki/', pos: 'noun', def: 'Greek: to do something with soul, creativity, and love; to put yourself into it.', ex: 'She poured meraki into every loaf that left her small corner bakery.' },
-  { word: 'fernweh', pron: '/ˈfɛrnveː/', pos: 'noun', def: 'German: a deep ache or longing for far-off places one has yet to visit.', ex: 'The maps pinned across his wall only deepened his restless fernweh.' },
-  { word: 'pellucid', pron: '/pɪˈluːsɪd/', pos: 'adjective', def: 'Transparently clear in style or meaning; easy to understand.', ex: 'The essay was admired for its pellucid, unhurried prose.' },
-  { word: 'redolent', pron: '/ˈrɛdələnt/', pos: 'adjective', def: 'Strongly reminiscent or suggestive of something; fragrant or sweet-smelling.', ex: 'The kitchen was redolent of cinnamon and slow-roasting apples.' },
-  { word: 'lissome', pron: '/ˈlɪsəm/', pos: 'adjective', def: 'Thin, supple, and graceful in movement.', ex: 'The dancer crossed the stage with a lissome, almost weightless grace.' },
-  { word: 'ethereal', pron: '/ɪˈθɪəriəl/', pos: 'adjective', def: 'Extremely delicate and light, seemingly too perfect for this world.', ex: 'Morning fog gave the bridge an ethereal, half-there quality.' },
-  { word: 'cynosure', pron: '/ˈsɪnəzjʊər/', pos: 'noun', def: 'A person or thing that is the centre of attention or admiration.', ex: 'In her emerald gown, she was the cynosure of every eye at the reception.' },
-  { word: 'denouement', pron: '/deɪˈnuːmɒ̃/', pos: 'noun', def: 'The final part of a story in which strands are drawn together and resolved.', ex: 'The novel’s quiet denouement tied each loose thread with unexpected care.' },
-  { word: 'sempiternal', pron: '/ˌsɛmpɪˈtɜːnl/', pos: 'adjective', def: 'Eternal and unchanging; everlasting.', ex: 'The monks kept a sempiternal flame burning in the chapel.' },
-  { word: 'oneiric', pron: '/əˈnaɪrɪk/', pos: 'adjective', def: 'Relating to dreams or dreaming; having a dreamlike quality.', ex: 'The film unfolded with the drifting logic of an oneiric dream.' },
-  { word: 'tarantism', pron: '/ˈtærəntɪzəm/', pos: 'noun', def: 'An uncontrollable urge to dance, historically thought caused by a spider’s bite.', ex: 'The bright reel struck the crowd with a kind of joyful tarantism.' },
-  { word: 'syzygy', pron: '/ˈsɪzɪdʒi/', pos: 'noun', def: 'An alignment of three celestial bodies in a straight line, as in an eclipse.', ex: 'Astronomers gathered to watch the rare syzygy unfold across the night sky.' },
-  { word: 'ebullient', pron: '/ɪˈbʌliənt/', pos: 'adjective', def: 'Cheerful and full of energy; overflowing with excitement.', ex: 'The team returned ebullient after the last-minute victory.' },
-  { word: 'scintilla', pron: '/sɪnˈtɪlə/', pos: 'noun', def: 'A tiny trace or spark of a specified quality or feeling.', ex: 'There wasn’t a scintilla of doubt in her steady voice.' },
-  { word: 'gloaming', pron: '/ˈɡləʊmɪŋ/', pos: 'noun', def: 'Twilight; the soft half-light of dusk just after the sun goes down.', ex: 'They walked the shoreline in the gloaming, the water gone to pewter.' },
-  { word: 'crepuscular', pron: '/krɪˈpʌskjʊlə/', pos: 'adjective', def: 'Of, resembling, or active at twilight; dim and shadowy.', ex: 'Foxes are crepuscular, slipping out to hunt in the failing light.' },
-  { word: 'quiescent', pron: '/kwiˈɛsnt/', pos: 'adjective', def: 'In a state of quiet inactivity; dormant and at rest.', ex: 'The volcano had lain quiescent for a hundred years.' },
-  { word: 'eudaimonia', pron: '/ˌjuːdɪˈməʊniə/', pos: 'noun', def: 'Human flourishing; a deep, contented well-being that comes from living well.', ex: 'For Aristotle, eudaimonia was the highest aim of a good life.' },
-  { word: 'frisson', pron: '/ˈfriːsɒn/', pos: 'noun', def: 'A sudden, passing shiver of excitement or delight.', ex: 'A frisson ran through the audience as the lights went down.' },
-  { word: 'saudade', pron: '/saʊˈdɑːdə/', pos: 'noun', def: 'Portuguese: a wistful, aching longing for something loved and lost, or perhaps never had.', ex: 'The old fado songs are steeped in saudade for a vanished Lisbon.' },
-  { word: 'komorebi', pron: '/ˌkoʊmoʊˈrɛbi/', pos: 'noun', def: 'Japanese: the dappled sunlight that filters through the leaves of trees.', ex: 'We ate beneath the maple, freckled with komorebi.' },
-  { word: 'eunoia', pron: '/juːˈnɔɪə/', pos: 'noun', def: 'Beautiful thinking; a well mind and heart, and the goodwill it extends to others.', ex: 'She met every stranger with a quiet eunoia.' },
-  { word: 'nebulous', pron: '/ˈnɛbjʊləs/', pos: 'adjective', def: 'Vague and ill-defined; hazy and cloud-like in form or meaning.', ex: 'His plans were still nebulous, more mood than map.' },
-  { word: 'languor', pron: '/ˈlæŋɡə/', pos: 'noun', def: 'A pleasant heaviness or dreamy stillness; a soft, unhurried lack of energy.', ex: 'A summer languor settled over the porch by mid-afternoon.' },
-  { word: 'quintessence', pron: '/kwɪnˈtɛsns/', pos: 'noun', def: 'The purest, most perfect example or embodiment of a quality.', ex: 'The little café was the quintessence of unhurried Parisian mornings.' },
-  { word: 'noctilucent', pron: '/ˌnɒktɪˈluːsnt/', pos: 'adjective', def: 'Shining or glowing in the night, as the rare high clouds lit long after sunset.', ex: 'On midsummer nights the sky held faint, noctilucent clouds.' },
-  { word: 'brume', pron: '/bruːm/', pos: 'noun', def: 'Mist or fog, especially a soft wintry haze that softens the view.', ex: 'A pale brume hung over the bay, dissolving the far hills into grey.' },
-  { word: 'aubade', pron: '/əʊˈbɑːd/', pos: 'noun', def: 'A song or poem greeting the dawn; music made for the early morning.', ex: 'He woke to birdsong, an aubade drifting through the open window.' },
-  { word: 'lambent', pron: '/ˈlæmbənt/', pos: 'adjective', def: 'Glowing softly; flickering over a surface with a gentle, radiant light.', ex: 'Lambent candlelight moved slowly across the old stone walls.' },
-  { word: 'vespertine', pron: '/ˈvɛspərtaɪn/', pos: 'adjective', def: 'Of, relating to, or occurring in the evening.', ex: 'The garden released its vespertine scent as the light began to fail.' },
-  { word: 'psithurism', pron: '/ˈsɪθjʊrɪzəm/', pos: 'noun', def: 'The soft whispering sound of wind moving through the trees.', ex: 'We lay in the meadow and listened to the psithurism of the pines.' },
-  { word: 'murmuration', pron: '/ˌmɜːmjʊˈreɪʃn/', pos: 'noun', def: 'A great flock of starlings wheeling as one; a low, continuous murmur.', ex: 'At dusk a murmuration folded and unfolded above the reeds.' },
-  { word: 'sillage', pron: '/siːˈjɑːʒ/', pos: 'noun', def: 'The lingering trail of scent left behind by someone as they pass.', ex: 'A sillage of jasmine lingered in the hallway long after she had gone.' },
-  { word: 'hygge', pron: '/ˈhuːɡə/', pos: 'noun', def: 'Danish: a cosy, contented warmth found in simple comforts and good company.', ex: 'Rain on the roof and a pot of tea — the evening was pure hygge.' },
-  { word: 'ikigai', pron: '/ˌiːkɪˈɡaɪ/', pos: 'noun', def: 'Japanese: a reason for being — the thing that makes life feel worth living.', ex: 'Tending the garden each morning had become her quiet ikigai.' },
-  { word: 'cwtch', pron: '/kʊtʃ/', pos: 'noun', def: 'Welsh: a warm, affectionate hug, or a small safe and cosy place.', ex: 'Come here for a cwtch — the world can wait a moment.' },
-  { word: 'pluviophile', pron: '/ˈpluːviəfaɪl/', pos: 'noun', def: 'A lover of rain; someone who finds joy and calm in rainy days.', ex: 'A true pluviophile, she flung the windows open at the first storm.' },
-  { word: 'nemophilist', pron: '/nɪˈmɒfɪlɪst/', pos: 'noun', def: 'One who loves woods and forests; a haunter of quiet groves.', ex: 'The old nemophilist knew every deer path through the redwoods.' },
-  { word: 'ataraxia', pron: '/ˌætəˈræksiə/', pos: 'noun', def: 'A serene calm; freedom from worry and emotional disturbance.', ex: 'After a week by the sea he returned in a state of gentle ataraxia.' },
-  { word: 'solivagant', pron: '/səˈlɪvəɡənt/', pos: 'adjective', def: 'Wandering alone; given to solitary rambling.', ex: 'His solivagant habit led him down streets no map had ever named.' },
-  { word: 'chatoyant', pron: '/ʃəˈtɔɪənt/', pos: 'adjective', def: 'Shimmering with a shifting lustre, like a cat’s eye or fine silk.', ex: 'The chatoyant silk shifted from green to gold as she turned.' },
-  { word: 'refulgent', pron: '/rɪˈfʌldʒənt/', pos: 'adjective', def: 'Shining brilliantly; radiant and gleaming with light.', ex: 'The refulgent dome caught and held the very last of the sun.' },
-  { word: 'limpid', pron: '/ˈlɪmpɪd/', pos: 'adjective', def: 'Perfectly clear and transparent; calm and untroubled.', ex: 'The stream ran limpid over a bed of pale, rounded stones.' },
-  { word: 'sonorous', pron: '/ˈsɒnərəs/', pos: 'adjective', def: 'Deep, full, and resonant in sound.', ex: 'The old bell gave a sonorous toll that rolled across the valley.' },
-  { word: 'eventide', pron: '/ˈiːvəntaɪd/', pos: 'noun', def: 'The end of the day; evening, especially at its gentle close.', ex: 'They walked home at eventide, the sky gone to rose and grey.' },
-  { word: 'coddiwomple', pron: '/ˈkɒdiwɒmpl/', pos: 'verb', def: 'To travel purposefully toward an as-yet-unknown destination.', ex: 'With no plan but a full tank, they set off to coddiwomple up the coast.' },
-  { word: 'brontide', pron: '/ˈbrɒntaɪd/', pos: 'noun', def: 'The low, distant rumble of thunder, or a thunder-like sound.', ex: 'A faint brontide rolled beyond the hills, promising rain by morning.' },
-  { word: 'selcouth', pron: '/ˈsɛlkuːθ/', pos: 'adjective', def: 'Strange and rare, yet wonderful; unfamiliar in a marvellous way.', ex: 'The tide pools held a selcouth world of drifting, glowing things.' },
-  { word: 'estival', pron: '/ˈɛstɪvl/', pos: 'adjective', def: 'Of or belonging to summer; appearing in the summertime.', ex: 'The estival heat drew everyone into the shade of the plane trees.' },
-  { word: 'dwaal', pron: '/dwɑːl/', pos: 'noun', def: 'South African: a dreamy, absent-minded or pleasantly dazed state.', ex: 'She drifted through the whole slow afternoon in a pleasant dwaal.' },
-  { word: 'mångata', pron: '/ˈmoːnɡɑːta/', pos: 'noun', def: 'Swedish: the shimmering, road-like reflection of the moon on water.', ex: 'A single mångata stretched across the black water toward the far shore.' },
-  { word: 'gökotta', pron: '/jœˈkɔta/', pos: 'noun', def: 'Swedish: to rise at dawn and go outside just to hear the first birdsong.', ex: 'They kept a summer gökotta, slipping out at first light to hear the thrushes.' },
-  { word: 'resfeber', pron: '/ˈreːsfeːber/', pos: 'noun', def: 'Swedish: the restless, fluttering heart in the moments before a journey begins.', ex: 'The night before the flight she lay awake in a happy resfeber.' },
-  { word: 'friluftsliv', pron: '/ˈfriːlʊftsliːv/', pos: 'noun', def: 'Norwegian: open-air living — a restorative, unhurried communion with nature.', ex: 'Weekends were for friluftsliv: a rucksack, a trail, and the open sky.' },
-  { word: 'waldeinsamkeit', pron: '/valtˈaɪnzamkaɪt/', pos: 'noun', def: 'German: the serene, solitary feeling of being alone in the woods.', ex: 'Deep among the redwoods he felt a hush of pure waldeinsamkeit.' },
-  { word: 'vorfreude', pron: '/ˈfoːɐfrɔɪdə/', pos: 'noun', def: 'German: the savoured, joyful anticipation of a pleasure still to come.', ex: 'Half the joy of the trip was the vorfreude of planning it for months.' },
-  { word: 'wabi-sabi', pron: '/ˈwɑːbi ˈsɑːbi/', pos: 'noun', def: 'Japanese: the art of finding beauty in imperfection, age, and impermanence.', ex: 'The cracked, hand-thrown bowl held a quiet wabi-sabi all its own.' },
-  { word: 'tsundoku', pron: '/tsɯnˈdokɯ/', pos: 'noun', def: 'Japanese: the gentle habit of buying books and letting them pile up unread.', ex: 'Her nightstand was a monument to tsundoku, ten spines deep.' },
-  { word: 'querencia', pron: '/keˈɾenθja/', pos: 'noun', def: 'Spanish: a place where one feels safe, at home, and most truly oneself.', ex: 'The old reading chair by the window was her querencia.' },
-  { word: 'duende', pron: '/ˈdwende/', pos: 'noun', def: 'Spanish: a surge of soulful, spellbinding passion, especially in art or music.', ex: 'The guitarist played with a raw duende that stilled the whole room.' },
-  { word: 'sprezzatura', pron: '/ˌsprɛtsaˈtuːra/', pos: 'noun', def: 'Italian: studied nonchalance — making the difficult look wholly effortless.', ex: 'He wore the borrowed tux with an easy sprezzatura, as if born to it.' },
-  { word: 'flâneur', pron: '/flɑːˈnɜːr/', pos: 'noun', def: 'French: one who strolls the city slowly, savouring it with no aim but delight.', ex: 'A born flâneur, he let the side streets decide where the evening went.' },
-  { word: 'mudita', pron: '/mʊˈdiːtɑː/', pos: 'noun', def: 'Sanskrit: the pure, unselfish joy of delighting in another’s happiness.', ex: 'Watching her rival take the prize, she felt only a warm mudita.' },
-  { word: 'eucatastrophe', pron: '/ˌjuːkəˈtæstrəfi/', pos: 'noun', def: 'A sudden, redemptive turn of events; a joyous catastrophe.', ex: 'The rescue arrived like a eucatastrophe, snatching hope from the last page.' },
-];
-
-// ---- SAY IT LIKE — a plain-English pronunciation respelling for each word
-// (offline, keyed by word). The IPA in WORDS is precise but unreadable to most
-// people; this is the "say-it-like" cue that actually lets someone pronounce these
-// lovely words aloud. Same pattern as ORIGINS/SYNONYMS: a separate map so WORDS is
-// never touched, and a missing entry simply renders no respelling. The STRESSED
-// syllable is written in CAPS so the emphasis reads at a glance.
-const SAY = {
-  serendipity: 'seh-ruhn-DIP-ih-tee',
-  petrichor: 'PET-rih-kor',
-  ephemeral: 'ih-FEM-er-uhl',
-  sonder: 'SON-der',
-  limerence: 'LIM-er-uhns',
-  mellifluous: 'meh-LIF-loo-uhs',
-  halcyon: 'HAL-see-uhn',
-  susurrus: 'soo-SUR-uhs',
-  apricity: 'uh-PRIS-ih-tee',
-  nepenthe: 'nih-PEN-thee',
-  eloquence: 'EL-uh-kwuhns',
-  quixotic: 'kwik-SOT-ik',
-  sublime: 'suh-BLYME',
-  ineffable: 'in-EF-uh-buhl',
-  luminescence: 'loo-mih-NES-uhns',
-  wanderlust: 'WON-der-lust',
-  effervescent: 'ef-er-VES-uhnt',
-  solitude: 'SOL-ih-tood',
-  aurora: 'aw-ROR-uh',
-  reverie: 'REV-er-ee',
-  gossamer: 'GOS-uh-mer',
-  incandescent: 'in-kan-DES-uhnt',
-  vellichor: 'VEL-ih-kor',
-  numinous: 'NOO-mih-nuhs',
-  evanescent: 'ev-uh-NES-uhnt',
-  plethora: 'PLETH-er-uh',
-  panacea: 'pan-uh-SEE-uh',
-  zephyr: 'ZEF-er',
-  felicity: 'fuh-LIS-ih-tee',
-  verdant: 'VUR-duhnt',
-  sanguine: 'SANG-gwin',
-  aplomb: 'uh-PLOM',
-  lagom: 'LAH-gom',
-  hiraeth: 'HEER-ryth',
-  meraki: 'meh-RAH-kee',
-  fernweh: 'FERN-vey',
-  pellucid: 'peh-LOO-sid',
-  redolent: 'RED-uh-luhnt',
-  lissome: 'LIS-uhm',
-  ethereal: 'ih-THEER-ee-uhl',
-  cynosure: 'SIN-uh-shoor',
-  denouement: 'day-noo-MON',
-  sempiternal: 'sem-pih-TUR-nuhl',
-  oneiric: 'oh-NY-rik',
-  tarantism: 'TAR-uhn-tiz-uhm',
-  syzygy: 'SIZ-ih-jee',
-  ebullient: 'ih-BULL-yuhnt',
-  scintilla: 'sin-TIL-uh',
-  gloaming: 'GLOH-ming',
-  crepuscular: 'krih-PUS-kyuh-ler',
-  quiescent: 'kwee-ES-uhnt',
-  eudaimonia: 'yoo-dy-MOH-nee-uh',
-  frisson: 'free-SON',
-  saudade: 'sow-DAH-duh',
-  komorebi: 'koh-moh-REH-bee',
-  eunoia: 'yoo-NOY-uh',
-  nebulous: 'NEB-yuh-luhs',
-  languor: 'LANG-ger',
-  quintessence: 'kwin-TES-uhns',
-  noctilucent: 'nok-tih-LOO-suhnt',
-  brume: 'BROOM',
-  aubade: 'oh-BAHD',
-  lambent: 'LAM-buhnt',
-  vespertine: 'VES-per-tyne',
-  psithurism: 'SITH-yoo-riz-uhm',
-  murmuration: 'mur-myuh-RAY-shuhn',
-  sillage: 'see-YAHZH',
-  hygge: 'HOO-guh',
-  ikigai: 'ee-kee-GUY',
-  cwtch: 'KUUTCH',
-  pluviophile: 'PLOO-vee-uh-file',
-  nemophilist: 'nih-MOF-ih-list',
-  ataraxia: 'at-uh-RAK-see-uh',
-  solivagant: 'suh-LIV-uh-guhnt',
-  chatoyant: 'shuh-TOY-uhnt',
-  refulgent: 'rih-FUHL-juhnt',
-  limpid: 'LIM-pid',
-  sonorous: 'SON-er-uhs',
-  eventide: 'EE-vuhn-tide',
-  coddiwomple: 'KOD-ee-wom-pul',
-  brontide: 'BRON-tide',
-  selcouth: 'SEL-kooth',
-  estival: 'ES-tih-vuhl',
-  dwaal: 'DVAHL',
-  'mångata': 'MOHN-gah-ta',
-  'gökotta': 'yer-KOT-a',
-  resfeber: 'RESS-fay-ber',
-  friluftsliv: 'FREE-loofts-liv',
-  waldeinsamkeit: 'VALD-ine-zam-kite',
-  vorfreude: 'FOR-froy-duh',
-  'wabi-sabi': 'WAH-bee SAH-bee',
-  tsundoku: 'tsoon-DOH-koo',
-  querencia: 'keh-REN-see-ah',
-  duende: 'DWEN-day',
-  sprezzatura: 'spret-sah-TOO-rah',
-  'flâneur': 'flah-NUR',
-  mudita: 'moo-DEE-tah',
-  eucatastrophe: 'yoo-kuh-TAS-truh-fee',
-};
-
-// ---- WORD ORIGINS — a quiet etymology for each word (offline, keyed by word).
-// Kept as a separate map so the WORDS list above is never touched: a missing
-// entry simply renders no origin line. Concise: language + literal roots.
-const ORIGINS = {
-  serendipity: 'coined 1754 · from “Serendip”',
-  petrichor: 'Greek petra “stone” + ichor',
-  ephemeral: 'Greek ephēmeros “lasting a day”',
-  sonder: 'modern coinage',
-  limerence: 'coined 1970s by D. Tennov',
-  mellifluous: 'Latin mel “honey” + fluere',
-  halcyon: 'Greek halkyōn “kingfisher”',
-  susurrus: 'Latin · “a whispering”',
-  apricity: 'Latin apricari “to bask”',
-  nepenthe: 'Greek · “banishing grief”',
-  eloquence: 'Latin eloqui “to speak out”',
-  quixotic: 'from Don Quixote, 1605',
-  sublime: 'Latin sublimis “lofty”',
-  ineffable: 'Latin · “unutterable”',
-  luminescence: 'Latin lumen “light”',
-  wanderlust: 'German · “desire to wander”',
-  effervescent: 'Latin · “to boil up”',
-  solitude: 'Latin solus “alone”',
-  aurora: 'Latin · Roman goddess of dawn',
-  reverie: 'Old French · “revelry”',
-  gossamer: 'Middle English “goose summer”',
-  incandescent: 'Latin · “to glow white”',
-  vellichor: 'modern coinage',
-  numinous: 'Latin numen “divine power”',
-  evanescent: 'Latin evanescere “to vanish”',
-  plethora: 'Greek plēthōrē “fullness”',
-  panacea: 'Greek · “all-healing”',
-  zephyr: 'Greek Zephyros, west wind',
-  felicity: 'Latin felicitas “happiness”',
-  verdant: 'Old French “becoming green”',
-  sanguine: 'Latin sanguis “blood”',
-  aplomb: 'French à plomb “plumb-straight”',
-  lagom: 'Swedish · “just enough”',
-  hiraeth: 'Welsh · longing for home',
-  meraki: 'Greek · to do with soul',
-  fernweh: 'German fern “far” + Weh “ache”',
-  pellucid: 'Latin pellucidus “transparent”',
-  redolent: 'Latin redolere “to give scent”',
-  lissome: 'variant of “lithesome”',
-  ethereal: 'Greek aithēr “upper air”',
-  cynosure: 'Greek “dog’s tail” · Pole Star',
-  denouement: 'French dénouer “to untie”',
-  sempiternal: 'Latin semper “always”',
-  oneiric: 'Greek oneiros “dream”',
-  tarantism: 'from Taranto, Italy',
-  syzygy: 'Greek · “yoked together”',
-  ebullient: 'Latin ebullire “to bubble”',
-  scintilla: 'Latin · “a spark”',
-  gloaming: 'Old English glōm “twilight”',
-  crepuscular: 'Latin crepusculum “dusk”',
-  quiescent: 'Latin quiescere “to rest”',
-  eudaimonia: 'Greek eu “good” + daimōn',
-  frisson: 'French · “a shiver”',
-  saudade: 'Portuguese · Latin solitas',
-  komorebi: 'Japanese 木漏れ日 · leaf-light',
-  eunoia: 'Greek eu “good” + nous “mind”',
-  nebulous: 'Latin nebula “mist, cloud”',
-  languor: 'Latin languēre “to be faint”',
-  quintessence: 'Latin quinta essentia',
-  noctilucent: 'Latin nox “night” + lucēre',
-  brume: 'French brume “fog, mist”',
-  aubade: 'French · Spanish alba “dawn”',
-  lambent: 'Latin lambere “to lick”',
-  vespertine: 'Latin vesper “evening”',
-  psithurism: 'Greek psithuros “whispering”',
-  murmuration: 'Latin murmur “a murmur”',
-  sillage: 'French sillage “wake, trail”',
-  hygge: 'Danish · Norwegian “well-being”',
-  ikigai: 'Japanese 生き甲斐 “reason to live”',
-  cwtch: 'Welsh · “cubbyhole, embrace”',
-  pluviophile: 'Latin pluvia “rain” + -phile',
-  nemophilist: 'Greek nemos “grove” + -phile',
-  ataraxia: 'Greek · “impassiveness”',
-  solivagant: 'Latin solus “alone” + vagari',
-  chatoyant: 'French chatoyer “to shimmer”',
-  refulgent: 'Latin refulgēre “to shine out”',
-  limpid: 'Latin limpidus “clear”',
-  sonorous: 'Latin sonor “sound”',
-  eventide: 'Old English ǣfentīd “eventime”',
-  coddiwomple: 'modern English coinage',
-  brontide: 'Greek brontē “thunder”',
-  selcouth: 'Old English seldcūth “seldom known”',
-  estival: 'Latin aestas “summer”',
-  dwaal: 'Afrikaans · Dutch dwalen “to wander”',
-  'mångata': 'Swedish måne “moon” + gata “road”',
-  'gökotta': 'Swedish · “dawn cuckoo-song”',
-  resfeber: 'Swedish resa “journey” + feber “fever”',
-  friluftsliv: 'Norwegian · “free-air life”',
-  waldeinsamkeit: 'German Wald “forest” + Einsamkeit',
-  vorfreude: 'German vor “before” + Freude “joy”',
-  'wabi-sabi': 'Japanese 侘寂 · “rustic patina”',
-  tsundoku: 'Japanese 積ん読 · “pile-up reading”',
-  querencia: 'Spanish querer “to love, to desire”',
-  duende: 'Spanish · “spirit, sprite”',
-  sprezzatura: 'Italian · coined 1528, Castiglione',
-  'flâneur': 'French flâner “to stroll, saunter”',
-  mudita: 'Sanskrit/Pali · “sympathetic joy”',
-  eucatastrophe: 'coined by Tolkien · Greek eu “good”',
-};
-
-// ---- SYNONYMS — a few kindred words for each entry (offline, keyed by word).
-// Same pattern as ORIGINS: a separate map so WORDS is never touched, and a
-// missing entry simply renders no synonyms line. Kept to 2-3 apt near-synonyms;
-// the genuinely untranslatable coinages (petrichor, sonder, lagom, hiraeth…)
-// are intentionally absent — they have no real synonym, and that silence is apt.
-const SYNONYMS = {
-  serendipity: ['chance', 'fluke', 'providence'],
-  ephemeral: ['fleeting', 'transient', 'momentary'],
-  limerence: ['infatuation', 'obsession'],
-  mellifluous: ['honeyed', 'dulcet', 'melodious'],
-  halcyon: ['peaceful', 'serene', 'idyllic'],
-  susurrus: ['whisper', 'murmur', 'rustle'],
-  nepenthe: ['solace', 'balm', 'oblivion'],
-  eloquence: ['fluency', 'articulacy', 'expressiveness'],
-  quixotic: ['idealistic', 'romantic', 'impractical'],
-  sublime: ['majestic', 'awe-inspiring', 'exalted'],
-  ineffable: ['indescribable', 'inexpressible', 'unutterable'],
-  luminescence: ['glow', 'radiance', 'phosphorescence'],
-  wanderlust: ['restlessness', 'itchy feet'],
-  effervescent: ['bubbly', 'vivacious', 'lively'],
-  solitude: ['seclusion', 'aloneness', 'isolation'],
-  aurora: ['dawn', 'daybreak', 'sunrise'],
-  reverie: ['daydream', 'musing', 'trance'],
-  gossamer: ['delicate', 'filmy', 'diaphanous'],
-  incandescent: ['glowing', 'radiant', 'luminous'],
-  numinous: ['spiritual', 'sacred', 'transcendent'],
-  evanescent: ['fleeting', 'transient', 'vanishing'],
-  plethora: ['abundance', 'excess', 'surfeit'],
-  panacea: ['cure-all', 'remedy', 'elixir'],
-  zephyr: ['breeze', 'gust', 'waft'],
-  felicity: ['bliss', 'happiness', 'joy'],
-  verdant: ['green', 'lush', 'leafy'],
-  sanguine: ['optimistic', 'hopeful', 'buoyant'],
-  aplomb: ['poise', 'composure', 'self-assurance'],
-  pellucid: ['clear', 'lucid', 'transparent'],
-  redolent: ['evocative', 'reminiscent', 'suggestive'],
-  lissome: ['supple', 'lithe', 'graceful'],
-  ethereal: ['delicate', 'airy', 'celestial'],
-  cynosure: ['focal point', 'lodestar', 'centrepiece'],
-  denouement: ['resolution', 'finale', 'conclusion'],
-  sempiternal: ['eternal', 'everlasting', 'perpetual'],
-  oneiric: ['dreamlike', 'dreamy', 'surreal'],
-  ebullient: ['exuberant', 'buoyant', 'high-spirited'],
-  scintilla: ['trace', 'spark', 'iota'],
-  gloaming: ['dusk', 'twilight', 'nightfall'],
-  crepuscular: ['dim', 'shadowy', 'dusky'],
-  quiescent: ['dormant', 'still', 'latent'],
-  eudaimonia: ['flourishing', 'well-being', 'contentment'],
-  frisson: ['thrill', 'shiver', 'tingle'],
-  eunoia: ['goodwill', 'benevolence', 'kindliness'],
-  nebulous: ['vague', 'hazy', 'indistinct'],
-  languor: ['lassitude', 'listlessness', 'torpor'],
-  quintessence: ['essence', 'epitome', 'embodiment'],
-  noctilucent: ['night-glowing', 'luminous', 'gleaming'],
-  brume: ['mist', 'haze', 'fog'],
-  lambent: ['glowing', 'radiant', 'flickering'],
-  vespertine: ['evening', 'twilit', 'crepuscular'],
-  psithurism: ['whisper', 'rustle', 'susurrus'],
-  ataraxia: ['serenity', 'calm', 'tranquillity'],
-  solivagant: ['wandering', 'roving', 'roaming'],
-  chatoyant: ['shimmering', 'iridescent', 'lustrous'],
-  refulgent: ['radiant', 'brilliant', 'luminous'],
-  limpid: ['clear', 'transparent', 'lucid'],
-  sonorous: ['resonant', 'rich', 'full'],
-  eventide: ['evening', 'dusk', 'gloaming'],
-  brontide: ['rumble', 'roll', 'roar'],
-  selcouth: ['strange', 'wondrous', 'marvellous'],
-  estival: ['summery', 'summerlike'],
-  duende: ['passion', 'soul', 'fire'],
-  sprezzatura: ['nonchalance', 'insouciance', 'panache'],
-  'flâneur': ['stroller', 'saunterer', 'idler'],
-};
-
-// ---- ANTONYMS — a few opposite words for each entry (offline, keyed by word).
-// Same pattern as SYNONYMS: a separate map so WORDS is never touched, and a
-// missing entry simply renders no antonyms clause. Only words with a genuine,
-// clean opposite are listed; the untranslatable coinages and the neutral nouns
-// (petrichor, sonder, aurora, reverie, zephyr…) are intentionally absent.
-const ANTONYMS = {
-  ephemeral: ['eternal', 'enduring', 'permanent'],
-  mellifluous: ['harsh', 'grating', 'discordant'],
-  halcyon: ['turbulent', 'stormy', 'troubled'],
-  quixotic: ['pragmatic', 'realistic', 'hard-nosed'],
-  sublime: ['ordinary', 'mundane', 'unremarkable'],
-  ineffable: ['expressible', 'describable', 'commonplace'],
-  luminescence: ['darkness', 'gloom'],
-  effervescent: ['flat', 'listless', 'subdued'],
-  solitude: ['company', 'togetherness', 'crowd'],
-  gossamer: ['sturdy', 'heavy', 'substantial'],
-  incandescent: ['dull', 'dim', 'lifeless'],
-  numinous: ['mundane', 'profane', 'earthly'],
-  evanescent: ['enduring', 'permanent', 'lasting'],
-  plethora: ['scarcity', 'dearth', 'lack'],
-  panacea: ['scourge', 'affliction'],
-  felicity: ['misery', 'woe', 'wretchedness'],
-  verdant: ['barren', 'arid', 'withered'],
-  sanguine: ['pessimistic', 'gloomy', 'despondent'],
-  aplomb: ['awkwardness', 'nervousness', 'unease'],
-  pellucid: ['murky', 'opaque', 'muddled'],
-  lissome: ['stiff', 'clumsy', 'ungainly'],
-  ethereal: ['earthly', 'solid', 'corporeal'],
-  sempiternal: ['fleeting', 'transient', 'momentary'],
-  ebullient: ['subdued', 'listless', 'downcast'],
-  gloaming: ['dawn', 'daybreak', 'sunrise'],
-  crepuscular: ['bright', 'radiant', 'sunlit'],
-  quiescent: ['active', 'restless', 'agitated'],
-  eudaimonia: ['misery', 'wretchedness'],
-  eunoia: ['ill will', 'malice'],
-  nebulous: ['clear', 'distinct', 'defined'],
-  languor: ['vigour', 'energy', 'briskness'],
-  noctilucent: ['dark', 'lightless'],
-  brume: ['clarity', 'clearness'],
-  lambent: ['dull', 'dark', 'lightless'],
-  ataraxia: ['anxiety', 'turmoil', 'agitation'],
-  chatoyant: ['matte', 'dull', 'lustreless'],
-  refulgent: ['dull', 'dim', 'lightless'],
-  limpid: ['murky', 'cloudy', 'opaque'],
-  sonorous: ['thin', 'tinny', 'muffled'],
-  eventide: ['dawn', 'daybreak', 'morning'],
-  selcouth: ['familiar', 'ordinary', 'commonplace'],
-  estival: ['hibernal', 'wintry'],
-};
 
 // ---- FACT OF THE DAY — embedded fallback -----------------------------------
 const FACTS = [
@@ -527,7 +89,7 @@ const QUOTES = [
 ];
 
 // ---- QUOTE AUTHORS — a quiet role/era for each embedded author (offline, keyed
-// by name). Same pattern as ORIGINS/SYNONYMS: a separate map so QUOTES is never
+// by name). A separate map so QUOTES is never
 // touched, and a missing entry (e.g. an unfamiliar author from the live feed)
 // simply renders no role tag. Concise — one or two words that place the voice.
 const AUTHORS = {
@@ -567,124 +129,8 @@ function dayOfYear(d = new Date()) {
   return Math.floor((d - start) / 864e5);
 }
 const pickByDay = (arr) => arr[dayOfYear() % arr.length];
-// Stable per-day key (local time) for caching/deduping the live word.
+// Stable per-day key (local time) — caches the day's Wikidata notability lookup.
 const todayKey = (d = new Date()) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-
-// ---- ANTI-REPEAT MEMORY (localStorage) -------------------------------------
-// The humans noticed the Word of the Day recycling the same vocabulary. The live
-// word is drawn from a theme cloud, but similar themes surface overlapping words,
-// so purely picking by score/day still recurs every few weeks. To make it feel
-// genuinely fresh we keep a small rolling memory of recently-shown words and skip
-// them when choosing, and we cache the day's chosen word so it stays stable across
-// the day's refreshes and page reloads. All access is wrapped so a locked-down or
-// unavailable localStorage simply disables the memory rather than throwing.
-const LS_HIST = 'garden.wotd.history.v1';   // [{w,d}] recently-shown words, oldest→newest
-const LS_TODAY = 'garden.wotd.today.v1';    // {d, n} today's chosen normalised word
-const HIST_KEEP = 45;                        // don't repeat a word within ~45 days
-const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
-const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
-const recentWords = () => { const h = lsGet(LS_HIST); return Array.isArray(h) ? h.map((e) => e && e.w).filter(Boolean) : []; };
-const rememberWord = (w) => {
-  let h = lsGet(LS_HIST); if (!Array.isArray(h)) h = [];
-  h = h.filter((e) => e && e.w && e.w !== w);   // drop any prior copy, then re-add as newest
-  h.push({ w, d: todayKey() });
-  if (h.length > HIST_KEEP) h = h.slice(h.length - HIST_KEEP);
-  lsSet(LS_HIST, h);
-};
-
-// ---- LIVE WORD OF THE DAY (Datamuse) ---------------------------------------
-// The curated WORDS list above is beautiful but finite, so a purely offline pick
-// (dayOfYear % length) recycles the same words every few months. To give the word
-// genuine, ever-fresh variety we draw the day's word LIVE from Datamuse — a
-// reputable, keyless API that returns a word together with its definition, part of
-// speech and pronunciation in ONE call. Each day we choose one evocative THEME seed
-// and let Datamuse surface words that mean-like it (dusk→gloaming, twilit, evenfall…),
-// then pick one deterministically for the day. Datamuse's ARPAbet pronunciation is
-// converted to the same plain-English "say-it-like" respelling the curated words use.
-// If the network is unavailable the widget silently keeps the offline curated word,
-// so it never blanks. The seeds are evocative MOOD/QUALITY words (not concrete
-// nouns) — these reliably surface lovely true-synonym clouds (serene → tranquil,
-// placid; ephemeral → transient, transitory) rather than mundane associations.
-const SEEDS = ['luminous', 'serene', 'ephemeral', 'radiant', 'tranquil', 'graceful',
-  'delicate', 'fragrant', 'dreamy', 'mysterious', 'elegant', 'soothing', 'hushed',
-  'lush', 'vivid', 'wondrous', 'solitary', 'gleaming', 'sublime', 'ethereal',
-  'verdant', 'celestial', 'melancholy', 'wistful', 'nostalgic', 'fleeting',
-  'shimmering', 'velvety', 'whimsical', 'opulent', 'austere', 'resplendent',
-  'secluded', 'boundless', 'idyllic', 'languid', 'enigmatic', 'incandescent',
-  'gossamer', 'twilit', 'sonorous', 'fervent', 'yearning', 'untamed', 'sacred',
-  'windswept', 'moonlit', 'brooding', 'effervescent', 'pristine', 'clandestine',
-  'labyrinthine', 'spellbound', 'halcyon', 'ineffable', 'mercurial'];
-
-// ARPAbet phoneme string (e.g. "P EH1 T R IH0 K ER0") → a plain-English respelling
-// ("PEH-trih-ker") with the stressed syllable in CAPS, matching the curated SAY map's
-// house style so live words are just as sayable. Rough but readable; returns '' if it
-// can't parse anything, in which case the pronunciation line simply hides.
-const ARPA_V = { AA: 'ah', AE: 'a', AH: 'uh', AO: 'aw', AW: 'ow', AY: 'y', EH: 'eh',
-  ER: 'er', EY: 'ay', IH: 'ih', IY: 'ee', OW: 'oh', OY: 'oy', UH: 'uu', UW: 'oo' };
-const ARPA_C = { B: 'b', CH: 'ch', D: 'd', DH: 'th', F: 'f', G: 'g', HH: 'h', JH: 'j',
-  K: 'k', L: 'l', M: 'm', N: 'n', NG: 'ng', P: 'p', R: 'r', S: 's', SH: 'sh', T: 't',
-  TH: 'th', V: 'v', W: 'w', Y: 'y', Z: 'z', ZH: 'zh' };
-function arpabetToSay(arpa) {
-  const toks = String(arpa || '').trim().split(/\s+/);
-  // Build syllables around each vowel nucleus. Consonants between two vowels split
-  // "maximal-onset-lite": the last pending consonant opens the next syllable, the
-  // rest close the previous one — so "P EH T R IH K ER" reads "PEHT-rih-ker" rather
-  // than clumping every consonant onto one syllable.
-  const syls = [];
-  let prev = null, cons = [];
-  const flushPrev = (coda) => { if (prev) { prev.coda = coda.join(''); syls.push(prev); } };
-  for (const t of toks) {
-    const m = t.match(/^([A-Z]+)(\d?)$/);
-    if (!m) continue;
-    const base = m[1];
-    if (ARPA_V[base] !== undefined) {
-      const stress = m[2] === '1' ? 1 : (m[2] === '2' ? 2 : 0);
-      let onset = '';
-      if (prev) {
-        if (cons.length) { onset = cons[cons.length - 1]; flushPrev(cons.slice(0, -1)); }
-        else flushPrev([]);
-      } else { onset = cons.join(''); }
-      prev = { onset, nucleus: ARPA_V[base], coda: '', stress };
-      cons = [];
-    } else if (ARPA_C[base] !== undefined) {
-      cons.push(ARPA_C[base]);
-    }
-  }
-  if (prev) { prev.coda = cons.join(''); syls.push(prev); }
-  if (!syls.length) return '';
-  const hasPrimary = syls.some((s) => s.stress === 1);
-  return syls
-    .map((s, i) => {
-      const txt = s.onset + s.nucleus + s.coda;
-      return (s.stress === 1 || syls.length === 1 || (!hasPrimary && i === 0)) ? txt.toUpperCase() : txt;
-    })
-    .join('-');
-}
-
-// Turn one Datamuse result into a tidy candidate, or null if it lacks the parts we
-// need. `defs` entries are "<pos>\t<definition>"; `tags` carry the part of speech,
-// an ARPAbet "pron:…" and a frequency "f:…". We keep the definition that matches the
-// word's part of speech when possible.
-const DM_POS = { n: 'noun', adj: 'adjective', adv: 'adverb', v: 'verb' };
-function parseDatamuse(c) {
-  if (!c || !c.word) return null;
-  const tags = Array.isArray(c.tags) ? c.tags : [];
-  let pos = '', abbr = '';
-  for (const t of tags) { if (DM_POS[t]) { pos = DM_POS[t]; abbr = t; break; } }
-  const pronTag = tags.find((t) => t.startsWith('pron:'));
-  const fTag = tags.find((t) => t.startsWith('f:'));
-  const f = fTag ? parseFloat(fTag.slice(2)) : null;
-  const defs = Array.isArray(c.defs) ? c.defs : [];
-  const picked = (abbr && defs.find((d) => d.startsWith(abbr + '\t'))) || defs[0] || '';
-  let def = picked.replace(/^[a-z]+\t/i, '').trim();
-  // drop bare "(usage)" parentheticals that some Wiktionary defs open with, and tidy
-  def = def.replace(/^\((?:transitive|intransitive|obsolete|archaic|rare|dated|informal|figuratively)\)\s*/i, '').trim();
-  if (def) { def = def.charAt(0).toUpperCase() + def.slice(1); if (!/[.!?]$/.test(def)) def += '.'; }
-  // `syn` marks a true synonym of the seed (vs a merely-associated word), which is
-  // how we keep the day's word lovely rather than tangential.
-  return { word: c.word, pos, def, say: pronTag ? arpabetToSay(pronTag.slice(5)) : '',
-    f, score: c.score || 0, syn: tags.includes('syn') };
-}
 
 // Wikipedia returns negative years for BC — render legibly, never as "-480".
 const fmtYear = (y) => (y < 0 ? `${-y} BC` : String(y));
@@ -714,27 +160,49 @@ export function milestoneOf(year, nowY = new Date().getFullYear()) {
 export default {
   id: 'daily',
   title: 'Today',
-  icon: '📖',
+  icon: '🖼️',
   size: 'tall',
   chrome: true,
   frame: false, // zigzag of open cards (2026-10-06)
-  // Fullscreen: the same content at ~1.5× type, natural height (no flex thirds, no
-  // clamping) — the panel sizes to it, so there's no empty space.
+  // Fullscreen: the day's painting large and uncropped (object-fit: contain in a
+  // fixed-height stage, so the panel's size never depends on the picture), with
+  // title, artist, date, medium · museum, the blurb and a QR to the museum's page;
+  // On This Day + the quote follow at ~1.4× type, natural height (no flex thirds,
+  // no clamping) — the panel sizes to it, so there's no empty space.
   async openFull(body, ctx) {
     const wrap = ctx.h('div', { class: 'dly-full' });
     body.replaceChildren(wrap);
     // own <style> (ctx.style is deduped per widget, so it can't add a 2nd sheet)
     if (!document.getElementById('style-daily-full')) {
       const st = document.createElement('style'); st.id = 'style-daily-full'; st.textContent = `
-      .dly-full { zoom:1.5; padding:0 4px 8px; }
-      .dly-full .dly { height:auto; gap:22px; }
+      .dly-full { padding:0 4px 8px; }
+      .dly-full .dly { height:auto; gap:30px; }
       .dly-full .dly > * { flex:none !important; overflow:visible !important; min-height:0; }
       .dly-full * { -webkit-line-clamp:unset !important; max-height:none !important; }
+      .dly-full .dly-fact-sec, .dly-full .dly-quote-sec, .dly-full .dly-paint-sec > .dly-lbl { zoom:1.4; }
+      .dly-full .dly-paint-sec > .dly-lbl { margin-bottom:10px; }
+      .dly-pfull { display:flex; flex-direction:column; gap:22px; }
+      .dly-pfull .dly-pimg { width:100%; height:700px; border-radius:0; background:none; }
+      .dly-pfull .dly-pimg::after { display:none; }
+      .dly-pfull .dly-pic { object-fit:contain; object-position:50% 50% !important; }
+      .dly-pmeta { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:30px; align-items:start; }
+      .dly-pfull .dly-pcap { gap:6px; }
+      .dly-pfull .dly-ptitle { font-size:36px; line-height:1.1; }
+      .dly-pfull .dly-partist { font-size:21px; white-space:normal; }
+      .dly-pfull .dly-pdate { font-size:17px; white-space:normal; }
+      .dly-pmuseum { font-family:var(--font-mono); font-size:14px; letter-spacing:.16em; text-transform:uppercase;
+        color:var(--ink-faint); margin-top:4px; }
+      .dly-pblurb { margin-top:10px; font-size:19px; line-height:1.45; color:var(--ink-soft); text-wrap:pretty; }
+      .dly-pblurb:empty { display:none; }
+      .dly-pqrbox { display:flex; flex-direction:column; align-items:center; gap:8px; padding-top:6px; }
+      .dly-pqr { width:120px; height:120px; image-rendering:pixelated; }
+      .dly-pqrcap { max-width:132px; text-align:center; font-family:var(--font-mono); font-size:11.5px; line-height:1.35;
+        letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); }
     `; document.head.appendChild(st);
     }
-    await this.mount(wrap, ctx);
+    await this.mount(wrap, ctx, { full: true });
   },
-  async mount(body, ctx) {
+  async mount(body, ctx, opts = {}) {
     const { h } = ctx;
     ctx.style(`
       /* Three sections split the tall card into FIXED, non-overlapping regions
@@ -757,60 +225,36 @@ export default {
          its generous 'tall' height and stays full); grow shares any extra space,
          shrink lets a region give way gracefully if the grid ever forces the card
          shorter — clamping within its region instead of at the card's edge. */
-      .dly-word-sec { flex:1.15 0 auto; }
+      .dly-paint-sec { flex:1.15 0 auto; }
       .dly-fact-sec { flex:1 1 auto; }
       .dly-quote-sec { flex:1 1 auto; }
       .dly-sec + .dly-sec { border-top:1px solid var(--stroke); }
       .dly-lbl { font-family:var(--font-mono); font-size:12.5px; font-weight:600; letter-spacing:.2em;
         text-transform:uppercase; color:var(--ink-faint); margin-bottom:5px; flex:none; }
 
-      /* WORD — the hero. Wraps to a 2nd line for long entries, then ellipsizes. */
-      .dly-word { font-family:var(--font-display); font-weight:600; font-size:26px; line-height:1.1;
-        color:var(--mint);
-        background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text;
-        background-clip:text; -webkit-text-fill-color:transparent;
-        overflow-wrap:break-word; word-break:break-word;
+      /* PAINTING — the hero. A fixed image frame (cover-cropped at the entry's
+         focal point) beside a caption: title in the display face, then artist
+         and date. The frame is full size from the first paint; the picture
+         fades in only once it has decoded (no loading text, nothing grows). */
+      .dly-paint { display:flex; align-items:center; gap:14px; min-height:0; }
+      .dly-pimg { position:relative; flex:none; width:158px; height:102px; border-radius:12px;
+        overflow:hidden; background:rgba(255,255,255,.035); }
+      .dly-pimg::after { content:''; position:absolute; inset:0; border-radius:inherit;
+        box-shadow:inset 0 0 0 1px var(--stroke); pointer-events:none; }
+      .dly-pic { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+        opacity:0; transition:opacity .7s linear; }
+      .dly-pic.on { opacity:1; }
+      @media (prefers-reduced-motion: reduce) { .dly-pic { transition:none; } }
+      .dly-pcap { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:4px; }
+      .dly-ptitle { font-family:var(--font-display); font-weight:400; font-size:21px; line-height:1.12;
+        color:var(--mint); background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text;
+        background-clip:text; -webkit-text-fill-color:transparent; text-wrap:balance;
+        overflow-wrap:break-word; padding-bottom:1px;
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      .dly-wmeta { margin-top:5px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; flex:none; }
-      .dly-pron { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint); }
-      /* plain-English "say-it-like" respelling, trailing the IPA on the SAME line —
-         a hushed mint clause (the stressed syllable is CAPS in the data itself), so
-         the word is actually sayable. Fits within the half-width line, adding no
-         height; hidden entirely when the word has no respelling. */
-      .dly-pron .say { color:var(--mint-2); letter-spacing:.01em; }
-      .dly-pos { font-style:italic; font-size:13px; color:var(--ink-soft); }
-      /* etymology — a quiet mono caption beneath the word's pronunciation/part of
-         speech, telling where the word comes from. One line, ellipsised, so it can
-         never push the definition or example out of the region. */
-      .dly-orig { margin-top:3px; font-family:var(--font-mono); font-size:13px; line-height:1.2;
-        color:var(--ink-faint); letter-spacing:.01em; flex:none;
-        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
-      .dly-orig .rt { color:var(--mint-2); margin-right:6px; }
-      .dly-theme { font-family:var(--font-mono); font-size:12.5px; color:var(--ink-faint);
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
-      .dly-theme::before { content:'·'; margin-right:10px; color:var(--ink-faint); }
-      .dly-theme .rt { color:var(--mint-2); margin-right:5px; }
-      .dly-def { margin-top:4px; font-size:14px; line-height:1.34; color:var(--ink);
-        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-      /* synonyms & antonyms — a quiet "kindred + opposite" line beneath the
-         definition: a mint "≈" leads a few near-synonyms, and (when the word has
-         a clean opposite) a cool blue "≠" leads a few antonyms on the SAME line.
-         One line, ellipsised, so it can never push the example out of the region;
-         adds no height. Hidden entirely when the word has neither. */
-      .dly-syn { margin-top:4px; font-size:12.5px; line-height:1.25; color:var(--ink-soft);
-        flex:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
-      .dly-syn .eq { color:var(--mint); font-weight:700; margin-right:7px; }
-      .dly-syn .sw + .sw::before { content:'·'; color:var(--ink-faint); margin:0 6px; }
-      /* antonyms — cool blue "≠" marker (paired with the mint "≈"); a wider left
-         gap sets the opposites apart from the synonyms when both are present. */
-      .dly-syn .neq { color:#9cc0ff; font-weight:700; margin-right:7px; }
-      .dly-syn .sw + .neq { margin-left:13px; }
-      .dly-syn .aw + .aw::before { content:'·'; color:var(--ink-faint); margin:0 6px; }
-      /* example usage — a quiet italic line that shows the word living in a sentence.
-         The word itself is emphasised in mint so the eye finds it at a glance. */
-      .dly-ex { margin-top:5px; font-style:italic; font-size:12.5px; line-height:1.3; color:var(--ink-soft);
-        display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
-      .dly-ex b { font-style:italic; font-weight:600; color:var(--mint); }
+      .dly-partist { font-size:14px; line-height:1.25; color:var(--ink);
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .dly-pdate { font-family:var(--font-mono); font-size:12.5px; line-height:1.2; color:var(--ink-faint);
+        letter-spacing:.02em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
       /* ON THIS DAY (falls back to a plain fact when offline). The text is the
          flexible middle of its region and clamps with an ellipsis. */
@@ -868,7 +312,7 @@ export default {
          inside this region (margin-top:auto), so it can never overlap the block
          above nor slip past the card's bottom edge. A soft mint blockquote rule
          and mint-tinted quotation marks give the day's quote its own presence, so
-         it reads distinctly from the word/fact sections above rather than as one
+         it reads distinctly from the painting/fact sections above rather than as one
          more label-plus-text block. Purely decorative — static, adds no height. */
       .dly-quote { font-family:var(--font-display); font-style:normal; font-size:16.5px; line-height:1.3;
         color:var(--ink); min-height:0; text-wrap:balance; /* no lone last word */
@@ -884,118 +328,77 @@ export default {
       .dly-auth .role { color:var(--ink-faint); font-weight:400; letter-spacing:.01em; }
     `);
 
-    // ---- WORD: fully offline, never fails ------------------------------------
-    const wordEl = h('div', { class: 'dly-word' });
-    const pronEl = h('span', { class: 'dly-pron' });
-    const posEl = h('span', { class: 'dly-pos' });
-    const themeEl = h('span', { class: 'dly-theme' });
-    const origEl = h('div', { class: 'dly-orig' });
-    const defEl = h('div', { class: 'dly-def' });
-    const synEl = h('div', { class: 'dly-syn' });
-    const exEl = h('div', { class: 'dly-ex' });
-    const wordSec = h('div', { class: 'dly-sec dly-word-sec' },
-      h('div', { class: 'dly-lbl' }, 'Word of the Day'),
-      wordEl,
-      h('div', { class: 'dly-wmeta' }, pronEl, posEl, themeEl),
-      origEl,
-      defEl, synEl, exEl);
-    // Render the example with the headword emphasised in mint, matching case-
-    // insensitively so inflected forms still highlight. Falls back to plain text.
-    // Hidden entirely (no height) when the word carries no example, as live
-    // Datamuse words do — the definition then simply stands on its own.
-    const applyExample = (n) => {
-      exEl.title = n.ex || '';
-      if (!n.ex) { exEl.style.display = 'none'; exEl.replaceChildren(); return; }
-      exEl.style.display = '';
-      const stem = n.word.slice(0, Math.max(4, n.word.length - 2));
-      const re = new RegExp(`(${stem}[\\w’']*)`, 'i');
-      const m = re.exec(n.ex);
-      if (!m) { exEl.textContent = n.ex; return; }
-      exEl.replaceChildren(
-        n.ex.slice(0, m.index),
-        h('b', {}, m[0]),
-        n.ex.slice(m.index + m[0].length));
-    };
-    // renderWord takes a NORMALISED word object so it can present both an offline
-    // curated word (rich: IPA, etymology, hand-written example, synonyms/antonyms)
-    // and a live Datamuse word (definition + say-it-like + a "theme" caption). Any
-    // field that is empty simply hides its line, so neither source leaves a gap.
-    //   { word, ipa, say, pos, def, ex, originLabel, originText, syns, ants }
-    const renderWord = (n) => {
-      wordEl.textContent = n.word; wordEl.title = n.word;
-      // Pronunciation: precise IPA (curated) and/or a plain-English "say-it-like"
-      // respelling on the same line. Filter falsy so a missing part never prints
-      // a stray "null"; the whole line hides when we have neither.
-      const pronParts = [], pronTitle = [];
-      if (n.ipa) { pronParts.push(n.ipa); pronTitle.push(n.ipa); }
-      if (n.say) { pronParts.push(h('span', { class: 'say' }, n.ipa ? ` · ${n.say}` : n.say)); pronTitle.push(`say it: ${n.say}`); }
-      if (pronParts.length) { pronEl.style.display = ''; pronEl.replaceChildren(...pronParts); pronEl.title = pronTitle.join(' · '); }
-      else { pronEl.style.display = 'none'; pronEl.replaceChildren(); }
-      posEl.textContent = n.pos || '';
-      defEl.textContent = n.def || '';
-      // Caption (optional): "origin · <etymology>" for a curated word, or
-      // "theme · <seed>" for a live word placing it by the day's mood. Hidden when
-      // absent, so no empty caption line is ever left behind.
-      // A live word's one-word "theme" rides on the pronunciation line (it's
-      // short), saving a whole row so the ≈ line, On This Day nav and the quote's
-      // author all fit; a curated word's longer etymology keeps its own line.
-      const inlineTheme = n.originText && n.originLabel === 'theme';
-      themeEl.style.display = inlineTheme ? '' : 'none';
-      themeEl.replaceChildren(...(inlineTheme ? [h('span', { class: 'rt' }, 'theme'), n.originText] : []));
-      if (n.originText && !inlineTheme) {
-        origEl.style.display = '';
-        const lbl = n.originLabel || 'origin';
-        origEl.title = `${lbl.charAt(0).toUpperCase() + lbl.slice(1)} — ${n.originText}`;
-        origEl.replaceChildren(h('span', { class: 'rt' }, lbl), n.originText);
-      } else {
-        origEl.style.display = 'none';
-        origEl.replaceChildren();
+    // ---- PAINTING OF THE DAY: curated list, one per day -------------------------
+    // The list is a local module (lib/paintings.js, imported on demand so the smoke
+    // test can still import this file in Node). The section is built at its final
+    // size up front: a fixed frame + caption lines; text fills in as soon as the
+    // module resolves, the picture fades in once decoded. A failed image simply
+    // leaves the quiet empty frame (never a broken-image icon or loading text).
+    const full = !!opts.full;
+    const imgBox = h('div', { class: 'dly-pimg' });
+    const titleEl = h('div', { class: 'dly-ptitle' });
+    const artistEl = h('div', { class: 'dly-partist' });
+    const dateEl = h('div', { class: 'dly-pdate' });
+    // Fullscreen-only extras: museum line, blurb, and a QR to the museum's page.
+    const museumEl = h('div', { class: 'dly-pmuseum' });
+    const blurbEl = h('div', { class: 'dly-pblurb' });
+    const qrImg = h('img', { class: 'dly-pqr', alt: 'museum page' });
+    qrImg.onerror = () => { qrImg.style.visibility = 'hidden'; };
+    const qrCap = h('div', { class: 'dly-pqrcap' }, 'scan for the museum page');
+    const paintBody = full
+      ? h('div', { class: 'dly-pfull' }, imgBox,
+        h('div', { class: 'dly-pmeta' },
+          h('div', { class: 'dly-pcap' }, titleEl, artistEl, dateEl, museumEl, blurbEl),
+          h('div', { class: 'dly-pqrbox' }, qrImg, qrCap)))
+      : h('div', { class: 'dly-paint' }, imgBox, h('div', { class: 'dly-pcap' }, titleEl, artistEl, dateEl));
+    const paintSec = h('div', { class: 'dly-sec dly-paint-sec' },
+      h('div', { class: 'dly-lbl' }, 'Painting of the Day'), paintBody);
+    let shownId = '';
+    const showPainting = (p) => {
+      if (!p || p.id === shownId) return;
+      shownId = p.id;
+      titleEl.textContent = p.title; titleEl.title = p.title;
+      artistEl.textContent = p.artist || 'Unknown artist';
+      dateEl.textContent = full ? (p.date || '') : [p.date, p.museumShort].filter(Boolean).join(' · ');
+      if (full) {
+        museumEl.textContent = [p.medium, p.museum].filter(Boolean).join(' · ');
+        blurbEl.textContent = p.blurb || p.note || '';
+        qrImg.src = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(p.url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=180&format=png`)}`;
       }
-      // Synonyms + antonyms (both optional) share ONE line: a mint "≈" then a few
-      // kindred words, and a cool-blue "≠" then a few opposites. Either clause is
-      // shown only when we have it; the whole line hides when we have neither, so
-      // no empty line is ever left behind and no vertical height is added.
-      const syns = n.syns, ants = n.ants;
-      const hasSyn = syns && syns.length;
-      const hasAnt = ants && ants.length;
-      if (hasSyn || hasAnt) {
-        synEl.style.display = '';
-        const parts = [];
-        const titleBits = [];
-        if (hasSyn) {
-          parts.push(h('span', { class: 'eq' }, '≈'),
-            ...syns.map((s) => h('span', { class: 'sw' }, s)));
-          titleBits.push(`Kindred — ${syns.join(', ')}`);
-        }
-        if (hasAnt) {
-          parts.push(h('span', { class: 'neq' }, '≠'),
-            ...ants.map((a) => h('span', { class: 'aw' }, a)));
-          titleBits.push(`Antonyms — ${ants.join(', ')}`);
-        }
-        synEl.title = titleBits.join('   ·   ');
-        synEl.replaceChildren(...parts);
-      } else {
-        synEl.style.display = 'none';
-        synEl.replaceChildren();
-      }
-      applyExample(n);
+      // Load + decode off-screen, then swap in and fade (the frame never resizes).
+      // Straight from the museum first (browser-cached, no server hop); if that is
+      // refused — the AIC's Cloudflare turns away headless browsers, e.g. the
+      // tending's screenshot review — retry once through the allowlisted proxy.
+      const src = full ? p.full : p.img;
+      const load = (url, noRef) => {
+        const img = new Image();
+        img.className = 'dly-pic';
+        img.alt = `${p.title}, ${p.artist}`;
+        img.decoding = 'async';
+        // No Referer: the AIC image CDN answers 403 to a localhost referer.
+        if (noRef) img.referrerPolicy = 'no-referrer';
+        img.style.objectPosition = p.focus || '50% 50%';
+        img.src = url;
+        return img.decode().then(() => img);
+      };
+      load(src, true)
+        .catch(() => load(`/api/proxy?url=${encodeURIComponent(src)}`, false))
+        .then((img) => {
+          if (shownId !== p.id) return;           // the day rolled over meanwhile
+          imgBox.replaceChildren(img);
+          requestAnimationFrame(() => requestAnimationFrame(() => img.classList.add('on')));
+        })
+        .catch(() => { /* keep the quiet empty frame */ });
     };
-    // Offline curated word → normalised (rich: IPA, etymology, example, syn/ant).
-    const curatedWord = (w) => ({
-      word: w.word, ipa: w.pron || '', say: SAY[w.word] || '', pos: w.pos || '',
-      def: w.def || '', ex: w.ex || '', originLabel: 'origin', originText: ORIGINS[w.word] || '',
-      syns: SYNONYMS[w.word] || null, ants: ANTONYMS[w.word] || null,
-    });
-    // Live Datamuse word → normalised. No IPA/example/antonyms, but a say-it-like
-    // respelling, a live definition, the day's theme as its caption, and a few
-    // kindred words from the same theme pool as the "≈" line.
-    const liveWord = (c, seed, related) => ({
-      word: c.word, ipa: '', say: c.say || '', pos: c.pos || '', def: c.def || '', ex: '',
-      originLabel: 'theme', originText: seed,
-      syns: related && related.length ? related : null, ants: null,
-    });
-    // Instant offline render; the live word upgrades it once the network answers.
-    renderWord(curatedWord(pickByDay(WORDS)));
+    let paintings = null;
+    const loadPaintings = async () => {
+      if (paintings) return paintings;
+      const mod = await import(`/lib/paintings.js?v=${window.__GARDEN_VERSION || ''}`);
+      const list = mod && mod.default && Array.isArray(mod.default.paintings) ? mod.default.paintings : [];
+      if (list.length) paintings = list;
+      return paintings;
+    };
+    loadPaintings().then((l) => l && showPainting(pickByDay(l))).catch(() => {});
 
     // ---- ON THIS DAY + QUOTE: start from embedded fallback, upgrade from network
     // The middle section shows a dated historical moment when Wikipedia answers,
@@ -1033,7 +436,7 @@ export default {
     };
     applyQuoteObj(pickByDay(QUOTES));
 
-    body.replaceChildren(h('div', { class: 'dly' }, wordSec, factSec, quoteSec));
+    body.replaceChildren(h('div', { class: 'dly' }, paintSec, factSec, quoteSec));
 
     // Network fetchers — each returns parsed content or throws. Never touch the DOM
     // until we have a good value, so a failure simply keeps the last good render.
@@ -1117,54 +520,6 @@ export default {
       if (!q) throw new Error('empty quote');
       return { q, a: a || 'Unknown' };
     };
-    // Live word of the day (Datamuse). Picks the day's THEME seed, fetches words that
-    // mean-like it (each carrying a definition, part of speech and pronunciation),
-    // keeps only clean single-word candidates with a real definition in a pleasant
-    // frequency band, then chooses one deterministically for the day (stable through
-    // the day, rolls at midnight). Returns a normalised word object or throws — a
-    // throw simply leaves the offline curated word in place, so the section never blanks.
-    const fetchWordOfDay = async () => {
-      // Reuse today's already-chosen word if we cached one — keeps the word stable
-      // across the day's 30-min refreshes and page reloads (so it never flickers to
-      // a different word), and means the recent-word memory advances only once a day.
-      const cached = lsGet(LS_TODAY);
-      if (cached && cached.d === todayKey() && cached.n && cached.n.word) return cached.n;
-
-      const seed = SEEDS[dayOfYear() % SEEDS.length];
-      const list = await ctx.fetchJSON(`https://api.datamuse.com/words?ml=${encodeURIComponent(seed)}&md=dpsrf&max=60`);
-      if (!Array.isArray(list)) throw new Error('bad word list');
-      // Keep only clean single-word TRUE synonyms (noun/adjective/verb) of the seed
-      // that carry a real definition — this keeps the word lovely and legible rather
-      // than obscure or tangential.
-      const clean = list.map(parseDatamuse).filter(Boolean).filter((c) =>
-        c.syn && /^[a-z]{4,15}$/.test(c.word) && c.def && c.pos && c.pos !== 'adverb' && c.word !== seed);
-      // Prefer an evocative, mid-rare frequency band: this skips the dull, over-common
-      // words ("quiet", "bright", "calm") that made the section feel repetitive, and
-      // favours richer vocabulary. Relax the band only if it would leave too little.
-      const inBand = (lo, hi) => clean.filter((c) => c.f == null || (c.f >= lo && c.f <= hi));
-      let pool = inBand(0.05, 8);
-      if (pool.length < 4) pool = inBand(0.02, 15);   // relax, but still skip the very-common words
-      if (!pool.length) throw new Error('no candidates');
-      // Take the most theme-relevant words (highest Datamuse score — usually the core
-      // evocative synonyms).
-      const top = pool.slice().sort((a, b) => b.score - a.score).slice(0, 18);
-      // Skip words shown in the last ~45 days so the day's word is genuinely fresh,
-      // then pick deterministically for the day. If the memory has swallowed this
-      // whole (small) cloud, fall back to the LEAST-recently-shown word so even the
-      // unavoidable repeat lands as far in the past as possible (never blanks).
-      const order = recentWords();                    // oldest → newest
-      const recent = new Set(order);
-      const fresh = top.filter((c) => !recent.has(c.word));
-      let chosen;
-      if (fresh.length) chosen = fresh[dayOfYear() % fresh.length];
-      else chosen = top.slice().sort((a, b) => order.indexOf(a.word) - order.indexOf(b.word))[0];
-      // A few kindred words from the same top set for the "≈" line.
-      const related = top.filter((c) => c.word !== chosen.word).slice(0, 3).map((c) => c.word);
-      const n = liveWord(chosen, seed, related);
-      rememberWord(chosen.word);
-      lsSet(LS_TODAY, { d: todayKey(), n });
-      return n;
-    };
 
     // Embedded fallback fact (offline): plain text under the "Fact of the Day" label.
     const applyFact = (text) => { otdLbl.textContent = 'Fact of the Day'; factEl.classList.remove('has-meta'); factEl.textContent = text; otdNav.style.display = 'none'; };
@@ -1237,16 +592,11 @@ export default {
       // give up — embedded fallback already on screen
     };
     // Don't let one slow section block the other.
-    // wordLive tracks whether we've upgraded to a live Datamuse word, so an offline
-    // refresh keeps rolling the curated word instead of clobbering a good live one.
-    let wordLive = false;
-    tryLoad(fetchWordOfDay, (n) => { renderWord(n); wordLive = true; });
     tryLoad(fetchOnThisDay, loadOnThisDay);
     tryLoad(fetchQuote, applyQuote);
 
     // Periodic refresh (every 30 min, so content rolls over at midnight):
-    //   - re-fetch the LIVE word (rolls to the new day's theme at midnight), keeping
-    //     the offline curated word only if we have never had a live one;
+    //   - re-pick the day's painting (a no-op until the date changes);
     //   - re-pick the embedded fact/quote first (covers a day-change while offline),
     //     then try the network and upgrade in place only if it succeeds (keeps the
     //     last good render on failure — network calls never blank the section);
@@ -1257,10 +607,7 @@ export default {
       // ctx.interval fires immediately; the initial network load is handled by
       // tryLoad above (with retry backoff), so skip the network on this first tick.
       if (firstTick) { firstTick = false; return; }
-      // Word: try the live word first; only fall back to rolling the curated word
-      // when we have never had a live one (so a flaky refresh never downgrades it).
-      fetchWordOfDay().then((n) => { renderWord(n); wordLive = true; })
-        .catch(() => { if (!wordLive) renderWord(curatedWord(pickByDay(WORDS))); });
+      loadPaintings().then((l) => l && showPainting(pickByDay(l))).catch(() => {});
       if (otdLive && otdEvents.length) {
         // Step to the next historical moment we already hold — no network needed.
         otdIdx += 1;
