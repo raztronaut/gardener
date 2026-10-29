@@ -170,20 +170,19 @@ async function main() {
       check('fractal: PNG encoder writes a valid header',
         png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && png.readUInt32BE(16) === 2 && png.readUInt32BE(20) === 1);
     } catch (e) { bad('fractal renderer', e.message); }
-    // Daily almanac "On This Day" round-anniversary marker: a historical moment
-    // falling exactly a multiple of 25 years ago to the day (25th/50th/100th…) is
-    // flagged; ordinary and this-year moments are not. The "multiple of 25, ≥ 25"
-    // rule is the invariant behind the quiet gold ✦ occasion marker.
+    // Painting of the Day: the curated list is non-empty, every entry has a title and an
+    // image, and the day's pick is deterministic (same day → same painting; next day →
+    // the next one in the rotation).
     try {
-      const { milestoneOf } = await import(join(PUBLIC, 'widgets', 'daily.js'));
-      check('almanac milestone: 25/50/100 years ago are flagged',
-        milestoneOf(2001, 2026)?.years === 25 && milestoneOf(1976, 2026)?.years === 50
-        && milestoneOf(1926, 2026)?.years === 100, 'expected 25/50/100');
-      check('almanac milestone: off-round + this-year + bad years are quiet',
-        milestoneOf(2000, 2026) === null && milestoneOf(2026, 2026) === null
-        && milestoneOf(2030, 2026) === null && milestoneOf(NaN, 2026) === null,
-        'expected null for non-milestone years');
-    } catch (e) { bad('almanac milestone marker', e.message); }
+      const { pickByDay } = await import(join(PUBLIC, 'widgets', 'daily.js'));
+      const { default: lib } = await import(join(PUBLIC, 'lib', 'paintings.js'));
+      const list = lib.paintings || [];
+      check('painting of the day: curated list present', list.length >= 100, `got ${list.length}`);
+      check('painting of the day: every entry has title + image', list.every((p) => p.title && p.img && p.full), 'missing title/img');
+      const d1 = new Date(2026, 9, 29, 9), d1b = new Date(2026, 9, 29, 23), d2 = new Date(2026, 9, 30, 9);
+      check('painting of the day: one pick per day, rotates daily',
+        pickByDay(list, d1) === pickByDay(list, d1b) && pickByDay(list, d1) !== pickByDay(list, d2), 'pick not stable/rotating');
+    } catch (e) { bad('painting of the day', e.message); }
     // SF events feed carries scraped HTML entities (&#8220;curly quotes&#8221;, &amp;,
     // &#39;, &eacute;…) that render as PLAIN TEXT on the wall — a literal "&#8221;"
     // must never leak onto the hero card. Exercise the shared cleanName() decoder.
