@@ -170,25 +170,29 @@ def extra_letters(font, bg):
     if 'D' not in font and 'B' in font and 'O' in font:
         b, o = font['B'], font['O']
         font['D'] = np.concatenate([b[:, :6], o[:, 6:]], axis=1)
-    if 'N' not in font:
-        W = 12
-        body = np.zeros((16, W), bool)
-        for y in range(1, 15):
-            for x in range(1, W - 1):
-                stem = 1 <= x <= 4 or 7 <= x <= 10
-                diag = 1 <= x <= 10 and abs((y - 1) * (6.0 / 13) + 2.5 - x) < 1.6
-                body[y, x] = stem or diag
+    if 'N' not in font and 'I' in font:
+        # two stems of I and a 3 px diagonal between them, shaded like the font's bodies
+        stem = font['I']
+        sw = stem.shape[1]
+        W = sw * 2 + 1
         g = np.full((16, W), bg, np.uint8)
+        g[:, 0:sw] = stem
+        g[:, W - sw:W] = np.where(stem != bg, stem, g[:, W - sw:W])
+        body = np.zeros((16, W), bool)
+        for y in range(2, 14):
+            x0 = 2 + (y - 2) * (W - sw - 1) / 11.0
+            for x in range(W):
+                if x0 <= x <= x0 + 2.6 and 1 <= x <= W - 2:
+                    body[y, x] = True
         for y in range(16):
             for x in range(W):
                 if body[y, x]:
-                    left = x == 0 or not body[y, x - 1]
-                    left2 = x > 1 and not body[y, x - 2]
-                    g[y, x] = 0xB if left else (0xC if left2 else 0xD)
-                    if y > 0 and not body[y - 1, x]:
-                        g[y, x] = 0xF if not left else 0xB
-                elif any(0 <= y + dy < 16 and 0 <= x + dx < W and body[y + dy, x + dx]
-                         for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                    left = not body[y, x - 1]
+                    g[y, x] = 0xB if left else (0xF if (y > 0 and not body[y - 1, x] and g[y - 1, x] in (bg, 1)) else 0xD)
+        for y in range(16):
+            for x in range(W):
+                if g[y, x] == bg and any(0 <= y + dy < 16 and 0 <= x + dx < W and body[y + dy, x + dx]
+                                         for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
                     g[y, x] = 1
         font['N'] = g
     return font
