@@ -58,7 +58,7 @@ export default {
       .won-ag .tm .lv { display:block; margin-top:4px; font-size:11.5px; font-weight:700; color:var(--gold); letter-spacing:.04em; }
       .won-ag .tm .lv.soon { color:var(--mint); font-weight:600; }
       /* Same start time as the row above: the time is said once — repeats fade to
-         a hushed echo and drop their countdown, so three "5 PM · in 10h 59m"
+         a hushed echo and drop their countdown, so three "5 PM · in 11h"
          stacks read as one group instead of a stutter. */
       .won-ag.dup .tm { color:var(--ink-faint); font-weight:500; }
       .won-ag.dup .tm .lv { display:none; }
@@ -84,14 +84,18 @@ export default {
       ? Math.round((new Date(dayKeyFmt.format(when) + 'T00:00:00') - startOfToday) / dayMs)
       : null);
 
-    // Live countdown for a today-event's start. Future → a calm "in 2h 15m" /
-    // "in 40m"; under way (start passed, but the events lib's 2h grace keeps it in
+    // Live countdown for a today-event's start. Future → a calm "in 11h" /
+    // "in 2h 15m" / "in 40m"; under way (start passed, but the events lib's 2h grace keeps it in
     // the list) → a warm "on now". Returns { txt, cls } or null when not applicable.
     const liveCountdown = (when, allDay, isToday) => {
       if (!isToday || allDay || !when || isNaN(when)) return null;
       const mins = Math.round((when.getTime() - Date.now()) / 60000);
       if (mins >= 1) {
         if (mins < 60) return { txt: `in ${mins}m`, cls: 'soon' };
+        // Far-off starts round to whole hours ("in 11h", not "in 10h 58m"):
+        // minute precision half a day out is noise from across the room and
+        // made every row tick. Within 3h the exact "2h 15m" earns its keep.
+        if (mins >= 180) return { txt: `in ${Math.round(mins / 60)}h`, cls: 'soon' };
         const h = Math.floor(mins / 60), m = mins % 60;
         return { txt: m ? `in ${h}h ${m}m` : `in ${h}h`, cls: 'soon' };
       }
