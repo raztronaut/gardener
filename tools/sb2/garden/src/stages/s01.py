@@ -59,13 +59,23 @@ def paint(cv, L):
     # the hedgerow: a leafy mass over the ring with a ragged inner edge
     reg = TR.rough_region(ring, 31, amp=1.6)
     TR.mass(cv.obj, reg, H, 41, outline=B_OUT, dome_r=10.0, glob=0.9)
-    # wild roses on the hedge's sunny faces
+    # rounded hawthorn shrubs standing out of the hedgerow
+    pts = TR.ring_points(ring, 20, 8, depth=5)
+    TR.crowns(cv.obj2, pts, B, 9, outline=B_OUT, r=(7.0, 9.5), clip=reg, leaf=(1.3, 2.3))
+    # wild roses and hawthorn blossom on their sunny faces
     r = Rng(7)
-    for (cx, cy) in sorted(ring):
-        if r.rand(5) == 0:
-            x, y = cx * 16 + 3 + r.rand(10), cy * 16 + 3 + r.rand(10)
-            if reg[y, x] and reg[y + 2, x + 2] and cv.obj[y, x] in H[2:]:
-                TR.flower(cv.obj, x, y, ROSE, BUTTER, ROSE_D, 'plus')
+    ys, xs = np.nonzero(reg)
+    for k in range(0, len(xs), 29):
+        x, y = xs[k], ys[k]
+        if y + 2 >= 512 or x + 2 >= 512:
+            continue
+        L_ = cv.obj2 if cv.obj2[y, x] >= 0 else cv.obj
+        if L_[y, x] in (B[3], B[4], H[3], H[4]) and L_[y + 1, x + 1] not in (B_OUT, T):
+            if r.rand(2):
+                TR.flower(L_, x, y, ROSE, BUTTER, ROSE_D, 'plus')
+            else:
+                L_[y, x] = WHITE
+                L_[y, x + 1] = WHITE_D
     # hard: boulders and stumps by hash
     hard = hard_blocks()
     for (cx, cy) in pillars:
