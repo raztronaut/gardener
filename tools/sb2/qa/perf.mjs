@@ -4,7 +4,7 @@
 // (BG/sprite composition into the 256xH RGBA buffer). 4 CPUs play; the clock is poked
 // to reach hurry / sudden death inside the run. Also counts GCs to show the steady state
 // allocates (almost) nothing per frame.
-//   node tools/sb2/qa/perf.mjs [--layout tall|original] [--stage N] [--ticks 6000]
+//   node tools/sb2/qa/perf.mjs [--layout tall|original] [--stage N] [--ticks 6000] [--skin garden]
 import { PerformanceObserver } from 'node:perf_hooks';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,10 +18,17 @@ const layout = arg('layout', 'tall'), TICKS = +arg('ticks', 6000), stages = arg(
 
 let gcs = 0, gcMs = 0;
 new PerformanceObserver((l) => { for (const e of l.getEntries()) { gcs++; gcMs += e.duration; } }).observe({ entryTypes: ['gc'] });
-const pack = loadPack();
+let pack = loadPack();
+if (arg('skin', 'classic') === 'garden') {      // the Garden Edition overlay (public/arcade/sb2/garden/)
+  const fs = await import('node:fs');
+  const { skinPack } = await import(path.join(ROOT, 'public/arcade/sb2/render/skin.js'));
+  const dir = path.join(ROOT, 'public/arcade/sb2/garden');
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'garden.json'), 'utf8'));
+  pack = skinPack(pack, { manifest, bin: new Uint8Array(fs.readFileSync(path.join(dir, manifest.bin))), base: '/arcade/sb2/garden/' });
+}
 const pct = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
 // one display per layout for the whole session, like the app (app.js reuses it across matches)
-const disp = createDisplay(pack, { layout });
+const disp = createDisplay(pack, { layout, classic: true });
 for (const stage of stages) {
   const game = createGame({ stage, layout, seed: 7, players: [0, 1, 2, 3].map(() => ({ type: 'cpu', level: 5 })), rules: { wins: 3, time: 3, gbomber: false } });
   const d = disp;

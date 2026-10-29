@@ -127,7 +127,9 @@ lives in `render/display.js`. Nothing the logic reads is ever written.
 - Skins (NOTES-garden.md): `render/skin.js` applies the Garden Edition overlay to the pack
   and the menus' pack; app.js keeps one display per layout + skin and one menu per skin; the
   stage select's skin row (GARDEN / CLASSIC) swaps them live. Display hooks (data only):
-  `pack.manifest.skin.border95` (C00617's two colours), `.objPal8` (the classic bomb palette).
+  `pack.manifest.skin.border95` (C00617's two colours, unused now), `.objPal8` (the classic
+  bomb palette), `.art` (cell art: display.js `stageArt` builds the per-stage ground / modes /
+  fire masks, `ppu.setArt` paints BG2 tiles from it; null for the original = unchanged path).
 - Audio: AudioContext at 32040 Hz; title / menu songs, `<stage>_loop.ogg` with
   loopStart/loopEnd from audio.json; stage 4 (no loop point) streams the 620 s recording
   through a media element. SFX by `ev.sfx` / `sfx` events and the menus' $51 / $52.
