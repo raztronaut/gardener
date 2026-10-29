@@ -2,10 +2,10 @@
 // 2026-10-01 rewrite after "too dense and confusing" feedback: one idea per row,
 // every section labelled, and BOTH °F and °C on the current reading AND on the
 // forecast days (the humans asked for tomorrow's prediction in Celsius too).
-//   1. Now        — icon, °F / °C, condition, today's high/low
+//   1. Now        — icon, °F / °C
 //   2. Sun        — plain-words sunrise / sunset (this line predates and is separate
 //                   from the banned Sun & Moon widget — it stays)
-//   3. Stats      — Feels like · Humidity · UV
+//   3. Stats      — Humidity · UV
 //   4. Next days  — Tomorrow + the two days after: icon, high & low in °F and °C
 //   5. Hourly     — a smooth temperature curve with temps / icons / times beneath
 // Icons are self-hosted Meteocons SVGs in public/assets/weather/.
@@ -282,10 +282,6 @@ export default {
       .wx-now .tmp { display:flex; align-items:baseline; gap:8px; flex:none; }
       .wx-now .f { font-family:var(--font-display); font-size:54px; line-height:.9; color:#fff; }
       .wx-now .c { font-family:var(--font-display); font-size:20px; line-height:1; color:var(--ink-soft); }
-      .wx-now .meta { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:4px; min-width:0; }
-      .wx-now .cond { font-family:var(--font-display); font-size:24px; color:var(--ink);
-        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-      .wx-now .rng { font-size:14px; color:var(--ink-soft); white-space:nowrap; }
 
       /* 2 · sun */
       .wx-sun { display:flex; gap:16px; font-size:14px; color:var(--ink-soft); margin-top:-4px; }
@@ -325,6 +321,7 @@ export default {
       .wx-axis { display:flex; margin-top:5px; }
       .wx-axis .hr { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
       .wx-axis .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
+      .wx-axis .tc { font-size:11.5px; color:var(--ink-faint); line-height:1; margin-top:3px; } /* °C under each hour's °F */
       .wx-axis .hr:first-child .tt { color:#fff; }
       /* warmth tint (see warmth()) — static colour on the number only */
       .wx .w-hot { color:#f7b074 !important; }
@@ -358,31 +355,10 @@ export default {
     const hourFmt = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' });
     const nowHour = () => parseInt(hourFmt.format(new Date()), 10) || 0;
 
-    // Hours of daylight today and how it shifts by tomorrow ("11h 23m ↓2m") —
-    // a quiet seasonal cue on the existing sunrise/sunset line. Both times are
-    // local ISO strings, so their difference is the day length. Null-safe.
-    const dayLen = (dd, i) => {
-      const a = Date.parse(dd?.sunrise?.[i]), b = Date.parse(dd?.sunset?.[i]);
-      return isFinite(a) && isFinite(b) && b > a ? Math.round((b - a) / 60000) : null;
-    };
-    const daylight = (dd) => {
-      const m0 = dayLen(dd, 0);
-      if (m0 == null) return null;
-      const m1 = dayLen(dd, 1);
-      const dm = m1 == null ? 0 : m1 - m0;
-      const trend = dm ? h('i', { title: `${Math.abs(dm)} min ${dm < 0 ? 'shorter' : 'longer'} tomorrow` },
-        ` ${dm < 0 ? '↓' : '↑'}${Math.abs(dm)}m`) : null;
-      return h('span', { class: 'dl', title: 'Daylight today' },
-        h('b', {}, `${Math.floor(m0 / 60)}h ${String(m0 % 60).padStart(2, '0')}m`), ' light', trend);
-    };
-
     const render = (d) => {
       const cur = d.current;
-      const [cond, slug] = WMO(cur.weather_code);
+      const [, slug] = WMO(cur.weather_code);
       const tF = Math.round(cur.temperature_2m);
-      const hi = Math.round(d.daily.temperature_2m_max[0]);
-      const lo = Math.round(d.daily.temperature_2m_min[0]);
-      const feels = Math.round(cur.apparent_temperature);
       const hum = Math.round(cur.relative_humidity_2m);
       const hNow = nowHour();
       // UV that answers "do we need sunscreen?": a bare "0 Low" at dawn or
@@ -478,6 +454,7 @@ export default {
             const wet = p.pop != null && p.pop >= 25;
             return h('div', { class: 'hr' },
               h('div', { class: `tt${wcls(p.t)}` }, `${p.t}°`),
+              h('div', { class: 'tc' }, `${fToC(p.t)}°C`),
               icon(nightSlug(WMO(p.code)[1], p.isDay), 26),
               h('div', { class: 't' }, i === 0 ? 'now' : hr12(p.hr)),
               anyWet ? h('div', { class: 'p' }, wet ? `💧${p.pop}%` : '') : null);
@@ -490,19 +467,14 @@ export default {
           h('div', { class: 'tmp' },
             h('div', { class: `f${wcls(tF)}`, title: warmth(tF).hint || null }, `${tF}°F`),
             h('div', { class: 'c' }, `${fToC(tF)}°C`)),
-          h('div', { class: 'meta' },
-            h('div', { class: 'cond' }, cond),
-            h('div', { class: 'rng', title: `High ${hi}°F / ${fToC(hi)}°C · Low ${lo}°F / ${fToC(lo)}°C` },
-              'High ', h('span', { class: wcls(hi).trim() }, `${hi}°`),
-              ' · Low ', h('span', { class: wcls(lo).trim() }, `${lo}°`)))),
+          // (condition word, today's high/low and the daylight line removed 2026-10-29 —
+          // humans: "too cognitively dense"; the icon says the condition)
+          ),
         h('div', { class: 'wx-sun' },
           h('span', {}, 'Sunrise ', h('b', {}, fmtClock(d.daily.sunrise?.[0]))),
-          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0]))),
-          daylight(d.daily)),
+          h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0])))),
           // (no wind — the humans removed it twice; see GARDEN_RULES.md)
         h('div', { class: 'wx-stats' },
-          h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Feels like'),
-            h('div', { class: 'v' }, `${feels}°F`, h('small', {}, `${fToC(feels)}°C`))),
           h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Humidity'),
             h('div', { class: 'v' }, `${hum}%`)),
           h('div', { class: 'wx-stat' }, h('div', { class: 'k', title: uvKey === 'UV index' ? 'UV index now' : uvKey === 'UV tomorrow' ? "Tomorrow's peak UV" : "Today's peak UV and when it lands" }, uvKey),
