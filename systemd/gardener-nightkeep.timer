@@ -1,0 +1,9 @@
+[Unit]
+Description=The Gardener — night keeper: every 5 min 00:00–06:55 (PT), re-sleep the panel after 10 idle minutes
+
+[Timer]
+OnCalendar=*-*-* 00..06:00/5:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target

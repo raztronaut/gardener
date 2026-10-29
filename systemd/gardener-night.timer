@@ -1,8 +1,8 @@
 [Unit]
-Description=The Gardener — sleep the screen at 22:00 (PT)
+Description=The Gardener — sleep the screen at midnight (PT)
 
 [Timer]
-OnCalendar=*-*-* 22:00:00
+OnCalendar=*-*-* 00:00:00
 Persistent=false
 AccuracySec=30sec
 

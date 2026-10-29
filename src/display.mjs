@@ -11,6 +11,7 @@
 // The overlay (layer 1) needs no X access at all, so it always works.
 import { execFileSync } from 'node:child_process';
 import { existsSync, appendFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { config, paths, isNightNow, isEveningNow, eveningLevel } from './config.mjs';
 import { setNight } from './db.mjs';
 
@@ -70,6 +71,22 @@ export function goNight() {
   log('night: overlay on, brightness 0, DPMS off');
 }
 
+// Night keeper (timer every 5 min, 00:00–06:55): X wakes the panel on ANY input event (a
+// mouse twitch; the webcam / USB sound card also register as keyboards), so one stray
+// event left the monitor on all night. If it's night, the panel is on and nobody has
+// touched the mouse/keyboard for NIGHT_IDLE_MIN minutes → put it back to sleep.
+const NIGHT_IDLE_MIN = 10;
+export function nightKeep() {
+  if (!isNightNow()) return;
+  let on = true, idleMs = 0;
+  try { on = /Monitor is On/.test(execFileSync('xset', ['q'], { env: xenv(), timeout: 5000 }).toString()); } catch { /* assume on */ }
+  if (!on) return;
+  try { idleMs = parseInt(execFileSync(join(paths.ROOT, 'scripts', 'xidle.py'), { env: xenv(), timeout: 5000 }).toString(), 10) || 0; } catch { return; }
+  if (idleMs < NIGHT_IDLE_MIN * 60000) { log(`nightkeep: panel on but in use (idle ${Math.round(idleMs / 1000)} s) — leaving it`); return; }
+  log(`nightkeep: panel woke up (idle ${Math.round(idleMs / 60000)} min) — back to sleep`);
+  goNight();
+}
+
 export function goDay() {
   setNight(false);
   run('xrandr', ['--output', config.output, '--brightness', '1']);
@@ -100,5 +117,6 @@ const mode = process.argv[2];
 if (mode === 'night') goNight();
 else if (mode === 'day') goDay();
 else if (mode === 'evening' || mode === 'dim') goEvening();
+else if (mode === 'nightkeep') nightKeep();
 else if (mode === 'sync') sync();
 else { console.error('usage: node src/display.mjs day|night|evening|sync'); process.exit(2); }

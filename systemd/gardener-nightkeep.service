@@ -1,0 +1,9 @@
+[Unit]
+Description=The Gardener — night keeper (re-sleep the panel if a stray input woke it)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+Environment=DISPLAY=:0
+ExecStart=/home/talbot/gardener/scripts/gardener.sh nightkeep

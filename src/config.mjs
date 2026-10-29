@@ -59,12 +59,12 @@ export const config = {
   height: num(E.GARDENER_HEIGHT, 1600),
   chromium: E.GARDENER_CHROMIUM || '/snap/bin/chromium',
   // Night window (local PT hours): screen sleeps at NIGHT_START, wakes at DAY_START.
-  nightStartHour: num(E.GARDENER_NIGHT_START, 22), // 22:00 (was midnight; changed 2026-09-28)
+  nightStartHour: num(E.GARDENER_NIGHT_START, 0), // midnight (22:00 from 2026-09-28; back to midnight 2026-10-28)
   dayStartHour: num(E.GARDENER_DAY_START, 7), // 07:00
   // Evening wind-down: from EVENING_START the panel fades GRADUALLY from 100% to
   // EVENING_BRIGHTNESS, reaching it as NIGHT_START arrives (then it switches off).
   // 8PM → 10PM by default; the evening timer re-applies the level every 10 min.
-  eveningStartHour: num(E.GARDENER_EVENING_START, 20), // 20:00
+  eveningStartHour: num(E.GARDENER_EVENING_START, 22), // 22:00 → fades to the floor by midnight
   eveningBrightness: num(E.GARDENER_EVENING_BRIGHTNESS, 0.3), // floor of the fade
   iterateHour: num(E.GARDENER_ITERATE_HOUR, 6), // 06:00
 };

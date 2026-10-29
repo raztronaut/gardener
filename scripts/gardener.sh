@@ -31,6 +31,7 @@ case "$cmd" in
   day)     exec node src/display.mjs day ;;
   evening) exec node src/display.mjs evening ;;
   night)   exec node src/display.mjs night ;;
+  nightkeep) exec node src/display.mjs nightkeep ;;
   sync)    exec node src/display.mjs sync ;;
   plant)   exec node src/plant-server.mjs ;;   # locked-down PUBLIC surface (note page + feedback only)
   pad)     exec node src/pad.mjs ;;            # SN30 Pro controller → dashboard bridge
