@@ -493,11 +493,21 @@ let GB = null;
 // /rainforest — a generative rainforest soundscape (lib/rainforest.js). Its on/off state
 // survives reloads; it ducks out while an Arcade game owns the speakers.
 let RF = null;
+const RAINFOREST_PLACES = [ // [arg, icon, label, description] — the presets in lib/rainforest.js
+  ['default', '🌧', 'Rainforest', 'tropical rain, cicadas, birds, frogs, distant thunder'],
+  ['amazon', '🦜', 'Amazon', 'heavy rain, dense insects, macaws, howler monkeys'],
+  ['atlantic', '🌿', 'Mata Atlântica', 'light rain, cicada waves, songbirds, the araponga'],
+  ['borneo', '🐒', 'Borneo', 'loud cicadas, gibbon calls'],
+  ['daintree', '🐦', 'Daintree', 'kookaburras, whipbirds, frogs'],
+  ['olympic', '🌲', 'Olympic', 'temperate drizzle, wind, a creek, wrens'],
+  ['yosemite', '🏔', 'Yosemite', 'wind in the pines, a creek, jays, woodpeckers'],
+];
 // /rainforest → toggle (last place, default first); /rainforest amazon → that place
 // (switches with a crossfade if another is playing; the same one again turns it off).
 async function toggleRainforest(arg = '', force) {
   RF ||= await import(`/lib/rainforest.js?v=${window.__GARDEN_VERSION || ''}`);
   let last = 'default'; try { last = localStorage.getItem('garden.rainforest.place') || 'default'; } catch { /* ignore */ }
+  if (arg === 'off') { RF.stop(); try { localStorage.setItem('garden.rainforest', '0'); } catch { /* ignore */ } toast('Rainforest off'); return; }
   const key = arg ? RF.resolve(arg) : null;
   if (arg && !key) { toast(`No forest "${arg}" — try ${Object.keys(RF.PRESETS).join(', ')}`); return; }
   const want = force ?? (key ? RF.current() !== key : !RF.isOn());
@@ -1223,7 +1233,12 @@ const COMMANDS = [
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
   { cmd: 'notes', aliases: ['planted'], icon: '🌿', desc: 'recently planted notes', run: () => showNotes() },
   { cmd: 'events', aliases: ['e'], icon: '🎉', desc: 'all upcoming SF events', run: () => showEvents() },
-  { cmd: 'rainforest', aliases: ['rain', 'forest'], icon: '🌧', desc: 'rainforest sounds — /rainforest [amazon|atlantic|borneo|daintree|olympic|yosemite]', run: (arg) => toggleRainforest(arg) },
+  { cmd: 'rainforest', aliases: ['rain', 'forest'], icon: '🌧', desc: 'rainforest sounds — pick a place', run: (arg) => toggleRainforest(arg),
+    options: () => {
+      const playing = RF && RF.isOn() ? RF.current() : null;
+      const opts = RAINFOREST_PLACES.map(([arg, icon, label, desc]) => ({ arg, icon, label, desc: (playing === arg ? '▶ playing · ' : '') + label + ' — ' + desc, on: playing === arg }));
+      return playing ? [{ arg: 'off', icon: '⏹', label: 'Off', desc: 'stop the rainforest' }, ...opts] : opts;
+    } },
   { cmd: 'touch', aliases: ['calibrate'], icon: '👆', desc: 'calibrate camera touch (9 targets)', run: () => { if (panelOpen()) closePanel(); import(`/lib/touch.js?v=${window.__GARDEN_VERSION}`).then((m) => m.runSession()); } },
   { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
@@ -1244,31 +1259,37 @@ function ensurePalette() {
 function hidePalette() { if (palEl) { palEl.hidden = true; } palMatches = []; palSel = 0; }
 function paletteOpen() { return !!palEl && !palEl.hidden && palMatches.length > 0; }
 
-// Show/filter the palette for the current input value. Visible only while the
-// value is a bare "/fragment" (no spaces) — exactly like a command box.
+// Show/filter the palette for the current input value: "/frag" lists matching commands;
+// a command that has options() ("/rainforest", "/rainforest am…") lists its options
+// instead. palMatches holds { c, opt } rows (opt null = the bare command).
 function updatePalette(input) {
   const v = input.value;
-  const m = /^\/([a-z?]*)$/i.exec(v.trim());
+  const m = /^\/([a-z?]*)(\s+([a-z-]*))?$/i.exec(v.trim() === '/' ? '/' : v.replace(/^\s+/, ''));
   if (!m || document.body.classList.contains('night')) { hidePalette(); return; }
-  const frag = m[1].toLowerCase();
-  palMatches = COMMANDS.filter((c) => c.cmd.startsWith(frag) || c.aliases.some((a) => a.startsWith(frag)));
+  const frag = m[1].toLowerCase(), hasSpace = m[2] !== undefined, argFrag = (m[3] || '').toLowerCase();
+  const exact = COMMANDS.find((c) => c.options && (c.cmd === frag || c.aliases.includes(frag)));
+  if (exact) {
+    palMatches = exact.options().filter((o) => !argFrag || o.arg.startsWith(argFrag) || (o.label || '').toLowerCase().startsWith(argFrag)).map((opt) => ({ c: exact, opt }));
+  } else if (hasSpace) { hidePalette(); return; }
+  else palMatches = COMMANDS.filter((c) => c.cmd.startsWith(frag) || c.aliases.some((a) => a.startsWith(frag))).map((c) => ({ c, opt: null }));
   if (!palMatches.length) { hidePalette(); return; }
   palSel = Math.min(palSel, palMatches.length - 1);
   const el = ensurePalette();
-  el.replaceChildren(...palMatches.map((c, i) => h('div', {
-    class: 'cp-row' + (i === palSel ? ' sel' : ''),
-    onmousedown: (ev) => { ev.preventDefault(); runPaletteCmd(input, c); }, // mousedown: beat the blur
+  el.replaceChildren(...palMatches.map(({ c, opt }, i) => h('div', {
+    class: 'cp-row' + (i === palSel ? ' sel' : '') + (opt && opt.on ? ' on' : ''),
+    onmousedown: (ev) => { ev.preventDefault(); runPaletteCmd(input, palMatches[i]); }, // mousedown: beat the blur
   },
-    h('span', { class: 'cp-ic' }, c.icon),
-    h('code', { class: 'cp-cmd' }, '/' + c.cmd),
-    c.aliases.length ? h('span', { class: 'cp-alias' }, c.aliases.map((a) => '/' + a).join(' ')) : null,
-    h('span', { class: 'cp-desc' }, c.desc))));
+    h('span', { class: 'cp-ic' }, opt ? opt.icon : c.icon),
+    h('code', { class: 'cp-cmd' }, '/' + c.cmd + (opt && opt.arg ? ' ' + opt.arg : '')),
+    !opt && c.aliases.length ? h('span', { class: 'cp-alias' }, c.aliases.map((a) => '/' + a).join(' ')) : null,
+    h('span', { class: 'cp-desc' }, opt ? opt.desc : c.desc))));
   el.hidden = false;
 }
-function runPaletteCmd(input, c) {
+function runPaletteCmd(input, row) {
   input.value = '';
   hidePalette();
-  c.run();
+  if (!row) return;
+  if (row.opt) row.c.run(row.opt.arg); else row.c.run('');
 }
 // Keyboard: ↑/↓ select · Enter run · Tab complete · Esc close. Attached to the
 // input so it wins before the form submit / global Esc handlers.
@@ -1279,7 +1300,7 @@ function wireCommandPalette(input) {
     if (e.key === 'ArrowDown') { e.preventDefault(); palSel = (palSel + 1) % palMatches.length; updatePalette(input); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); palSel = (palSel - 1 + palMatches.length) % palMatches.length; updatePalette(input); }
     else if (e.key === 'Enter') { e.preventDefault(); runPaletteCmd(input, palMatches[palSel]); }
-    else if (e.key === 'Tab') { e.preventDefault(); input.value = '/' + palMatches[palSel].cmd; updatePalette(input); }
+    else if (e.key === 'Tab') { e.preventDefault(); const r = palMatches[palSel]; input.value = '/' + r.c.cmd + (r.opt ? (r.opt.arg ? ' ' + r.opt.arg : '') : (r.c.options ? ' ' : '')); updatePalette(input); }
     else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hidePalette(); }
   });
 }

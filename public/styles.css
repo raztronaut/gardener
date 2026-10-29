@@ -330,6 +330,7 @@ body.idle, body.idle * { cursor: none !important; }
   cursor: var(--c-hand); }
 .cp-row + .cp-row { border-top: 1px solid var(--stroke); }
 .cp-row.sel { background: rgba(116,247,176,.10); }
+.cp-row.on .cp-cmd, .cp-row.on .cp-desc { color: var(--mint); } /* the option that's active now (e.g. the forest playing) */
 .cp-ic { font-size: 15px; flex: none; }
 .cp-cmd { font-family: var(--font-mono); font-size: 15px; color: var(--mint); flex: none; min-width: 118px; }
 .cp-alias { font-family: var(--font-mono); font-size: 13px; color: var(--ink-faint); flex: none; }
