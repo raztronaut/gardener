@@ -12,12 +12,13 @@ Every object uses only the OBJ_SET colours (BG palettes 1..4 hold them + the flo
 import math
 import os
 import sys
+import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
 from gfx import T, blank, grid, over, hflip, vflip, Rng, hash2, dither  # noqa: E402
 from swatch import (POD_0, POD_1, POD_2, LEAF_2, LEAF_4, WHITE, GOLD_4, GOLD_2,  # noqa: E402
-                    GOLD_1, PINK, ROSE_2)
+                    GOLD_1, PINK, ROSE_2, PINK_L)
 
-OBJ_SET = [POD_0, POD_1, POD_2, LEAF_2, LEAF_4, WHITE, GOLD_4, GOLD_2, GOLD_1, PINK, ROSE_2]
+OBJ_SET = [POD_0, POD_1, POD_2, LEAF_2, LEAF_4, WHITE, GOLD_4, GOLD_2, GOLD_1, PINK, ROSE_2, PINK_L]
 
 # ---- seed pods ---------------------------------------------------------------------------
 # legend: o outline, d body dark, m body, w shine, g leaf dark, l leaf light, y gold,
@@ -333,27 +334,122 @@ def _end_right(f):
     return img
 
 
+# The petal blooms: the band of light (white core -> pale gold -> gold) is fringed with
+# pink petals along both edges (every 8 px, top and bottom alternating, so neighbouring
+# cells always meet), ends in a five-petal flower and bursts as an eight-petal flower in
+# the middle. Frames 0..4 grow it; 3 and 4 alternate (shimmer: the petals shift by 4 px).
+BAND = [2.2, 3.0, 3.6, 4.0, 4.0]           # half-width of the light band per frame
+PET_R = [0.0, 2.0, 2.6, 3.0, 3.0]          # petal radius (long axis)
+PET_OUT = [0.0, 1.2, 1.8, 2.2, 2.2]        # how far a petal centre sits past the band edge
+
+
+def _band_col(d, w, x, y, f):
+    r = d / w if w > 0 else 1
+    if r < 0.38:
+        return WHITE
+    if r < 0.66:
+        return GOLD_4 if not (f >= 3 and dither(4, x, y)) else WHITE
+    if r < 0.88:
+        return GOLD_2
+    return GOLD_1
+
+
+def _petal_field(img, owner, cx, cy, ax, ay, rl, rw, f):
+    """paint one petal: an ellipse centred (cx, cy) with its long axis (ax, ay) (unit)"""
+    if rl <= 0:
+        return
+    for y in range(16):
+        for x in range(16):
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            u = dx * ax + dy * ay
+            v = -dx * ay + dy * ax
+            q = (u / rl) ** 2 + (v / rw) ** 2
+            if q <= 1:
+                # outer half of the petal (away from the band) is the deep rose rim
+                c = ROSE_2 if (q > 0.62 and u > 0) else PINK if q > 0.25 or u > 0 else PINK_L
+                if f <= 1:
+                    c = PINK if q > 0.5 else GOLD_2
+                img[y, x] = c
+                owner[y, x] = 1
+
+
+def _arm(f, phase):
+    """a horizontal arm (centre line y = 7.5)"""
+    img = blank(16, 16)
+    own = np.zeros((16, 16), np.int32)
+    w = BAND[f]
+    if f >= 1:
+        for k in range(-1, 4):
+            for side in (-1, 1):
+                px = k * 8 + (0 if side < 0 else 4) + phase
+                cy = 7.5 + side * (w + PET_OUT[f] - 0.6)
+                _petal_field(img, own, px + 0.5, cy, 0, side, PET_R[f], PET_R[f] * 0.78, f)
+    for y in range(16):
+        for x in range(16):
+            d = abs(y + 0.5 - 8)
+            if d <= w:
+                img[y, x] = _band_col(d, w, x, y, f)
+    return img
+
+
+def _flower(img, cx, cy, n, r_core, r_pet, f, rot=0.0):
+    """a flower: n petals around a gold core"""
+    own = np.zeros((16, 16), np.int32)
+    if f >= 1:
+        for k in range(n):
+            a = rot + k * 2 * math.pi / n
+            ax, ay = math.cos(a), math.sin(a)
+            _petal_field(img, own, cx + ax * (r_core + r_pet * 0.45), cy + ay * (r_core + r_pet * 0.45), ax, ay,
+                         r_pet, r_pet * 0.75, f)
+    for y in range(16):
+        for x in range(16):
+            d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
+            if d <= r_core:
+                img[y, x] = _band_col(d, r_core, x, y, f)
+    return img
+
+
+def _end_right(f, phase):
+    """an arm from the left edge ending in a five-petal flower"""
+    img = _arm(f, phase)
+    reach = [5.5, 7.5, 8.0, 8.5, 8.5][f]
+    # clear what lies past the flower, then draw the flower at the tip
+    for y in range(16):
+        for x in range(16):
+            if x + 0.5 > reach:
+                img[y, x] = T
+    core = BAND[f] - 0.2
+    return _flower(img, reach, 8.0, 5, core, PET_R[f], f, rot=0.0)
+
+
+def _centre(f, phase):
+    img = blank(16, 16)
+    a = _arm(f, phase)
+    over(img, a)
+    over(img, a.T.copy())
+    return _flower(img, 8.0, 8.0, 8, BAND[f] + 0.4, PET_R[f] - 0.2, f, rot=math.pi / 8 + (phase / 8.0) * math.pi / 4)
+
+
 def bloom(piece, frame):
     f = frame
+    phase = 4 if f == 4 else 0
     if piece == 'arm_h':
-        img = _arm_h(f)
+        img = _arm(f, phase)
     elif piece == 'arm_v':
-        img = _arm_h(f).T.copy()
+        img = _arm(f, phase).T.copy()
     elif piece == 'center':
-        img = _burst(f)
+        img = _centre(f, phase)
     elif piece == 'end_right':
-        img = _end_right(f)
+        img = _end_right(f, phase)
     elif piece == 'end_left':
-        img = hflip(_end_right(f))
+        img = hflip(_end_right(f, phase))
     elif piece == 'end_down':
-        img = _end_right(f).T.copy()
+        img = _end_right(f, phase).T.copy()
     elif piece == 'end_up':
-        img = vflip(_end_right(f).T.copy())
+        img = vflip(_end_right(f, phase).T.copy())
     else:
         raise ValueError(piece)
-    img = _edge(img, f)
-    img = _sparkle(img, f, hash2(len(piece), f))
-    return img
+    return _sparkle(img, f, hash2(len(piece), f))
 
 
 # ---- a burning soft block: the garden's own block shedding leaves --------------------------

@@ -55,18 +55,26 @@ def hose_corner(img):
 
 
 def arc_bloom(f):
-    """a bloom band following the corner's arc"""
+    """the petal bloom following the corner's arc (radius 8 around the cell's corner)"""
     img = blank(16, 16)
-    w = objects.WIDTH[f]
+    w = objects.BAND[f]
+    own = np.zeros((16, 16), np.int32)
+    if f >= 1:
+        for k in range(-1, 6):
+            ang = k * (math.pi / 2) / 4 + (math.pi / 16 if f == 4 else 0)
+            for side in (-1, 1):
+                rr = 8.0 + side * (w + objects.PET_OUT[f] - 0.6)
+                a2 = ang + (math.pi / 16 if side > 0 else 0)
+                cx, cy = 16 - rr * math.cos(a2), 16 - rr * math.sin(a2)
+                ax, ay = -math.cos(a2) * side, -math.sin(a2) * side
+                objects._petal_field(img, own, cx, cy, ax, ay, objects.PET_R[f], objects.PET_R[f] * 0.78, f)
     for y in range(16):
         for x in range(16):
             r = math.hypot(x + 0.5 - 16, y + 0.5 - 16)
             d = abs(r - 8.0)
-            ang = math.atan2(16 - y, 16 - x)
-            ww = w + objects._frill(ang * 8, f)
-            if d <= ww:
-                img[y, x] = objects._bloom_col(d, ww, x, y, f)
-    return objects._sparkle(objects._edge(img, f), f, 77)
+            if d <= w:
+                img[y, x] = objects._band_col(d, w, x, y, f)
+    return objects._sparkle(img, f, 77)
 
 
 BURN = [0, 1, 2, 4, 3, 2, 1, 0]           # the bloom's size over the 8 burning frames
@@ -82,8 +90,7 @@ def track_flame(ctx, x, terr):
         if k <= 4:
             hose_h(img)
         if k < 7:
-            b = objects.bloom('arm_h', BURN[k])
-            over(img, b)
+            over(img, objects.bloom('arm_h', BURN[k]))
         else:
             for (px, py) in ((3, 7), (9, 8), (13, 6)):
                 img[py, px] = PINK
@@ -158,28 +165,23 @@ def terrain(ctx):
         lav[y + 1, x] = LILAC_2
     a['soft_block_0'] = over(fl.copy(), lav)
     pot = grid("""
-................
+.....g.gg.g.....
 .oooooooooooooo.
+o4ssssssssssss3o
 o44444444444443o
 o33333333333332o
 .oooooooooooooo.
-..o3333333332o..
+.o433333333322o.
+.o433333333322o.
+.o433333333322o.
 ..o4333333322o..
 ..o4333333322o..
 ..o3333333322o..
+..o3333333322o..
 ...o33333322o...
-...o43333322o...
-...o33333322o...
-....o333322o....
-....oooooooo....
-...ssssssssss...
+...oooooooooo...
 ................
-""", {'o': INK_BROWN, '4': TERRA_4, '3': TERRA_2, '2': TERRA_1, 's': SOIL_2})
-    # a dark soil top with a herb in the pot
-    for x in range(3, 13):
-        pot[2, x] = SOIL_2 if 3 < x < 12 else pot[2, x]
-    for (x, y, c) in ((6, 1, LEAF_2), (7, 0, LEAF_2), (8, 1, LEAF_2), (9, 0, LEAF_2), (7, 1, LEAF_2)):
-        pot[y, x] = c
+""", {'o': INK_BROWN, '4': TERRA_4, '3': TERRA_2, '2': TERRA_1, 's': SOIL_2, 'g': LEAF_2})
     a['hard_block_0'] = over(fl.copy(), pot)
     slab = remap(pot, [LEAF_3, LEAF_2], [SOIL_2, SOIL_2])
     blk = blank(16, 16, TERRA_2)

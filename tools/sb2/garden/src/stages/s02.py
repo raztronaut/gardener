@@ -47,7 +47,7 @@ def ice(seed=0, dark=None):
                     edge = any(not (0 <= y + dy < 16 and 0 <= x + dx < 16) or not m[y + dy, x + dx]
                                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
                     inner_edge = edge and 0 < x < 15 and 0 < y < 15
-                    img[y, x] = ICE_0 if not inner_edge else ICE_1
+                    img[y, x] = ICE_1 if not inner_edge else ICE_0
         # a lit lower-right rim on the puddle
         for y in range(1, 15):
             for x in range(1, 15):
@@ -73,53 +73,76 @@ def hole():
     return img
 
 
-def snow_ring(role, post=False, tuft=False):
-    """snowbank pieces by role (top-down; the top bank shows its front face)"""
-    S0, S1, S2, S3, E = WHITE, ICE_3, ICE_2, ICE_1, ICE_0
-    img = blank(16, 16, S0)
+def snow_top(seed=0):
+    """snow seen from above: white drifts with pale-ice hollows and a few holly sprigs"""
+    img = blank(16, 16, WHITE)
     for y in range(16):
         for x in range(16):
-            if (x * 7 + y * 3) % 11 == 0:
-                img[y, x] = S1
+            v = math.sin((x + seed) * 0.7) + math.cos(y * 0.9 + seed)
+            if v > 1.2:
+                img[y, x] = ICE_3
+            elif v < -1.5:
+                img[y, x] = ICE_2
+    r = Rng(seed)
+    for _ in range(2):
+        x, y = 2 + r.rand(11), 2 + r.rand(11)
+        img[y, x] = LEAF_1
+        img[y, x + 1] = LEAF_0
+        img[y - 1, x + 1] = RED
+    return img
+
+
+def snow_ring(role, post=False, tuft=False):
+    """a hedge under snow: the top wall shows its snowy cap over the dark hedge face; the
+    others its snowed-in top with the green showing at the arena-side edge"""
+    img = snow_top(hash2(len(role), 5) % 7)
+    face = foliage_tile([LEAF_0, LEAF_0, LEAF_1, LEAF_2], seed=41, n=8)
     if role in ('top', 'tl', 'tr'):
-        for y in range(9, 16):
+        for y in range(16):
             for x in range(16):
-                img[y, x] = S1 if y < 11 else S2 if y < 13 else S3 if y < 15 else E
+                lip = 6 + (1 if (x // 3) % 2 else 0)
+                if y >= lip:
+                    img[y, x] = face[y, x]
+                if y == lip and x % 5 == 2:
+                    img[y + 1, x] = WHITE           # snow drips
+        img[14, :] = INK
+        img[15, :] = ICE_1
     if role in ('bottom', 'bl', 'br'):
+        img[0, :] = INK
         for x in range(16):
-            img[0, x] = E
-            img[1, x] = S2
-            img[2, x] = S1
+            img[1, x] = LEAF_0 if x % 3 else LEAF_1
+            img[2, x] = ICE_2
     if role in ('left', 'tl', 'bl'):
-        for y in range(16):
-            if role == 'tl' and y >= 9:
-                pass
-            img[y, 15] = E
-            img[y, 14] = S2 if img[y, 14] in (S0, S1) else img[y, 14]
-            img[y, 13] = S1 if img[y, 13] == S0 else img[y, 13]
+        for y in range(16 if role == 'left' else (6 if role == 'tl' else 16)):
+            if role == 'bl' and y < 2:
+                continue
+            img[y, 15] = INK
+            img[y, 14] = LEAF_0 if y % 3 else LEAF_1
+            img[y, 13] = ICE_2
     if role in ('right', 'tr', 'br'):
-        for y in range(16):
-            img[y, 0] = E
-            img[y, 1] = S2 if img[y, 1] in (S0, S1) else img[y, 1]
-            img[y, 2] = S1 if img[y, 2] == S0 else img[y, 2]
+        for y in range(16 if role == 'right' else (6 if role == 'tr' else 16)):
+            if role == 'br' and y < 2:
+                continue
+            img[y, 0] = INK
+            img[y, 1] = LEAF_0 if y % 3 else LEAF_1
+            img[y, 2] = ICE_2
     if post:
-        # a wooden fence post sunk in the bank, capped with snow
         px = 6
-        for y in range(3, 14):
+        for y in range(2, 14):
             for x in range(px, px + 4):
                 img[y, x] = WOOD_2 if x < px + 2 else WOOD_1
             img[y, px - 1] = INK
             img[y, px + 4] = INK
         for x in range(px - 1, px + 5):
-            img[2, x] = S0
-            img[3, x] = S0 if x in (px, px + 1, px + 2) else S1
-        img[13, px - 1:px + 5] = INK
+            img[1, x] = WHITE
+            img[2, x] = WHITE if x in (px, px + 1, px + 2) else ICE_3
+        img[0, px:px + 3] = WHITE
+        img[14, px - 1:px + 5] = INK
         img[6, px + 1] = WOOD_3
-        img[9, px + 2] = WOOD_3
+        img[10, px + 2] = WOOD_3
     if tuft:
-        # a snowy shrub tuft
         for (x, y, c) in ((5, 6, LEAF_1), (6, 5, LEAF_2), (7, 5, LEAF_2), (8, 6, LEAF_1), (6, 6, LEAF_2), (7, 6, LEAF_1),
-                          (5, 7, LEAF_0), (6, 7, LEAF_1), (7, 7, LEAF_1), (8, 7, LEAF_0), (6, 4, S0), (7, 4, S0), (9, 6, RED)):
+                          (5, 7, LEAF_0), (6, 7, LEAF_1), (7, 7, LEAF_1), (8, 7, LEAF_0), (6, 4, WHITE), (7, 4, WHITE), (9, 6, RED), (9, 5, RED_D)):
             img[y, x] = c
     return img
 

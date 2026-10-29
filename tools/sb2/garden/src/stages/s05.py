@@ -9,13 +9,13 @@ NAME = 'Zen Garden'
 
 
 def gravel():
-    img = blank(16, 16, STONE_4)
+    img = blank(16, 16, STONE_3)
     for y in range(16):
         for x in range(16):
             if y % 4 == 1:
-                img[y, x] = STONE_3
-            elif y % 4 == 2 and hash2(x, y, 4) % 4 == 0:
-                img[y, x] = STONE_5
+                img[y, x] = STONE_4
+            elif y % 4 == 3 and hash2(x, y, 4) % 3 == 0:
+                img[y, x] = STONE_2
     return img
 
 
@@ -134,7 +134,7 @@ def terrain(ctx):
     a = {}
     g = gravel()
     a['floor_0'] = g
-    a['floor_1'] = shadow_top(g, [STONE_5, STONE_4, STONE_3], [STONE_4, STONE_3, STONE_3], rows=5)
+    a['floor_1'] = shadow_top(g, [STONE_4, STONE_3, STONE_2], [STONE_3, STONE_2, STONE_2], rows=5)
     a['gimmick_14_0'] = sun_stone(g)
     a['hard_block_0'] = granite(g)
     a['pressure_block'] = granite(g)

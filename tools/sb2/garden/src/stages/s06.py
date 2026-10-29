@@ -67,20 +67,29 @@ def petal_ring(frame):
 def urn(base):
     u = grid("""
 ................
-..oooooooooooo..
-.o444444444443o.
-.o333333333332o.
-..oooooooooooo..
-...o44333332o...
-..o4433333322o..
+.oooooooooooooo.
+o44444444444443o
+o33333333333332o
+.oooooooooooooo.
 .o443333333322o.
+o4433333333332 2o
+o4433333333333 2o
+""".replace(' ', ''), {'o': INK, '4': WHITE, '3': STONE_4, '2': STONE_3}) if False else grid("""
+................
+.oooooooooooooo.
+o44444444444443o
+o33333333333332o
+.oooooooooooooo.
+.o443333333322o.
+o44333333333322o
+o43333333333322o
+o43333333333322o
 .o433333333322o.
-.o433333333322o.
-..o4333333322o..
-...oo3333322oo..
-....o432222o....
+..oo43333322oo..
+....o433332o....
 ...oo433332oo...
 ..o4433333322o..
+..o3333333322o..
 ..oooooooooooo..
 """, {'o': INK, '4': WHITE, '3': STONE_4, '2': STONE_3})
     for (x, y, c) in ((5, 1, LEAF_2), (6, 0, LEAF_3), (9, 0, LEAF_3), (10, 1, LEAF_2), (7, 1, RED), (8, 1, RED)):

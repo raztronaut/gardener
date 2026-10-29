@@ -686,7 +686,7 @@ def main():
     os.makedirs(SCRATCH, exist_ok=True)
     ov = Overlay()
     report = []
-    stages = a.stage or list(range(1, 11))
+    stages = list(range(1, 11))          # always all: the overlay is written whole
     results = {}
     for st in stages:
         try:
@@ -697,7 +697,7 @@ def main():
         results[st] = stage_arena(st, ov, report)
         stage_hud(st, ov, report)
         stage_fx(st, ov, report, results[st]['terr'])
-        if a.sheets:
+        if a.sheets and (not a.stage or st in a.stage):
             contact_sheet(st, results[st], os.path.join(SCRATCH, 'sheet_s%02d.png' % st))
     gardeners(ov, report)
     mov = Overlay()
