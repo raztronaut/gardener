@@ -324,7 +324,15 @@ async function dashboardWidgets(id) {
 }
 // Controller combo code: L1=a R1=b L2=c R2=d, sorted ("L1+R1+L2" → "abc").
 const comboCode = (combo) => (combo || '').split('+').map((b) => ({ L1: 'a', R1: 'b', L2: 'c', R2: 'd' })[b.trim()] || '').sort().join('');
-async function switchDashboard(id) {
+// Switches are QUEUED: a second combo pressed while the first switch is still loading its
+// cards used to see the old CURRENT_DASH, toggle the wrong way and run two loads over each
+// other (the wall ended up with only the clock). Now each switch runs after the last.
+let dashQueue = Promise.resolve();
+function switchDashboard(id) {
+  dashQueue = dashQueue.then(() => doSwitchDashboard(id)).catch(() => {});
+  return dashQueue;
+}
+async function doSwitchDashboard(id) {
   if (id === CURRENT_DASH) id = 'main';                 // same combo again → back to the common wall
   if (!DASHBOARDS.find((d) => d.id === id)) return;
   if (panelOpen()) closePanel();
