@@ -221,7 +221,7 @@ function makeBot(slot, seed) {
     // decisions
     goal: -1, goalUntil: 0, goalKind: 0, goalScore: 0,
     aHeld: false, lastA: -100, hesitate: 0, holdLift: false, liftAt: -100,
-    yAt: -100, lastCell: -1, cellSince: 0, prevX: 0, prevY: 0, vx: 0, vy: 0,
+    yAt: -100, yOk: true, lastCell: -1, cellSince: 0, prevX: 0, prevY: 0, vx: 0, vy: 0,
     attackSkip: 0, mode: 0, hLo: -1, hHi: -1, liftT: -100,
   };
   bot.react = 6 + Math.floor(rnd(bot.rs) * 5);
@@ -578,7 +578,7 @@ function suddenDeath(W, D, now) {
 // From cell c0 at tick t0 at `speed` px/tick (ox / oy: the bomber's offset from c0's
 // centre). Results: S.arr[c] (tick the centre reaches c), S.first[c] (first direction),
 // S.dep[c] (tick it leaves c0), S.list = reached cells.
-export const stats = { searches: 0, builds: 0 };
+export const stats = { searches: 0, builds: 0, timing: false, ms: 0, calls: 0, maxMs: 0 };   // timing: tools (ai-eval/starcost.mjs)
 // stopAt > 0: stop once that many never-lethal cells (refuges) have been reached
 function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe, stopAt = 0) {
   stats.searches++;
@@ -633,6 +633,87 @@ function search(bot, W, D, S, c0, t0, speed, ox, oy, maxT, isFoe, stopAt = 0) {
       S.dep[land] = u === c0 ? Math.floor(td) : S.dep[u];
       hpush(S, land, tv);
     }
+    if (W.stageId === 0xB) jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed);
+  }
+}
+
+// ---- stage 10: the Y jump as a move (measured, NOTES-core-ai.md "Stage 10 jump") ----------
+// Take-off on the tick Y (+ a direction) is pressed: +52 = $0801, no death check from that
+// tick until the landing tick; the landing cell is the next one in the direction (x +-16
+// exactly; vertical arcs land -14..-16 / +16..+21 px, so from |oy| <= 2 it is the next row);
+// landing after 32 ticks (L/R), 28..30 (U), 37..40 (D). Landing on a solid cell ($80) or a
+// bomb: a hop at 1 px/tick in the jump direction through every solid / bomb cell (still no
+// death check), wrapping at the border (L/R: one virtual cell between columns 1 and 15; U/D:
+// row 3 <-> the bottom border row), snapped to the centre of the first free cell 8 + 16(k-1)
+// ticks after the landing (k = cells entered). The hop dies in a sudden-death block ($C1).
+const JT = [30, 40, 32, 32];              // landing tick after the take-off tick (late bound)
+const JW = [3, 4, 1, 1];                  // ... uncertainty (landing in [JT - JW, JT])
+const JE = { t: 0, e: -1 };
+// the cell after c in direction d with the wrap (JE.t += the virtual cell's 16 ticks)
+function stepWrap(W, c, d) {
+  const cx = c & 31, cy = c >> 5;
+  if (d === 2 && cx <= 1) { JE.t += 16; return (cy << 5) | 15; }
+  if (d === 3 && cx >= 15) { JE.t += 16; return (cy << 5) | 1; }
+  if (d === 0 && cy <= 3) return (W.rows << 5) | cx;
+  if (d === 1 && cy >= W.rows) return (3 << 5) | cx;
+  return c + DC[d];
+}
+// where a jump from u in direction d (d = 4: in place) taking off on tick tk ends: the cell,
+// JE.t = the tick it stands there (death checks from then on); -1 if the end is unknown /
+// lethal (JE.e = the end of the lethal interval at the end cell if waiting may help, else -1)
+function jumpEnd(bot, W, D, u, d, tk) {
+  JE.e = -1;
+  if (d === 4) {
+    JE.t = tk + 32;
+    const e = dHit(D, u, tk + 31, tk + 34);
+    if (e >= 0) { JE.e = e - 31; return -1; }
+    return u;
+  }
+  const tl = tk + JT[d];
+  JE.t = tl;
+  let c = stepWrap(W, u, d);
+  for (let k = 0; ; k++) {
+    const v = cellCode(c);
+    if (v === 0xC1) return -1;                         // sudden-death block: lethal
+    if (!(v & 0x80) && v !== 0x43) break;              // free: the jump / hop ends here
+    // a solid cell passed between JE.t and JE.t + 16: it must stay solid (a doomed soft
+    // block may be gone, a bomb may go off: fire there ends the hop in the fire)
+    if (v === 0xC2 && (W.burnT[c] === W.tick || bot.doomBase[c] === bot.baseStamp)) return -1;
+    if (dHit(D, c, JE.t - 2, JE.t + 18) >= 0) return -1;
+    if (k >= 14) return -1;
+    JE.t += k === 0 ? 8 : 16;
+    c = stepWrap(W, c, d);
+  }
+  const t = JE.t, lo = JE.t === tl ? tl - JW[d] - 1 : t - 2;
+  JE.t = t + 1;
+  const e = dHit(D, c, lo, t + 3);
+  if (e >= 0) { JE.e = c === u ? -1 : e - (lo - tk); return -1; }
+  return c;
+}
+function jumpEdges(bot, W, D, S, u, tu, c0, st, oy, speed) {
+  for (let d = 0; d < 4; d++) {
+    // take-off: the tick after the arrival (pads go in the next tick); vertical jumps from
+    // the start cell only when centred (else the landing row is off)
+    let td = tu + 1;
+    if (u === c0 && d < 2 && Math.abs(oy) > 2) td += Math.ceil((Math.abs(oy) - 2) / Math.max(0.25, speed)) + 1;
+    let land = -1;
+    for (let r = 0; r < 3; r++) {
+      land = jumpEnd(bot, W, D, u, d, td);
+      if (land >= 0 || JE.e < 0) break;
+      const td2 = JE.e + 1;                            // wait for the end cell to clear
+      if (td2 <= td || td2 - tu > MAXWAIT) { land = -1; break; }
+      td = td2;
+    }
+    if (land < 0 || land === u) continue;
+    if (bot.blocked[land]) continue;
+    // waiting at u until the take-off (that tick has no death check)
+    if (dHit(D, u, tu, td - 1) >= 0) continue;
+    const tv = JE.t;
+    if (S.stamp[land] === st && S.arr[land] <= tv) continue;
+    S.stamp[land] = st; S.arr[land] = tv;
+    S.first[land] = u === c0 ? 4 + d : S.first[u];
+    S.dep[land] = u === c0 ? td - 1 : S.dep[u];
+    hpush(S, land, tv);
   }
 }
 function hpush(S, c, t) {
@@ -933,7 +1014,7 @@ function decide(bot, W) {
       if (target >= 0 && debug.on) bot.dbg = 'emerg>' + (target & 31) + ',' + (target >> 5);
     }
     if (target < 0) {
-      if (W.stageId === 0xB) { const j = jumpOut(bot, W, now, c); if (j) { bot.aHeld = false; return j; } }
+      if (W.stageId === 0xB) { const j = jumpOut(bot, W, now, c); if (j) { bot.aHeld = false; if (debug.on) bot.dbg = 'jumpOut'; return j; } }
       // nothing never-lethal: the cell that turns lethal the latest
       let bt = -1;
       for (let i = 0; i < S.n; i++) { const q = S.list[i]; const t = dNext(bot.A, q, S.arr[q]); if (t > bt) { bt = t; target = q; } }
@@ -978,7 +1059,13 @@ function decide(bot, W) {
   }
   bot.aHeld = false;
   let pad = 0;
-  if (target >= 0 && S.stamp[target] === S.cur && S.first[target] >= 0) {
+  if (target >= 0 && S.stamp[target] === S.cur && S.first[target] >= 4) {
+    // stage 10: the first move is a jump (centre first for a vertical one)
+    const d = S.first[target] - 4;
+    if (d < 2 && Math.abs(oy) > 2) pad = oy > 0 ? B_UP : B_DOWN;
+    else if (S.dep[target] <= now + 1 && bot.yOk) { pad = DIRBIT[d] | B_Y; bot.goalUntil = Math.max(bot.goalUntil, now + 2); }
+    if (debug.on) bot.dbg += ' jump' + 'UDLR'[d];
+  } else if (target >= 0 && S.stamp[target] === S.cur && S.first[target] >= 0) {
     if (S.dep[target] > now + 1) { pad = W.stageId === 1 ? iceStop(bot, W, c, ox, oy) : 0; bot.why = 1; }   // wait here for a blast to pass
     else pad = steer(bot, W, S.first[target], ox, oy, c, target, speed);
   } else if (W.stageId === 1) { pad = iceStop(bot, W, c, ox, oy); bot.why = 5; }
@@ -1210,25 +1297,20 @@ function carryPad(bot, W, now, c, ox, oy, speed, S) {
   // keep out of danger while carrying
   if (!dFree(bot.A, c, now)) {
     const t = bestRefuge(bot, W, bot.A, S, foeX, foeY, nFoe);
-    if (t >= 0 && S.first[t] >= 0 && S.dep[t] <= now + 1) return B_A | DIRBIT[S.first[t]];
+    if (t >= 0 && S.first[t] >= 0 && S.first[t] < 4 && S.dep[t] <= now + 1) return B_A | DIRBIT[S.first[t]];
   }
   return B_A;
 }
 
-// ---- stage 10: jump (Y) over an adjacent bomb when cornered ----------------------------------
+// ---- stage 10: cornered (no refuge even with the relaxed margin, jumps included): jump in
+// place over the blast (32 ticks without a death check; the fire burns 28) --------------------
 function jumpOut(bot, W, now, c) {
-  if (now - bot.yAt < 40) return 0;
-  const facing = g16(bot.p + 0x5E);
-  const fd = facing === 2 ? 3 : facing === 4 ? 2 : facing === 8 ? 1 : 0;
-  for (let d = 0; d < 4; d++) {
-    const b = c + DC[d], l = b + DC[d];
-    if (cellCode(b) !== 0x43 || !walkable(l, W)) continue;
-    if (!dFree(bot.A, l, now + 34) && dHit(bot.A, l, now + 30, now + 40) >= 0) continue;
-    if (fd !== d) return DIRBIT[d];               // face it (walking into the bomb turns us)
-    bot.yAt = now;
-    return B_Y;
-  }
-  return 0;
+  if (!bot.yOk) return 0;
+  MARG = -2;
+  const land = jumpEnd(bot, W, bot.A, c, 4, now + 1);
+  const ok = land >= 0 && dNext(bot.A, c, now) <= now + 8;
+  MARG = 2;
+  return ok ? B_Y : 0;
 }
 
 // ======================================================================================
@@ -1247,9 +1329,16 @@ export function fillPads(game, pads, out) {
     if (!bot) bot = game._smartBots[i] = makeBot(i, (game.opts && game.opts.seed) || 1);
     if (bot.round !== W.roundKey || bot.lastTick > W.tick) {
       bot.round = W.roundKey; bot.goal = -1; bot.aHeld = false; bot.holdLift = false;
-      bot.lastA = -100; bot.liftAt = -100; bot.yAt = -100; bot.goalUntil = 0; bot.cellSince = 0; bot.lastCell = -1; bot.hesitate = 0; bot.react = 6 + Math.floor(rnd(bot.rs) * 5); bot.prevX = g16(bot.p + 0x10); bot.prevY = g16(bot.p + 0x18); }
-    out[i] = decide(bot, W);
+      bot.lastA = -100; bot.liftAt = -100; bot.yAt = -100; bot.yOk = true; bot.goalUntil = 0; bot.cellSince = 0; bot.lastCell = -1; bot.hesitate = 0; bot.react = 6 + Math.floor(rnd(bot.rs) * 5); bot.prevX = g16(bot.p + 0x10); bot.prevY = g16(bot.p + 0x18); }
+    if (stats.timing) {
+      const t0 = performance.now();
+      out[i] = decide(bot, W);
+      const dt = performance.now() - t0;
+      stats.ms += dt; stats.calls++; if (dt > stats.maxMs) stats.maxMs = dt;
+    } else out[i] = decide(bot, W);
     bot.lastTick = W.tick;
+    // the Y edge latch (+0E b8, C06616): cleared by a tick without Y while not busy
+    if (!(g16(bot.p + 0x52) & 1) && (m[0x30] & 0x0F) === 0x0F) bot.yOk = !(out[i] & B_Y);
   }
   return out;
 }

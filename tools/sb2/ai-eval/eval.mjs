@@ -28,7 +28,8 @@ export const NEAR = 3;                   // "near an opponent": Manhattan distan
 const FIELDS = ['rounds', 'cpuRounds', 'ticks', 'alive', 'deaths', 'selfKill', 'oppKill', 'blockKill', 'unkKill',
   'walkedIn', 'kills', 'idle', 'stuck', 'moves', 'reversals', 'bombs', 'soft', 'softInit', 'items',
   'near', 'nearBase', 'isolated', 'sealed', 'sealedRounds', 'samples', 'draws', 'timeUp', 'cpuWins', 'humanWins',
-  'humanDeaths', 'humanKilledByCpu', 'firstKillTicks', 'firstKills', 'survivedRounds', 'cells', 'wins', 'decideNs', 'decideTicks'];
+  'humanDeaths', 'humanKilledByCpu', 'firstKillTicks', 'firstKills', 'survivedRounds', 'cells', 'wins', 'decideNs', 'decideTicks',
+  'jumps', 'busy'];
 export const zero = () => Object.fromEntries(FIELDS.map((k) => [k, 0]));
 
 // per-slot levels of a job (null = the scripted human)
@@ -102,6 +103,7 @@ function playRound(game, job, accOf, roundAccs, bot, cpus, kinds) {
       else if (e.type === 'bombPlaced' && cpus.includes(e.slot)) accOf(e.slot).bombs++;
       else if (e.type === 'blockBurn' && cpus.includes(e.owner)) accOf(e.owner).soft++;
       else if (e.type === 'itemGot' && cpus.includes(e.slot)) accOf(e.slot).items++;
+      else if (e.type === 'jump' && cpus.includes(e.player)) accOf(e.player).jumps++;
     }
     while (expl.length && t - expl[0].t > 200) expl.shift();
     // fire onset + owner (most recent explosion aligned within reach)
@@ -155,7 +157,9 @@ function playRound(game, job, accOf, roundAccs, bot, cpus, kinds) {
         q.prevCell = q.cell; q.cell = k; q.enter = t;
       }
       const dirs = b.input & 0x0F00;
-      if (!dirs) acc.idle++;
+      // busy (airborne / hopping on stage 10, lifting, stunned ...): no input, not idle
+      if (b.busy) acc.busy++;
+      else if (!dirs) acc.idle++;
       else if (b.x === q.x && b.y === q.y) acc.stuck++;
       q.x = b.x; q.y = b.y;
       const foes = alive.filter((o) => o.slot !== p);
@@ -220,7 +224,9 @@ export function derive(a) {
     '  walked into fire %deaths': pct(a.walkedIn, a.deaths),
     'self-kills / CPU-minute': a.selfKill / (a.alive / MIN),
     'opp kills / CPU-minute': a.kills / (a.alive / MIN),
-    'idle %': pct(a.idle, a.alive),
+    'idle % (not busy, no direction)': pct(a.idle, a.alive),
+    'busy % (jump / hop / lift / stun)': pct(a.busy, a.alive),
+    'jumps / min': a.jumps / (a.alive / MIN),
     'stuck (dir held, no motion) %': pct(a.stuck, a.alive),
     'cells moved / s': a.moves / (a.alive / 60.1),
     'reversals % of moves': pct(a.reversals, a.moves),

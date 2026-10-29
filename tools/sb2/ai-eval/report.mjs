@@ -30,8 +30,9 @@ if (!a.includes('--stages')) {
   }
   console.log(table(cols));
 } else {
-  const keys = ['win % (per CPU-round)', 'self-kills / CPU-minute', 'opp kills / CPU-minute', 'idle %', 'all draws %', 'first kill (s)', 'human wins %', 'CPU deaths / CPU-round', '  walked into fire %deaths'];
-  const short = ['win%', 'selfK/m', 'oppK/m', 'idle%', 'draw%', '1stKill', 'humWin%', 'death/r', 'walkIn%'];
+  const keys = ['win % (per CPU-round)', 'self-kills / CPU-minute', 'opp kills / CPU-minute', 'idle % (not busy, no direction)', 'all draws %', 'first kill (s)', 'human wins %', 'CPU deaths / CPU-round', '  walked into fire %deaths',
+    'sealed (no soft exit, no foe) %', '  by SD block %deaths', 'jumps / min'];
+  const short = ['win%', 'selfK/m', 'oppK/m', 'idle%', 'draw%', '1stKill', 'humWin%', 'death/r', 'walkIn%', 'sealed%', 'SDdth%', 'jump/m'];
   for (const r of R) for (const mk of combos(r)) {
     console.log(`== ${r.label}  ${mk}`);
     console.log('stage layout   ' + short.map((s) => s.padStart(9)).join(''));
