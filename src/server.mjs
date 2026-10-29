@@ -16,6 +16,7 @@ import {
 } from './db.mjs';
 import { recover } from './recover.mjs';
 import { travelFor } from './travel.mjs';
+import { namesFor, dailyNames, dailyIsStale } from './eventnames.mjs';
 import { extractReadable, readerResolve } from './reader.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
@@ -771,6 +772,12 @@ const server = http.createServer(async (req, res) => {
     // Basemap tiles for the wall's static maps (public/lib/staticmap.js): Esri's keyless
     // Dark Gray Canvas (base + a separate labels layer; attribution drawn on the map),
     // fetched once and cached on disk forever. (CARTO's tiles now watermark without a key.)
+    // Out in SF: plain short names for event titles (src/eventnames.mjs — Claude Haiku, daily).
+    if (req.method === 'POST' && p === '/api/event-names') {
+      let titles; try { titles = JSON.parse(await readBody(req, 256 * 1024)).titles; } catch { return json(res, 400, { error: 'bad json' }); }
+      if (!Array.isArray(titles)) return json(res, 400, { error: 'titles[] required' });
+      return json(res, 200, { names: await namesFor(titles.slice(0, 300).map((t) => String(t).slice(0, 300)), log) });
+    }
     // Out in SF: venue coordinates + drive time from home for today's events (src/travel.mjs).
     if (req.method === 'POST' && p === '/api/sf-travel') {
       let evs; try { evs = JSON.parse(await readBody(req, 256 * 1024)).events; } catch { return json(res, 400, { error: 'bad json' }); }
@@ -908,6 +915,9 @@ function kickFractal() {
   }).catch((e) => log(`fractal: render failed: ${e.message}`));
 }
 setTimeout(kickFractal, 5000);
+// Out in SF short names: a daily pass over the listings (named once per title, cached).
+const kickNames = () => dailyIsStale().then((stale) => stale && dailyNames(log)).catch((e) => log(`event names: ${e.message}`));
+if (process.env.GARDENER_FRACTAL !== '0') { setTimeout(kickNames, 60 * 1000); setInterval(kickNames, 60 * 60 * 1000); }
 setInterval(kickFractal, 5 * 60 * 1000);
 
 server.listen(config.port, config.host, () => {

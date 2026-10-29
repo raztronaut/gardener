@@ -287,3 +287,19 @@ export function splitTitle(raw) {
   name = name.replace(/^SF[’']s\s+(?=\S)/, '');
   return { name, time, where, note };
 }
+
+// Plain short names for event titles (server: src/eventnames.mjs, Claude Haiku, daily).
+// Resolves to { [cleaned title]: short name }; titles without one yet are named in the
+// background and show up on a later refresh. Cached per page.
+const SHORT = new Map();
+export async function shortNames(evs) {
+  const want = [...new Set(evs.map((e) => e.name).filter((t) => t && !SHORT.has(t)))];
+  if (want.length) {
+    try {
+      const r = await fetch('/api/event-names', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ titles: want }) });
+      const { names } = await r.json();
+      for (const [t, n] of Object.entries(names || {})) SHORT.set(t, n);
+    } catch { /* keep the original titles */ }
+  }
+  return Object.fromEntries(evs.filter((e) => SHORT.has(e.name)).map((e) => [e.name, SHORT.get(e.name)]));
+}

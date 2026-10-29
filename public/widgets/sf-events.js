@@ -13,7 +13,7 @@
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
 // no network), so a glance across the room answers "what can we do tonight?".
-import { fetchEvents, splitTitle, localeRank, TZ, MON } from '/lib/events.js';
+import { fetchEvents, splitTitle, localeRank, shortNames, TZ, MON } from '/lib/events.js';
 
 export default {
   id: 'sf-events',
@@ -62,8 +62,9 @@ export default {
          stacks read as one group instead of a stutter. */
       .won-ag.dup .tm { color:var(--ink-faint); font-weight:500; }
       .won-ag.dup .tm .lv { display:none; }
+      .won-ag { cursor:var(--c-hand); }
       .won-ag .nm { font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink); min-width:0;
-        display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } /* one line, always */
       .won-ag .pl { margin-top:3px; font-size:13px; color:var(--ink-faint); white-space:nowrap;
         overflow:hidden; text-overflow:ellipsis; }
       .won-empty { flex:1; display:flex; align-items:center; justify-content:center;
@@ -163,10 +164,12 @@ export default {
           // "ALL DAY" sub-heading above the surviving group.
           tm = null;
         }
-        const row = ctx.h('div', { class: `won-ag${tm ? '' : ' wide'}`, title: e.name },
+        // tap a row → that event's full details (original title, time, place, description)
+        const row = ctx.h('div', { class: `won-ag${tm ? '' : ' wide'}`, title: e.name,
+          onclick: (ev) => { ev.stopPropagation(); window.dispatchEvent(new CustomEvent('garden:event', { detail: e })); } },
           tm,
           ctx.h('div', { style: 'min-width:0' },
-            ctx.h('div', { class: 'nm' }, t.name || e.name),
+            ctx.h('div', { class: 'nm' }, short[e.name] || t.name || e.name), // the plain short name (eventnames.mjs)
             sub ? ctx.h('div', { class: 'pl' }, sub) : null));
         // Which rows earn the card's few slots: tonight's TIMED plans first (they
         // are what "what can we do tonight?" is really asking, and sorting all-day
@@ -282,7 +285,12 @@ export default {
     // Keep the last good events so the minute-tick below can re-render the live
     // "today" countdowns without re-hitting the network.
     let lastEvents = null;
-    const refresh = async () => { const evs = await fetchEvents(ctx.fetchJSON); lastEvents = evs; render(evs); };
+    let short = {}; // plain short names for the titles (server-side Claude Haiku, daily)
+    const refresh = async () => {
+      const evs = await fetchEvents(ctx.fetchJSON); lastEvents = evs;
+      try { short = await shortNames(evs); } catch { /* original titles */ }
+      render(evs);
+    };
 
     let loadedOnce = false;
     list.replaceChildren(ctx.loading('checking the city…'));

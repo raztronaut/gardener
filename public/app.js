@@ -874,10 +874,14 @@ async function showGrow() {
 // Stale-while-revalidate like Hacker News: the last event list renders instantly
 // (prefetched on boot + every 15 min); the fresh one swaps in place.
 let EVENTS_CACHE = null;
+let EVENT_SHORT = {}; // title → plain short name (lib/events.js shortNames → server eventnames.mjs)
+const shortFor = (e) => EVENT_SHORT[e.name] || e.name;
+// a tap on an event row in the Out in SF card → that event's full details
+window.addEventListener('garden:event', (ev) => { if (ev.detail) showEventDetail(ev.detail); });
 if (!SCREENSHOT) {
   const pre = async () => { try { const lib = await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`);
     const evs = await lib.fetchEvents((url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }));
-    if (evs.length) { EVENTS_CACHE = evs; ensureTravel(evs); } } catch { /* keep last */ } };
+    if (evs.length) { EVENTS_CACHE = evs; ensureTravel(evs); EVENT_SHORT = await lib.shortNames(evs).catch(() => EVENT_SHORT); } } catch { /* keep last */ } };
   setTimeout(pre, 10000); setInterval(pre, 15 * 60 * 1000);
 }
 async function showEvents() {
@@ -902,6 +906,7 @@ async function showEvents() {
     return openPanel('Out in SF — upcoming events', h('div', { class: 'cl' }, h('div', { class: 'cl-empty' }, 'No upcoming events listed right now.')));
   }
   EVENTS_CACHE = evs;
+  try { EVENT_SHORT = await (await import(`/lib/events.js?v=${window.__GARDEN_VERSION}`)).shortNames(evs); } catch { /* original titles */ }
   if (showEvents.tok !== tok || !panelOpen()) return; // closed meanwhile — don't reopen
   renderEvents(evs);
 }
@@ -951,7 +956,7 @@ function renderEvents(evs) {
     return h('div', { class: `cl-row ev-row clickable${t ? ' today' : ''}`, onclick: () => showEventDetail(e) },
       h('div', { class: 'ev-when' }, when),
       h('div', { class: 'cl-main' },
-        h('div', { class: 'cl-phrase' }, t ? h('span', { class: 'ev-no' }, String(pinNo.get(e))) : null, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
+        h('div', { class: 'cl-phrase' }, t ? h('span', { class: 'ev-no' }, String(pinNo.get(e))) : null, `${e.emoji ? e.emoji + ' ' : ''}${shortFor(e)}`),
         e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null),
       drive);
   });
