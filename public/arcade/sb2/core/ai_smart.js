@@ -108,6 +108,7 @@ function makeWorld() {
     lastX: new Int32Array(4), lastY: new Int32Array(4),
     ring: new Uint8Array(NC), ringN: 0,      // stage-4 fuse ring cells
     tele: new Int16Array(NC).fill(-1),       // stage-6 teleporter partner cell
+    pads: new Int16Array(8), padN: 0,
     rows: 15, tall: false, stageId: 0,
     roundKey: -1,
     budget: 0,                               // searches left this tick (all ★ bombers)
@@ -130,10 +131,9 @@ function worldRound(W) {
     const c = cy * 32 + cx;
     if (W.stageId === 5 && (cellUnder(c) === 0x0E || cellCode(c) === 0x0E)) { W.ring[c] = 1; W.ringN++; if (W.ringN2 < 64) W.ringList[W.ringN2++] = c; }
   }
-  if (W.stageId === 7) {                   // teleporters: partner = the pad with the same tile
-    const pads = [];
-    for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) { const c = cy * 32 + cx; if (cellCode(c) === 0x50) pads.push(c); }
-    for (const a of pads) for (const b of pads) if (a !== b && (cellTile(a) & 0x3FF) === (cellTile(b) & 0x3FF)) W.tele[a] = b;
+  W.padN = 0;
+  if (W.stageId === 7) {                   // teleporter pads (partners: worldUpdate)
+    for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) { const c = cy * 32 + cx; if (cellCode(c) === 0x50 && W.padN < 8) W.pads[W.padN++] = c; }
   }
   for (let i = 0; i < 4; i++) {
     const p = 0x8000 + 0x100 * i, x = g16(p + 0x10), y = g16(p + 0x18);
@@ -173,6 +173,16 @@ function worldUpdate(W) {
     if (v !== W.code[c]) { W.code[c] = v; changed = true; }
   }
   if (changed) { W.gridVer++; W.hopN = 0; }
+  // stage 6 teleporters (C04D33): the partner is the other pad whose UNDERLAY tile is the
+  // colour the pad shows now (the colours change: the pairs are not fixed)
+  for (let i = 0; i < W.padN; i++) {
+    const a = W.pads[i], col = cellTile(a);
+    W.tele[a] = -1;
+    for (let j = 0; j < W.padN; j++) {
+      const b = W.pads[j];
+      if (b !== a && g16(0x1B000 + ((b >> 5) << 6) + ((b & 31) << 1)) === col) { W.tele[a] = b; break; }
+    }
+  }
   W.walk.fill(0); W.skull.fill(0);
   for (let cy = 3; cy <= W.rows; cy++) for (let cx = 1; cx <= 15; cx++) {
     const c = cy * 32 + cx;
@@ -220,7 +230,7 @@ function makeBot(slot, seed) {
     // bombs gathered for the danger build
     nb: 0, bc: new Int16Array(64), bLo: new Int32Array(64), bHi: new Int32Array(64),
     cLo: new Int32Array(64), cHi: new Int32Array(64),    // windows after chains (per build)
-    bR: new Int8Array(64), bPierce: new Uint8Array(64), bOwn: new Uint8Array(64),
+    bR: new Int8Array(64), bPierce: new Uint8Array(64), bOwn: new Uint8Array(64), bRub: new Uint8Array(64),
     bMove: new Int8Array(64), bDir: new Int8Array(64), bLen: new Int8Array(64),
     bSp: new Float64Array(64), bOff: new Float64Array(64),   // moving: px/tick, px past the cell centre
     bombAt: new Int16Array(NC).fill(-1),
@@ -348,7 +358,7 @@ function gatherBombs(bot, W, now) {
     bot.bR[i] = m[b + 7] + 1;
     bot.bPierce[i] = (f & 0x0F) === 4 ? 1 : 0;
     bot.bOwn[i] = own ? 1 : 0;
-    bot.bMove[i] = -1;
+    bot.bMove[i] = -1; bot.bRub[i] = 0;
     const fuse = m[b + 4];
     if (f & 0x4000) { const d = W.bombDet[k] >= 0 ? W.bombDet[k] : now; bot.bLo[i] = d; bot.bHi[i] = d; }
     else { bot.bLo[i] = now + 2 * fuse - 1; bot.bHi[i] = now + 2 * fuse + 8; }
@@ -369,6 +379,7 @@ function gatherBombs(bot, W, now) {
     bot.bR[i] = m[b + 7] + 1;
     bot.bPierce[i] = (g16(b) & 0x0F) === 4 ? 1 : 0;
     bot.bOwn[i] = own ? 1 : 0;
+    bot.bRub[i] = (m[o + 0x42] & 0x08) ? 1 : 0;
     const fuse = m[b + 4];
     bot.bLo[i] = now + Math.max(2, 2 * fuse - 30); bot.bHi[i] = now + 2 * Math.max(fuse, 1) + 12;
     const vx = W.moverVX[s], vy = W.moverVY[s];
@@ -483,8 +494,8 @@ function buildDanger(bot, W, D, now, hc, hR, fc, fR) {
       let c = bot.bc[i], d = bot.bMove[i];
       let pos = -bot.bOff[i];                       // px travelled to reach c's centre
       const sp = bot.bSp[i];
-      let lo2 = lo, hi2 = hi;
-      for (let k = 0; k < 24; k++) {
+      let lo2 = lo, hi2 = hi, rev = 0;
+      for (let k = 0; k < 40; k++) {
         const tc = now + pos / sp;                  // when its centre is at c
         if (tc > hi2 + 16 / sp) break;
         if (tc >= lo2 - 16 / sp) {
@@ -495,6 +506,8 @@ function buildDanger(bot, W, D, now, hc, hR, fc, fR) {
         const nc = c + DC[d];
         const v = cellCode(nc);
         if ((v & 0x80) || v === 0x43 || v === 0x44) {   // stops here (a kicked bomb snaps to c)
+          // a rubber bomb rolls back (movers.js reverse): sweep the way back too
+          if (bot.bRub[i] && rev < 3) { rev++; d = OPP[d]; pos += 16; continue; }
           if (tc < lo2) rays(bot, W, D, i, c, lo2, hi2, null);
           break;
         }
@@ -1256,6 +1269,7 @@ function kickPad(bot, W, now, c, ox, oy, speed) {
     const bc = c + DC[d];
     if (cellCode(bc) !== 0x43) continue;
     if (bc === bot.kickBan && now < bot.kickBanUntil) continue;
+    if (bombTypeAt(bc) & 0x08) continue;          // a rubber bomb rolls back at us
     let k = -1;
     for (let j = 0; j < bot.nb; j++) if (bot.bc[j] === bc && bot.bMove[j] < 0) { k = j; break; }
     if (k < 0) continue;
@@ -1293,6 +1307,12 @@ function kickPad(bot, W, now, c, ox, oy, speed) {
     bot.goal = -1;
     return DIRBIT[d];
   }
+  return 0;
+}
+
+function bombTypeAt(c) {
+  const gi = cellToGi(c);
+  for (let k = 0; k < 40; k++) { const b = 0x12000 + 0x100 * k, f = g16(b); if ((f & 0x8000) && g16(b + 0x0A) === gi) return f & 0x0F; }
   return 0;
 }
 
