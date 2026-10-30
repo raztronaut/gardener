@@ -70,6 +70,7 @@ nature like", then "I liked the bomb style, keep that"):**
 | `garden/src/objects.py` (pods), `fx.py` (held / moving pods), `hud.py`, `menus.py`, `menufont.py`, `title.py` | the other pictures |
 | `garden/preview.mjs`, `menushots.mjs`, `minimaps.mjs` | review renders (stages mid-round next to the original, menus, previews, cover) |
 | `garden/qa_matches.mjs` | whole matches on every tall garden in a headless browser (test server only) |
+| `garden/spritecheck.mjs` | sprite audit: original vs skinned display in lockstep, every OAM entry compared |
 
 Dev: `GARDEN_ONLY=4 python3 tools/sb2/garden/build.py` builds one stage (the others keep the
 original pictures); always run the full `make.sh` before committing.
@@ -115,6 +116,18 @@ basin switches; lanterns with flickering lights; bamboo grove) · 9 vegetable te
   sparkles, 98..110 small pods, in `objPal8` (OBJ palette 8): classic mode puts kicked / thrown /
   held bombs there; with a skin `objPal8` a bomb mover in mode 2 (drawn in its pose's palette 0,
   seen on stages 3 and 5) takes it too.
+- **The falling sudden-death block** (effect object, C10761, anim 2): OBJ tile 142 (16x16) and
+  188 (8x8, empty: the blink), OBJ palette 6. In the ORIGINAL it is a plain white square
+  (tile 142 = colour 9 = $7FFF; checked in the harness, visual vector hurry_stage04) until it
+  lands as the stage's block. The skin draws tile 142 as the garden's own landed block
+  (`pressure()`, 6 colours) in OBJ palette 6 slots 10..15, which hold $7C1E placeholders on
+  every stage and are never shown by the original (spritecheck.mjs: no sprite pixel uses them).
+- **Sprite audit** (`node tools/sb2/garden/spritecheck.mjs`): one game drives the original and
+  the skinned display in lockstep (all stages, both layouts, items, G-Bomber, sudden death),
+  ~2.1 M sprite draws compared colour by colour: everything but the skin's own sprites (pods,
+  stage-2 pushed block, falling block) is identical to the original; no placeholder colour;
+  the only all-white sprite left is the original's flipping item card (tiles 66..78, palette 0,
+  index 3 of the white bomber = white: a real card shape, the same in the classic skin).
 - **Menus**: palettes 2..4 recoloured index by index (palette 1 only its panel colour 15: the
   player heads keep the original's), the stone wall / strip scenery and all lettering redrawn
   (menufont.py), the title: BG1 map cols 16..31 rows 0..13 and BG2 rows 0..13 cut into fresh
@@ -124,7 +137,10 @@ basin switches; lanterns with flickering lights; bamboo grove) · 9 vegetable te
 
 ## Checks
 - `node tools/sb2/conformance/run.mjs`: 46/46. `python3 tools/sb2/conformance/visual.py`:
-  246 / 246 samples pixel-exact (the original skin: no art, the ppu path is unchanged).
+  246 / 246 samples pixel-exact (the original skin: no art, the ppu path is unchanged);
+  `visual_extra.py --check --norecord` (Hurry, sudden death, falling blocks on every stage):
+  661 / 661 pixel-exact (its hurry_stage08 logic replay fails on the last frame, as before
+  this work: the core is not touched by the skin).
 - Browser (test server 8791, own headless Chromium): qa_matches.mjs: whole matches on all ten
   tall gardens with hurry and sudden death, no page errors.
 - Frame cost (`node tools/sb2/qa/perf.mjs --stage 1,3,5,8,10 [--skin garden]`, tall, 4 CPUs

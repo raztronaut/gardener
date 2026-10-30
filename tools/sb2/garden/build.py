@@ -283,6 +283,11 @@ def obj_put(ov, blob, base, t, img, pal=None):
 POD_PAL = None
 
 
+def mod_pressure(st):
+    mod = importlib.import_module('s%02d' % st)
+    return mod.pressure()
+
+
 def stage_fx(st, ov, report):
     """the held / kicked / thrown pods (the garden's bombs): fixed OBJ tiles in the classic
     bomb palette (objPal8); every other sprite is the original's"""
@@ -297,6 +302,28 @@ def stage_fx(st, ov, report):
         POD_PAL = auto_palette(list(pods.values()), 'pod', report)
     for t, im in pods.items():
         obj_put(ov, blob, base, t, im, POD_PAL)
+    # the sudden-death block while it falls (OBJ tile 142, palette 6; the original shows it as
+    # a white square there, then its landed block): the garden's own landed block, in OBJ
+    # palette 6's slots 10..15 (placeholders the original never shows, $7C1E)
+    blk = mod_pressure(st)
+    cols = {}
+    for v in blk.ravel():
+        if v >= 0:
+            cols[int(v)] = cols.get(int(v), 0) + 1
+    keep = sorted(cols, key=lambda c: -cols[c])[:6]
+    keep = sorted(keep, key=lambda c: sum(rgb(c)))
+    def q(v):
+        if v < 0:
+            return 0
+        if v in keep:
+            return 10 + keep.index(v)
+        t = rgb(v)
+        return 10 + min(range(len(keep)), key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb(keep[i]), t)))
+    idx = np.vectorize(q)(blk)
+    obj_put(ov, blob, base, 142, idx)
+    if len(cols) > 6:
+        report.append('stage %d: falling block reduced from %d to 6 colours' % (st, len(cols)))
+    ov.put(blob, 0x10000 + (128 + 6 * 16 + 10) * 2, pal_bytes(keep + [keep[-1]] * (6 - len(keep))))
     # stage 2: a pushed soft block slides as a sprite (OBJ tile 96, palette 4): the garden's
     # own soft block, so it does not turn into the original's while it moves
     mod = importlib.import_module('s%02d' % st)

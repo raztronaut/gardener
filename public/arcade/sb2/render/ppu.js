@@ -392,6 +392,7 @@ export function createPPU(H) {
   return {
     W, H, vram, cgram, oam, L, state,
     configure, setWindowLines, render, writeVram, forceAll, addGfx, vramObj, clearObjCache, setArt,
+    gfx: (id) => gfxList[id],          // (read-only, for audits: a sprite's colour indices)
     set brightness(b) { brightness = b & 15; }, get brightness() { return brightness; },
     setObjBase(a, b) { objBase = a; objBase2 = b; clearObjCache(); },
   };
