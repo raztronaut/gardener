@@ -2134,6 +2134,7 @@ function closeMdEditor() {
 async function plantMd(text) {
   text = String(text || '').trim();
   if (!text) { closeMdEditor(); return; }
+  if (strayNote(text)) { toast('Looks like a stray key — type a little more to plant a note'); return; }
   try {
     const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, dashboard: CURRENT_DASH }) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -2142,6 +2143,11 @@ async function plantMd(text) {
     mdEl?.remove(); mdEl = null; focusInput();
   } catch { toast('Could not reach the gardener — try again'); }
 }
+
+// A one-character note ("x") is almost always a brushed key + Enter on the wall
+// keyboard, not a request — don't plant it (the text stays in the field so a real
+// note can carry on). 2026-10-30, after a lone "x" arrived as the day's feedback.
+function strayNote(text) { return Array.from(String(text || '').trim()).length < 2; }
 
 function wireFeedback() {
   const form = document.getElementById('feedbackForm');
@@ -2270,6 +2276,7 @@ function wireFeedback() {
       toast(`Unknown command "/${cmd}" — try /help`);
       return;
     }
+    if (strayNote(text)) { toast('Looks like a stray key — type a little more to plant a note'); return; }
     input.value = '';
     try {
       const r = await fetch('/api/feedback', {

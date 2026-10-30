@@ -315,6 +315,17 @@ async function main() {
       const m = appSrc.match(/TRASH_NIGHT_HOUR\s*=\s*(\d+)/);
       check('trash takeover fires by 5 PM (TRASH_NIGHT_HOUR ≤ 17)', m && Number(m[1]) <= 17, m ? `is ${m[1]}` : 'TRASH_NIGHT_HOUR not found');
     } catch (e) { bad('trash takeover threshold', e.message); }
+    // Stray one-key notes ("x" + Enter on the wall keyboard) are held back client-side,
+    // while any real note of 2+ characters still plants (2026-10-30).
+    try {
+      const appSrc = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
+      const fn = appSrc.match(/function strayNote\(text\) \{[^\n]*\}/);
+      const strayNote = fn && new Function(fn[0] + '; return strayNote;')();
+      const guarded = (appSrc.match(/if \(strayNote\(text\)\)/g) || []).length;
+      check('feedback bar holds back one-key stray notes (and only those)',
+        strayNote && strayNote('x') && strayNote(' x ') && strayNote('🌱') && !strayNote('ok') && !strayNote('more tides please') && guarded >= 2,
+        fn ? `guarded submit paths: ${guarded}` : 'strayNote not found');
+    } catch (e) { bad('stray note guard', e.message); }
     // Clock holiday heads-up: the movable-date maths must land on the right days.
     try {
       const ckSrc = readFileSync(join(PUBLIC, 'widgets', 'clock.js'), 'utf8');
