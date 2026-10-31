@@ -391,6 +391,14 @@ async function main() {
       check('weather: UV cell shows the coming peak, not a bare 0 at night',
         /UV peak · \$\{hr12\(peakToday\.hr\)\}/.test(wxSrc) && /'UV tomorrow'/.test(wxSrc) && /h\('div', \{ class: 'k'[^\n]*\}, uvKey\)/.test(wxSrc));
     } catch (e) { bad('weather UV guard', e.message); }
+    // Air has its own fullscreen view (2026-10-31): fixed-height root (layout
+    // stability), retried fetch, and a graceful message when the API is down.
+    try {
+      const aqSrc = readFileSync(join(PUBLIC, 'widgets', 'air-quality.js'), 'utf8');
+      check('air: openFull renders a full-size view with a graceful failure message',
+        /async openFull\(body, ctx\)/.test(aqSrc) && /\.aqf \{[^}]*height:\d+px/.test(aqSrc)
+          && /Air quality is unavailable right now/.test(aqSrc));
+    } catch (e) { bad('air fullscreen guard', e.message); }
 
     // 3) Boot the server with an isolated DB + port.
     console.log('\n[3] server boot');
