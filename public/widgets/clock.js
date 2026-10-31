@@ -190,7 +190,7 @@ export default {
          so this is text only now: no rail, no fill, nothing to render or animate. */
       .clk .year { margin-top:0; padding-top:7px; }
       /* the tile drops it (humans, 2026-10-30) — only the maximized clock shows the year line */
-      .clk:not(.full) .year { display:none; }
+      .clk:not(.full) .year, .clk:not(.full) .season { display:none; } /* + the season line ("Early Autumn · 52d to winter"), 2026-10-30 */
       .clk.full .year { padding-top:14px; } .clk.full .year .yr-head { font-size:16px; }
       .clk .year .yr-head { display:flex; align-items:baseline; justify-content:space-between;
         font-family:var(--font-mono); font-size:12.5px; letter-spacing:.06em; color:var(--ink-faint); }

@@ -69,7 +69,8 @@ every day, including quiet no-feedback days.
   fullscreen = + sunrise, humidity, UV, next days, the rain & sun map). Don't move pruned items
   back onto a tile, and when you deepen a widget, deepen its fullscreen.
   Already pruned from tiles by the humans: Weather humidity / UV / next days (fullscreen only);
-  the Clock's world clocks and its "Day N · N left … %" year line (fullscreen only); the Air
+  the Clock's world clocks, its "Day N · N left … %" year line and its season line ("Early
+  Autumn · 52d to winter") (fullscreen only); the Air
   card's health-tip / "vs yesterday" line under the reading (tooltip only).
 - **Dashboards are the humans' own spaces** (public/dashboards.json, 2026-10-07). The main
   tending must not edit, restyle or remove any dashboard under public/dashboards/ or

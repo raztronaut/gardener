@@ -531,13 +531,81 @@ async function showVolume() {
     (document.getElementById('zoomroot') || document.body).appendChild(volEl);
   }
   const pct = Math.max(0, Math.min(100, v.volume));
-  const icon = v.mute || pct === 0 ? 'M3 9v6h4l5 4V5L7 9H3zm13.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3z'
-    : pct < 50 ? 'M3 9v6h4l5 4V5L7 9H3zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z'
-    : 'M3 9v6h4l5 4V5L7 9H3zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM12 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z';
-  volEl.innerHTML = `<svg viewBox="0 0 24 24"><path fill="currentColor" d="${icon}"/></svg><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}</b>`;
+  volEl.innerHTML = `<svg viewBox="0 0 24 24"><path fill="currentColor" d="${volIcon(pct, v.mute)}"/></svg><div class="bar"><i style="width:${pct}%"></i></div><b>${pct}</b>`;
+  updateVolButton(pct, v.mute);
   volEl.classList.add('on');
   UI_SOUND('nav'); // hear the new level
   clearTimeout(volT); volT = setTimeout(() => volEl.classList.remove('on'), 1400);
+}
+
+const volIcon = (pct, mute) => (mute || pct === 0 ? 'M3 9v6h4l5 4V5L7 9H3zm13.6 3 2.7-2.7-1.3-1.3-2.7 2.7-2.7-2.7-1.3 1.3 2.7 2.7-2.7 2.7 1.3 1.3 2.7-2.7 2.7 2.7 1.3-1.3z'
+  : pct < 50 ? 'M3 9v6h4l5 4V5L7 9H3zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z'
+  : 'M3 9v6h4l5 4V5L7 9H3zm11.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM12 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z');
+
+// Top-right speaker button (left of the rainforest bird): click opens a slider popover
+// (− / slider / + / percent); the mouse wheel over the button or popover nudges 2 %;
+// the controller reaches it by stick focus — A opens, ←/→ (or ↑/↓) adjust, B closes.
+let volNow = null, volPostT = 0;
+function updateVolButton(pct, mute) {
+  const b = document.getElementById('volBtn'); if (!b) return;
+  if (pct != null) volNow = pct;
+  b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="${volIcon(volNow ?? 50, mute)}"/></svg>`;
+  b.title = volNow == null ? 'Volume' : `Volume ${volNow}%`;
+  const m = document.getElementById('volMenu');
+  if (m && volNow != null) {
+    const r = m.querySelector('input'); if (r && document.activeElement !== r) r.value = String(volNow);
+    m.querySelector('b').textContent = `${volNow}%`;
+    m.style.setProperty('--v', `${volNow}%`);
+  }
+}
+function setVolume(v) {
+  v = Math.max(0, Math.min(100, Math.round(v)));
+  updateVolButton(v, false);
+  clearTimeout(volPostT); // coalesce a drag into a few pactl calls
+  volPostT = setTimeout(() => fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: v }) })
+    .then(() => UI_SOUND('nav')).catch(() => {}), 70);
+}
+function closeVolMenu() { document.getElementById('volMenu')?.remove(); document.getElementById('volBtn')?.classList.remove('open'); }
+const volMenuOpen = () => !!document.getElementById('volMenu');
+function volumeMenu() {
+  const b = document.getElementById('volBtn'); if (!b) return;
+  if (volMenuOpen()) { closeVolMenu(); return; }
+  closeRfMenu();
+  const root = document.getElementById('zoomroot') || document.body;
+  const close = () => { closeVolMenu(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc, true); };
+  const outside = (e) => { const m = document.getElementById('volMenu'); if (m && !m.contains(e.target) && !b.contains(e.target)) close(); };
+  const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const range = h('input', { type: 'range', min: '0', max: '100', step: '1', value: String(volNow ?? 50), 'aria-label': 'Volume',
+    oninput: (e) => setVolume(+e.target.value) });
+  const step = (d) => setVolume((volNow ?? 50) + d);
+  const menu = h('div', { id: 'volMenu', onwheel: (e) => { e.preventDefault(); step(e.deltaY < 0 ? 2 : -2); } },
+    h('button', { class: 'vm-step', type: 'button', 'aria-label': 'Quieter', onclick: () => step(-5) }, '−'),
+    range,
+    h('button', { class: 'vm-step', type: 'button', 'aria-label': 'Louder', onclick: () => step(5) }, '+'),
+    h('b', {}, volNow == null ? '—' : `${volNow}%`));
+  root.appendChild(menu);
+  b.classList.add('open');
+  const r = b.getBoundingClientRect(), rb = root.getBoundingClientRect(), z = rb.width / (root.offsetWidth || rb.width) || 1;
+  menu.style.top = `${Math.round((r.bottom - rb.top) / z + 8)}px`;
+  menu.style.right = `${Math.round((rb.right - r.right) / z)}px`;
+  updateVolButton(null);
+  fetch('/api/volume', { cache: 'no-store' }).then((x) => x.json()).then((v) => { if (v && v.volume != null) updateVolButton(v.volume, v.mute); }).catch(() => {});
+  setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); }, 0);
+}
+function volMenuNav(action) {
+  if (!volMenuOpen()) return false;
+  if (/^f?(right|up)$/.test(action)) setVolume((volNow ?? 50) + 4);
+  else if (/^f?(left|down)$/.test(action)) setVolume((volNow ?? 50) - 4);
+  else if (action === 'ok' || action === 'fopen' || action === 'back' || action === 'events' || action === 'hn') closeVolMenu();
+  else return false;
+  return true;
+}
+function wireVolumeButton() {
+  const b = document.getElementById('volBtn'); if (!b) return;
+  b.addEventListener('click', () => volumeMenu());
+  b.addEventListener('wheel', (e) => { e.preventDefault(); setVolume((volNow ?? 50) + (e.deltaY < 0 ? 2 : -2)); }, { passive: false });
+  updateVolButton(null);
+  fetch('/api/volume', { cache: 'no-store' }).then((x) => x.json()).then((v) => { if (v && v.volume != null) updateVolButton(v.volume, v.mute); }).catch(() => {});
 }
 
 // /rainforest — forest ambience from real field recordings (lib/rainforest.js; audio in the
@@ -645,6 +713,7 @@ async function toggleRainforest(arg = '', force) {
 }
 if (!SCREENSHOT) {
   setTimeout(wireRainforestButton, 0);
+  setTimeout(wireVolumeButton, 0);
   try { if (localStorage.getItem('garden.rainforest') === '1') setTimeout(() => toggleRainforest('', true), 1500); } catch { /* ignore */ }
   let ducked = false; // only act when a game starts or ends, not on every class change (idle, night…)
   new MutationObserver(() => { const g = document.body.classList.contains('arcade-full'); if (g !== ducked) { ducked = g; if (RF && RF.isOn()) RF.duck(g); arcadeVolume(g); } })
@@ -1707,8 +1776,8 @@ function saveEdit(slot, value, msg) {
 let focusIdx = -1, focusClearT = 0, selectMode = false;
 // the widgets + the top-right sound (rainforest) button, reached by moving up past the top row
 function focusCards() {
-  const rf = document.getElementById('rfBtn');
-  return [...document.querySelectorAll('#garden > .card[data-wid]'), ...(rf && rf.offsetParent ? [rf] : [])];
+  const top = ['volBtn', 'rfBtn'].map((id) => document.getElementById(id)).filter((b) => b && b.offsetParent);
+  return [...document.querySelectorAll('#garden > .card[data-wid]'), ...top];
 }
 function setFocus(i) {
   const cards = focusCards();
@@ -1770,6 +1839,7 @@ function openFocusedWidget() {
   const card = focusCards()[focusIdx];
   if (!card) return false;
   if (card.id === 'rfBtn') { openRfMenuPad(); return true; }
+  if (card.id === 'volBtn') { volumeMenu(); return true; }
   openWidgetPanel(card.dataset.wid);
   return true;
 }
@@ -2046,6 +2116,7 @@ function wirePad() {
     }
     const pal = paletteOpen();
     if (rfMenuNav(action)) return;   // the forest menu opened from the controller owns the pad
+    if (volMenuNav(action)) return;  // …and so does the volume popover
     switch (action) {
       case 'palette':
         if (pal) { hidePalette(); break; }
