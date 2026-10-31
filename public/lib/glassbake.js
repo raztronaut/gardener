@@ -181,24 +181,26 @@ export async function refreshSnapshot() {
 // Pre-bake the panel glass for rects the wall is known to open (one per remembered
 // panel height), so opening a panel finds its glass already in the cache. Runs one
 // bake per idle slot; `skip()` (e.g. a game is running) stops it early.
-export async function prebakePanels(rects, skip = () => false) {
+// (veil: how much the backdrop is darkened under the glass — panels .30, the palette more)
+const rectKey = (r, veil) => `${snapAt}:${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.left)},${Math.round(r.top)}:${veil}`;
+export async function prebakePanels(rects, skip = () => false, { veil = 0.30 } = {}) {
   if (!snap) return 0;
   const at = snapAt; let n = 0;
   for (const r of rects) {
     await new Promise((res) => (window.requestIdleCallback ? requestIdleCallback(res, { timeout: 2000 }) : setTimeout(res, 50)));
     if (skip() || at !== snapAt) break;
-    const key = `${snapAt}:${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.top)}`;
+    const key = rectKey(r, veil);
     if (panelCache.has(key)) continue;
-    try { panelCache.set(key, await bake(snap, r, { veil: 0.30 })); n++; } catch { /* skip this size */ }
+    try { panelCache.set(key, await bake(snap, r, { veil })); n++; } catch { /* skip this size */ }
   }
   return n;
 }
-export async function bakePanel(card) {
+export async function bakePanel(card, { veil = 0.30 } = {}) {
   if (!snap) return false;
   const rect = card.getBoundingClientRect();
-  const key = `${snapAt}:${Math.round(rect.width)}x${Math.round(rect.height)}@${Math.round(rect.top)}`;
+  const key = rectKey(rect, veil);
   let url = panelCache.get(key);
-  if (!url) { url = await bake(snap, rect, { veil: 0.30 }); panelCache.set(key, url); }
+  if (!url) { url = await bake(snap, rect, { veil }); panelCache.set(key, url); }
   const im = new Image(); im.src = url; try { await im.decode(); } catch { /* still set it */ } // decoded → no late pop
   if (card.isConnected) setGlass(card, url, { own: false }); // cached — not revoked on swap
   return true;

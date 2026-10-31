@@ -34,15 +34,12 @@ export default {
     ctx.style(`
       .won { display:flex; flex-direction:column; height:100%; gap:8px; }
 
-      /* Shared heading: the featured pick's day said once, a hairline rule to
-         carry the eye across, and the size of the full listing at the far right
-         (which is why the card no longer needs a separate footer line). */
-      .won-hd { flex:0 0 auto; display:flex; align-items:center; gap:9px;
-        font-family:var(--font-mono); font-size:12px; letter-spacing:.13em;
-        color:var(--ink-faint); white-space:nowrap; }
-      .won-hd .tdy { color:var(--mint); font-weight:700; }
-      .won-hd .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
-      .won-hd .all { opacity:.8; }
+      /* Heading: the day in words — "Tonight" / "Today" / "Tomorrow" in the title face,
+         the date beside it. (The event count and its hairline were removed
+         2026-10-30: the humans found that line noisy.) */
+      .won-hd { flex:0 0 auto; display:flex; align-items:baseline; gap:10px; white-space:nowrap; margin-bottom:2px; }
+      .won-hd .tdy { font-family:var(--font-display); font-size:24px; line-height:1; color:var(--mint); }
+      .won-hd .dt { font-size:15px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; }
 
       .won-list { --sp:9px; flex:1 1 0; display:flex; flex-direction:column; gap:var(--sp); min-height:0; overflow:hidden; }
 
@@ -60,10 +57,11 @@ export default {
          repeated label) — the name takes the full width under one small
          "ALL DAY" sub-heading, so the group reads as "also on today". */
       .won-ag.wide { grid-template-columns:60px 1fr; }
+      /* sub-headings: "Top 3" (today's all-day picks), then the coming days */
       .won-sub { flex:0 0 auto; display:flex; align-items:center; gap:9px; margin-top:2px;
-        font-family:var(--font-mono); font-size:11.5px; letter-spacing:.13em;
-        color:var(--ink-faint); white-space:nowrap; }
-      .won-sub.later { margin-top:6px; color:var(--mint); opacity:.85; }
+        font-size:13.5px; font-weight:600; letter-spacing:.02em;
+        color:var(--ink-soft); white-space:nowrap; }
+      .won-sub.later { margin-top:6px; color:var(--mint); opacity:.9; }
       .won-sub .rule { flex:1; height:1px; background:var(--stroke); min-width:8px; }
       .won-ag.wide .nm { font-size:14px; }
       .won-ag.pre { border-bottom:none; }
@@ -92,6 +90,8 @@ export default {
     // Weekday cap ("SAT") read in SF time, so a glance tells a weekend from a
     // weeknight even for events weeks out.
     const wdayFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
+    const longFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'short', day: 'numeric' });
+    const hourFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' });
 
     // Whole-day offset from today, read in SF time so it rolls over cleanly at
     // local midnight. 0 = today, 1 = tomorrow, negative = already begun.
@@ -155,13 +155,12 @@ export default {
       picks.sort((x, y) => (timed(x) ? x.when.getTime() : 0) - (timed(y) ? y.when.getTime() : 0));
 
       const first = picks[0];
-      const cap = showingToday ? 'TODAY' : (dayOffset(first.when) === 1 ? 'TOMORROW' : 'COMING UP');
-      const dm = first.when && !isNaN(first.when) ? `${wdayFmt.format(first.when).toUpperCase()} ${first.when.getDate()} ${MON[first.when.getMonth()]}` : '';
+      const evening = parseInt(hourFmt.format(new Date()), 10) >= 17;
+      const cap = showingToday ? (evening ? 'Tonight' : 'Today') : (dayOffset(first.when) === 1 ? 'Tomorrow' : 'Coming up');
+      const dm = first.when && !isNaN(first.when) ? longFmt.format(first.when) : '';
       head.replaceChildren(
         ctx.h('span', { class: 'tdy' }, cap),
-        dm ? ctx.h('span', {}, dm) : null,
-        ctx.h('span', { class: 'rule' }),
-        ctx.h('span', { class: 'all' }, `${picks.length} EVENT${picks.length === 1 ? '' : 'S'}`));
+        dm ? ctx.h('span', { class: 'dt' }, dm) : null);
       head.style.display = '';
 
       const makeRow = (e) => {
@@ -229,8 +228,8 @@ export default {
           .sort((x, y) => x.when - y.when).slice(0, 14);
         ahead.forEach((e) => {
           const o = dayOffset(e.when);
-          const label = o === 1 ? `TOMORROW · ${wdayFmt.format(e.when).toUpperCase()}`
-            : `${wdayFmt.format(e.when).toUpperCase()} ${e.when.getDate()} ${MON[e.when.getMonth()]}`;
+          const label = o === 1 ? `Tomorrow · ${wdayFmt.format(e.when)}`
+            : `${wdayFmt.format(e.when)}, ${MON[e.when.getMonth()]} ${e.when.getDate()}`;
           later.push({ ...makeRow(e), label });
         });
       }
@@ -268,7 +267,8 @@ export default {
           const prevR = kept[i - 1];
           r.el.classList.toggle('dup', !r.allDay && !!r.tkey && !!prevR && !prevR.allDay && prevR.tkey === r.tkey);
           if (r.allDay && (i === 0 || !kept[i - 1].allDay)) {
-            els.push(ctx.h('div', { class: 'won-sub' }, 'ALL DAY', ctx.h('span', { class: 'rule' })));
+            // "Top 3" — the day's best all-day picks (fewer kept → "Top 2" / "Top 1")
+            els.push(ctx.h('div', { class: 'won-sub' }, `Top ${kept.filter((k) => k.allDay).length}`, ctx.h('span', { class: 'rule' })));
           }
           els.push(r.el);
         });
@@ -289,10 +289,15 @@ export default {
       // Greedy in priority order: a row that would overflow is skipped (not a
       // full stop), so a shorter, lower-priority listing can still use the
       // space a long two-line title couldn't.
+      // at most TOP all-day picks for the day (its "Top 3"); the rest stay in /events
+      const TOP = 3;
+      const full = (set) => set.filter((k) => k.allDay).length >= TOP;
       const seed = core[0] || filler[0];
       let kept = [seed];
+      for (const r of core) { r.capped = false; }
       for (const r of core) {
         if (r === seed) continue;
+        if (r.allDay && full(kept)) { r.capped = true; continue; }
         show([...kept, r]);
         if (fits()) kept.push(r);
       }
@@ -300,7 +305,7 @@ export default {
       // days' one-off events while there's room, chronologically; a row too tall
       // to fit is skipped so a shorter one can take the space.
       let ext = [];
-      if (core.every((r) => kept.includes(r)) && later.length) {
+      if (core.every((r) => kept.includes(r) || r.capped) && later.length) {
         for (const r of later) {
           show(kept, [...ext, r]);
           if (fits()) ext.push(r);
@@ -308,7 +313,7 @@ export default {
       }
       // Today's all-day recurring listings only take whatever room is left.
       for (const r of filler) {
-        if (r === seed) continue;
+        if (r === seed || full(kept)) continue;
         show([...kept, r], ext);
         if (fits()) kept.push(r);
       }

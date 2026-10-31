@@ -421,9 +421,10 @@ export default {
       if (pts.length >= 2) {
         const vs = pts.map((p) => p.t);
         const tMin = Math.min(...vs), span = Math.max(...vs) - tMin;
-        // bar height: 30% for the coolest hour, +70% across at least a 10°F spread (so a
-        // 2-degree wobble reads as one, not as a cliff)
-        const hOf = (v) => 30 + ((v - tMin) / Math.max(span, 10)) * 70;
+        // bar height: the warmest hour fills the plot; each degree below it takes 7% off
+        // (a 10°F spread = the coolest bar at 30%, so a 2-degree wobble reads as one)
+        const tMax = tMin + span;
+        const hOf = (v) => 100 - ((tMax - v) / Math.max(span, 10)) * 70;
         hoursEl = h('div', { class: 'wx-hours' },
           h('div', { class: 'wx-sec' }, 'Next hours'),
           h('div', { class: 'wx-bars' }, ...pts.map((p) => h('div', { class: 'col' },

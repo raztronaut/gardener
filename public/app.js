@@ -247,8 +247,7 @@ async function boot() {
   setNight(!!state.night);
   window.__GARDEN_EDITS = state.edits || {}; // hand-pruned overrides, applied at render
   const sub = document.getElementById('subtitle');
-  // the maker's line (humans, 2026-10-30): "Designed by Gui Dávid in San Francisco, CA"
-  if (sub) sub.textContent = window.__GARDEN_EDITS.subtitle ?? (state.location ? `Designed by Gui Dávid in ${state.location}` : sub.textContent);
+  if (sub) sub.textContent = window.__GARDEN_EDITS.subtitle ?? (state.location || sub.textContent);
   const brand = document.querySelector('[data-editable="brand"]');
   if (brand && window.__GARDEN_EDITS.brand) brand.textContent = window.__GARDEN_EDITS.brand;
   setIterBadge(state.iteration, state.agentModel);
@@ -295,7 +294,8 @@ async function boot() {
         const snapNow = async () => {
           if (panelOpen() || document.body.classList.contains('arcade-full')) return;
           await gb.refreshSnapshot();
-          gb.prebakePanels(panelRects(), () => panelOpen() || document.body.classList.contains('arcade-full'));
+          const busy = () => panelOpen() || paletteOpen() || document.body.classList.contains('arcade-full');
+          gb.prebakePanels(panelRects(), busy).then(() => gb.prebakePanels(palRects(), busy, { veil: PAL_VEIL }));
         };
         setTimeout(snapNow, 2500); setInterval(snapNow, 10 * 60 * 1000);
       }
@@ -1403,14 +1403,42 @@ const COMMANDS = [
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
 ];
 
-let palEl = null, palMatches = [], palSel = 0;
+// Two boxes, bottom-aligned above the note bar, row for row: the commands on baked
+// liquid glass (cropped to their own width), and beside them a black box with the
+// explanations in a contrasting colour (humans, 2026-10-30).
+let palEl = null, palMatches = [], palSel = 0, palCmds = null, palDescs = null;
+const PAL_VEIL = 0.58; // darker than a panel's glass: the wall behind is busy, rows must read
 function ensurePalette() {
   if (palEl) return palEl;
-  palEl = h('div', { id: 'cmdpal', hidden: true });
+  palCmds = h('div', { class: 'cp-list' });
+  palDescs = h('div', { class: 'cp-list' });
+  palEl = h('div', { id: 'cmdpal', hidden: true },
+    h('div', { class: 'cp-cmds' }, palCmds), h('div', { class: 'cp-descs' }, palDescs));
   (document.getElementById('zoomroot') || document.body).appendChild(palEl); // scales with the page
   return palEl;
 }
-function hidePalette() { if (palEl) { palEl.hidden = true; } palMatches = []; palSel = 0; }
+// glass for the commands box at its current size: cached per size + wall snapshot
+// (glassbake's panel cache); every palette size seen is pre-baked again after each
+// new snapshot, so it is normally ready before the palette opens
+let palGlassT = 0;
+const PAL_SIZES_KEY = 'garden.palRects';
+function palRects() { try { return JSON.parse(localStorage.getItem(PAL_SIZES_KEY) || '[]'); } catch { return []; } }
+function palGlass() {
+  if (!GB || SCREENSHOT) return;
+  const box = palEl && palEl.querySelector('.cp-cmds'); if (!box) return;
+  GB.glassLayers(box);
+  clearTimeout(palGlassT);
+  palGlassT = setTimeout(() => {
+    if (!paletteOpen()) return;
+    const r = box.getBoundingClientRect(), rr = { left: r.left, top: r.top, width: r.width, height: r.height };
+    GB.bakePanel(box, { veil: PAL_VEIL }).then((ok) => { box.classList.toggle('nosnap', !ok); }, () => box.classList.add('nosnap'));
+    try { // remember this size for the next pre-bake (most recent first, up to 12)
+      const list = palRects().filter((x) => Math.round(x.width) !== Math.round(rr.width) || Math.round(x.height) !== Math.round(rr.height) || Math.round(x.top) !== Math.round(rr.top));
+      localStorage.setItem(PAL_SIZES_KEY, JSON.stringify([rr, ...list].slice(0, 12)));
+    } catch { /* ignore */ }
+  }, 40);
+}
+function hidePalette() { if (palEl) { palEl.hidden = true; palEl._n = 0; } palMatches = []; palSel = 0; }
 function paletteOpen() { return !!palEl && !palEl.hidden && palMatches.length > 0; }
 
 // Show/filter the palette for the current input value: "/frag" lists matching commands;
@@ -1429,15 +1457,19 @@ function updatePalette(input) {
   if (!palMatches.length) { hidePalette(); return; }
   palSel = Math.min(palSel, palMatches.length - 1);
   const el = ensurePalette();
-  el.replaceChildren(...palMatches.map(({ c, opt }, i) => h('div', {
+  const row = (i, opt, ...kids) => h('div', {
     class: 'cp-row' + (i === palSel ? ' sel' : '') + (opt && opt.on ? ' on' : ''),
     onmousedown: (ev) => { ev.preventDefault(); runPaletteCmd(input, palMatches[i]); }, // mousedown: beat the blur
-  },
+  }, ...kids);
+  palCmds.replaceChildren(...palMatches.map(({ c, opt }, i) => row(i, opt,
     h('span', { class: 'cp-ic' }, opt ? opt.icon : c.icon),
     h('code', { class: 'cp-cmd' }, '/' + c.cmd + (opt && opt.arg ? ' ' + opt.arg : '')),
-    !opt && c.aliases.length ? h('span', { class: 'cp-alias' }, c.aliases.map((a) => '/' + a).join(' ')) : null,
-    h('span', { class: 'cp-desc' }, opt ? opt.desc : c.desc))));
+    !opt && c.aliases.length ? h('span', { class: 'cp-alias' }, c.aliases.map((a) => '/' + a).join(' ')) : null)));
+  palDescs.replaceChildren(...palMatches.map(({ c, opt }, i) => row(i, opt, h('span', { class: 'cp-desc' }, opt ? opt.desc : c.desc))));
+  const wasHidden = el.hidden;
   el.hidden = false;
+  if (wasHidden || el._n !== palMatches.length) palGlass(); // a new size → its glass
+  el._n = palMatches.length;
 }
 function runPaletteCmd(input, row) {
   input.value = '';

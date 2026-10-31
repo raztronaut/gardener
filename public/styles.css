@@ -321,21 +321,32 @@ body.idle, body.idle * { cursor: none !important; }
 /* ---------- slash-command palette (Claude-Code-style) ----------
    Floats just above the input; filtered as you type; ↑/↓ + Enter to run. */
 #cmdpal { position: absolute; left: 30px; right: 30px; bottom: 96px; z-index: 60; /* absolute: zooms with #zoomroot */
-  background: #040706; border: 1px solid var(--stroke-strong);
-  border-radius: 18px; box-shadow: var(--shadow); overflow: hidden;
+  display: flex; align-items: flex-end; gap: 10px; pointer-events: none;
   animation: panelVeil .1s linear both; }
 #cmdpal[hidden] { display: none; }
+#cmdpal > div { pointer-events: auto; border-radius: 18px; overflow: hidden; flex: none; }
+/* commands: baked liquid glass, as wide as the commands are (left-aligned) */
+.cp-cmds { position: relative; background: rgba(10, 28, 23, .82); border: 1px solid var(--stroke-strong);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.cp-cmds.lgr { background: transparent; border-color: transparent; }
+.cp-cmds.lgr.nosnap { background: rgba(10, 28, 23, .9); }
+.cp-cmds > .cp-list { position: relative; z-index: 1; }
+/* explanations: a black box beside it, row for row, in warm contrasting type */
+#cmdpal > .cp-descs { flex: 0 1 auto; min-width: 0; }
+.cp-descs { background: #040706; border: 1px solid var(--stroke-strong);
+  box-shadow: var(--shadow); }
+.cp-descs .cp-row { padding: 0 18px; }
 
-.cp-row { display: flex; align-items: baseline; gap: 12px; padding: 11px 18px;
-  cursor: var(--c-hand); }
+.cp-row { display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 18px 0 16px;
+  box-sizing: border-box; cursor: var(--c-hand); }
 .cp-row + .cp-row { border-top: 1px solid var(--stroke); }
-.cp-row.sel { background: rgba(116,247,176,.10); }
+.cp-row.sel { background: rgba(116,247,176,.12); }
+.cp-descs .cp-row.sel { background: rgba(255, 213, 154, .10); }
 .cp-row.on .cp-cmd, .cp-row.on .cp-desc { color: var(--mint); } /* the option that's active now (e.g. the forest playing) */
-.cp-ic { font-size: 15px; flex: none; }
+.cp-ic { font-size: 15px; flex: none; width: 20px; text-align: center; }
 .cp-cmd { font-family: var(--font-mono); font-size: 15px; color: var(--mint); flex: none; min-width: 118px; }
-.cp-alias { font-family: var(--font-mono); font-size: 13px; color: var(--ink-faint); flex: none; }
-.cp-desc { font-size: 14px; color: var(--ink-soft); overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+.cp-alias { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); flex: none; }
+.cp-desc { font-size: 14.5px; color: #ffd59a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- widget focus (right-stick highlight) ---------- */
 /* Controller focus AND cursor hover: the glass lights up from its own edges — no
