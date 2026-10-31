@@ -5,4 +5,4 @@ set -e
 cd "$(dirname "$0")/../../.."
 nice -n 10 python3 tools/sb2/garden/build.py "$@"
 nice -n 10 node tools/sb2/garden/minimaps.mjs
-nice -n 10 node tools/sb2/garden/menushots.mjs --cover --cover-y 64 --out data/sb2/garden
+nice -n 10 node tools/sb2/garden/menushots.mjs --cover --cover-y 76 --out data/sb2/garden

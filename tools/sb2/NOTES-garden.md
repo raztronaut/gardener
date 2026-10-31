@@ -1,4 +1,4 @@
-# NOTES — the Garden Edition skin ("Bomber Garden")
+# NOTES — the Garden Edition skin ("Super Bomberman: The Garden Edition", by Gui Dávid)
 
 The ENVIRONMENT of the port redrawn as ten natural gardens, in ORIGINAL pixel art (drawn by
 code in `tools/sb2/garden/src/`), committed with its build under `public/arcade/sb2/garden/`.

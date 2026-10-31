@@ -21,11 +21,11 @@
 // as a panel, each with its own boot machinery. Booting a game first stops the other
 // instance's game (two cores at once halved both to ~40 fps — 2026-10-08).
 let activeTeardown = null;
-// Bomber Garden = Super Bomberman 2 · Tall in its Garden Edition skin (public/arcade/sb2/, the
+// Super Bomberman: The Garden Edition = Super Bomberman 2 · Tall in its Garden Edition skin (public/arcade/sb2/, the
 // skin in public/arcade/sb2/garden/): not a ROM in EmulatorJS but the native 9:16 port, listed
 // on the shelf when its extracted assets exist (data/sb2/assets/pack/). The cover is the
 // garden title (original art, committed).
-const SB2 = { name: 'Bomber Garden', file: '__sb2-tall', system: 'sb2', special: 'sb2' };
+const SB2 = { name: 'Super Bomberman: The Garden Edition', file: '__sb2-tall', system: 'sb2', special: 'sb2' };
 const SB2_COVER = '/arcade/sb2/garden/cover.png';
 
 const CORE = {
@@ -38,7 +38,7 @@ const SYS_LABEL = {
 };
 // Full console names for the detail panel ("metadata and shit").
 const SYS_NAME = {
-  sb2: 'Super Bomberman 2 · Garden Edition · native 9:16 port', nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
+  sb2: 'Super Bomberman: The Garden Edition · by Gui Dávid · native 9:16 port', nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
   gbc: 'Game Boy Color', gba: 'Game Boy Advance', n64: 'Nintendo 64',
   segaMD: 'Sega Genesis / Mega Drive', segaMS: 'Sega Master System', pce: 'PC Engine / TurboGrafx-16',
   psx: 'Sony PlayStation',

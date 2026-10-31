@@ -25,7 +25,7 @@ import { createPacer } from './pacing.js';
 import { loadMenuPack, createMenu } from './menu.js';
 import { loadSkin, skinPack, skinMenuPack, GARDEN_BASE } from './render/skin.js';
 
-export const SB2_TITLE = 'Bomber Garden';
+export const SB2_TITLE = 'Super Bomberman: The Garden Edition';
 export const SB2_COVER = GARDEN_BASE + 'cover.png';
 
 const BT = { B: 1, Y: 2, SELECT: 4, START: 8, UP: 16, DOWN: 32, LEFT: 64, RIGHT: 128, A: 256, X: 512, L: 1024, R: 2048 };

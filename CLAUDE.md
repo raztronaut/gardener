@@ -109,7 +109,7 @@ the original), assets extracted from the user's ROM into `data/sb2/` (gitignored
 served by `/api/sb2/asset/`. Tooling + specs in `tools/sb2/` (README, SPEC.md, NOTES-*.md).
 **The tending must not modify `public/arcade/sb2/` or `tools/sb2/`** — any change there must keep
 `node tools/sb2/conformance/run.mjs` at 46/46. Fresh clone: `tools/sb2/build-rom-data.sh`.
-On the shelf it is **Bomber Garden**: the Garden Edition skin (default; GARDEN / CLASSIC row on the
+On the shelf it is **Super Bomberman: The Garden Edition** (by Gui Dávid): the Garden Edition skin (default; GARDEN / CLASSIC row on the
 stage select) = original pixel art in `public/arcade/sb2/garden/` built by `tools/sb2/garden/make.sh`
 (sources in `tools/sb2/garden/src/`, tools/sb2/NOTES-garden.md).
 

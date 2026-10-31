@@ -555,7 +555,7 @@ def main():
             binbuf.append(0)
         art_json['stages'][k] = j
     manifest = {
-        'version': 1, 'name': 'garden', 'title': 'Bomber Garden',
+        'version': 1, 'name': 'garden', 'title': 'Super Bomberman: The Garden Edition',
         'menu': {'patches': mpatches, 'blobs': mblobs, 'mini': 'mini_tall.png', 'miniOrig': 'mini_orig.png', 'manifest': menu_manifest},
         'note': 'Garden Edition: original pixel art (tools/sb2/garden/), an overlay on the runtime pack',
         'bin': 'garden.bin',

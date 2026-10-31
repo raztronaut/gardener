@@ -1,9 +1,10 @@
-"""Garden Edition — the title screen: BOMBER GARDEN.
+"""Garden Edition — the title screen: SUPER BOMBERMAN: THE GARDEN EDITION, by Gui Dávid.
 
 Two pictures in the original title's frame (256 x 224; menu.js re-lays them out for the
 wall's 256 x 455):
-  bg1   the logotype "BOMBER" / "GARDEN" (chunky beveled letters, a seed pod for the O,
-        leaves sprouting) and the menu lines NORMAL GAME / BATTLE GAME / PASSWORD
+  bg1   the logotype SUPER / BOMBERMAN / THE GARDEN EDITION (chunky beveled letters, a seed
+        pod for the first O, leaves sprouting from GARDEN), the menu lines NORMAL GAME /
+        BATTLE GAME / PASSWORD and the credit BY GUI DÁVID (an acute accent on the A)
   bg2   a dusk garden sky (transparent: the backdrop colour) with the skyline at its foot
         (rows 10..13: hedges, a glasshouse, sunflowers, trees), + the two cloud shapes the
         menu places (glowing dusk clouds)
@@ -29,17 +30,24 @@ FONT = {
     'A': [".####.", "##..##", "##..##", "######", "##..##", "##..##", "##..##"],
     'D': ["####..", "##.##.", "##..##", "##..##", "##..##", "##.##.", "####.."],
     'N': ["##..##", "###.##", "###.##", "######", "##.###", "##.###", "##..##"],
+    'S': [".#####", "##....", "##....", ".####.", "....##", "....##", "#####."],
+    'U': ["##..##", "##..##", "##..##", "##..##", "##..##", "##..##", ".####."],
+    'P': ["#####.", "##..##", "##..##", "#####.", "##....", "##....", "##...."],
+    'T': ["######", "..##..", "..##..", "..##..", "..##..", "..##..", "..##.."],
+    'H': ["##..##", "##..##", "##..##", "######", "##..##", "##..##", "##..##"],
+    'I': ["######", "..##..", "..##..", "..##..", "..##..", "..##..", "######"],
 }
 
 
-def big_letter(ch, face, hi, lo, cell=4):
+def big_letter(ch, face, hi, lo, cell=4, cellh=None):
     g = FONT[ch]
-    H, W = len(g) * cell, len(g[0]) * cell
+    ch_ = cellh or cell
+    H, W = len(g) * ch_, len(g[0]) * cell
     m = np.zeros((H, W), bool)
     for gy, row in enumerate(g):
         for gx, c in enumerate(row):
             if c == '#':
-                m[gy * cell:(gy + 1) * cell, gx * cell:(gx + 1) * cell] = True
+                m[gy * ch_:(gy + 1) * ch_, gx * cell:(gx + 1) * cell] = True
     # round the outer corners of each filled cell (cut a pixel where both neighbours are empty)
     for gy, row in enumerate(g):
         for gx, c in enumerate(row):
@@ -48,15 +56,15 @@ def big_letter(ch, face, hi, lo, cell=4):
             def e(dx, dy):
                 yy, xx = gy + dy, gx + dx
                 return not (0 <= yy < len(g) and 0 <= xx < len(row)) or g[yy][xx] != '#'
-            x0, y0 = gx * cell, gy * cell
+            x0, y0 = gx * cell, gy * ch_
             if e(-1, 0) and e(0, -1):
                 m[y0, x0] = False
             if e(1, 0) and e(0, -1):
                 m[y0, x0 + cell - 1] = False
             if e(-1, 0) and e(0, 1):
-                m[y0 + cell - 1, x0] = False
+                m[y0 + ch_ - 1, x0] = False
             if e(1, 0) and e(0, 1):
-                m[y0 + cell - 1, x0 + cell - 1] = False
+                m[y0 + ch_ - 1, x0 + cell - 1] = False
     img = blank(W, H)
     for y in range(H):
         for x in range(W):
@@ -69,8 +77,8 @@ def big_letter(ch, face, hi, lo, cell=4):
     return img
 
 
-def word(text, face, hi, lo, gap=3):
-    letters = [big_letter(c, face, hi, lo) for c in text]
+def word(text, face, hi, lo, gap=3, cell=4, cellh=None):
+    letters = [big_letter(c, face, hi, lo, cell, cellh) for c in text]
     W = sum(l.shape[1] for l in letters) + gap * (len(letters) - 1)
     H = letters[0].shape[0]
     img = blank(W, H)
@@ -131,20 +139,36 @@ SMALL = {   # a 5 x 7 font for the menu lines (caps)
     'S': [".####", "#....", ".###.", "....#", "....#", "#...#", ".###."],
     'T': ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
     'W': ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "##.##", "#...#"],
+    'H': ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    'U': ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+    'V': ["#...#", "#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
+    'Y': ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
     ' ': [".....", ".....", ".....", ".....", ".....", ".....", "....."],
 }
+ACCENT = {'Á': ('A', ["...#.", "..#.."])}     # an acute accent: two rows above the letter
 
 
-def small_text(s, col, shade, gap=1):
+def small_text(s, col, shade, gap=1, accent=None):
+    """5 x 7 caps with a drop shadow; letters with an accent (Á) carry it two rows above
+    (the picture is then 2 rows taller and the letters start at row 2)"""
+    top = 2 if any(ch in ACCENT for ch in s) else 0
     W = len(s) * (5 + gap)
-    img = blank(W + 1, 9)
+    img = blank(W + 1, 9 + top)
     x = 0
     for ch in s:
+        acc = None
+        if ch in ACCENT:
+            ch, acc = ACCENT[ch]
         g = SMALL[ch]
         for gy, row in enumerate(g):
             for gx, c in enumerate(row):
                 if c == '#':
-                    img[gy, x + gx] = col if gy < 4 else shade
+                    img[top + gy, x + gx] = col if gy < 4 else shade
+        if acc:
+            for gy, row in enumerate(acc):
+                for gx, c in enumerate(row):
+                    if c == '#':
+                        img[gy, x + gx] = accent if accent is not None else col
         x += 5 + gap
     # a drop shadow
     sh = img.copy()
@@ -158,34 +182,45 @@ def small_text(s, col, shade, gap=1):
 MENU_Y = 147                 # the cursor's rows: y = 144 + 16 * k (menu.js)
 
 
+def sprout(img, lx, ly, flip=False):
+    for (dx, dy, c) in ((0, 0, LEAF_2), (1, -1, LEAF_3), (2, -2, LEAF_4), (3, -2, LEAF_4), (4, -3, LEAF_5),
+                        (2, -1, LEAF_3), (3, -1, LEAF_2), (-1, -1, LEAF_3), (-2, -2, LEAF_4), (-3, -2, LEAF_4)):
+        x = lx - dx if flip else lx + dx
+        if 0 <= ly + dy < img.shape[0] and 0 <= x < img.shape[1] and img[ly + dy, x] < 0:
+            img[ly + dy, x] = c
+
+
 def bg1():
     img = blank(256, 224)
-    top = word('BOMBER', GOLD_3, GOLD_4, GOLD_2)
-    # the O becomes a seed pod
-    lw = 6 * 4
-    podx = lw + 3
+    # SUPER: smaller gold letters over the main word
+    sup = extrude(word('SUPER', GOLD_3, GOLD_4, GOLD_2, gap=2, cell=3), GOLD_0, 2)
+    over(img, sup, (256 - sup.shape[1]) // 2, 6)
+    # BOMBERMAN: the big gold word, its first O a seed pod
+    lw, gap = 4 * 6, 2
+    top = word('BOMBERMAN', GOLD_3, GOLD_4, GOLD_2, gap=gap, cell=4, cellh=4)
+    podx = lw + gap
     pod = pod_letter(top.shape[0] + 2)
     t2 = top.copy()
     t2[:, podx:podx + lw] = T
     top3 = extrude(t2, GOLD_0, 3)
-    garden = extrude(word('GARDEN', MINT, WHITE, MINT_D), LEAF_0, 3)
     x1 = (256 - top3.shape[1]) // 2
-    over(img, top3, x1, 14)
-    over(img, outline(pod, NIGHT), x1 + podx - 2, 14 - 3)
+    over(img, top3, x1, 32)
+    over(img, outline(pod, NIGHT), x1 + podx - 2, 32 - 3)
+    # THE GARDEN EDITION: "THE" and "EDITION" in rose / mint small caps beside a big mint GARDEN
+    garden = extrude(word('GARDEN', MINT, WHITE, MINT_D, gap=3, cell=4, cellh=4), LEAF_0, 3)
     x2 = (256 - garden.shape[1]) // 2
-    over(img, garden, x2, 52)
-    # leaves sprouting from the G and the N
-    for (lx, ly) in ((x2 + 2, 49), (x2 + garden.shape[1] - 10, 49)):
-        for (dx, dy, c) in ((0, 0, LEAF_2), (1, -1, LEAF_3), (2, -2, LEAF_4), (3, -2, LEAF_4), (4, -3, LEAF_5),
-                            (2, -1, LEAF_3), (3, -1, LEAF_2), (-1, -1, LEAF_3), (-2, -2, LEAF_4), (-3, -2, LEAF_4)):
-            if img[ly + dy, lx + dx] < 0:
-                img[ly + dy, lx + dx] = c
-    # "GARDEN EDITION" ribbon under the logo
-    sub = small_text('GARDEN EDITION', PINK_L, PINK)
-    over(img, sub, (256 - sub.shape[1]) // 2, 92)
+    the = small_text('THE', PINK_L, PINK)
+    over(img, the, x2, 72)
+    over(img, garden, x2, 82)
+    sprout(img, x2 + garden.shape[1] - 9, 80, flip=True)
+    ed = extrude(word('EDITION', MINT, WHITE, MINT_D, gap=2, cell=3, cellh=3), LEAF_0, 2)
+    over(img, ed, (256 - ed.shape[1]) // 2, 117)
     for k, s in enumerate(('NORMAL GAME', 'BATTLE GAME', 'PASSWORD')):
         t = small_text(s, WHITE if k == 1 else MINT, MINT_D)
         over(img, t, 76, MENU_Y + 16 * k)
+    # the credit, below the menu
+    cr = small_text('BY GUI DÁVID', GOLD_4, GOLD_2, accent=GOLD_4)
+    over(img, cr, (256 - cr.shape[1]) // 2, MENU_Y + 16 * 3 + 2)
     return img
 
 
