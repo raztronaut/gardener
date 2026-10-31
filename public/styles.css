@@ -741,8 +741,7 @@ body.arcade-full .card[data-wid="arcade"] .eg-stage { height: 100%; }
 /* speaker button (left of the rainforest bird) + its slider popover */
 .gbtn.icon.volbtn svg { width: 26px; height: 26px; }
 .volbtn { color: var(--ink-faint); opacity: .7; }
-.volbtn.open, #volBtn.focused { opacity: 1; color: var(--mint); }
-#volBtn.focused { box-shadow: 0 0 0 2px rgba(116,247,176,.7), 0 0 18px rgba(116,247,176,.35); }
+.volbtn.open { opacity: 1; color: var(--mint); }
 #volMenu { position: absolute; z-index: 350; display: flex; align-items: center; gap: 12px; padding: 12px 16px;
   border-radius: 18px; background: rgba(4,14,11,.94); border: 1px solid var(--stroke-strong); box-shadow: 0 14px 40px rgba(0,0,0,.45);
   animation: rfIn .14s linear both; --v: 50%; }
@@ -771,4 +770,8 @@ body:not(.idle) .rfm-row:hover { background: rgba(116,247,176,.08); }
 .rfm-row b { font-size: 16px; font-weight: 600; } .rfm-row small { font-size: 13px; color: var(--ink-faint); }
 .rfm-row.on b, .rfm-row.on .ic { color: var(--mint); }
 .rfm-row.sel { background: rgba(116,247,176,.12); box-shadow: inset 0 0 0 1.5px rgba(116,247,176,.55); }
-#rfBtn.focused { opacity: 1; color: var(--mint); box-shadow: 0 0 0 2px rgba(116,247,176,.7), 0 0 18px rgba(116,247,176,.35); }
+/* the top-right icons light up exactly like a focused widget: the glass glows in from its
+   own edges with a bright rim — no ring (see .card.lgr::after / .lgr-rim) */
+#volBtn.focused, #rfBtn.focused { opacity: 1; color: var(--ink); background: rgba(255,255,255,.07);
+  box-shadow: inset 0 0 14px 1px rgba(190, 255, 228, .16), inset 0 0 3px rgba(255, 255, 255, .28), inset 0 0 0 1.5px rgba(255, 255, 255, .30); }
+#rfBtn.on.focused { color: var(--mint); }

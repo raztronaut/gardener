@@ -545,7 +545,10 @@ const volIcon = (pct, mute) => (mute || pct === 0 ? 'M3 9v6h4l5 4V5L7 9H3zm13.6 
 // Top-right speaker button (left of the rainforest bird): click opens a slider popover
 // (− / slider / + / percent); the mouse wheel over the button or popover nudges 2 %;
 // the controller reaches it by stick focus — A opens, ←/→ (or ↑/↓) adjust, B closes.
-let volNow = null, volPostT = 0;
+let volNow = null, volPostT = 0, volTouched = 0;
+// a level read from the server, unless the user has changed it since the read began
+const volRead = () => { const t0 = Date.now(); fetch('/api/volume', { cache: 'no-store' }).then((x) => x.json())
+  .then((v) => { if (v && v.volume != null && volTouched < t0) updateVolButton(v.volume, v.mute); }).catch(() => {}); };
 function updateVolButton(pct, mute) {
   const b = document.getElementById('volBtn'); if (!b) return;
   if (pct != null) volNow = pct;
@@ -560,6 +563,7 @@ function updateVolButton(pct, mute) {
 }
 function setVolume(v) {
   v = Math.max(0, Math.min(100, Math.round(v)));
+  volTouched = Date.now();
   updateVolButton(v, false);
   clearTimeout(volPostT); // coalesce a drag into a few pactl calls
   volPostT = setTimeout(() => fetch('/api/volume', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ volume: v }) })
@@ -589,7 +593,7 @@ function volumeMenu() {
   menu.style.top = `${Math.round((r.bottom - rb.top) / z + 8)}px`;
   menu.style.right = `${Math.round((rb.right - r.right) / z)}px`;
   updateVolButton(null);
-  fetch('/api/volume', { cache: 'no-store' }).then((x) => x.json()).then((v) => { if (v && v.volume != null) updateVolButton(v.volume, v.mute); }).catch(() => {});
+  volRead();
   setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); }, 0);
 }
 function volMenuNav(action) {
@@ -605,7 +609,7 @@ function wireVolumeButton() {
   b.addEventListener('click', () => volumeMenu());
   b.addEventListener('wheel', (e) => { e.preventDefault(); setVolume((volNow ?? 50) + (e.deltaY < 0 ? 2 : -2)); }, { passive: false });
   updateVolButton(null);
-  fetch('/api/volume', { cache: 'no-store' }).then((x) => x.json()).then((v) => { if (v && v.volume != null) updateVolButton(v.volume, v.mute); }).catch(() => {});
+  volRead();
 }
 
 // /rainforest — forest ambience from real field recordings (lib/rainforest.js; audio in the
@@ -2325,6 +2329,12 @@ function wireFeedback() {
       }
     }
     if (mdEl) return; // markdown editor open → its textarea owns the keyboard
+    // The top-right popovers (volume slider, forest menu) own the arrows while open:
+    // ↑/→ louder · ↓/← quieter (volume) or move the row (forests), Enter picks, Esc closes.
+    if (volMenuOpen() || document.getElementById('rfMenu')) {
+      const act = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'ok', Escape: 'back' }[e.key];
+      if (act && (volMenuNav(act) || rfMenuNav(act))) { e.preventDefault(); e.stopPropagation(); return; }
+    }
     // Esc backs out of an open panel first; once nothing is open it toggles
     // between writing mode (the note console) and keyboard selection mode.
     if (e.key === 'Escape') {
