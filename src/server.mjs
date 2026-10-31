@@ -164,7 +164,7 @@ async function serveRom(req, res, urlPath) {
 // the EJS_* globals + the loader so EmulatorJS runs in a proper document (not a
 // srcdoc): RetroArch can read screen dimensions and the WebGL canvas presents.
 // All params are validated/escaped; the ROM must be a real file in data/roms/.
-const EMU_CORES = new Set(['nes', 'snes', 'gb', 'gba', 'n64', 'segaMD', 'segaMS', 'pce']);
+const EMU_CORES = new Set(['nes', 'snes', 'gb', 'gba', 'n64', 'segaMD', 'segaMS', 'pce', 'psx']);
 function htmlEsc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 // ---- HN reader text extraction (shared by /api/readable text + raw modes) ----
