@@ -58,6 +58,19 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **Calm tiles, rich fullscreen (2026-10-30, the humans pruning "a bunch of BS agents keep
+  adding"):** the wall tile is a GLANCE — prune it to the one or two things that matter (e.g.
+  Weather: now, the next sun event, the next hours; Clock: the time and date). Every extra line
+  is cognitive load: when you want to add information, add it to the widget's FULLSCREEN view,
+  not the tile. The fullscreen view (`openFull`) is its OWN design, not the tile resized: show
+  more there, with good cognitive scaffolding (labelled sections, a clear hierarchy, one idea per
+  row, the most important thing first). Model: gardyn.js (tile = day + growth stage + today's
+  task; fullscreen = the full log) and weather.js (tile = now / sunset / next-hours bars;
+  fullscreen = + sunrise, humidity, UV, next days, the rain & sun map). Don't move pruned items
+  back onto a tile, and when you deepen a widget, deepen its fullscreen.
+  Already pruned from tiles by the humans: Weather humidity / UV / next days (fullscreen only);
+  the Clock's world clocks and its "Day N · N left … %" year line (fullscreen only); the Air
+  card's health-tip / "vs yesterday" line under the reading (tooltip only).
 - **Dashboards are the humans' own spaces** (public/dashboards.json, 2026-10-07). The main
   tending must not edit, restyle or remove any dashboard under public/dashboards/ or
   change their combos — each dashboard is tended only by its own scoped agent, and only

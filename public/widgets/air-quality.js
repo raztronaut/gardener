@@ -235,7 +235,8 @@ export default {
         const lead = dominant(d.current);
         const showLead = lead && lead.label !== 'PM2.5' && aqi >= 40;
         const side = h('div', { class: 'side' }, h('div', { class: 'cat', title: 'US AQI · SF' }, cat.short));
-        const numrow = h('div', { class: 'numrow' }, h('div', { class: 'num' }, String(Math.round(aqi))), side);
+        const numrow = h('div', { class: 'numrow', title: vsy ? `${cat.tip} · ${vsy.word}, was ~${vsy.was} at this hour yesterday` : cat.tip },
+          h('div', { class: 'num' }, String(Math.round(aqi))), side);
         const pmEl = h('div', {
             class: 'pm',
             title: showLead
@@ -258,14 +259,8 @@ export default {
         // the calm-air day (no "vs. yesterday" cue) prints a stray "null" line.
         body.replaceChildren(...[
           numrow,
-          vsy ? h('div', {
-            class: 'vsy',
-            style: { color: vsy.color },
-            title: `${cat.tip} · AQI ${Math.round(aqi)} now vs ~${vsy.was} at this hour yesterday (${vsy.arrow === '↓' ? '−' : '+'}${vsy.delta})`,
-          }, h('span', { class: 'ar' }, vsy.arrow), vsy.word, h('span', { class: 'was' }, `· was ${vsy.was}`)) : null,
-          // One cue line: the overnight shift when there is one (the health tip
-          // then lives in its tooltip), otherwise the plain health tip.
-          vsy ? null : h('div', { class: 'tip one', title: cat.tip }, cat.tip),
+          // (the health-tip / "vs yesterday" line under the reading removed 2026-10-30 at the
+          // humans' request — the tip stays as the reading's tooltip)
           h('div', {
             class: 'scale',
             title: showPeak

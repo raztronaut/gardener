@@ -31,7 +31,8 @@ const DEFAULT_MAP = {
     8: 'back',      // L2 — back / Esc
     10: 'changelog',// Select
     11: 'help',     // Start
-    12: 'fopen', 13: 'fopen', 14: 'fopen', // stick clicks (L3/R3 vary by firmware) → open focused widget
+    12: 'arcadetoggle', // the heart (Home) button: open / close the Arcade, from anywhere
+    13: 'fopen', 14: 'fopen', // stick clicks (L3/R3) → open focused widget
   },
   // Hold-to-peek buttons: action fires the INSTANT the button goes down, and the
   // end action on release. 9 = R2: hold to peek the controller map.
@@ -86,6 +87,20 @@ const SHOULDERS = [6, 7, 8, 9];
 const SH_CODE = { 6: 'a', 7: 'b', 8: 'c', 9: 'd' };
 const shoulders = new Set();
 let comboMax = new Set();
+// Volume chord: hold R2 + L1 (only those two) and push the RIGHT stick up / down →
+// system volume (pactl, like the MX thumb wheel). While the chord is held the stick
+// never moves the widget focus, R2's map peek is closed and L1 doesn't zoom.
+const VOL_REPEAT_MS = 90;
+const volChord = () => shoulders.size === 2 && shoulders.has(6) && shoulders.has(9);
+let volHold = null;
+function setVolHold(dir) {
+  if (volHold && volHold.dir === dir) return;
+  if (volHold) clearInterval(volHold.t);
+  volHold = null;
+  if (!dir) return;
+  volumeStep(dir);
+  volHold = { dir, t: setInterval(() => volumeStep(dir), VOL_REPEAT_MS) };
+}
 function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
@@ -102,8 +117,17 @@ function onEvent(value, type, number) {
   }
   if (t === 1) { // button: value 1=down 0=up
     if (SHOULDERS.includes(number)) {
-      if (value === 1) { shoulders.add(number); comboMax.add(number); }
-      else {
+      if (value === 1) {
+        const l1First = shoulders.size === 1 && shoulders.has(6) && number === 9;
+        shoulders.add(number); comboMax.add(number);
+        if (volChord()) {                          // R2 + L1 just closed: the volume chord
+          if (l1First) send('zoomin');             // undo the zoom-out L1 made on its own
+          else send('padmapend');                  // close the map R2 peeked
+          send('volshow');
+          return;
+        }
+      } else {
+        if (volChord()) setVolHold(null);
         shoulders.delete(number);
         if (!shoulders.size) {
           const set = comboMax; comboMax = new Set();
@@ -129,6 +153,8 @@ function onEvent(value, type, number) {
     const action = MAP.buttons[number];
     if (action && action !== 'noop') send(action);
   } else if (t === 2) { // axis
+    if ((MAP.rvert || []).includes(number) && volChord()) { setVolHold(value <= -THRESH ? +1 : value >= THRESH ? -1 : null); return; }
+    if ((MAP.rhoriz || []).includes(number) && volChord()) return;
     if (MAP.vert.includes(number)) setHeld('v' + number, value <= -THRESH ? 'up' : value >= THRESH ? 'down' : null);
     else if (MAP.horiz.includes(number)) setHeld('h' + number, value <= -THRESH ? 'left' : value >= THRESH ? 'right' : null);
     else if ((MAP.rvert || []).includes(number)) setHeld('rv' + number, value <= -THRESH ? 'fup' : value >= THRESH ? 'fdown' : null);

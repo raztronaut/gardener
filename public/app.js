@@ -247,7 +247,8 @@ async function boot() {
   setNight(!!state.night);
   window.__GARDEN_EDITS = state.edits || {}; // hand-pruned overrides, applied at render
   const sub = document.getElementById('subtitle');
-  if (sub) sub.textContent = window.__GARDEN_EDITS.subtitle ?? (state.location || sub.textContent);
+  // the maker's line (humans, 2026-10-30): "Designed by Gui Dávid in San Francisco, CA"
+  if (sub) sub.textContent = window.__GARDEN_EDITS.subtitle ?? (state.location ? `Designed by Gui Dávid in ${state.location}` : sub.textContent);
   const brand = document.querySelector('[data-editable="brand"]');
   if (brand && window.__GARDEN_EDITS.brand) brand.textContent = window.__GARDEN_EDITS.brand;
   setIterBadge(state.iteration, state.agentModel);
@@ -581,6 +582,32 @@ function rainforestMenu() {
   menu.style.top = `${Math.round((r.bottom - root.top) / z + 8)}px`;
   menu.style.right = `${Math.round((root.right - r.right) / z)}px`;
   setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); }, 0);
+}
+// The forest menu from the controller: A on the focused sound button opens it with a row
+// selected; up/down move, A picks (Off / a forest), B or L2 closes.
+let rfSel = -1;
+const rfRows = () => [...document.querySelectorAll('#rfMenu .rfm-row')];
+function closeRfMenu() { document.getElementById('rfMenu')?.remove(); rfSel = -1; }
+function setRfSel(i) {
+  const rows = rfRows(); if (!rows.length) return;
+  rfSel = (i + rows.length) % rows.length;
+  rows.forEach((r, k) => r.classList.toggle('sel', k === rfSel));
+}
+async function openRfMenuPad() {
+  RF ||= await import(`/lib/rainforest.js?v=${window.__GARDEN_VERSION || ''}`);
+  rainforestMenu();
+  const rows = rfRows(), on = rows.findIndex((r) => r.classList.contains('on'));
+  setRfSel(on >= 0 ? on : 0);
+}
+function rfMenuNav(action) {
+  if (!document.getElementById('rfMenu')) { rfSel = -1; return false; }
+  if (rfSel < 0) setRfSel(0);
+  if (/^f?(up|left)$/.test(action)) setRfSel(rfSel - 1);
+  else if (/^f?(down|right)$/.test(action)) setRfSel(rfSel + 1);
+  else if (action === 'ok' || action === 'fopen') { const r = rfRows()[rfSel]; if (r) r.click(); rfSel = -1; }
+  else if (action === 'back' || action === 'events' || action === 'hn') closeRfMenu();
+  else return false;
+  return true;
 }
 function wireRainforestButton() {
   const b = document.getElementById('rfBtn'); if (!b) return;
@@ -1646,7 +1673,11 @@ function saveEdit(slot, value, msg) {
 // opens the highlighted widget as a fullscreen panel. HN and events open their
 // rich panels; everything else re-mounts the same widget module at panel size.
 let focusIdx = -1, focusClearT = 0, selectMode = false;
-function focusCards() { return [...document.querySelectorAll('#garden > .card[data-wid]')]; }
+// the widgets + the top-right sound (rainforest) button, reached by moving up past the top row
+function focusCards() {
+  const rf = document.getElementById('rfBtn');
+  return [...document.querySelectorAll('#garden > .card[data-wid]'), ...(rf && rf.offsetParent ? [rf] : [])];
+}
 function setFocus(i) {
   const cards = focusCards();
   if (!cards.length) return;
@@ -1706,6 +1737,7 @@ function toggleSelectMode() { selectMode ? exitSelectMode() : enterSelectMode();
 function openFocusedWidget() {
   const card = focusCards()[focusIdx];
   if (!card) return false;
+  if (card.id === 'rfBtn') { openRfMenuPad(); return true; }
   openWidgetPanel(card.dataset.wid);
   return true;
 }
@@ -1957,7 +1989,9 @@ function wirePad() {
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
   const apply = (action) => {
-    if (action === 'volup' || action === 'voldown') { showVolume(); return; } // MX thumb wheel (pad.mjs set it)
+    if (action === 'volup' || action === 'voldown' || action === 'volshow') { showVolume(); return; } // MX thumb wheel / R2+L1 + right stick (pad.mjs set it)
+    // the heart (Home) button: open the Arcade from anywhere, or close it (and any game)
+    if (action === 'arcadetoggle') { if (paletteOpen()) { hidePalette(); if (input) input.value = ''; } closeRfMenu(); padMapPeek = false; switchDashboard('arcade'); return; }
     // controller sounds: a soft tick on moves, a brighter press on A (silent in games — uisound)
     if (/^f?(up|down|left|right)$/.test(action)) UI_SOUND('nav');
     else if (action === 'ok' || action === 'fopen') UI_SOUND('select');
@@ -1979,6 +2013,7 @@ function wirePad() {
       return;
     }
     const pal = paletteOpen();
+    if (rfMenuNav(action)) return;   // the forest menu opened from the controller owns the pad
     switch (action) {
       case 'palette':
         if (pal) { hidePalette(); break; }

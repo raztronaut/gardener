@@ -171,6 +171,11 @@ export default {
       .clk .world .wc .g { font-size:12px; line-height:1; opacity:.7; flex:0 0 auto; }
       .clk .world .wc .g.day { color:var(--gold); }
       .clk .world .wc .g.night { color:#9cc0ff; }
+      /* maximized: the world clocks at a readable size */
+      .clk.full .world { gap:34px; padding-top:18px; }
+      .clk.full .world .wc { gap:9px; }
+      .clk.full .world .wc .lbl, .clk.full .world .wc .wt { font-size:22px; }
+      .clk.full .world .wc .g { font-size:20px; } .clk.full .world .wc .dd { font-size:17px; }
       /* day-offset chip — appears beside a city ONLY when its calendar date differs
          from home's, quietly telling that it's already "+1d" (tomorrow) there, or
          still "−1d" (yesterday). A hushed mint-2 note that turns the row from three
@@ -184,6 +189,9 @@ export default {
          humans asked to drop the progress BAR that used to sit behind it (2026-09-19),
          so this is text only now: no rail, no fill, nothing to render or animate. */
       .clk .year { margin-top:0; padding-top:7px; }
+      /* the tile drops it (humans, 2026-10-30) — only the maximized clock shows the year line */
+      .clk:not(.full) .year { display:none; }
+      .clk.full .year { padding-top:14px; } .clk.full .year .yr-head { font-size:16px; }
       .clk .year .yr-head { display:flex; align-items:baseline; justify-content:space-between;
         font-family:var(--font-mono); font-size:12.5px; letter-spacing:.06em; color:var(--ink-faint); }
       .clk .year .yr-head .doy { color:var(--ink-soft); }
@@ -208,12 +216,15 @@ export default {
     // each tick refreshes only the cells whose minute changed (see below). The list
     // deliberately skips the home zone (the hero time above already tells it) and
     // spans a wide longitudinal spread so the row reads as "the world right now".
-    const WORLD = [
+    // Since 2026-10-30 they show only in the maximized clock (the humans: "remove the
+    // different timezones in widget … make it in full mode"); the tile skips the row.
+    const full = !!root.closest?.('.panel-widget');
+    const WORLD = full ? [
       { lbl: 'NYC', tz: 'America/New_York' },
       { lbl: 'LDN', tz: 'Europe/London' },
       { lbl: 'TYO', tz: 'Asia/Tokyo' },
-    ];
-    const world = root.appendChild(ctx.h('div', { class: 'world' }));
+    ] : [];
+    const world = full ? root.appendChild(ctx.h('div', { class: 'world' })) : null;
     const worldCells = WORLD.map((c) => {
       const wt = ctx.h('span', { class: 'wt' });
       const g = ctx.h('span', { class: 'g' });
@@ -243,6 +254,7 @@ export default {
     const pctEl = yrHead.appendChild(ctx.h('span', { class: 'pct' }));
     root.parentElement?.classList.add('clk-wrap');
     root.classList.add('clk');
+    if (full) root.classList.add('full');
 
     const fmtTime = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true });
     const fmtDate = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });

@@ -2,12 +2,15 @@
 // 2026-10-01 rewrite after "too dense and confusing" feedback: one idea per row,
 // every section labelled, and BOTH °F and °C on the current reading AND on the
 // forecast days (the humans asked for tomorrow's prediction in Celsius too).
-//   1. Now        — icon, °F / °C
-//   2. Sun        — plain-words sunrise / sunset (this line predates and is separate
+// 2026-10-30: the TILE is only "now", the next sun event and the next hours (humans: "too
+// dense … mostly clear about next hours and when sunset is, no UV, no humidity"); the
+// next days, humidity and UV live in the maximized view only.
+//   1. Now        — icon, °F / °C, and the next sun event (sunset, or sunrise after dark)
+//   2. Sun        — [full] plain-words sunrise / sunset (this line predates and is separate
 //                   from the banned Sun & Moon widget — it stays)
-//   3. Stats      — Humidity · UV
-//   4. Next days  — Tomorrow + the two days after: icon, temps at 10 am · 3 pm · 8 pm (°F, °C)
-//   5. Hourly     — a smooth temperature curve with temps / icons / times beneath
+//   3. Stats      — [full] Humidity · UV
+//   4. Next days  — [full] Tomorrow + the two days after: icon, temps at 10 am · 3 pm · 8 pm (°F, °C)
+//   5. Hourly     — bars (a histogram) every 2 h, the temperature on top of each bar
 // Icons are self-hosted Meteocons SVGs in public/assets/weather/.
 //
 // Fullscreen (openFull): the tile's reading reflowed into two columns, then a
@@ -81,30 +84,6 @@ const weekdayIdx = (iso) => {
   return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay() : null;
 };
 
-// Monotone cubic (Fritsch–Carlson) path: smooth, never overshoots the data.
-function smoothPath(P) {
-  const n = P.length;
-  if (!n) return '';
-  if (n < 2) return `M${P[0][0]},${P[0][1]}`;
-  const dx = [], m = [];
-  for (let i = 0; i < n - 1; i++) { dx[i] = P[i + 1][0] - P[i][0]; m[i] = (P[i + 1][1] - P[i][1]) / (dx[i] || 1); }
-  const t = [m[0]];
-  for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
-  t[n - 1] = m[n - 2];
-  for (let i = 0; i < n - 1; i++) {
-    if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
-    const a = t[i] / m[i], b = t[i + 1] / m[i], h2 = a * a + b * b;
-    if (h2 > 9) { const k = 3 / Math.sqrt(h2); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
-  }
-  const f = (v) => v.toFixed(2);
-  let d = `M${f(P[0][0])},${f(P[0][1])}`;
-  for (let i = 0; i < n - 1; i++) {
-    const c = dx[i] / 3;
-    d += ` C${f(P[i][0] + c)},${f(P[i][1] + t[i] * c)} ${f(P[i + 1][0] - c)},${f(P[i + 1][1] - t[i + 1] * c)} ${f(P[i + 1][0])},${f(P[i + 1][1])}`;
-  }
-  return d;
-}
-
 export default {
   id: 'weather',
   title: 'Weather',
@@ -117,7 +96,8 @@ export default {
       .wxf { display:flex; flex-direction:column; gap:16px; padding:6px 0 0; opacity:0; transition:opacity .25s linear; }
       .wxf.on { opacity:1; }
       /* the tile's reading, reflowed: now/sun/stats left, next days right, hours beneath */
-      .wxf-top { flex:none; height:292px; }
+      .wxf-top { flex:none; }
+      .wxf-top .wx-bars { --wxbar:120px; }
       .wxf-top .wx { display:grid; grid-template-columns:1fr 1fr; column-gap:44px; row-gap:10px; height:100%;
         grid-template-areas:"now days" "sun days" "stats days" "hours hours"; grid-template-rows:auto auto 1fr auto; }
       .wxf-top .wx-now { grid-area:now; } .wxf-top .wx-sun { grid-area:sun; margin:0; }
@@ -245,7 +225,7 @@ export default {
       home.textContent = `Home · ${Math.round(cloud[hi])}% cloud${day && Number.isFinite(rad) ? ` · ${Math.round(rad)} W/m²` : ''} · ${rain[hi].toFixed(1)} mm`;
     };
 
-    const mounted = this.mount(top, ctx); // the tile's reading (own fetch + 15-min refresh)
+    const mounted = this.mount(top, ctx, { full: true }); // the full reading (own fetch + 15-min refresh)
     let grid = null;
     try { grid = await loadGrid(); }
     catch { cap.textContent = 'The rain & sun map is unavailable right now'; }
@@ -266,7 +246,7 @@ export default {
     await Promise.all([mounted.catch(() => {}), base.ready]);
     wrap.classList.add('on');
   },
-  async mount(body, ctx) {
+  async mount(body, ctx, { full = false } = {}) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
     ctx.style(`
       .wx { display:flex; flex-direction:column; height:100%; gap:4px; }
@@ -311,14 +291,25 @@ export default {
       .wx-days .t .f { font-family:var(--font-display); font-size:20px; color:var(--ink); }
       .wx-days .t .c { font-size:11.5px; color:var(--ink-faint); }
 
-      /* 5 · hourly curve */
+      /* 1b · the next sun event, beside the reading (tile) */
+      .wx-now .nx { margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px; }
+      .wx-now .nx .k { font-size:12.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); }
+      .wx-now .nx .v { font-family:var(--font-display); font-size:26px; line-height:1; color:#ffd59a; white-space:nowrap; }
+      .wx-now .nx .v small { font-size:15px; color:var(--ink-soft); margin-left:3px; }
+      .wx-now .nx .in { font-size:13px; color:var(--ink-faint); }
+
+      /* 5 · hourly bars — the temperature sits on top of each bar */
       .wx-hours { margin-top:auto; }
-      .wx-plot { position:relative; height:42px; margin:4px 0 0; }
-      .wx-plot .dot { position:absolute; width:7px; height:7px; margin:-3.5px 0 0 -3.5px; border-radius:50%; background:var(--mint); }
-      .wx-plot svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
-      .wx-plot .now { position:absolute; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
-        background:#fff; box-shadow:0 0 0 2px #10261f; }
-      .wx-axis { display:flex; margin-top:5px; }
+      .wx.tile .wx-hours { flex:1; display:flex; flex-direction:column; margin-top:18px; min-height:0; }
+      .wx.tile .wx-bars { flex:1; height:auto; min-height:120px; }
+      .wx-bars { display:flex; align-items:flex-end; height:var(--wxbar, 118px); margin-top:4px; }
+      .wx-bars .col { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; }
+      .wx-bars .tt { font-family:var(--font-display); font-size:19px; color:var(--ink); line-height:1; }
+      .wx-bars .tc { font-size:11.5px; color:var(--ink-faint); line-height:1; margin:2px 0 5px; }
+      .wx-bars .b { width:62%; border-radius:7px 7px 2px 2px; background:linear-gradient(to top, rgba(116,247,176,.10), rgba(116,247,176,.42)); }
+      .wx-bars .col:first-child .b { background:linear-gradient(to top, rgba(255,255,255,.12), rgba(255,255,255,.55)); }
+      .wx-bars .col:first-child .tt { color:#fff; }
+      .wx-axis { display:flex; margin-top:6px; padding-top:6px; border-top:1px solid var(--stroke); }
       .wx-axis .hr { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; }
       .wx-axis .tt { font-family:var(--font-display); font-size:17px; color:var(--ink); line-height:1; }
       .wx-axis .tc { font-size:11.5px; color:var(--ink-faint); line-height:1; margin-top:3px; } /* °C under each hour's °F */
@@ -425,49 +416,45 @@ export default {
         pts.push({ t: Math.round(d.hourly.temperature_2m[j]), code: d.hourly.weather_code[j],
           hr: hourOf(d.hourly.time[j]), pop: Number.isFinite(pop) ? pop : null, isDay: d.hourly.is_day?.[j] });
       }
-      const HOURS = Math.max(1, (pts.length - 1) * STEP);
-      const fine = [];
-      for (let k = 0; k <= HOURS; k++) {
-        const v = d.hourly.temperature_2m[hNow + k];
-        if (Number.isFinite(v)) fine.push([k, v]);
-      }
       const anyWet = pts.some((p) => p.pop != null && p.pop >= 25); // rain line only when it matters
       let hoursEl = null;
-      if (pts.length >= 2 && fine.length >= 2) {
-        const vs = fine.map((f) => f[1]);
-        const tMin = Math.min(...vs), span = (Math.max(...vs) - tMin) || 1;
-        // the curve uses most of the plot's height (12%..88%) and its x runs through the
-        // CENTRE of each hour column below, where a dot marks that column's reading
-        const yOf = (v) => 88 - ((v - tMin) / span) * 76;
-        const xOf = (k) => (((k / STEP) + 0.5) / pts.length) * 100;
-        const P = fine.map(([k, v]) => [xOf(k), yOf(v)]);
-        const line = smoothPath(P);
-        const area = `${line} L${P[P.length - 1][0].toFixed(2)},100 L${P[0][0].toFixed(2)},100 Z`;
-        const plot = h('div', { class: 'wx-plot', html: `
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <defs><linearGradient id="wxfill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stop-color="rgba(116,247,176,.22)"/><stop offset="1" stop-color="rgba(116,247,176,0)"/>
-            </linearGradient></defs>
-            <path d="${area}" fill="url(#wxfill)"/>
-            <path d="${line}" fill="none" stroke="var(--mint)" stroke-width="2.4" stroke-linejoin="round"
-              stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-          </svg>` });
-        pts.forEach((p, i) => plot.appendChild(h('div', { class: i === 0 ? 'now' : 'dot', style: { left: `${xOf(i * STEP)}%`, top: `${yOf(p.t)}%` } })));
+      if (pts.length >= 2) {
+        const vs = pts.map((p) => p.t);
+        const tMin = Math.min(...vs), span = Math.max(...vs) - tMin;
+        // bar height: 30% for the coolest hour, +70% across at least a 10°F spread (so a
+        // 2-degree wobble reads as one, not as a cliff)
+        const hOf = (v) => 30 + ((v - tMin) / Math.max(span, 10)) * 70;
         hoursEl = h('div', { class: 'wx-hours' },
-          anyWet ? null : h('div', { class: 'wx-sec' }, 'Next hours'), // label yields its row to the rain line
-          plot,
+          h('div', { class: 'wx-sec' }, 'Next hours'),
+          h('div', { class: 'wx-bars' }, ...pts.map((p) => h('div', { class: 'col' },
+            h('div', { class: `tt${wcls(p.t)}` }, `${p.t}°`),
+            h('div', { class: 'tc' }, `${fToC(p.t)}°C`),
+            h('div', { class: 'b', style: { height: `calc((100% - 44px) * ${(hOf(p.t) / 100).toFixed(3)})` } })))),
           h('div', { class: 'wx-axis' }, ...pts.map((p, i) => {
             const wet = p.pop != null && p.pop >= 25;
             return h('div', { class: 'hr' },
-              h('div', { class: `tt${wcls(p.t)}` }, `${p.t}°`),
-              h('div', { class: 'tc' }, `${fToC(p.t)}°C`),
               icon(nightSlug(WMO(p.code)[1], p.isDay), 26),
               h('div', { class: 't' }, i === 0 ? 'now' : hr12(p.hr)),
               anyWet ? h('div', { class: 'p' }, wet ? `💧${p.pop}%` : '') : null);
           })));
       }
 
-      body.replaceChildren(h('div', { class: 'wx' },
+      // the next sun event: today's sunset, or after dark tomorrow's sunrise
+      // (the series' times are local wall-clock strings in tz: compare them as strings, and
+      // diff them as if both were UTC)
+      const nowIso = new Date().toLocaleString('sv-SE', { timeZone: tz }).replace(' ', 'T').slice(0, 16);
+      const setIso = d.daily.sunset?.[0];
+      const riseIso = (d.daily.sunrise?.[0] || '') > nowIso ? d.daily.sunrise?.[0] : d.daily.sunrise?.[1];
+      const beforeSet = !!setIso && setIso > nowIso;
+      const nextIso = beforeSet ? setIso : riseIso;
+      const inMin = nextIso ? Math.round((Date.parse(nextIso + 'Z') - Date.parse(nowIso + 'Z')) / 60000) : NaN;
+      const [clk, ap] = String(fmtClock(nextIso)).split(/\s+(?=[ap]\.?m)/i);
+      const nx = nextIso ? h('div', { class: 'nx' },
+        h('div', { class: 'k' }, beforeSet ? 'Sunset' : 'Sunrise'),
+        h('div', { class: 'v' }, clk, ap ? h('small', {}, ap) : null),
+        Number.isFinite(inMin) && inMin > 0 && inMin < 12 * 60 ? h('div', { class: 'in' }, inMin < 60 ? `in ${inMin} min` : `in ${Math.floor(inMin / 60)} h ${String(inMin % 60).padStart(2, '0')}`) : null) : null;
+
+      body.replaceChildren(h('div', { class: full ? 'wx full' : 'wx tile' },
         h('div', { class: 'wx-now' },
           h('div', { class: 'ic' }, icon(nightSlug(slug, cur.is_day), 56)),
           h('div', { class: 'tmp' },
@@ -475,17 +462,18 @@ export default {
             h('div', { class: 'c' }, `${fToC(tF)}°C`)),
           // (condition word, today's high/low and the daylight line removed 2026-10-29 —
           // humans: "too cognitively dense"; the icon says the condition)
-          ),
-        h('div', { class: 'wx-sun' },
+          full ? null : nx),
+        // humidity, UV and the next days: the maximized view only (2026-10-30)
+        !full ? null : h('div', { class: 'wx-sun' },
           h('span', {}, 'Sunrise ', h('b', {}, fmtClock(d.daily.sunrise?.[0]))),
           h('span', {}, 'Sunset ', h('b', {}, fmtClock(d.daily.sunset?.[0])))),
           // (no wind — the humans removed it twice; see GARDEN_RULES.md)
-        h('div', { class: 'wx-stats' },
+        !full ? null : h('div', { class: 'wx-stats' },
           h('div', { class: 'wx-stat' }, h('div', { class: 'k' }, 'Humidity'),
             h('div', { class: 'v' }, `${hum}%`)),
           h('div', { class: 'wx-stat' }, h('div', { class: 'k', title: uvKey === 'UV index' ? 'UV index now' : uvKey === 'UV tomorrow' ? "Tomorrow's peak UV" : "Today's peak UV and when it lands" }, uvKey),
             h('div', { class: 'v' }, `${uv ?? '—'}`, h('small', { style: { color: uvColor } }, uvLabel)))),
-        days.length ? h('div', {},
+        full && days.length ? h('div', {},
           h('div', { class: 'wx-days' },
             h('div', { class: 'wx-sec' }, 'Next days'), h('div', { class: 'h' }, '10a'), h('div', { class: 'h' }, '3p'), h('div', { class: 'h' }, '8p'),
             ...dayRows)) : null,

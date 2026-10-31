@@ -96,6 +96,24 @@ export default {
   }
 };
 \`\`\`
+Optional: \`async openFull(body, ctx)\` — the widget's FULLSCREEN view (opened by a tap / the
+controller's A on the tile, in the big panel). Without it, the panel just re-mounts the tile. A
+widget may also take \`mount(body, ctx, { full: true })\` to reuse its reading inside openFull
+(see weather.js), rendering the extra detail only when \`full\`.
+
+# CALM TILES, RICH FULLSCREEN (core design principle — the humans' standing order)
+Agents tend to pollute interfaces: every tending adds "one more useful line" until the wall is
+dense and tiring. Do the opposite.
+- The TILE is a glance from across the room: prune it to the essential one or two things.
+  Before adding anything to a tile, ask what you will REMOVE. Fewer, bigger, clearer.
+- The FULLSCREEN view (openFull) is where more information goes — and it is its OWN design,
+  not the tile resized. Lay it out for reading up close, with cognitive scaffolding: labelled
+  sections, a clear visual hierarchy, the most important thing first, one idea per row,
+  related numbers grouped, units and context written out.
+- You may (and should) redesign a widget's fullscreen view freely; when deepening a widget,
+  deepen its fullscreen, keep its tile calm. Never move what the humans pruned back onto a tile
+  (GARDEN_RULES.md lists them). Exemplars: gardyn.js and weather.js.
+
 Rules for widgets:
 - Always render LOADING, then real data — and a graceful ERROR/EMPTY state if the API fails.
   An API being down must never blank the widget or throw.
@@ -189,13 +207,14 @@ export function buildUserPrompt({ feedbackItems, date, history }) {
       + '\n\n';
   } else {
     prompt += `**No new feedback today.** Enter self-directed mode and make the garden meaningfully better on your own initiative. Pick ONE or TWO of:\n`
-      + `- Add a tasteful new widget from a keyless public API that suits an ambient ${config.location} display `
-      + `(e.g. air quality, sunrise/sunset & golden hour, moon phase, transit, this-day-in-history, a daily quote, `
-      + `NASA picture of the day, market/crypto ticker, world clocks, on-this-day, word of the day).\n`
-      + `- Deepen or beautify an existing widget (richer data, better typography, micro-animations, better empty/error states).\n`
+      + `- PRUNE: make a busy tile calmer — remove or move to its fullscreen view whatever isn't essential at a glance.\n`
+      + `- Give a widget a real FULLSCREEN view (openFull) — its own up-close design with more information and clear `
+      + `sections — or deepen an existing one (richer data there, better scaffolding), keeping the tile calm.\n`
+      + `- Beautify an existing widget (typography, spacing, better empty/error states) without adding tile content.\n`
+      + `- Only rarely, a new widget from a keyless public API — and only if it earns its place at a glance and is not on the banned list.\n`
       + `- Improve overall composition for the 9:16 canvas (balance, hierarchy, whitespace, color harmony).\n`
       + `- Fix any latent bug or rough edge you notice while exploring.\n`
-      + `Avoid clutter; aim for quiet elegance. Make a real, visible improvement — not a no-op.\n`
+      + `Avoid clutter; aim for quiet elegance — on the tiles, less is more (see CALM TILES, RICH FULLSCREEN). Make a real, visible improvement — not a no-op.\n`
       + `IMPORTANT: obey \`GARDEN_RULES.md\` (the House Rules in your system prompt). Do NOT add any widget on the banned list, and prefer deepening existing widgets over inventing new ones.\n\n`;
   }
 
