@@ -30,17 +30,18 @@ const SB2_COVER = '/arcade/sb2/garden/cover.png';
 
 const CORE = {
   nes: 'nes', snes: 'snes', gb: 'gb', gbc: 'gb', gba: 'gba',
-  n64: 'n64', segaMD: 'segaMD', segaMS: 'segaMS', pce: 'pce',
+  n64: 'n64', segaMD: 'segaMD', segaMS: 'segaMS', pce: 'pce', psx: 'psx',
 };
 const SYS_LABEL = {
   sb2: 'SNES · 9:16', nes: 'NES', snes: 'SNES', gb: 'GAME BOY', gbc: 'GBC', gba: 'GBA',
-  n64: 'N64', segaMD: 'GENESIS', segaMS: 'SMS', pce: 'PC ENGINE',
+  n64: 'N64', segaMD: 'GENESIS', segaMS: 'SMS', pce: 'PC ENGINE', psx: 'PLAYSTATION',
 };
 // Full console names for the detail panel ("metadata and shit").
 const SYS_NAME = {
   sb2: 'Super Bomberman 2 · Garden Edition · native 9:16 port', nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
   gbc: 'Game Boy Color', gba: 'Game Boy Advance', n64: 'Nintendo 64',
   segaMD: 'Sega Genesis / Mega Drive', segaMS: 'Sega Master System', pce: 'PC Engine / TurboGrafx-16',
+  psx: 'Sony PlayStation',
 };
 // libretro thumbnail-repo folder names — best-effort progressive enhancement for
 // real boxart/snaps. Homebrew titles 404 here (expected); we just keep the
@@ -48,6 +49,7 @@ const SYS_NAME = {
 const LIBRETRO_FOLDER = {
   nes: 'Nintendo - Nintendo Entertainment System',
   snes: 'Nintendo - Super Nintendo Entertainment System',
+  psx: 'Sony - PlayStation',
   gb: 'Nintendo - Game Boy', gbc: 'Nintendo - Game Boy Color',
   gba: 'Nintendo - Game Boy Advance', n64: 'Nintendo - Nintendo 64',
   segaMD: 'Sega - Mega Drive - Genesis', segaMS: 'Sega - Master System - Mark III',
@@ -333,6 +335,7 @@ export default {
     body.classList.add('eg');
 
     let mode = 'picker';   // 'picker' | 'game'
+    let curRom = null;     // the game running (the pad mapping depends on its console)
     let sel = 0;           // picker selection index
     let roms = [];
     let emuFrame = null;   // the EmulatorJS iframe (one per game)
@@ -462,7 +465,8 @@ export default {
         const bi = a.charCodeAt(2) - 97;
         if (bi === 10 || bi === 11) { if (a[3] === 'd') sysHeld.add(bi); else sysHeld.delete(bi);
           if (sysHeld.has(10) && sysHeld.has(11)) { sysHeld.clear(); showPicker(); return; } } // Select+Start → games
-        const id = RAWPAD[bi];
+        // PS1 games also get L2/R2 (RetroPad 12/13); on other consoles those stay free
+        const id = RAWPAD[bi] ?? (curRom && curRom.system === 'psx' ? { 8: 12, 9: 13 }[bi] : undefined);
         if (id != null) pad(id, a[3] === 'd' ? 1 : 0);
         return;
       }
@@ -645,6 +649,7 @@ export default {
 
     function boot(rom) {
       if (!rom) return;
+      curRom = rom;
       if (rom.special === 'sb2') { bootPort(rom); return; }
       const core = CORE[rom.system];
       if (!core) return;

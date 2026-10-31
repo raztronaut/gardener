@@ -85,6 +85,7 @@ const ROM_SYSTEMS = {
   '.n64': 'n64', '.z64': 'n64',
   '.md': 'segaMD', '.gen': 'segaMD',
   '.sms': 'segaMS', '.pce': 'pce',
+  '.chd': 'psx', '.pbp': 'psx', // PlayStation discs (bin/cue converted to CHD: lossless, about half the size)
 };
 // Box art for the Arcade: libretro-thumbnails (No-Intro names), fetched once per
 // ROM and cached in data/covers/. Name variants tried: as-is, then with extra tags
@@ -94,7 +95,7 @@ const COVER_SYS = {
   nes: 'Nintendo - Nintendo Entertainment System', snes: 'Nintendo - Super Nintendo Entertainment System',
   gb: 'Nintendo - Game Boy', gbc: 'Nintendo - Game Boy Color', gba: 'Nintendo - Game Boy Advance',
   n64: 'Nintendo - Nintendo 64', segaMD: 'Sega - Mega Drive - Genesis', segaMS: 'Sega - Master System - Mark III',
-  pce: 'NEC - PC Engine - TurboGrafx 16',
+  pce: 'NEC - PC Engine - TurboGrafx 16', psx: 'Sony - PlayStation',
 };
 async function romCover(file) {
   const ext = extname(file).toLowerCase(), sys = COVER_SYS[ROM_SYSTEMS[ext]];
