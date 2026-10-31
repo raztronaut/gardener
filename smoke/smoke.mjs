@@ -272,7 +272,49 @@ async function main() {
         && !sameEvent('Oakland Chinatown’s “Trick Or Treat” Trail', 'Free “Trick-Or-Treat” Around Historic Aircraft at Hiller Aviation Museum')
         && !sameEvent('Oakland’s Free POC Comedy Night (Temescal)', 'Oakland’s “Mezcal & Mole” Comedy Night (Mondays & Tuesdays)'),
         'distinct events wrongly matched');
+      // Recurring listings (the card ranks one-off events first; /events tags these).
+      const { recurrence } = await import(join(PUBLIC, 'lib', 'events.js'));
+      const kind = (t, o) => (recurrence(t, o) || {}).kind || null;
+      check('events: recurrence read from title words',
+        kind('Bottom’s Up Free Karaoke (Every Thursday)') === 'weekly'
+        && kind('$1 Wing Wednesdays at Underdogs Cantina (SoMa)') === 'weekly'
+        && kind('Lower Nob Hill Weekly Cleanup w/ Free Lunch') === 'weekly'
+        && kind('Asian Art Museum: Free Admission Day (Every First Sunday)') === 'monthly'
+        && kind('San Francisco Critical Mass (Last Friday of the Month)') === 'monthly'
+        && kind('Botanical Garden’s Free Day (2nd Tuesdays)') === 'monthly'
+        && kind('Free museum hour, daily') === 'daily',
+        'title-word recurrence misread');
+      check('events: recurrence read from repeats in the window',
+        kind('Japanese Tea Garden’s Free Admission Hour (Golden Gate Park)', { days: ['2026-10-30', '2026-11-06', '2026-11-13'] }) === 'weekly'
+        && kind('Japanese Tea Garden’s Free Admission Hour', { days: ['2026-10-30', '2026-10-31', '2026-11-01'] }) === 'daily'
+        && kind('Fort Mason Craft Fair', { days: ['2026-11-07', '2026-11-08'] }) === null
+        && kind('San Francisco Coffee Festival 2026', { days: ['2026-11-07', '2026-11-14'] }) === null,
+        'repeat-based recurrence misread');
+      check('events: recurrence read from FunCheap re-post counters',
+        kind('Golden Gate Park Roller Disco Party (SF)', { url: 'https://sf.funcheap.com/golden-gate-park-sunday-roller-disco-party-sf-302/' }) === 'recurring'
+        && kind('San Francisco Coffee Festival 2026', { url: 'https://sf.funcheap.com/sf-coffee-festival-2026-fort-mason-2/' }) === null
+        && kind('Eric Prydz at SF’s Pier 48', { url: 'https://sf.funcheap.com/eric-prydz-halloween-sfs-pier-48/' }) === null
+        && kind('Halloween Hike With Rafiki') === null,
+        'url-based recurrence misread');
+      const evR = await fetchEvents(async () => [
+        { title: `${sfDate(0)}: Free Karaoke Night (SF) - FREE`, available_from: '2026-01-01T12:00:00Z', location_address: '' },
+        { title: `${sfDate(7)}: Free Karaoke Night (SF) - FREE`, available_from: '2026-01-01T12:00:00Z', location_address: '' },
+        { title: `${sfDate(0)}: One Night Only Show (SF) - FREE`, available_from: '2026-01-01T12:00:00Z', location_address: '' },
+      ]);
+      check('events: fetchEvents marks a listing repeated a week apart as weekly',
+        evR.find((e) => /Karaoke/.test(e.name))?.recur?.kind === 'weekly' && !evR.find((e) => /One Night/.test(e.name))?.recur,
+        JSON.stringify(evR.map((e) => [e.name, e.recur])));
     } catch (e) { bad('events ordering', e.message); }
+    // Out in SF pictures: the event page's own picture is found (og:image, else
+    // FunCheap's featured wp-post-image, which has no og:image), logos are skipped.
+    try {
+      const { pageImage } = await import(join(ROOT, 'src', 'eventimages.mjs'));
+      const og = pageImage('<meta content="/up/pic.jpg" property="og:image">', 'https://ex.com/e/1');
+      const wp = pageImage('<img src="data:image/svg+xml;base64,AA" class="x"><img width="563" src="https://cdn.ex.com/a-563x301.jpeg" class="alignnone wp-post-image" alt="">', 'https://sf.funcheap.com/x/');
+      const logo = pageImage('<meta property="og:image" content="https://ex.com/HWLogo.png">', 'https://ex.com/');
+      check('event images: page picture found (og:image, wp-post-image), logos skipped',
+        og === 'https://ex.com/up/pic.jpg' && wp === 'https://cdn.ex.com/a-563x301.jpeg' && logo === '', JSON.stringify([og, wp, logo]));
+    } catch (e) { bad('event images', e.message); }
     // Gardyn plant tracker: all 16 pods of the Budding Florist kit are mapped to a
     // unique layout position, and the trajectory logic reads sensibly at key days.
     try {

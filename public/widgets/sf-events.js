@@ -10,6 +10,15 @@
 // back to the next upcoming events. On a light day, the room left under today's
 // rows carries on into the coming days under small "TOMORROW · TUE" headings.
 //
+// Each row carries a small picture of the event (its page's og:image, cropped and
+// cached server-side by /api/event-image): the box is always reserved, the picture
+// fades in once decoded, and an event without one keeps a quiet empty box.
+//
+// One-off events earn the card's slots first. Recurring listings (lib/events.js
+// recurrence(): the Japanese Tea Garden's free hour, "every Thursday" karaoke,
+// weekly markets) rank after them, and an ALL-DAY recurring listing is only kept
+// when today's one-offs AND the coming days' one-offs leave room for it.
+//
 // Events happening TODAY carry a live countdown pill ("in 2h 15m" → "on now"),
 // updated each minute (a cheap text-only rebuild of the ≤3 shown rows — no images,
 // no network), so a glance across the room answers "what can we do tonight?".
@@ -39,13 +48,18 @@ export default {
 
       /* Agenda rows — the readable day view: a fixed time column, then the full
          event name over up to two lines with its venue beneath. */
-      .won-ag { flex:0 0 auto; display:grid; grid-template-columns:62px 1fr; column-gap:12px; min-width:0;
-        padding-bottom:var(--sp); border-bottom:1px solid var(--stroke); }
+      .won-ag { flex:0 0 auto; display:grid; grid-template-columns:60px 62px 1fr; column-gap:12px; min-width:0;
+        align-items:start; padding-bottom:var(--sp); border-bottom:1px solid var(--stroke); }
+      /* The picture box: always reserved (same size with or without a picture), a
+         quiet tint when empty; the picture only fades in once decoded. */
+      .won-ag .th { width:60px; height:40px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,.045); }
+      .won-ag .th img { display:block; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .6s ease; }
+      .won-ag .th img.on { opacity:1; }
       .won-ag:last-child { border-bottom:none; }
       /* All-day listings: no time column (it only ever held an empty cell or a
          repeated label) — the name takes the full width under one small
          "ALL DAY" sub-heading, so the group reads as "also on today". */
-      .won-ag.wide { grid-template-columns:1fr; }
+      .won-ag.wide { grid-template-columns:60px 1fr; }
       .won-sub { flex:0 0 auto; display:flex; align-items:center; gap:9px; margin-top:2px;
         font-family:var(--font-mono); font-size:11.5px; letter-spacing:.13em;
         color:var(--ink-faint); white-space:nowrap; }
@@ -101,6 +115,24 @@ export default {
         return { txt: m ? `in ${h}h ${m}m` : `in ${h}h`, cls: 'soon' };
       }
       return { txt: 'on now', cls: 'live' };
+    };
+
+    // Event pictures, kept across re-renders (the minute tick rebuilds every row) so a
+    // picture loads and fades in once, never again each minute. 404 → stays empty.
+    const thumbs = new Map();
+    const thumbFor = (e) => {
+      const k = e.url || e.image;
+      if (!k) return null;
+      let img = thumbs.get(k);
+      if (!img) {
+        img = new Image();
+        img.alt = ''; img.decoding = 'async'; img.draggable = false;
+        img.onload = () => Promise.resolve(img.decode ? img.decode() : null).catch(() => {}).then(() => img.classList.add('on'));
+        img.onerror = () => { img.dataset.none = '1'; img.remove(); };
+        img.src = `/api/event-image?u=${encodeURIComponent(e.url || e.image)}${e.image ? `&img=${encodeURIComponent(e.image)}` : ''}`;
+        thumbs.set(k, img);
+      }
+      return img.dataset.none ? null : img;
     };
 
     const head = ctx.h('div', { class: 'won-hd', style: 'display:none' });
@@ -167,18 +199,23 @@ export default {
         // tap a row → that event's full details (original title, time, place, description)
         const row = ctx.h('div', { class: `won-ag${tm ? '' : ' wide'}`, title: e.name,
           onclick: (ev) => { ev.stopPropagation(); window.dispatchEvent(new CustomEvent('garden:event', { detail: e })); } },
+          ctx.h('div', { class: 'th' }, thumbFor(e)),
           tm,
           ctx.h('div', { style: 'min-width:0' },
             ctx.h('div', { class: 'nm' }, short[e.name] || t.name || e.name), // the plain short name (eventnames.mjs)
             sub ? ctx.h('div', { class: 'pl' }, sub) : null));
-        // Which rows earn the card's few slots: tonight's TIMED plans first (they
+        // Which rows earn the card's few slots: ONE-OFF events first (a recurring
+        // listing will be there next week too; monthly ones sit between), then
+        // tonight's TIMED plans (they
         // are what "what can we do tonight?" is really asking, and sorting all-day
         // listings ahead of them used to trim every timed event off the card),
         // then San Francisco over unstated over elsewhere-in-the-Bay. Survivors
         // are still SHOWN chronologically — this only decides who is kept.
-        const pr = (timed(e) || t.time ? 0 : 3) + localeRank(e);
+        const tier = !e.recur ? 0 : e.recur.kind === 'monthly' ? 1 : 2;
+        const pr = tier * 10 + (timed(e) || t.time ? 0 : 3) + localeRank(e);
         const tkey = tm ? tm.firstChild && tm.firstChild.textContent : null;
-        return { el: row, allDay: !tm, pr, tkey };
+        // an all-day recurring listing is filler: kept only if everything else fits
+        return { el: row, allDay: !tm, pr, tkey, filler: !tm && !!e.recur };
       };
       rows = picks.map(makeRow);
       rows.forEach((r, i) => { r.idx = i; });
@@ -188,7 +225,7 @@ export default {
       // they fit, chronologically, after every one of today's rows is kept.
       later = [];
       if (showingToday) {
-        const ahead = all.filter((e) => { const o = dayOffset(e.when); return o != null && o >= 1; })
+        const ahead = all.filter((e) => { const o = dayOffset(e.when); return o != null && o >= 1 && !e.recur; })
           .sort((x, y) => x.when - y.when).slice(0, 14);
         ahead.forEach((e) => {
           const o = dayOffset(e.when);
@@ -197,6 +234,9 @@ export default {
           later.push({ ...makeRow(e), label });
         });
       }
+      // forget pictures of events no longer listed
+      const live = new Set(all.map((e) => e.url || e.image));
+      for (const k of thumbs.keys()) if (!live.has(k)) thumbs.delete(k);
       fit();
     };
 
@@ -211,7 +251,10 @@ export default {
       list.style.removeProperty('--sp');
       // Grow the kept set in priority order (stable on ties) until the next row
       // would overflow, laying the survivors out chronologically each time.
-      const byPrio = rows.slice().sort((a, b) => a.pr - b.pr || a.idx - b.idx);
+      const order = (a, b) => a.pr - b.pr || a.idx - b.idx;
+      const core = rows.filter((r) => !r.filler).sort(order);
+      const filler = rows.filter((r) => r.filler).sort(order);
+      const fits = () => list.scrollHeight <= list.clientHeight + 1;
       const show = (set, ext = []) => {
         // Tonight's timed plans lead (chronological); the all-day group follows
         // under its own sub-heading.
@@ -246,20 +289,28 @@ export default {
       // Greedy in priority order: a row that would overflow is skipped (not a
       // full stop), so a shorter, lower-priority listing can still use the
       // space a long two-line title couldn't.
-      let kept = [byPrio[0]];
-      for (const r of byPrio.slice(1)) {
+      const seed = core[0] || filler[0];
+      let kept = [seed];
+      for (const r of core) {
+        if (r === seed) continue;
         show([...kept, r]);
-        if (list.scrollHeight <= list.clientHeight + 1) kept.push(r);
+        if (fits()) kept.push(r);
       }
-      // Every one of today's rows fit → carry on into the coming days while
-      // there's room, chronologically; a row too tall to fit is skipped so a
-      // shorter one can take the space.
+      // Every one of today's (non-filler) rows fit → carry on into the coming
+      // days' one-off events while there's room, chronologically; a row too tall
+      // to fit is skipped so a shorter one can take the space.
       let ext = [];
-      if (kept.length === rows.length && later.length) {
+      if (core.every((r) => kept.includes(r)) && later.length) {
         for (const r of later) {
           show(kept, [...ext, r]);
-          if (list.scrollHeight <= list.clientHeight + 1) ext.push(r);
+          if (fits()) ext.push(r);
         }
+      }
+      // Today's all-day recurring listings only take whatever room is left.
+      for (const r of filler) {
+        if (r === seed) continue;
+        show([...kept, r], ext);
+        if (fits()) kept.push(r);
       }
       show(kept, ext);
       // When rows were trimmed, share the leftover height out as extra spacing

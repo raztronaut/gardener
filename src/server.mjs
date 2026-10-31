@@ -17,6 +17,7 @@ import {
 import { recover } from './recover.mjs';
 import { travelFor } from './travel.mjs';
 import { namesFor, dailyNames, dailyIsStale } from './eventnames.mjs';
+import { eventImage } from './eventimages.mjs';
 import { extractReadable, readerResolve } from './reader.mjs';
 import { changelogPhrase } from './changelog.mjs';
 import { handleHouseApi } from './house-api.mjs';
@@ -778,6 +779,17 @@ const server = http.createServer(async (req, res) => {
       let titles; try { titles = JSON.parse(await readBody(req, 256 * 1024)).titles; } catch { return json(res, 400, { error: 'bad json' }); }
       if (!Array.isArray(titles)) return json(res, 400, { error: 'titles[] required' });
       return json(res, 200, { names: await namesFor(titles.slice(0, 300).map((t) => String(t).slice(0, 300)), log) });
+    }
+    // Out in SF: a small picture for an event (src/eventimages.mjs) — its page's og:image,
+    // cropped once and cached on disk. 404 = no picture (the card keeps a quiet empty box).
+    if (req.method === 'GET' && p === '/api/event-image') {
+      const page = String(u.searchParams.get('u') || ''), hint = String(u.searchParams.get('img') || '');
+      const http = (v) => v.length <= 2000 && /^https?:\/\/[^/\s]+/i.test(v);
+      if (!http(page) || (hint && !http(hint))) return json(res, 400, { error: 'bad url' });
+      const jpg = await eventImage(page, hint, u.searchParams.get('s') === 'l' ? 'l' : 's').catch(() => null);
+      if (!jpg) { res.writeHead(404, { 'Cache-Control': 'no-store' }); return res.end(); }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': jpg.length, 'Cache-Control': 'public, max-age=86400' });
+      return res.end(jpg);
     }
     // Out in SF: venue coordinates + drive time from home for today's events (src/travel.mjs).
     if (req.method === 'POST' && p === '/api/sf-travel') {

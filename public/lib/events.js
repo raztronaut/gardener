@@ -156,6 +156,48 @@ export function localeRank(ev) {
   return 1;
 }
 
+// Recurring listings (2026-10-30). Things that happen every day or week — the
+// Japanese Tea Garden's free admission hour, "every Thursday" karaoke, weekly
+// markets — are always there, so they aren't worth the wall card's few slots. The
+// card ranks one-off events first and the /events list tags these subtly. The source
+// has no recurrence field, so we read three signals, strongest first:
+//   1. the title's own words: "(Every Saturday)", "Wing Wednesdays", "Weekly Cleanup",
+//      "daily", "First Fridays" / "2nd Tuesdays" / "monthly" / "of the month";
+//   2. the same listing (dedupKey) on several dates in the fetched ~2-week window:
+//      dates a multiple of 7 days apart → weekly; 3+ consecutive days → every day.
+//      Two adjacent days alone read as one weekend event, and a title carrying a
+//      year or "festival"/"annual" is a dated edition (Coffee Festival 2026), not a habit;
+//   3. FunCheap's URL slug numbers each re-post of a listing ("…-golden-gate-park-456/"):
+//      a high counter means it has been listed hundreds of times. "/event-series/" too.
+// → { kind: 'daily'|'weekly'|'monthly'|'recurring', label } or null. Pure; exported for smoke.
+const WD = '(?:mon|tues|wednes|thurs|fri|satur|sun)';
+const MONTHLY_RE = new RegExp(`\\b(?:first|1st|second|2nd|third|3rd|fourth|4th|last)\\s+(?:${WD}days?|weekend|week)\\b|\\bmonthly\\b|\\bof the month\\b|\\bevery month\\b`, 'i');
+const DAILY_RE = /\b(?:every\s*day|everyday|daily|nightly|every (?:night|morning|evening))\b/i;
+const WEEKLY_RE = new RegExp(`\\bevery\\s+(?:${WD}day|week|weekend)|\\bweekly\\b|\\b${WD}days\\b|\\beach\\s+(?:${WD}day|week)`, 'i');
+const EDITION_RE = /\b20\d\d\b|\bfest(?:ival)?\b|\bannual\b|\bfinal\b|\bpremiere\b/i;
+const REC_LABEL = { daily: 'every day', weekly: 'weekly', monthly: 'monthly', recurring: 'recurring' };
+const dayNum = (k) => Math.round(Date.parse(`${k}T12:00:00Z`) / 864e5);
+export function recurrence(title, { days = [], url = '' } = {}) {
+  const t = tidy(title);
+  const out = (kind) => ({ kind, label: REC_LABEL[kind] });
+  if (MONTHLY_RE.test(t)) return out('monthly');
+  if (DAILY_RE.test(t)) return out('daily');
+  if (WEEKLY_RE.test(t) || /\bevery\b/i.test(t)) return out(WEEKLY_RE.test(t) ? 'weekly' : 'recurring');
+  const edition = EDITION_RE.test(t);
+  const ds = [...new Set(days.filter(Boolean))].map(dayNum).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!edition && ds.length >= 2) {
+    const gaps = ds.slice(1).map((d, i) => d - ds[i]);
+    if (gaps.every((g) => g >= 6)) return out(gaps.every((g) => g % 7 === 0) ? 'weekly' : 'recurring');
+    if (ds.length >= 3 && gaps.every((g) => g === 1)) return out('daily');
+    if (ds.length >= 3) return out('recurring');
+  }
+  const u = String(url || '');
+  if (/funcheap\.com\/event-series\//i.test(u)) return out('recurring');
+  const m = u.match(/funcheap\.com\/[^?#]*?-(\d{1,4})\/?(?:[?#].*)?$/i);
+  if (m && !edition && +m[1] >= 5 && !/^(19|20)\d\d$/.test(m[1]) && !new RegExp(`\\b${m[1]}\\b`).test(t)) return out('recurring');
+  return null;
+}
+
 // Chronological comparator over the RESOLVED event instant. Undated ("Soon") rows
 // sink to the end rather than masquerading as imminent. Exported for smoke.
 //
@@ -183,7 +225,7 @@ export function byWhen(a, b) {
 // first" true.
 export async function fetchEvents(fetchJSON, { limit = 150 } = {}) {
   const params = new URLSearchParams({
-    select: 'id,title,location_address,available_from,available_until,description,url,interest_count,emoji',
+    select: 'id,title,location_address,available_from,available_until,description,url,interest_count,emoji,images',
     category: 'eq.Events',
     available_from: `gte.${sfToday()}`,
     order: 'available_from.asc',
@@ -196,6 +238,17 @@ export async function fetchEvents(fetchJSON, { limit = 150 } = {}) {
   const now = new Date();
   const seen = new Set();
   const out = [];
+  // Every date each listing appears on in the window — past rows of today's fetch
+  // included — for recurrence() (the per-row loop below dedupes them away).
+  const daysOf = new Map();
+  for (const r of rows) {
+    const k = dedupKey(cleanName(r.title));
+    let d = titleDateKey(r.title);
+    if (!d && r.available_from) { const w = new Date(r.available_from); if (!isNaN(w)) d = dayKeyOf(w); }
+    if (!k || !d) continue;
+    if (!daysOf.has(k)) daysOf.set(k, new Set());
+    daysOf.get(k).add(d);
+  }
   for (const r of rows) {
     const name = cleanName(r.title);
     if (!name || /^__SCRAPER_RUN__/.test(r.title || '')) continue;
@@ -224,6 +277,10 @@ export async function fetchEvents(fetchJSON, { limit = 150 } = {}) {
       url: tidy(r.url),
       until: r.available_until ? new Date(r.available_until) : null,
       interest: Number(r.interest_count) || 0,
+      // the source's own picture, when it has one (rare) — else the server reads
+      // the event page's og:image (/api/event-image, src/eventimages.mjs)
+      image: Array.isArray(r.images) && typeof r.images[0] === 'string' && /^https?:\/\//.test(r.images[0]) ? r.images[0] : '',
+      recur: recurrence(name, { days: [...(daysOf.get(dedupKey(name)) || [])], url: r.url }),
     };
     if (isPast(ev, now)) continue; // prune events already over
     out.push(ev);

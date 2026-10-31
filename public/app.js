@@ -957,7 +957,9 @@ function renderEvents(evs) {
       h('div', { class: 'ev-when' }, when),
       h('div', { class: 'cl-main' },
         h('div', { class: 'cl-phrase' }, t ? h('span', { class: 'ev-no' }, String(pinNo.get(e))) : null, `${e.emoji ? e.emoji + ' ' : ''}${shortFor(e)}`),
-        e.place ? h('div', { class: 'cl-meta' }, `📍 ${e.place}`) : null),
+        // recurring listings (lib/events.js recurrence) wear a small quiet tag
+        e.place || e.recur ? h('div', { class: 'cl-meta' }, e.place ? `📍 ${e.place}` : null,
+          e.recur ? h('span', { class: 'ev-rec' }, e.recur.label) : null) : null),
       drive);
   });
   const list = h('div', { class: 'cl ev-list' }, ...rows);
@@ -1825,10 +1827,24 @@ function showEventDetail(e) {
       if (e.until && !isNaN(e.until) && e.until > e.when) when += ` – ${tm.format(e.until)}`;
     }
   }
+  // The event's picture (/api/event-image, server-cropped from its page's og:image):
+  // a fixed box beside the name, so nothing moves when it fades in; no picture → the
+  // box just stays empty.
+  let pic = null;
+  if (e.url || e.image) {
+    const img = h('img', { alt: '', decoding: 'async',
+      src: `/api/event-image?s=l&u=${encodeURIComponent(e.url || e.image)}${e.image ? `&img=${encodeURIComponent(e.image)}` : ''}` });
+    img.onload = () => Promise.resolve(img.decode ? img.decode() : null).catch(() => {}).then(() => img.classList.add('on'));
+    img.onerror = () => img.remove();
+    pic = h('div', { class: 'evd-pic' }, img);
+  }
   const kids = [
-    h('div', { class: 'evd-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
-    h('div', { class: 'evd-meta' }, when),
-    e.placeFull ? h('div', { class: 'evd-meta' }, e.placeFull) : null,
+    h('div', { class: 'evd-top' },
+      h('div', { class: 'evd-head' },
+        h('div', { class: 'evd-name' }, `${e.emoji ? e.emoji + ' ' : ''}${e.name}`),
+        h('div', { class: 'evd-meta' }, when + (e.recur ? ` · ${e.recur.label}` : '')),
+        e.placeFull ? h('div', { class: 'evd-meta' }, e.placeFull) : null),
+      pic),
     e.description ? h('p', { class: 'evd-desc' }, e.description) : h('p', { class: 'evd-desc dim' }, 'No description provided.'),
   ];
   if (e.url) {
