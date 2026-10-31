@@ -465,76 +465,41 @@ body:not(.idle) .cl-row.clickable:hover, .cl-row.row-sel {
   opacity: 0; pointer-events: none; transition: opacity 1.6s ease; }
 body.night #nightveil { opacity: 1; pointer-events: auto; }
 
-/* ---------- curb-trash alarm (full-screen, flashing red until acknowledged) ----------
-   Only ever visible Tue 17:00 (5 PM) → Wed 07:00 while unacknowledged — i.e. a rare, transient
-   ALARM state, not the idle dashboard. The flash is a stepped solid-color swap (no blur /
-   filter / gradient tween), so it's cheap; it stops entirely the instant it's dismissed or
-   the window closes, returning the screen to ~0% CPU idle. */
-#trashalarm { position: fixed; inset: 0; z-index: 150; display: none;
-  align-items: center; justify-content: center; text-align: center;
-  background: #c81810; color: #fff; padding: 40px; }
-#trashalarm.on { display: flex; animation: trashFlash 1s step-end infinite; }
-@keyframes trashFlash { 0% { background: #ef2418; } 50% { background: #5e0b06; } }
-@media (prefers-reduced-motion: reduce) { #trashalarm.on { animation: none; background: #ef2418; } }
-.ta-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.ta-icon { font-size: 96px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
-.ta-text { font-family: var(--font-display); font-weight: 700; font-size: 100px; line-height: .96;
-  letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.4); }
-.ta-sub { font-size: 24px; line-height: 1.4; max-width: 620px; color: #fff; opacity: .94; margin-top: 6px; }
-#trashAck { margin-top: 34px; font-family: var(--font); font-size: 24px; font-weight: 700;
-  padding: 20px 44px; border-radius: 999px; cursor: var(--c-hand); color: #7a0a04;
-  background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
-#trashAck:active { transform: scale(.97); }
-.ta-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
-.ta-hint b { color: #fff; }
-body.screenshot #trashalarm { display: none !important; }
-
-/* ---------- street-cleaning car alarm (full-screen, blue, until acknowledged) ----------
-   Only visible on the 1st & 3rd Mon/Wed, 11AM→1PM, while unacknowledged — a rare,
-   transient ALARM state. Stepped solid-color flash (no blur/filter), so it's cheap and
-   stops the instant it's dismissed or the window closes (→ ~0% CPU idle). */
-#streetalarm { position: fixed; inset: 0; z-index: 150; display: none;
-  align-items: center; justify-content: center; text-align: center;
-  background: #0b4ea2; color: #fff; padding: 40px; }
-#streetalarm.on { display: flex; animation: streetFlash 1s step-end infinite; }
-@keyframes streetFlash { 0% { background: #1565d8; } 50% { background: #07315f; } }
-@media (prefers-reduced-motion: reduce) { #streetalarm.on { animation: none; background: #1565d8; } }
-.sa-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.sa-icon { font-size: 96px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
-.sa-text { font-family: var(--font-display); font-weight: 700; font-size: 104px; line-height: .96;
-  letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.4); }
-.sa-sub { font-size: 24px; line-height: 1.4; max-width: 640px; color: #fff; opacity: .94; margin-top: 6px; }
-#streetAck { margin-top: 34px; font-family: var(--font); font-size: 24px; font-weight: 700;
-  padding: 20px 44px; border-radius: 999px; cursor: var(--c-hand); color: #06346a;
-  background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
-#streetAck:active { transform: scale(.97); }
-.sa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
-body.screenshot #streetalarm { display: none !important; }
-
-/* ---------- plant-watering reminder (full-screen, GREEN, until acknowledged) ----------
-   A weekly, friendly nudge — not a panic alarm — so it's a calm STATIC green (no flashing
-   animation, no blur/filter: ~0% GPU). Shows only while unacknowledged; dismissed with the
-   button or Enter/Esc, then re-arms next week. Hidden in screenshot mode like the others. */
-#plantalarm { position: fixed; inset: 0; z-index: 150; display: none;
-  align-items: center; justify-content: center; text-align: center;
-  background: radial-gradient(120% 100% at 50% 0%, #1f8a52 0%, #0c5c34 55%, #073d22 100%);
-  color: #fff; padding: 48px 40px; }
-#plantalarm.on { display: flex; }
-.pa-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 720px; }
-.pa-icon { font-size: 92px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.3)); }
-.pa-text { font-family: var(--font-display); font-weight: 700; font-size: 72px; line-height: .98;
-  letter-spacing: .005em; text-shadow: 0 6px 26px rgba(0,0,0,.35); }
-.pa-text.note { font-size: 52px; }
-.pa-sub { font-size: 23px; line-height: 1.5; color: #fff; opacity: .95; margin-top: 8px;
-  max-height: 46vh; overflow: auto; }
-.pa-sub.note { font-size: 25px; text-align: left; line-height: 1.55; }
-#plantAck { margin-top: 28px; font-family: var(--font); font-size: 24px; font-weight: 700;
-  padding: 20px 44px; border-radius: 999px; cursor: var(--c-hand); color: #0a4a2a;
-  background: #fff; border: none; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
-#plantAck:active { transform: scale(.97); }
-.pa-hint { margin-top: 16px; font-family: var(--font-mono); font-size: 15px; color: #fff; opacity: .82; }
-.pa-hint b { color: #fff; }
-body.screenshot #plantalarm { display: none !important; }
+/* ---------- reminder takeovers (trash / car / plants) — the OS's own style ----------
+   Rare, transient states (only while unacknowledged). A full-screen veil in the reminder's
+   colour (trash red and car blue FLASH — a stepped solid swap, no blur/filter tween, so it's
+   cheap and stops the moment it's dismissed; plants are a calm static green), and on it one
+   dark card like the panels: a line icon, a small kicker, the title in The Garden (regular
+   weight), one plain sentence, a pill button. Hidden in screenshot mode. */
+.osalarm { position: fixed; inset: 0; z-index: 150; display: none; align-items: center; justify-content: center;
+  padding: 40px; --tone: var(--mint); --tone-rgb: 116,247,176; }
+.osalarm.on { display: flex; }
+.osalarm[data-tone="red"] { --tone: #ff7a6b; --tone-rgb: 255,122,107; background: #b3170e; }
+.osalarm[data-tone="red"].on { animation: oaRed 1s step-end infinite; }
+@keyframes oaRed { 0% { background: #d81e12; } 50% { background: #4a0905; } }
+.osalarm[data-tone="blue"] { --tone: #7db8ff; --tone-rgb: 125,184,255; background: #0d4a99; }
+.osalarm[data-tone="blue"].on { animation: oaBlue 1s step-end infinite; }
+@keyframes oaBlue { 0% { background: #1663cf; } 50% { background: #06264d; } }
+.osalarm[data-tone="green"] { background: radial-gradient(120% 90% at 50% 10%, rgba(18,92,58,.97), rgba(4,30,20,.98)); }
+@media (prefers-reduced-motion: reduce) { .osalarm.on { animation: none !important; } }
+.oa-card { width: 720px; max-width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 16px; padding: 54px 48px 40px; border-radius: 34px; color: var(--ink);
+  background: linear-gradient(180deg, rgba(10, 24, 20, .9), rgba(5, 14, 11, .94));
+  border: 1px solid rgba(255, 255, 255, .16); box-shadow: 0 30px 80px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .08); }
+.oa-icon { width: 112px; height: 112px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--tone); background: rgba(var(--tone-rgb), .12); box-shadow: inset 0 0 0 1.5px rgba(var(--tone-rgb), .45); }
+.oa-icon svg { width: 60px; height: 60px; }
+.oa-kicker { margin-top: 8px; font-size: 18px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--tone); }
+.oa-title { font-family: var(--font-display); font-weight: 400; font-size: 92px; line-height: .98; color: #fff; }
+.oa-sub { font-size: 24px; line-height: 1.45; color: var(--ink-soft); max-width: 560px; max-height: 40vh; overflow: auto; }
+.oa-btn { margin-top: 22px; font: 600 24px var(--font); padding: 18px 42px; border-radius: 999px; cursor: var(--c-hand);
+  color: #fff; background: rgba(var(--tone-rgb), .22); border: 1.5px solid rgba(var(--tone-rgb), .75);
+  box-shadow: 0 0 30px rgba(var(--tone-rgb), .18); }
+body:not(.idle) .oa-btn:hover { background: rgba(var(--tone-rgb), .34); }
+.oa-btn:active { transform: scale(.97); }
+.oa-hint { margin-top: 4px; font-size: 15px; letter-spacing: .04em; color: var(--ink-faint); }
+.oa-hint b { color: var(--ink-soft); font-weight: 600; }
+body.screenshot .osalarm { display: none !important; }
 
 /* ---------- header: right side (QR) ---------- */
 .topright { display: flex; align-items: center; gap: 14px; }

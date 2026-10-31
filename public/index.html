@@ -79,37 +79,41 @@
   <!-- Opaque night overlay (energy saving). Pure black; covers everything. -->
   <div id="nightveil" aria-hidden="true"></div>
 
-  <!-- Curb-trash alarm: full-screen flashing red, Tue 5PM → Wed 7AM, until acknowledged. -->
-  <div id="trashalarm" aria-hidden="true">
-    <div class="ta-inner">
-      <div class="ta-icon">🗑️</div>
-      <div class="ta-text">TAKE OUT<br>TRASH&nbsp;TO&nbsp;CURB</div>
-      <div class="ta-sub">It’s trash night — wheel the bins out to the curb before pickup.</div>
-      <button id="trashAck" type="button">✓ &nbsp;Done — it’s at the curb</button>
-      <div class="ta-hint">or press <b>shift</b>&nbsp;+&nbsp;<b>T</b></div>
+  <!-- Reminder takeovers, in the OS's own style (2026-10-30): a dark card with a line icon,
+       the title face and a pill button over a full-screen veil in the reminder's colour.
+       Trash: red, flashing, Tue 5PM → Wed 7AM. Car: blue, flashing, 1st & 3rd Mon/Wed
+       11AM→1PM. Plants: calm static green, every two weeks. All until acknowledged
+       (button, Enter or Esc). -->
+  <div id="trashalarm" class="osalarm" data-tone="red" aria-hidden="true">
+    <div class="oa-card ta-inner">
+      <div class="oa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></svg></div>
+      <div class="oa-kicker">Trash night</div>
+      <div class="oa-title ta-text">Take the bins<br>to the curb</div>
+      <div class="oa-sub ta-sub">Wheel them out before the early pickup.</div>
+      <button id="trashAck" class="oa-btn" type="button">Done — they’re at the curb</button>
+      <div class="oa-hint ta-hint"><b>enter</b> or <b>esc</b> · <b>shift</b> + <b>T</b></div>
     </div>
   </div>
 
-  <!-- Street-cleaning car alarm: full-screen, 1st & 3rd Mon/Wed 11AM→1PM, until acknowledged. -->
-  <div id="streetalarm" aria-hidden="true">
-    <div class="sa-inner">
-      <div class="sa-icon">🚗</div>
-      <div class="sa-text">MOVE&nbsp;YOUR<br>CAR</div>
-      <div class="sa-sub">Street&nbsp;cleaning today (1st&nbsp;&amp;&nbsp;3rd Mon/Wed). Move the car now or it’s a ticket.</div>
-      <button id="streetAck" type="button">✓ &nbsp;Done — car is moved</button>
-      <div class="sa-hint">street sweeping · 11 AM</div>
+  <div id="streetalarm" class="osalarm" data-tone="blue" aria-hidden="true">
+    <div class="oa-card sa-inner">
+      <div class="oa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5V12l2.2-5.2h10.6l2.2 5.2v4.5zM4.5 12h15M6.5 16.5v2.2M17.5 16.5v2.2M8 14.3h.01M16 14.3h.01"/></svg></div>
+      <div class="oa-kicker">Street cleaning · 11 AM</div>
+      <div class="oa-title sa-text">Move the car</div>
+      <div class="oa-sub sa-sub">The sweeper comes today (1st &amp; 3rd Mon/Wed) — move it now or it’s a ticket.</div>
+      <button id="streetAck" class="oa-btn" type="button">Done — the car is moved</button>
+      <div class="oa-hint sa-hint"><b>enter</b> or <b>esc</b></div>
     </div>
   </div>
 
-  <!-- Plant-watering reminder: full-screen calm GREEN, weekly, until acknowledged.
-       The first occurrence carries a personal note from Gui; later weeks are the short nudge. -->
-  <div id="plantalarm" aria-hidden="true">
-    <div class="pa-inner">
-      <div class="pa-icon">🪴</div>
-      <div class="pa-text" id="plantText">TIME TO<br>WATER&nbsp;THE&nbsp;PLANTS</div>
-      <div class="pa-sub" id="plantSub">Give the house plants a good drink — enough that they don’t dry out, but don’t overwater.</div>
-      <button id="plantAck" type="button">✓ &nbsp;Done — plants are watered</button>
-      <div class="pa-hint">press <b>enter</b> or <b>esc</b> to dismiss · returns in two weeks</div>
+  <div id="plantalarm" class="osalarm" data-tone="green" aria-hidden="true">
+    <div class="oa-card pa-inner">
+      <div class="oa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.8 14h10.4l-1.5 6.5H8.3zM12 14V9.5M12 9.5c0-3.2 2.1-5.3 5.3-5.3 0 3.2-2.1 5.3-5.3 5.3zM12 11.5c0-2.6-1.9-4.3-4.6-4.3 0 2.6 1.9 4.3 4.6 4.3z"/></svg></div>
+      <div class="oa-kicker">Every two weeks</div>
+      <div class="oa-title pa-text" id="plantText">Water the plants</div>
+      <div class="oa-sub pa-sub" id="plantSub">A good drink for the house plants — enough that they don’t dry out, not so much they drown.</div>
+      <button id="plantAck" class="oa-btn" type="button">Done — plants are watered</button>
+      <div class="oa-hint pa-hint"><b>enter</b> or <b>esc</b> · back in two weeks</div>
     </div>
   </div>
 
