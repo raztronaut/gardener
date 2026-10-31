@@ -23,6 +23,7 @@ import { changelogPhrase } from './changelog.mjs';
 import { captureUrl } from './screenshot.mjs';
 import { reviewScreenshot } from './visualReview.mjs';
 import { resolveLatestOpus } from './models.mjs';
+import { tendPoem } from './poem.mjs';
 
 const pExecFile = promisify(execFile);
 const REVIEW_PORT = 8795;
@@ -215,6 +216,8 @@ async function main() {
   try {
     let dashes = [{ id: 'main', name: 'GardenOS' }];
     try { dashes = JSON.parse(readFileSync(join(paths.PUBLIC, 'dashboards.json'), 'utf8')).dashboards || dashes; } catch { /* main only */ }
+    // the clock's three-word poem for the day (src/poem.mjs; never blocks the tending)
+    await tendPoem(log).catch((e) => log(`poem: ${e.message || e}`));
     const pending = getPendingFeedback();
     // main is always tended (self-directed when it has no notes); other dashboards
     // only when someone planted a seed there. One independent agent run each.

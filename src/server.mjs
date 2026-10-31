@@ -17,6 +17,7 @@ import {
 import { recover } from './recover.mjs';
 import { travelFor } from './travel.mjs';
 import { namesFor, dailyNames, dailyIsStale } from './eventnames.mjs';
+import { tendPoem, currentPoem } from './poem.mjs';
 import { eventImage } from './eventimages.mjs';
 import { extractReadable, readerResolve } from './reader.mjs';
 import { changelogPhrase } from './changelog.mjs';
@@ -774,6 +775,11 @@ const server = http.createServer(async (req, res) => {
     // Basemap tiles for the wall's static maps (public/lib/staticmap.js): Esri's keyless
     // Dark Gray Canvas (base + a separate labels layer; attribution drawn on the map),
     // fetched once and cached on disk forever. (CARTO's tiles now watermark without a key.)
+    // The clock's three-word garden poem (src/poem.mjs — a new one each day).
+    if (req.method === 'GET' && p === '/api/poem') {
+      const cur = await currentPoem().catch(() => null);
+      return json(res, 200, cur ? { text: cur.text, at: cur.at } : { text: null });
+    }
     // Out in SF: plain short names for event titles (src/eventnames.mjs — Claude Haiku, daily).
     if (req.method === 'POST' && p === '/api/event-names') {
       let titles; try { titles = JSON.parse(await readBody(req, 256 * 1024)).titles; } catch { return json(res, 400, { error: 'bad json' }); }
@@ -931,6 +937,8 @@ setTimeout(kickFractal, 5000);
 // Out in SF short names: a daily pass over the listings (named once per title, cached).
 const kickNames = () => dailyIsStale().then((stale) => stale && dailyNames(log)).catch((e) => log(`event names: ${e.message}`));
 if (process.env.GARDENER_FRACTAL !== '0') { setTimeout(kickNames, 60 * 1000); setInterval(kickNames, 60 * 60 * 1000); }
+// the clock's daily poem: the tending writes it; this is the fallback (every 15 min)
+if (process.env.GARDENER_FRACTAL !== '0') { const kp = () => tendPoem(log, { fallback: true }); setTimeout(kp, 5 * 1000); setInterval(kp, 15 * 60 * 1000); }
 setInterval(kickFractal, 5 * 60 * 1000);
 
 server.listen(config.port, config.host, () => {

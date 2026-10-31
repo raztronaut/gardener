@@ -58,6 +58,9 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **The Clock's top line is the day's three-word garden poem** (2026-10-30), not a greeting:
+  written once a day by the tending run (src/poem.mjs, the last 100 poems in its prompt so it
+  never repeats), served by GET /api/poem. Keep it; the greeting is only its fallback.
 - **Calm tiles, rich fullscreen (2026-10-30, the humans pruning "a bunch of BS agents keep
   adding"):** the wall tile is a GLANCE — prune it to the one or two things that matter (e.g.
   Weather: now, the next sun event, the next hours; Clock: the time and date). Every extra line

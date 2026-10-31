@@ -309,6 +309,11 @@ export default {
     // time text every second pegs this Jetson's software renderer. The 10s tick is
     // cheap (string compare, no repaint) and flips the minute within ~10s of :00.
     let lastT = '', lastD = '', lastG = '', lastS = '', lastY = '';
+    // The day's three-word garden poem (src/poem.mjs, written by the daily tending)
+    // takes the greeting's place (humans, 2026-10-30); the greeting is only the fallback.
+    let poem = null;
+    const loadPoem = () => fetch('/api/poem', { cache: 'no-store' }).then((r) => r.json())
+      .then((p) => { const t = p && typeof p.text === 'string' ? p.text.trim() : ''; if (t && t !== poem) { poem = t; tick(); } }).catch(() => {});
     let holiday = null, lastHolDay = '';
     const fmtHolDay = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short' });
     const fmtHolFull = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
@@ -346,8 +351,8 @@ export default {
       const hKey = `${yy}-${mm}-${dd}`;
       if (hKey !== lastHolDay) { lastHolDay = hKey; try { holiday = nextHoliday(yy, mm, dd); } catch { holiday = null; } paintHoliday(); }
       // On a festive day the greeting turns ("Happy Halloween") through waking hours.
-      const g = holiday && holiday.days === 0 && holiday.greet && h >= 5 && h < 22
-        ? holiday.greet : greetingFor(h, fmtWeekday.format(now));
+      const g = poem || (holiday && holiday.days === 0 && holiday.greet && h >= 5 && h < 22
+        ? holiday.greet : greetingFor(h, fmtWeekday.format(now)));
       let toplineDirty = false;
       if (g !== lastG) { lastG = g; greet.textContent = g; toplineDirty = true; }
       // Seasonal marker — recomputed from the tz-local date; only repaints when the
@@ -470,5 +475,6 @@ export default {
       }
     };
     ctx.interval(tick, 10000);
+    ctx.interval(loadPoem, 15 * 60 * 1000);
   },
 };

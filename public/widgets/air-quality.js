@@ -245,7 +245,7 @@ export default {
           },
             showLead ? h('span', { class: 'lead' }, `${lead.label} lead`) : null,
             h('span', { class: 'val' }, pm == null ? 'PM2.5 —' : `PM2.5 ${pm.toFixed(1)}`));
-        if (trend) {
+        if (trend && trend.label !== 'steady') { // only when the air is changing ("steady" removed 2026-10-30)
           side.appendChild(h('div', {
             class: 'trend',
             title: `Air quality ${trend.label} over the next 6 hours`,
