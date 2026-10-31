@@ -359,6 +359,7 @@ const STYLE = `
   .gd-mlines .trk { position:relative; }
   .gd-mlines .ml { position:absolute; top:0; bottom:0; border-left:1px dashed rgba(140,240,195,.22); }
   .gd-axis { height:44px; flex:0 0 auto; }
+  .gd > .gd-chart > .gd-axis { margin-bottom:12px; } /* tile: room between the month axis and the plant bars */
   .gd-axis .wk { position:absolute; bottom:0; width:1px; height:3px; background:var(--stroke-strong); }
   .gd-axis .cm { position:absolute; bottom:0; width:2px; height:6px; margin-left:-1px; border-radius:1px; }
   .gd-axis .cm.w { background:#5fb6ff; }
@@ -555,20 +556,14 @@ function tileNext(due, next) {
 
 function build(h, body, tz, log = LOG) {
   const day = todayIndex(tz);
-  const { due } = agenda(day, log);
-  // The one question the tile must answer at a glance: anything to do today?
-  const today = due.length
-    ? h('div', { class: 'gd-today due', title: due.map((e) => e.tip).join('\n') }, icon(due[0].ic),
-      h('span', {}, due.length > 1 ? `Today: ${due[0].label} +${due.length - 1}` : `Today: ${due[0].label}`))
-    : h('div', { class: 'gd-today' }, icon('check'), h('span', {}, 'Nothing today'));
+  // (the "Today: Check water +2" line was removed 2026-10-30 — the humans found it
+  // pointless on the tile; the day's steps live in the full view)
   body.replaceChildren(h('div', { class: 'gd' },
     h('div', { class: 'gd-top' },
       h('div', { class: 'gd-day' }, `Day ${Math.max(0, day)}`),
-      h('div', { class: 'gd-st' }, gardenStage(day)),
-      today),
+      h('div', { class: 'gd-st' }, gardenStage(day))),
     // (the tile's "coming up" rows — Tank refresh / Check roots weeks ahead — were removed
-    // 2026-10-30: a step shows on the tile only on its day, as "Today: …"; the full
-    // view keeps the whole agenda)
+    // 2026-10-30 too; the full view keeps the whole agenda)
     chart(h, day, false, log)));
 }
 
