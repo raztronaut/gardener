@@ -1476,21 +1476,28 @@ const COMMANDS = [
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
 ];
 
-// Two boxes, bottom-aligned above the note bar, row for row: the commands on baked
-// liquid glass (cropped to their own width), and beside them a black box with the
-// explanations in a contrasting colour (humans, 2026-10-30).
-let palEl = null, palMatches = [], palSel = 0, palCmds = null, palDescs = null;
+// Left-aligned above the note bar, as wide as the commands (humans, 2026-10-30): the
+// command list on baked liquid glass, and under it a glass bar of the same width with
+// the selected command's explanation in bright, contrasting words.
+let palEl = null, palMatches = [], palSel = 0, palCmds = null, palDesc = null;
 const PAL_VEIL = 0.58; // darker than a panel's glass: the wall behind is busy, rows must read
 function ensurePalette() {
   if (palEl) return palEl;
   palCmds = h('div', { class: 'cp-list' });
-  palDescs = h('div', { class: 'cp-list' });
+  palDesc = h('div', { class: 'cp-desc' });
   palEl = h('div', { id: 'cmdpal', hidden: true },
-    h('div', { class: 'cp-cmds' }, palCmds), h('div', { class: 'cp-descs' }, palDescs));
+    h('div', { class: 'cp-cmds cp-glass' }, palCmds), h('div', { class: 'cp-explain cp-glass' }, palDesc));
   (document.getElementById('zoomroot') || document.body).appendChild(palEl); // scales with the page
   return palEl;
 }
-// glass for the commands box at its current size: cached per size + wall snapshot
+// the explanation bar follows the selection (arrows, the pad, or the pointer)
+function setPalSel(i) {
+  palSel = i;
+  [...palCmds.children].forEach((r, k) => r.classList.toggle('sel', k === i));
+  const m = palMatches[i];
+  palDesc.textContent = m ? (m.opt ? m.opt.desc : m.c.desc) : '';
+}
+// glass for both boxes at their current size: cached per size + wall snapshot
 // (glassbake's panel cache); every palette size seen is pre-baked again after each
 // new snapshot, so it is normally ready before the palette opens
 let palGlassT = 0;
@@ -1498,17 +1505,19 @@ const PAL_SIZES_KEY = 'garden.palRects';
 function palRects() { try { return JSON.parse(localStorage.getItem(PAL_SIZES_KEY) || '[]'); } catch { return []; } }
 function palGlass() {
   if (!GB || SCREENSHOT) return;
-  const box = palEl && palEl.querySelector('.cp-cmds'); if (!box) return;
-  GB.glassLayers(box);
+  const boxes = palEl ? [...palEl.querySelectorAll('.cp-glass')] : []; if (!boxes.length) return;
+  boxes.forEach((b) => GB.glassLayers(b));
   clearTimeout(palGlassT);
   palGlassT = setTimeout(() => {
     if (!paletteOpen()) return;
-    const r = box.getBoundingClientRect(), rr = { left: r.left, top: r.top, width: r.width, height: r.height };
-    GB.bakePanel(box, { veil: PAL_VEIL }).then((ok) => { box.classList.toggle('nosnap', !ok); }, () => box.classList.add('nosnap'));
-    try { // remember this size for the next pre-bake (most recent first, up to 12)
-      const list = palRects().filter((x) => Math.round(x.width) !== Math.round(rr.width) || Math.round(x.height) !== Math.round(rr.height) || Math.round(x.top) !== Math.round(rr.top));
-      localStorage.setItem(PAL_SIZES_KEY, JSON.stringify([rr, ...list].slice(0, 12)));
-    } catch { /* ignore */ }
+    for (const box of boxes) {
+      const r = box.getBoundingClientRect(), rr = { left: r.left, top: r.top, width: r.width, height: r.height };
+      GB.bakePanel(box, { veil: PAL_VEIL }).then((ok) => { box.classList.toggle('nosnap', !ok); }, () => box.classList.add('nosnap'));
+      try { // remember this size for the next pre-bake (most recent first, up to 16)
+        const list = palRects().filter((x) => Math.round(x.width) !== Math.round(rr.width) || Math.round(x.height) !== Math.round(rr.height) || Math.round(x.top) !== Math.round(rr.top) || Math.round(x.left) !== Math.round(rr.left));
+        localStorage.setItem(PAL_SIZES_KEY, JSON.stringify([rr, ...list].slice(0, 16)));
+      } catch { /* ignore */ }
+    }
   }, 40);
 }
 function hidePalette() { if (palEl) { palEl.hidden = true; palEl._n = 0; } palMatches = []; palSel = 0; }
@@ -1531,14 +1540,15 @@ function updatePalette(input) {
   palSel = Math.min(palSel, palMatches.length - 1);
   const el = ensurePalette();
   const row = (i, opt, ...kids) => h('div', {
-    class: 'cp-row' + (i === palSel ? ' sel' : '') + (opt && opt.on ? ' on' : ''),
+    class: 'cp-row' + (opt && opt.on ? ' on' : ''),
     onmousedown: (ev) => { ev.preventDefault(); runPaletteCmd(input, palMatches[i]); }, // mousedown: beat the blur
+    onmouseenter: () => { if (!document.body.classList.contains('idle')) setPalSel(i); },
   }, ...kids);
   palCmds.replaceChildren(...palMatches.map(({ c, opt }, i) => row(i, opt,
     h('span', { class: 'cp-ic' }, opt ? opt.icon : c.icon),
     h('code', { class: 'cp-cmd' }, '/' + c.cmd + (opt && opt.arg ? ' ' + opt.arg : '')),
     !opt && c.aliases.length ? h('span', { class: 'cp-alias' }, c.aliases.map((a) => '/' + a).join(' ')) : null)));
-  palDescs.replaceChildren(...palMatches.map(({ c, opt }, i) => row(i, opt, h('span', { class: 'cp-desc' }, opt ? opt.desc : c.desc))));
+  setPalSel(palSel);
   const wasHidden = el.hidden;
   el.hidden = false;
   if (wasHidden || el._n !== palMatches.length) palGlass(); // a new size → its glass

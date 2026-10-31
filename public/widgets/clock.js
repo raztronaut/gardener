@@ -309,7 +309,7 @@ export default {
     // time text every second pegs this Jetson's software renderer. The 10s tick is
     // cheap (string compare, no repaint) and flips the minute within ~10s of :00.
     let lastT = '', lastD = '', lastG = '', lastS = '', lastY = '';
-    // The day's three-word garden poem (src/poem.mjs, written by the daily tending)
+    // The day's two-word garden poem (src/poem.mjs, written by the daily tending)
     // takes the greeting's place (humans, 2026-10-30); the greeting is only the fallback.
     let poem = null;
     const loadPoem = () => fetch('/api/poem', { cache: 'no-store' }).then((r) => r.json())

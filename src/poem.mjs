@@ -1,4 +1,4 @@
-// The Gardener™ — the clock's three-word garden poem (it replaced "Good night" /
+// The Gardener™ — the clock's two-word garden poem (three words until 2026-10-30) (it replaced "Good night" /
 // "Good morning", humans 2026-10-30). One a DAY, written by the daily tending
 // (iterate.mjs → tendPoem) for that day (season, the date); the server writes it as a
 // fallback when the tending didn't (from 07:00). The last 100 poems go into the prompt
@@ -27,9 +27,9 @@ async function save() {
   await fs.rename(FILE + '.tmp', FILE);
 }
 
-const SYSTEM = `You write three-word poems for a garden dashboard on a wall in a San Francisco home. One poem a day appears above the clock, in place of "Good morning".
+const SYSTEM = `You write two-word poems for a garden dashboard on a wall in a San Francisco home. One poem a day appears above the clock, in place of "Good morning".
 Rules:
-- Exactly three words, written as one sentence: the first word capitalized, ending with a period. E.g. "Slugs unionize overnight." No title, quotation marks, emojis or hashtags.
+- Exactly two words, written as one sentence: the first word capitalized, ending with a period. No title, quotation marks, emojis or hashtags.
 - It must be FUNNY — a real laugh or at least a grin: wit, absurdity, deadpan, a pun, a garden creature or plant with an attitude. Clever, never mean or crude.
 - About gardens, plants, soil, weather, seasons, bugs and small creatures — the living garden.
 - Fit the day you are given (the season, the month, a holiday near it) without naming the date.
@@ -57,7 +57,7 @@ async function write(now = new Date()) {
   let text = String(res.parsed_output.poem).replace(/["“”#]/g, '').replace(/\s+/g, ' ').trim();
   text = text.charAt(0).toUpperCase() + text.slice(1);        // capitalized…
   text = text.replace(/[.!?…,;:]*$/, '') + '.';                // …and ending with a period
-  if (words(text).length !== 3 || text.length > 42) throw new Error(`not three words: ${text}`);
+  if (words(text).length !== 2 || text.length > 32) throw new Error(`not two words: ${text}`);
   if (recent.some((p) => p.toLowerCase() === text.toLowerCase())) throw new Error(`repeat: ${text}`);
   s.poems.push({ text, at: now.getTime() });
   s.poems = s.poems.slice(-LAST_P);
