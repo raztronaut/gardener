@@ -554,21 +554,20 @@ function tileNext(due, next) {
 
 function build(h, body, tz, log = LOG) {
   const day = todayIndex(tz);
-  const { due, next } = agenda(day, log);
+  const { due } = agenda(day, log);
   // The one question the tile must answer at a glance: anything to do today?
   const today = due.length
     ? h('div', { class: 'gd-today due', title: due.map((e) => e.tip).join('\n') }, icon(due[0].ic),
       h('span', {}, due.length > 1 ? `Today: ${due[0].label} +${due.length - 1}` : `Today: ${due[0].label}`))
     : h('div', { class: 'gd-today' }, icon('check'), h('span', {}, 'Nothing today'));
-  const line = (e) => h('div', { class: `gd-ag ${e.k}`, title: e.tip },
-    icon(e.ic), h('span', { class: 'lb' }, e.label), h('span', { class: 'wh' }, e.what || ''),
-    h('span', { class: 'dt' }, fmtDay(e.d)), h('span', { class: 'in' }, `${e.d - day}d`));
   body.replaceChildren(h('div', { class: 'gd' },
     h('div', { class: 'gd-top' },
       h('div', { class: 'gd-day' }, `Day ${Math.max(0, day)}`),
       h('div', { class: 'gd-st' }, gardenStage(day)),
       today),
-    h('div', { class: 'gd-agenda' }, ...tileNext(due, next).map(line)),
+    // (the tile's "coming up" rows — Tank refresh / Check roots weeks ahead — were removed
+    // 2026-10-30: a step shows on the tile only on its day, as "Today: …"; the full
+    // view keeps the whole agenda)
     chart(h, day, false, log)));
 }
 
