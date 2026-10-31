@@ -18,6 +18,24 @@ function dayOfYear(d = new Date()) {
 // The day's pick from a list (exported for smoke: deterministic per day).
 export const pickByDay = (arr, d = new Date()) => arr[dayOfYear(d) % arr.length];
 
+// One-day picks the humans asked for, by local date (YYYY-MM-DD); they replace that
+// day's pick only. Public domain, verified against the museum API.
+const SPECIAL_DAYS = {
+  // Halloween 2026: "something pumpkin and Halloween related but nice gardening still"
+  '2026-10-31': {
+    id: 'aic-49071', source: 'aic', objectId: 49071,
+    title: 'The Acorn and the Pumpkin', artist: 'Jules Bastien-Lepage', date: '1881',
+    medium: 'Watercolor on ivory wove card', museum: 'Art Institute of Chicago', museumShort: 'Art Institute',
+    url: 'https://www.artic.edu/artworks/49071',
+    img: 'https://www.artic.edu/iiif/2/83b5ccc5-9c14-e535-a4af-ebec7cc855ac/full/400,/0/default.jpg',
+    full: 'https://www.artic.edu/iiif/2/83b5ccc5-9c14-e535-a4af-ebec7cc855ac/full/843,/0/default.jpg',
+    w: 688, h: 768,
+    note: 'A gardener and a giant pumpkin, in autumn.',
+    blurb: 'A gardener in a blue smock pauses on an autumn path to study the huge pumpkin in his wheelbarrow — Bastien-Lepage\'s illustration of La Fontaine\'s fable of the acorn and the pumpkin, in which a man wonders why great oaks bear tiny acorns while pumpkins grow on slender vines.',
+  },
+};
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 export default {
   id: 'daily',
   title: 'Painting of the Day',
@@ -154,7 +172,7 @@ export default {
       if (list.length) paintings = list;
       return paintings;
     };
-    const today = () => loadPaintings().then((l) => l && showPainting(pickByDay(l))).catch(() => {});
+    const today = () => loadPaintings().then((l) => l && showPainting(SPECIAL_DAYS[localDay()] || pickByDay(l))).catch(() => {});
     today();
     // roll over at midnight (cheap: a no-op until the day's pick changes)
     ctx.interval(today, 10 * 60 * 1000);
