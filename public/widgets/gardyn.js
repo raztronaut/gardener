@@ -322,6 +322,7 @@ const MONTHS = (() => {
 const STYLE = `
   .gd { display:flex; flex-direction:column; height:100%; min-height:0; gap:7px; }
   .gd-top { flex:0 0 auto; display:flex; align-items:baseline; gap:12px; }
+  .gd > .gd-top { margin-bottom:18px; } /* room between the header and the chart's month axis */
   .gd-day { font-family:var(--font-display); font-size:27px; line-height:1; color:var(--ink); }
   .gd-st { font-family:var(--font-display); font-size:27px; line-height:1; color:var(--mint); }
   /* today's answer, top-right: quiet when nothing's due, gold when something is */

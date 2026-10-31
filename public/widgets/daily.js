@@ -62,12 +62,14 @@ export default {
          focal point) and one quiet caption line under it. Full size from the first
          paint; the picture fades in only once decoded (no loading text). */
       .dly-tile { display:flex; flex-direction:column; gap:10px; height:100%; min-height:0; }
-      .dly-tile .dly-pimg { flex:1 1 auto; min-height:0; }
+      .dly-tile .dly-pimg { flex:1 1 0; min-height:0; }
       /* the whole painting, never cropped: fitted into the frame (contain), centred,
          the rounding and hairline on the picture itself; the frame stays invisible */
-      .dly-tile .dly-pimg { display:flex; align-items:center; justify-content:center; background:none; border-radius:0; overflow:visible; }
+      /* (the picture is absolutely placed, so a tall portrait never stretches the tile's
+         grid row — it fits the space the layout gives it) */
+      .dly-tile .dly-pimg { position:relative; background:none; border-radius:0; overflow:visible; }
       .dly-tile .dly-pimg::after { display:none; }
-      .dly-tile .dly-pic { position:static; width:auto; height:auto; max-width:100%; max-height:100%;
+      .dly-tile .dly-pic { position:absolute; inset:0; margin:auto; width:auto; height:auto; max-width:100%; max-height:100%;
         object-fit:contain; border-radius:10px; box-shadow:0 0 0 1px var(--stroke), 0 10px 26px rgba(0,0,0,.35); }
       .dly-pimg { position:relative; border-radius:14px; overflow:hidden; background:rgba(255,255,255,.035); }
       .dly-pimg::after { content:''; position:absolute; inset:0; border-radius:inherit;

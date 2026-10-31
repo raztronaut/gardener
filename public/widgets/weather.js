@@ -301,7 +301,8 @@ export default {
       /* 5 · hourly bars — the temperature sits on top of each bar */
       .wx-hours { margin-top:auto; }
       .wx.tile .wx-hours { flex:1; display:flex; flex-direction:column; margin-top:18px; min-height:0; }
-      .wx.tile .wx-bars { flex:1; height:auto; min-height:120px; }
+      .wx.tile .wx-bars { flex:1; height:auto; min-height:120px; max-height:190px; }
+      .wx.tile .wx-hours { justify-content:flex-end; }
       .wx-bars { display:flex; align-items:flex-end; height:var(--wxbar, 118px); margin-top:4px; }
       .wx-bars .col { flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; }
       .wx-bars .tt { font-family:var(--font-display); font-size:19px; color:var(--ink); line-height:1; }
