@@ -10,7 +10,9 @@
 //   uiSound('select')   the controller's A: a brighter two-tone press
 //   uiSound('wake')     the wall wakes from night: a warm swell + a rising chime
 let ctx = null, master = null, noise = null, last = 0;
-const VOL = 0.55;
+const VOL = 1.0;
+const BOOST = 2.5; // every tone ×2.5 (humans: "much louder", 2026-10-30), capped below clipping
+const pk = (v) => Math.min(0.6, v * BOOST);
 
 function ready() {
   if (!ctx) {
@@ -29,7 +31,7 @@ function blip(t, freq, dur, peak, type = 'sine') {
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, t);
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(peak, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(pk(peak), t + 0.004);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(master); o.start(t); o.stop(t + dur + 0.02);
 }
@@ -37,7 +39,7 @@ function blip(t, freq, dur, peak, type = 'sine') {
 function click(t, centre, dur, peak) {
   const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   s.buffer = noise; f.type = 'bandpass'; f.frequency.value = centre; f.Q.value = 1.4;
-  g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  g.gain.setValueAtTime(pk(peak), t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   s.connect(f).connect(g).connect(master); s.start(t); s.stop(t + dur + 0.01);
 }
 
@@ -45,7 +47,7 @@ function click(t, centre, dur, peak) {
 function wake(t) {
   const pad = ctx.createGain(), lp = ctx.createBiquadFilter();
   lp.type = 'lowpass'; lp.frequency.setValueAtTime(400, t); lp.frequency.linearRampToValueAtTime(1800, t + 1.6);
-  pad.gain.setValueAtTime(0.0001, t); pad.gain.exponentialRampToValueAtTime(0.05, t + 1.2); pad.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+  pad.gain.setValueAtTime(0.0001, t); pad.gain.exponentialRampToValueAtTime(pk(0.05), t + 1.2); pad.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
   pad.connect(lp).connect(master);
   for (const [f, d] of [[261.63, -6], [261.63, 6], [392, 0], [523.25, 3]]) {
     const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = f; o.detune.value = d;
