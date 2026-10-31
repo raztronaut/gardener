@@ -28,12 +28,10 @@ const KEEP_MS = 45 * 24 * 3600 * 1000;   // re-read a page's picture after this 
 const CAP_BYTES = 40 * 1024 * 1024;      // data/event-images/ size cap
 const MAX_PAGE = 3 * 1024 * 1024, MAX_IMG = 8 * 1024 * 1024;
 
-let cache = null, saveT = null;
-async function load() {
-  if (cache) return cache;
-  try { cache = JSON.parse(await fs.readFile(FILE, 'utf8')); } catch { cache = {}; }
-  cache.pages ||= {};
-  return cache;
+let cache = null, loading = null, saveT = null;
+function load() { // one read, shared by every early caller (no lost entries)
+  loading ||= fs.readFile(FILE, 'utf8').then(JSON.parse).catch(() => ({})).then((c) => { c.pages ||= {}; return (cache = c); });
+  return loading;
 }
 const save = () => {
   clearTimeout(saveT);

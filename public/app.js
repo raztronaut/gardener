@@ -958,7 +958,7 @@ function renderEvents(evs) {
       h('div', { class: 'cl-main' },
         h('div', { class: 'cl-phrase' }, t ? h('span', { class: 'ev-no' }, String(pinNo.get(e))) : null, `${e.emoji ? e.emoji + ' ' : ''}${shortFor(e)}`),
         // recurring listings (lib/events.js recurrence) wear a small quiet tag
-        e.place || e.recur ? h('div', { class: 'cl-meta' }, e.place ? `📍 ${e.place}` : null,
+        e.place || e.recur ? h('div', { class: 'cl-meta' }, e.place ? h('span', {}, `📍 ${e.place}`) : null,
           e.recur ? h('span', { class: 'ev-rec' }, e.recur.label) : null) : null),
       drive);
   });

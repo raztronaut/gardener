@@ -49,7 +49,7 @@ export default {
       /* Agenda rows — the readable day view: a fixed time column, then the full
          event name over up to two lines with its venue beneath. */
       .won-ag { flex:0 0 auto; display:grid; grid-template-columns:60px 62px 1fr; column-gap:12px; min-width:0;
-        align-items:start; padding-bottom:var(--sp); border-bottom:1px solid var(--stroke); }
+        align-items:center; padding-bottom:var(--sp); border-bottom:1px solid var(--stroke); }
       /* The picture box: always reserved (same size with or without a picture), a
          quiet tint when empty; the picture only fades in once decoded. */
       .won-ag .th { width:60px; height:40px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,.045); }
