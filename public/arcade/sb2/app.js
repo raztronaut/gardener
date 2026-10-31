@@ -40,7 +40,9 @@ const SETTINGS_KEY = 'garden.sb2.menu';
 // settings saved before it get ★ once)
 // skin: 'garden' (the Garden Edition, public/arcade/sb2/garden/: original art over the same
 // game) or 'classic' (the original's pictures); the stage select's skin row switches it
-const DEFAULTS = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall', skin: 'garden', v: 2 };
+// pacing: 'smooth' (default: the lag model only sets a slowly moving tick rate, skipped
+// frames spread evenly) or 'faithful' (the original's lag frames as they fall, in clumps)
+const DEFAULTS = { players: ['human', 'cpu', 'cpu', 'cpu'], level: 10, wins: 3, time: 2, gbomber: true, stage: 1, layout: 'tall', skin: 'garden', pacing: 'smooth', v: 2 };
 
 let packPromise = null, menuPromise = null, skinPromise = null, gardenPack = null;
 const displays = new Map();    // layout:skin -> { d, img }: kept for the page's life (see startMatch)
@@ -203,12 +205,22 @@ export async function bootSB2(host, { onExit } = {}) {
   let disp = null, img = null, paused = false, ended = false;
   let raf = 0, last = 0;
   const perf = { ticks: 0, tickMs: 0, drawMs: 0, frames: 0, worst: 0, lagFrames: 0 };
+  // frame-time histories for QA (ring buffers, no allocation): rAF deltas, intervals between
+  // pictures (a held picture = a visible hitch), JS work per display frame
+  const HN = 16384;
+  const hist = { raf: new Float32Array(HN), gap: new Float32Array(HN), work: new Float32Array(HN), nRaf: 0, nGap: 0, nWork: 0, lastDraw: 0 };
+  perf.hist = hist;
+  perf.resetHist = () => { hist.nRaf = hist.nGap = hist.nWork = 0; hist.lastDraw = 0; };
+  // smooth pacing: frames per tick of the lag model, averaged over ~2 s of ticks
+  const EMA = 1 / 120, RATE_MIN = 50 / 60.0988, RATE_MAX = 1;
+  let fpt = 1, tacc = 0;
   const pacer = createPacer({ rom8: pack.rom8 });
   let lagLeft = 0, pendingDraw = false;      // lag frames still to wait out; picture held
   let roundNo = 1, champion = null, bonus = 0;
   const pads = [0, null, null, null];        // P1 = the pad; the others have no controller
 
   function startMatch() {
+    const T = [performance.now()];
     roundNo = 1;
     const layout = set.layout === 'tall' ? 'tall' : 'original', stage = set.stage;
     game = createGame({
@@ -219,28 +231,68 @@ export async function bootSB2(host, { onExit } = {}) {
     });
     // P1's pad; a second MAN (2P) has no controller on the wall: it stands still
     for (let i = 0; i < 4; i++) pads[i] = i === 0 && set.players[0] === 'human' ? 0 : null;
+    T.push(performance.now());
     // one display per layout for the session: no per-match allocation, and the JIT keeps
     // its optimised render path (a fresh display per match measured 2.5x slower)
-    let dv = displays.get(layout + ':' + set.skin);
-    if (!dv) {
-      const d = createDisplay(packs[set.skin], { layout, stage, classic: true });   // classic bomb / fire colours
-      dv = { d, img: new ImageData(new Uint8ClampedArray(d.out.buffer), 256, d.H) };
-      displays.set(layout + ':' + set.skin, dv);
-    }
+    const dv = displayFor(layout, set.skin);
     disp = dv.d; img = dv.img;
     canvas.width = 256; canvas.height = disp.H;
+    T.push(performance.now());
     disp.beginRound(game);
-    pacer.reset(); lagLeft = 0; pendingDraw = false;
+    T.push(performance.now());
+    pacer.reset(); lagLeft = 0; pendingDraw = false; fpt = 1; tacc = 0; hist.lastDraw = 0;
     drawFrame();
+    T.push(performance.now());
     paused = false; pauseEl.classList.remove('on');
     ended = false;
     held = 0; latched = 0;
     onPress = matchPress;
     audio.wake();
     audio.playMusic('battle_stage' + String(stage).padStart(2, '0'));
+    T.push(performance.now());
     stopLoop();
     show(match);
     startLoop();
+    T.push(performance.now());
+    perf.start = T.slice(1).map((t, i) => +(t - T[i]).toFixed(1));   // game, display, round, draw, music, show
+  }
+  function displayFor(layout, skin) {
+    let dv = displays.get(layout + ':' + skin);
+    if (!dv) {
+      const d = createDisplay(packs[skin], { layout, stage: set.stage, classic: true });   // classic bomb / fire colours
+      dv = { d, img: new ImageData(new Uint8ClampedArray(d.out.buffer), 256, d.H) };
+      displays.set(layout + ':' + skin, dv);
+    }
+    return dv;
+  }
+  // build the gardens' cell art in idle time while the menus run (the chosen stage first),
+  // so a match never starts with that work
+  // Then a throwaway game plays a few ticks on that display and is drawn once: the first
+  // match then starts with the core, the AI and the renderer already compiled (cold, the
+  // first match's start measured ~60 ms in one display frame: createGame 21 + first draw 37)
+  function warmArt() {
+    const layout = set.layout === 'tall' ? 'tall' : 'original';
+    const d = displayFor(layout, set.skin).d;
+    const todo = [set.stage, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let g = null, phase = 0;
+    const idle = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 8 }), 60));
+    const step = (dl) => {
+      if (stopped || screen === match || game) return;
+      while (todo.length && dl.timeRemaining() > 4) d.prepare(todo.shift());
+      if (!todo.length && dl.timeRemaining() > 8) {
+        if (phase === 0) {
+          g = createGame({ stage: set.stage, layout, seed: 1,
+            players: set.players.map((t) => (t === 'off' ? { type: 'off' } : { type: 'cpu', level: set.level })),
+            rules: { wins: 3, time: set.time, gbomber: false, comLevel: set.level } });
+          d.beginRound(g);
+        } else if (phase <= 6) {
+          for (let i = 0; i < 10; i++) { g.tick([0, 0, 0, 0]); d.frame(g, g.events); }
+        } else d.render();
+        phase++;
+      }
+      if (todo.length || phase <= 7) idle(step, { timeout: 2000 });
+    };
+    idle(step, { timeout: 2000 });
   }
   function matchPress(bit) {
     if (bit === BT.START && !(held & BT.SELECT)) { paused = !paused; pauseEl.classList.toggle('on', paused); if (paused) audio.suspend(); else audio.wake(); }
@@ -257,7 +309,9 @@ export async function bootSB2(host, { onExit } = {}) {
     game.tick(pads);
     const ev = game.events;
     disp.frame(game, ev);
-    lagLeft = pacer.after(game, disp) - 1;   // the original's frames for this tick
+    const n = pacer.after(game, disp);        // the original's frames for this tick
+    if (set.pacing === 'faithful') lagLeft = n - 1;
+    else fpt += (n - fpt) * EMA;
     audio.events(ev);
     for (const e of ev) if (e.type === 'roundEnd') audio.stopMusic(0.6);
     perf.ticks++; perf.tickMs += performance.now() - t0;
@@ -267,8 +321,10 @@ export async function bootSB2(host, { onExit } = {}) {
     const t0 = performance.now();
     disp.render();
     c2d.putImageData(img, 0, 0);
-    const dt = performance.now() - t0;
+    const t1 = performance.now(), dt = t1 - t0;
     perf.frames++; perf.drawMs += dt;
+    if (hist.lastDraw) { hist.gap[hist.nGap % HN] = t0 - hist.lastDraw; hist.nGap++; }
+    hist.lastDraw = t0;
   }
   // One SNES frame per display frame on the 60 Hz wall. sacc counts SNES frames due
   // (60.0988 Hz); a frame the original lost to lag costs no display frame when there is a
@@ -278,6 +334,7 @@ export async function bootSB2(host, { onExit } = {}) {
   function loop(ts) {
     raf = requestAnimationFrame(loop);
     let dt = last ? ts - last : STEP_MS;
+    const rawDt = dt;
     last = ts;
     if (dt > 3 * STEP_MS || dt < 0) dt = STEP_MS;
     if (screen === menuScr) {                // the menus: one menu frame per display frame
@@ -286,7 +343,23 @@ export async function bootSB2(host, { onExit } = {}) {
       if (sacc > 2.5) sacc = 1.5;
       return;
     }
-    if (!game || paused || ended) { if (pendingDraw && game && ended) { pendingDraw = false; drawFrame(); } return; }
+    if (!game || paused || ended) { hist.lastDraw = 0; if (pendingDraw && game && ended) { pendingDraw = false; drawFrame(); } return; }
+    const w0 = performance.now();
+    hist.raf[hist.nRaf % HN] = rawDt; hist.nRaf++;
+    if (set.pacing !== 'faithful') {
+      // smooth: tick at the model's average rate (1 / its frames per tick over ~2 s), at
+      // most one tick per display frame, so a skipped frame is single and evenly spread
+      // (the original's clumps of 2..12 lost frames become a slightly slower pace)
+      const rate = Math.min(RATE_MAX, Math.max(RATE_MIN, 1 / fpt));
+      tacc += (dt / STEP_MS) * rate;
+      if (tacc >= 1) {
+        tacc -= 1;
+        if (tacc > 1) tacc = 0.5;          // (a hiccup never fast-forwards)
+        tick(); drawFrame();
+      } else perf.lagFrames++;
+      hist.work[hist.nWork % HN] = performance.now() - w0; hist.nWork++;
+      return;
+    }
     sacc += dt / STEP_MS;
     let ticked = false;
     while (sacc >= 1) {
@@ -302,6 +375,7 @@ export async function bootSB2(host, { onExit } = {}) {
       else drawFrame();
     }
     if (sacc > 2.5) sacc = 1.5;          // no lag frame to absorb the drift: drop it
+    hist.work[hist.nWork % HN] = performance.now() - w0; hist.nWork++;
   }
   function startLoop() { if (!raf) { last = 0; sacc = 0.5; raf = requestAnimationFrame(loop); } }
   function stopLoop() { if (raf) cancelAnimationFrame(raf); raf = 0; }
@@ -322,7 +396,7 @@ export async function bootSB2(host, { onExit } = {}) {
       if (res.matchOver) { matchOver(res, winner); return; }
       roundNo++;
       disp.beginRound(game);
-      pacer.reset(); lagLeft = 0; pendingDraw = false;
+      pacer.reset(); lagLeft = 0; pendingDraw = false; tacc = 0; hist.lastDraw = 0;
       drawFrame();
       ended = false; held = 0; latched = 0;
       onPress = matchPress;
@@ -378,6 +452,7 @@ export async function bootSB2(host, { onExit } = {}) {
   audio.playMusic('title');
   showMenu('title');
   root.classList.add('ready');
+  warmArt();
   const ctl = {
     raw, stop,
     inGame: () => !stopped,

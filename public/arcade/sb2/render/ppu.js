@@ -181,7 +181,7 @@ export function createPPU(H) {
   // 512 x 512 = the 32 x 32 map), art.mode[key] (key = tile | flips << 10):
   //   1 = the ground only, 2 = picture layers over the ground (a variant per cell by a
   //   stable hash), 3 = the characters over the ground (art.row[key] = their palette row,
-  //   255 = the entry's own; art.mask[key] = pixels that show the ground instead).
+  //   255 = the entry's own; art.maskOf(key) = pixels that show the ground instead).
   let art = null;
   const cellBuf = new Uint8Array(256);
   function setArt(a) { art = a; L[2].force = true; allDirty = true; }
@@ -196,7 +196,7 @@ export function createPPU(H) {
         for (let i = 0; i < 256; i++) if (pic[i]) cellBuf[i] = pic[i];
       }
     } else if (mode === 3) {
-      const m = art.mask[key], rw = art.row[key];
+      const m = art.maskOf(key), rw = art.row[key];
       const pbase = (rw === 255 ? (e >> 10) & 7 : rw) * 16;
       const t = e & 0x3FF, hf = (e >> 14) & 1, vf = (e >> 15) & 1;
       for (let y = 0; y < 16; y++) {

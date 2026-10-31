@@ -410,6 +410,7 @@ export function createDisplay(pack, opts = {}) {
       }
     }
     const mode = new Uint8Array(4096), row = new Uint8Array(4096), layers = [], mask = [];
+    let maskOf = () => null;
     for (const [key, m, rw, ls] of S.cls) {
       mode[key] = m; row[key] = rw;
       if (ls) layers[key] = ls.map(([w, h, salt, ids]) => ({ w, h, salt, n: ids.length / (w * h), pics: ids.map(pic) }));
@@ -439,7 +440,12 @@ export function createDisplay(pack, opts = {}) {
       const floorCols = new Set();
       for (const r of refs) for (const v of r) if (v >= 0 && !fireCols.has(v)) floorCols.add(v);
       const stack = new Int32Array(256);
-      for (const [key, e] of S.masks || []) {
+      const maskEntry = new Map(S.masks || []);
+      // a mask is measured the first time its cell is drawn (a few µs), not up front
+      maskOf = (key) => {
+        if (mask[key] !== undefined) return mask[key];
+        const e = maskEntry.get(key);
+        if (e === undefined) { mask[key] = null; return null; }
         const c = cellCols(e);
         let best = null, bn = -1;
         for (const r of refs) { let k = 0; for (let i = 0; i < 256; i++) if (c[i] === r[i]) k++; if (k > bn) { bn = k; best = r; } }
@@ -453,16 +459,20 @@ export function createDisplay(pack, opts = {}) {
             if ((x === 0 || y === 0 || x === 15 || y === 15) && isFloor(i)) { m[i] = 1; stack[sp++] = i; }
             else if (floorCols.has(c[i])) m[i] = 1;        // a floor-only colour: floor anywhere
           }
+          const visit = (j) => { if (!m[j] && isFloor(j)) { m[j] = 1; stack[sp++] = j; } };
           while (sp) {
             const i = stack[--sp], x = i & 15, y = i >> 4;
-            const nb = [x > 0 ? i - 1 : -1, x < 15 ? i + 1 : -1, y > 0 ? i - 16 : -1, y < 15 ? i + 16 : -1];
-            for (const j of nb) if (j >= 0 && !m[j] && isFloor(j)) { m[j] = 1; stack[sp++] = j; }
+            if (x > 0) visit(i - 1);
+            if (x < 15) visit(i + 1);
+            if (y > 0) visit(i - 16);
+            if (y < 15) visit(i + 16);
           }
         }
         mask[key] = m;
-      }
+        return m;
+      };
     }
-    const a = { under, mode, row, layers, mask, pick: artPick };
+    const a = { under, mode, row, layers, maskOf, pick: artPick };
     artCache.set(n, a);
     return a;
   }
@@ -576,7 +586,9 @@ export function createDisplay(pack, opts = {}) {
     return out;
   }
 
+  // build a stage's cell art ahead of its first round (menus / idle time); cached
+  function prepare(n) { if (SK.art) stageArt(n); }
   // switch the classic colours (the next frame() redraws the arena)
   function setClassic(on) { classic = !!on; }
-  return { ppu, H, W: 256, out, tall, beginRound, frame, render, stats, setClassic };
+  return { ppu, H, W: 256, out, tall, beginRound, frame, render, stats, setClassic, prepare };
 }
