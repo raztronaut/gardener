@@ -22,6 +22,8 @@ const fmtLeft = (ms) => {
 
 const STYLE = `
   .frc { position:relative; width:100%; height:100%; min-height:0; overflow:hidden; }
+  /* The art lives BELOW the corner title (title ≈18px + 16px clear gap) so it never touches it. */
+  .frc .art { position:absolute; left:0; right:0; top:36px; bottom:0; overflow:hidden; }
   .frc img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; display:block;
     opacity:0; transition:opacity .9s ease; }
   .frc img.in { opacity:1; }
@@ -92,7 +94,8 @@ export default {
     const nx = h('div', { class: 'nx' }, '');
     const wait = h('div', { class: 'wait' }, '');
     // Picture only — no caption over the art (name + timing live in the tooltip / fullscreen).
-    const box = h('div', { class: 'frc' }, wait, img, h('div', { class: 'ttl' }, 'Trihourly Fractal'));
+    const art = h('div', { class: 'art' }, wait, img);
+    const box = h('div', { class: 'frc' }, art, h('div', { class: 'ttl' }, 'Trihourly Fractal'));
     body.replaceChildren(box);
     img.addEventListener('load', () => { img.classList.add('in'); wait.remove(); });
     let slot = null, nextAt = 0, gl = null;
@@ -106,7 +109,7 @@ export default {
           slot = meta.slot;
           if (gl) gl.stop();
           img.src = `/api/fractal.png?s=${slot}`;
-          gl = scene ? live(box, img, scene, () => wallCanSee() && !panelOpen()) : null; // the card hides under any panel
+          gl = scene ? live(art, img, scene, () => wallCanSee() && !panelOpen()) : null; // the card hides under any panel
         }
         nm.textContent = meta.name;
         nx.textContent = `new in ${fmtLeft(nextAt - Date.now())}`;

@@ -578,6 +578,7 @@ body.screenshot .osalarm { display: none !important; }
 .cl-phrase { font-size: 17px; line-height: 1.36; color: var(--ink);
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .cl-meta { margin-top: 5px; font-size: 13px; color: var(--ink-faint); }
+.cl-meta.hn-cue { margin-top: 3px; color: var(--gold); }
 .cl-empty { color: var(--ink-faint); font-size: 15px; padding: 12px 0; }
 .help { display: flex; flex-direction: column; gap: 14px; }
 .help-lead { font-size: 16px; line-height: 1.5; color: var(--ink-soft); }

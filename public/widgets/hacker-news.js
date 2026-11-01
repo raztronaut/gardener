@@ -54,7 +54,7 @@ function domainOf(url) {
 // Classify a front-page item into an at-a-glance badge. Ask/Show HN are
 // title-prefixed self-posts; jobs carry an explicit type. Returns null for a
 // plain link story (no badge — the domain already tells that story).
-function badgeOf(item) {
+export function badgeOf(item) {
   if (item.type === 'job') return { label: 'JOB', kind: 'job' };
   const t = item.title || '';
   if (/^ask hn[:\s]/i.test(t)) return { label: 'ASK', kind: 'ask' };
@@ -63,7 +63,7 @@ function badgeOf(item) {
 }
 
 // "3h", "12m", "2d" — compact age from a unix-seconds timestamp.
-function ageOf(unixSecs) {
+export function ageOf(unixSecs) {
   if (!Number.isFinite(unixSecs)) return '';
   const mins = Math.max(0, Math.round((Date.now() / 1000 - unixSecs) / 60));
   if (mins < 60) return `${mins}m`;
@@ -77,7 +77,7 @@ function ageOf(unixSecs) {
 // items (≤12h old) accruing points quickly — the ambient "what's hot this hour"
 // signal a wall feed wants — while ignoring old stories that merely amassed a
 // big total slowly. Returns points-per-hour when rising, else 0.
-function risingRate(item) {
+export function risingRate(item) {
   const t = item.time, score = Number.isFinite(item.score) ? item.score : 0;
   if (!Number.isFinite(t) || score <= 0) return 0;
   const hrs = (Date.now() / 1000 - t) / 3600;
@@ -135,49 +135,19 @@ export default {
         border-bottom:1px solid var(--stroke); }
       /* open card (2026-10-06): no boxed rows — hairline dividers like Out in SF */
       .hn-item:last-child { border-bottom:none; }
-      /* relative-popularity accent — a quiet vertical "equalizer" bar down the left
-         edge whose FILL height (and, via the gradient, its colour) encodes this
-         story's score against today's top story. Adds no vertical height, so it
-         never risks clipping; static, no animation. */
-      /* (2026-10-01: hidden — the humans dislike accent bars on card edges; the ▲ score
-         already carries popularity.) */
-      .hn-track { display:none; position:absolute; left:8px; top:10px; bottom:10px; width:3px;
-        border-radius:2px; background:rgba(255,255,255,.06); overflow:hidden; }
-      .hn-fill { position:absolute; left:0; right:0; bottom:0; border-radius:2px;
-        background:linear-gradient(to top, var(--mint-2), var(--gold)); }
-      /* rank column — the big mint number, with room beneath it for a hushed
-         movement cue so the meta line stays uncrowded. */
+      /* rank column — the big mint number */
       .hn-rank { display:flex; flex-direction:column; align-items:center; gap:3px;
         min-width:28px; margin-top:1px; }
       .hn-rank .n { font-family:var(--font-display); font-size:26px; font-weight:700;
         line-height:1; color:var(--mint); filter:drop-shadow(0 3px 8px rgba(0,0,0,.4)); }
-      /* movement cue — a story CLIMBING the shown front page since the last refresh
-         wears a quiet gold "▲2"; a fresh arrival wears a small mint "new" chip. Held
-         or slipped stories show nothing, so the column stays calm. Tiny + static, so
-         it adds no height worth clipping. */
-      .hn-move { font-family:var(--font-mono); font-size:11.5px; font-weight:700; line-height:1;
-        letter-spacing:.02em; white-space:nowrap; }
-      .hn-move.up { color:var(--gold); }
-      .hn-move.new { color:var(--mint-2); border:1px solid rgba(67,230,198,.4);
-        border-radius:999px; padding:1.5px 4px; letter-spacing:.08em; text-transform:uppercase;
-        font-size:11px; }
       .hn-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
-      .hn-title { font-size:16.5px; line-height:1.18; font-weight:500; letter-spacing:-.005em; color:var(--ink);
+      .hn-title { font-size:18px; line-height:1.2; font-weight:500; letter-spacing:-.005em; color:var(--ink);
         display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
       .hn-meta { display:flex; align-items:center; gap:7px; flex-wrap:nowrap;
         min-width:0; overflow:hidden;
         font-family:var(--font-mono); font-size:13px; color:var(--ink-faint); }
       .hn-meta > * { flex:0 0 auto; }
       .hn-score { color:var(--gold); font-weight:600; }
-      .hn-cmts { color:var(--mint-2); }
-      .hn-age { color:var(--ink-soft); }
-      /* momentum marker — a quiet flame on a story that's climbing fast right
-         now. Static (no animation); the glyph itself carries the meaning. */
-      .hn-fire { color:var(--gold); font-weight:700; letter-spacing:.02em; }
-      /* discussion marker — a quiet speech glyph on a story the front page is
-         actively arguing about (comments rival its upvotes). Mint-2 sets it apart
-         from the gold flame; static, the glyph carries the meaning. */
-      .hn-talk { color:var(--mint-2); font-weight:700; letter-spacing:.02em; }
       .hn-dot { color:var(--ink-faint); opacity:.5; }
       .hn-domain { color:var(--ink-soft); flex:1 1 auto; min-width:0;
         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
@@ -198,12 +168,6 @@ export default {
         color:var(--ink-faint); }
     `);
     body.appendChild(ctx.loading('reading the front page…'));
-
-    // Previous board (story id → shown rank) from the last SUCCESSFUL render, so
-    // each refresh can tell which stories climbed the front page. null until the
-    // first paint, so the opening board shows no movement cues (there's no baseline
-    // to compare against yet — markers only begin from the second refresh on).
-    let prevRanks = null;
 
     // Keep every row whole: while the board's content is taller than the card
     // gives it, drop the lowest story (never below 2). Whole stories beat a
@@ -228,53 +192,26 @@ export default {
       const stories = fetched
         .filter((s) => s && s.title && isClean(s.title))
         .slice(0, COUNT);
-      // The day's busiest score among the shown stories, used to scale each
-      // popularity bar. Floor at 1 so a quiet front page never divides by zero.
-      const topScore = Math.max(1, ...stories.map((s) => (s && Number.isFinite(s.score) ? s.score : 0)));
-      // Board-rank movement vs the previous refresh (see prevRanks). Only computed
-      // once we have a baseline, so the opening board is calm.
-      const prev = prevRanks;
+      // Calm tile (2026-11-01 prune): rank, title and ONE quiet line — the score
+      // and where it's from (or the ASK/SHOW/JOB kind). Comments, age, the 🔥/🗣
+      // cues and rank movement live in the fullscreen front page (app.js).
       const rows = stories
         .map((s, i) => {
           if (!s || !s.title) return null;
           const score = Number.isFinite(s.score) ? s.score : 0;
-          const cmts = Number.isFinite(s.descendants) ? s.descendants : 0;
           const badge = badgeOf(s);
-          const age = ageOf(s.time);
-          const rate = risingRate(s);
-          const debate = debateRate(s);
           const domain = domainOf(s.url);
-          // Fill fraction vs the top story; keep a small floor so even a modest
-          // story shows a visible sliver rather than a bare track.
-          const pct = Math.max(9, Math.round((score / topScore) * 100));
           // Self-posts (Ask/Show HN, and link-less jobs) always resolve to the
           // HN domain — redundant once the badge is shown, so drop it there.
           const showDomain = !(badge && !s.url);
-          // Movement on the shown board since last refresh — risers + fresh arrivals
-          // only (see rankMovement). Skipped entirely on the first paint (no baseline).
-          const move = prev ? rankMovement(prev.get(s.id), i) : null;
           return ctx.h('div', { class: 'hn-item' },
-            ctx.h('div', {
-              class: 'hn-track',
-              title: `${score} points · ${Math.round((score / topScore) * 100)}% of today's top story`,
-            }, ctx.h('div', { class: 'hn-fill', style: { height: `${pct}%` } })),
             ctx.h('div', { class: 'hn-rank' },
-              ctx.h('div', { class: 'n' }, String(i + 1)),
-              move && move.kind === 'up'
-                ? ctx.h('div', { class: 'hn-move up', title: `climbed ${move.delta} spot${move.delta === 1 ? '' : 's'} on the front page` }, `▲${move.delta}`)
-                : move && move.kind === 'new'
-                  ? ctx.h('div', { class: 'hn-move new', title: 'new to the front page' }, 'new')
-                  : null),
+              ctx.h('div', { class: 'n' }, String(i + 1))),
             ctx.h('div', { class: 'hn-body' },
               ctx.h('div', { class: 'hn-title' }, s.title),
               ctx.h('div', { class: 'hn-meta' },
                 ctx.h('span', { class: 'hn-score' }, `▲ ${score}`),
-                ctx.h('span', { class: 'hn-dot' }, '·'),
-                ctx.h('span', { class: 'hn-cmts' }, `💬 ${cmts}`),
-                age ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
-                age ? ctx.h('span', { class: 'hn-age' }, age) : null,
-                rate ? ctx.h('span', { class: 'hn-fire', title: `climbing fast · ~${rate} pts/hr` }, '🔥') : null,
-                debate ? ctx.h('span', { class: 'hn-talk', title: `lively discussion · ${debate} comments vs ${score} points` }, '🗣') : null,
+                badge ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 badge ? ctx.h('span', { class: `hn-badge ${badge.kind}` }, badge.label) : null,
                 showDomain ? ctx.h('span', { class: 'hn-dot' }, '·') : null,
                 showDomain ? ctx.h('span', { class: 'hn-domain' }, domain || 'news.ycombinator.com') : null)));
@@ -287,8 +224,6 @@ export default {
       fitRows(board);
       // Webfonts can land after first paint and re-wrap titles — re-check once.
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitRows(board)).catch(() => {});
-      // Remember this board's ranks so the NEXT refresh can show what climbed.
-      prevRanks = new Map(stories.map((s, i) => [s.id, i]));
     };
 
     // Initial load: a few attempts with short backoff so one slow/aborted response

@@ -106,6 +106,13 @@ async function main() {
       check('HN filter drops profane/offensive titles', leaks.length === 0, `leaked: ${leaks.join(' | ')}`);
       check('HN filter keeps legitimate titles', wrongDrops.length === 0, `over-filtered: ${wrongDrops.join(' | ')}`);
     } catch (e) { bad('HN profanity guard', e.message); }
+    // The fullscreen front page (app.js fetchHN) must run the same guard — it once
+    // listed raw titles with no filter at all.
+    try {
+      const appSrc = readFileSync(join(PUBLIC, 'app.js'), 'utf8');
+      const fn = appSrc.slice(appSrc.indexOf('async function fetchHN'), appSrc.indexOf('function hnRows'));
+      check('HN fullscreen list filters titles with isClean', /lib\s*&&\s*lib\.isClean\(/.test(fn), 'fetchHN lacks isClean filter');
+    } catch (e) { bad('HN fullscreen filter', e.message); }
     // Discussion-pulse marker — the 🗣 cue must fire only for genuinely contested
     // stories (a real crowd talking AND comments rivaling upvotes) and stay quiet
     // on ordinary ones, so the wall isn't peppered with meaningless glyphs.

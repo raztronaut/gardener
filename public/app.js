@@ -1160,32 +1160,54 @@ const CAR_SVG = () => {
 // boot and every 10 min), so the panel opens INSTANTLY with real stories — never a
 // "loading…" message — and swaps in the fresh list in place when it arrives.
 let HN_CACHE = null;
+// The widget module owns the HN helpers (profanity guard, badges, momentum) so the
+// fullscreen front page and the tile agree. Loaded lazily; null if it fails.
+let HN_LIB = null;
+const hnLib = () => (HN_LIB ||= import(`/widgets/hacker-news.js?v=${window.__GARDEN_VERSION}`).catch(() => null));
 async function fetchHN() {
   const fetchJSON = (url) => fetch(`/api/proxy?url=${encodeURIComponent(url)}`, { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-  const ids = (await fetchJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 15);
+  const lib = await hnLib();
+  const ids = (await fetchJSON('https://hacker-news.firebaseio.com/v0/topstories.json')).slice(0, 18);
   const stories = (await Promise.all(ids.map((id) =>
     fetchJSON(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).catch(() => null))))
-    .filter((x) => x && x.title);
-  if (stories.length) HN_CACHE = stories;
-  return HN_CACHE || [];
+    // An unattended wall: drop crude titles here too, exactly as the tile does
+    // (fail closed — if the guard didn't load, show nothing rather than unfiltered).
+    .filter((x) => x && x.title && lib && lib.isClean(x.title))
+    .slice(0, 15);
+  if (stories.length) HN_CACHE = { stories, lib };
+  return HN_CACHE ? HN_CACHE.stories : [];
 }
-function hnRows(stories) {
+// The fullscreen front page (2026-11-01): what the calm tile leaves out — comments,
+// age, the ASK/SHOW/JOB kind, and plain-words cues for a fast climber or a lively
+// thread — one story per row, tap to read.
+function hnRows(stories, lib) {
   const domainOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'news.ycombinator.com'; } };
-  return stories.map((st, i) => h('div', {
-    class: 'cl-row clickable',
-    onclick: () => openReader(st.url || `https://news.ycombinator.com/item?id=${st.id}`, st.title),
-  },
-    h('div', { class: 'cl-id' }, String(i + 1)),
-    h('div', { class: 'cl-main' },
-      h('div', { class: 'cl-phrase' }, st.title),
-      h('div', { class: 'cl-meta' }, `▲ ${st.score || 0} · 💬 ${st.descendants || 0} · ${domainOf(st.url)} · tap to read`))));
+  return stories.map((st, i) => {
+    const badge = lib?.badgeOf?.(st);
+    const age = lib?.ageOf?.(st.time);
+    const rate = lib?.risingRate?.(st) || 0;
+    const debate = lib?.debateRate?.(st) || 0;
+    const bits = [`▲ ${st.score || 0} points`, `💬 ${st.descendants || 0}`];
+    if (age) bits.push(`${age} ago`);
+    bits.push(badge && !st.url ? badge.label.toLowerCase() : domainOf(st.url));
+    const cues = [rate ? `🔥 climbing fast · ~${rate} points an hour` : '', debate ? '🗣 lively discussion' : ''].filter(Boolean);
+    return h('div', {
+      class: 'cl-row clickable',
+      onclick: () => openReader(st.url || `https://news.ycombinator.com/item?id=${st.id}`, st.title),
+    },
+      h('div', { class: 'cl-id' }, String(i + 1)),
+      h('div', { class: 'cl-main' },
+        h('div', { class: 'cl-phrase' }, st.title),
+        h('div', { class: 'cl-meta' }, bits.join(' · ')),
+        cues.length ? h('div', { class: 'cl-meta hn-cue' }, cues.join('   ')) : null));
+  });
 }
 async function showHackerNews() {
-  const list = h('div', { class: 'cl' }, ...(HN_CACHE ? hnRows(HN_CACHE) : []));
+  const list = h('div', { class: 'cl' }, ...(HN_CACHE ? hnRows(HN_CACHE.stories, HN_CACHE.lib) : []));
   openPanel('Hacker News', list);
   try {
     const fresh = await fetchHN();
-    if (list.isConnected && fresh.length) list.replaceChildren(...hnRows(fresh));
+    if (list.isConnected && fresh.length) list.replaceChildren(...hnRows(fresh, HN_CACHE.lib));
   } catch {
     if (!HN_CACHE && list.isConnected) list.replaceChildren(h('div', { class: 'cl-empty' }, 'Hacker News is unavailable right now — try again shortly.'));
   }
