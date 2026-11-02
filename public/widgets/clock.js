@@ -117,12 +117,236 @@ function nextHoliday(y, m, d, within = 7) {
   return best;
 }
 
+// ---- Fullscreen (openFull, 2026-11-02) ---------------------------------------
+// The tile is a glance (poem, time, date). Up close the panel is its own design,
+// read top to bottom: the time itself, then "Around the world" (one city per row,
+// how far ahead/behind home it runs), "The year" (day, week, days left, share
+// gone — text only, no bar, per the house rules), "The seasons" (the four turns
+// of the year, the next one lit) and "Coming up" (the next occasions and the
+// next clock change, each with its date and a countdown). Pure Intl maths — no
+// network beyond the poem, no animation; it repaints only when a minute turns.
+const FULL_CITIES = [
+  { name: 'New York', tz: 'America/New_York' },
+  { name: 'London', tz: 'Europe/London' },
+  { name: 'Paris', tz: 'Europe/Paris' },
+  { name: 'Tokyo', tz: 'Asia/Tokyo' },
+  { name: 'Sydney', tz: 'Australia/Sydney' },
+];
+const _offFmts = {};
+// A zone's UTC offset in minutes at instant t (Intl parts; no shortOffset needed).
+function tzOffsetMin(tz, t) {
+  const f = _offFmts[tz] || (_offFmts[tz] = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }));
+  const p = {}; for (const x of f.formatToParts(new Date(t))) p[x.type] = +x.value;
+  return Math.round((Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute) - Math.floor(t / 60000) * 60000) / 60000);
+}
+// ISO-8601 week number for a calendar date.
+function isoWeek(y, m, d) {
+  const t = new Date(Date.UTC(y, m - 1, d));
+  const wd = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - wd);
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
+}
+// The next four turns of the year (solstices/equinoxes) on/after a date.
+function nextTurns(y, m, d) {
+  const today = Date.UTC(y, m - 1, d);
+  const out = [];
+  for (const yr of [y, y + 1]) for (const s of SEASONS) {
+    const utc = Date.UTC(yr, s.m - 1, s.d);
+    if (utc >= today) out.push({ name: s.name, turn: (s.name === 'Spring' || s.name === 'Autumn') ? 'equinox' : 'solstice', utc, days: Math.round((utc - today) / 864e5) });
+  }
+  return out.sort((a, b) => a.utc - b.utc).slice(0, 4);
+}
+// The next n occasions (from holidaysOf) on/after a date, soonest first.
+function upcomingHolidays(y, m, d, n = 4) {
+  const today = Date.UTC(y, m - 1, d);
+  const out = [];
+  for (const yr of [y, y + 1]) for (const [name, hm, hd] of holidaysOf(yr)) {
+    const utc = Date.UTC(yr, hm - 1, hd);
+    if (utc >= today) out.push({ name, utc, days: Math.round((utc - today) / 864e5) });
+  }
+  return out.sort((a, b) => a.utc - b.utc).slice(0, n);
+}
+const inDays = (n) => n === 0 ? 'today' : n === 1 ? 'tomorrow' : n < 14 ? `in ${n} days` : n < 60 ? `in ${Math.round(n / 7)} weeks` : `in ${Math.round(n / 30.4)} months`;
+
+const FULL_STYLE = `
+  .ckf { display:flex; flex-direction:column; gap:24px; height:1220px; padding:6px 6px 0; }
+  .ckf > * { flex:none; }
+  .ckf .sec { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint);
+    margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline; gap:12px; }
+  .ckf .sec .key { letter-spacing:.04em; text-transform:none; font-size:14px; }
+  .ckf-hero { display:flex; flex-direction:column; gap:10px; }
+  .ckf-hero .poem { font-size:22px; letter-spacing:.05em; color:var(--ink-soft); min-height:27px; }
+  .ckf-hero .time { font-family:var(--font-display); font-size:150px; line-height:.86; letter-spacing:-.01em;
+    background:linear-gradient(120deg,#fff,var(--mint)); -webkit-background-clip:text; background-clip:text; color:transparent;
+    display:flex; align-items:baseline; gap:16px; min-height:130px; }
+  .ckf-hero .time .ap { font-family:var(--font); font-size:44px; font-weight:600; -webkit-text-fill-color:var(--ink-soft); }
+  .ckf-hero .date { font-size:28px; color:var(--ink); min-height:34px; }
+  .ckf-rows { display:flex; flex-direction:column; }
+  .ckf-rows .r { display:grid; grid-template-columns:1fr 150px 210px; align-items:baseline; column-gap:18px;
+    padding:7px 0; border-bottom:1px solid rgba(234,255,244,.07); }
+  .ckf-rows .r:last-child { border-bottom:0; }
+  .ckf-rows .nm { font-size:22px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ckf-rows .nm .g { font-size:18px; margin-right:12px; display:inline-block; width:20px; }
+  .ckf-rows .nm .g.day { color:var(--gold); } .ckf-rows .nm .g.night { color:#9cc0ff; }
+  .ckf-rows .v { font-family:var(--font-display); font-size:30px; color:var(--ink); text-align:right; white-space:nowrap; }
+  .ckf-rows .k { font-size:17px; color:var(--ink-soft); text-align:right; white-space:nowrap; }
+  .ckf-rows .k b { color:var(--mint); font-weight:600; }
+  .ckf-rows .r.soon .k { color:var(--gold); }
+  .ckf-stats { display:grid; grid-template-columns:repeat(4, 1fr); column-gap:18px; }
+  .ckf-stats .c { display:flex; flex-direction:column; gap:6px; }
+  .ckf-stats .n { font-family:var(--font-display); font-size:46px; line-height:1; color:var(--ink); }
+  .ckf-stats .l { font-size:16px; color:var(--ink-soft); }
+  .ckf-now { font-size:22px; color:var(--ink); margin-bottom:12px; }
+  .ckf-now b { font-family:var(--font-display); font-weight:400; color:var(--mint); }
+  .ckf-turns { display:grid; grid-template-columns:repeat(4, 1fr); column-gap:18px; }
+  .ckf-turns .c { display:flex; flex-direction:column; gap:5px; opacity:.6; }
+  .ckf-turns .c.next { opacity:1; }
+  .ckf-turns .t { font-family:var(--font-display); font-size:24px; color:var(--ink); }
+  .ckf-turns .c.next .t { color:var(--mint); }
+  .ckf-turns .w { font-size:16px; color:var(--ink-soft); }
+  .ckf-ft { margin-top:auto; font-size:14px; color:var(--ink-faint); }
+`;
+
 export default {
   id: 'clock',
   title: 'Time',
   icon: '🕰',
   size: 'md', // half width — shares the top row with Air
   chrome: false,
+  async openFull(body, ctx) {
+    const { h } = ctx;
+    const tz = ctx.config?.tz || 'America/Los_Angeles';
+    ctx.style(FULL_STYLE);
+    // Full size from the first frame (layout-stability rule): every row exists
+    // before the first tick fills it; nothing grows when the text arrives.
+    const root = h('div', { class: 'ckf' });
+    body.replaceChildren(root);
+    const poemEl = h('div', { class: 'poem' });
+    const timeEl = h('div', { class: 'time' });
+    const dateEl = h('div', { class: 'date' });
+    const worldRows = h('div', { class: 'ckf-rows' });
+    const stats = h('div', { class: 'ckf-stats' });
+    const nowSeason = h('div', { class: 'ckf-now' });
+    const turns = h('div', { class: 'ckf-turns' });
+    const coming = h('div', { class: 'ckf-rows' });
+    const yearKey = h('span', { class: 'key' });
+    const homeKey = h('span', { class: 'key' });
+    const comingKey = h('span', { class: 'key' }, 'occasions');
+    root.append(
+      h('div', { class: 'ckf-hero' }, poemEl, timeEl, dateEl),
+      h('section', {}, h('div', { class: 'sec' }, h('span', {}, 'Around the world'), homeKey), worldRows),
+      h('section', {}, h('div', { class: 'sec' }, h('span', {}, 'The year'), yearKey), stats),
+      h('section', {}, h('div', { class: 'sec' }, h('span', {}, 'The seasons'), h('span', { class: 'key' }, 'northern hemisphere')), nowSeason, turns),
+      h('section', {}, h('div', { class: 'sec' }, h('span', {}, 'Coming up'), comingKey), coming),
+      h('div', { class: 'ckf-ft' }, `Home time is ${tz.replace(/_/g, ' ').replace(/^.*\//, '')} · seasons use the usual astronomical dates`));
+
+    const fmtTime = (z) => new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: '2-digit', hour12: true });
+    const homeTime = fmtTime(tz);
+    const homeHour = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' });
+    const homeWeekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long' });
+    const fmtDate = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    const fmtYMD = (z) => new Intl.DateTimeFormat('en-CA', { timeZone: z, year: 'numeric', month: '2-digit', day: '2-digit' });
+    const homeYMD = fmtYMD(tz);
+    const fmtUTCDay = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' });
+    const fmtHomeDay = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric' });
+    const ymd = (f, t) => f.format(t).split('-').map((n) => parseInt(n, 10));
+    const dnum = ([y, m, d]) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+    const cities = FULL_CITIES.filter((c) => c.tz !== tz).map((c) => {
+      const g = h('span', { class: 'g' }); const v = h('div', { class: 'v' }); const k = h('div', { class: 'k' });
+      worldRows.appendChild(h('div', { class: 'r' }, h('div', { class: 'nm' }, g, c.name), v, k));
+      return { ...c, g, v, k, time: fmtTime(c.tz), ymd: fmtYMD(c.tz),
+        hour: new Intl.DateTimeFormat('en-US', { timeZone: c.tz, hour: 'numeric', hourCycle: 'h23' }), last: '' };
+    });
+    const splitTime = (f, now) => {
+      const parts = f.formatToParts(now);
+      return [parts.filter((p) => p.type !== 'dayPeriod').map((p) => p.value).join('').trim(),
+        (parts.find((p) => p.type === 'dayPeriod')?.value || '').toUpperCase()];
+    };
+    // Next clock change in the home zone (6-hour steps, then to the minute).
+    const nextShift = (now) => {
+      const H = 3600000; let a = now, oa = tzOffsetMin(tz, a);
+      for (let t = now + 6 * H; t <= now + 200 * 24 * H; t += 6 * H) {
+        const ot = tzOffsetMin(tz, t);
+        if (ot !== oa) {
+          let lo = a, hi = t;
+          while (hi - lo > 60000) { const mid = (lo + hi) / 2; if (tzOffsetMin(tz, mid) === oa) lo = mid; else hi = mid; }
+          return { at: hi, back: ot < oa };
+        }
+        a = t; oa = ot;
+      }
+      return null;
+    };
+    let poem = '', lastT = '', lastDay = '';
+    const paintDay = (now, [y, m, d]) => {
+      dateEl.textContent = fmtDate.format(now);
+      // The year, in numbers (text only — no bar: house rules 2026-09-19).
+      const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      const total = leap ? 366 : 365;
+      const doy = Math.floor((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / 864e5) + 1;
+      const left = total - doy;
+      yearKey.textContent = `${y} · ${total} days`;
+      stats.replaceChildren(...[
+        [`${doy}`, 'day of the year'], [`${isoWeek(y, m, d)}`, 'week'],
+        [`${left}`, left === 1 ? 'day left' : 'days left'], [`${Math.round((doy / total) * 100)}%`, `of ${y} gone`],
+      ].map(([n, l]) => h('div', { class: 'c' }, h('div', { class: 'n' }, n), h('div', { class: 'l' }, l))));
+      // The seasons: where we are, then the next four turns of the year.
+      const s = seasonInfo(y, m, d);
+      nowSeason.replaceChildren(s.day === 1 ? h('b', {}, `${s.name} begins today`) : h('b', {}, `${s.phase} ${s.name}`),
+        s.day === 1 ? ` — the ${s.turn}` : ` · day ${s.day} · ${s.toNext} days until ${s.nextName.toLowerCase()}`);
+      turns.replaceChildren(...nextTurns(y, m, d).map((t, i) => h('div', { class: `c${i === 0 ? ' next' : ''}` },
+        h('div', { class: 't' }, t.name), h('div', { class: 'w' }, `${t.turn} · ${fmtUTCDay.format(new Date(t.utc))}`),
+        h('div', { class: 'w' }, inDays(t.days)))));
+      // Coming up: the next occasions, with the next clock change slotted in by date.
+      const items = upcomingHolidays(y, m, d, 4);
+      let sh = null; try { sh = nextShift(now.getTime()); } catch { sh = null; }
+      if (sh) {
+        const sd = dnum(ymd(homeYMD, new Date(sh.at))) - dnum([y, m, d]);
+        items.push({ name: shiftName(sh), utc: null, at: sh.at, days: sd, clock: true });
+      }
+      items.sort((a, b) => a.days - b.days);
+      const shown = items.slice(0, 4);
+      comingKey.textContent = shown.some((it) => it.clock) ? 'occasions & clock changes' : 'occasions';
+      coming.replaceChildren(...shown.map((it) => h('div', { class: `r${it.days <= 1 ? ' soon' : ''}` },
+        h('div', { class: 'nm' }, it.name),
+        h('div', { class: 'k' }, it.clock ? fmtHomeDay.format(new Date(it.at)) : fmtUTCDay.format(new Date(it.utc))),
+        h('div', { class: 'k' }, h('b', {}, inDays(it.days))))));
+    };
+    const shiftName = (sh) => sh.back ? 'Clocks fall back an hour' : 'Clocks spring forward an hour';
+    const tick = () => {
+      const now = new Date();
+      const [hhmm, ap] = splitTime(homeTime, now);
+      const t = `${hhmm}|${ap}|${poem}`;
+      if (t === lastT) return;
+      lastT = t;
+      poemEl.textContent = poem || greetingFor(parseInt(homeHour.format(now), 10) % 24, homeWeekday.format(now));
+      timeEl.replaceChildren(h('span', {}, hhmm), h('span', { class: 'ap' }, ap));
+      const home = ymd(homeYMD, now);
+      const dayKey = home.join('-');
+      if (dayKey !== lastDay) { lastDay = dayKey; try { paintDay(now, home); } catch { /* keep the last render */ } }
+      const homeOff = tzOffsetMin(tz, now.getTime());
+      homeKey.textContent = `vs home · ${hhmm} ${ap}`;
+      for (const c of cities) {
+        const [ch, cap] = splitTime(c.time, now);
+        const hr = parseInt(c.hour.format(now), 10) % 24;
+        const night = !(hr >= 6 && hr < 19);
+        const diffH = (tzOffsetMin(c.tz, now.getTime()) - homeOff) / 60;
+        const dd = dnum(ymd(c.ymd, now)) - dnum(home);
+        const key = `${ch}${cap}|${diffH}|${dd}`;
+        if (key === c.last) continue;
+        c.last = key;
+        c.g.textContent = night ? '☾' : '☀';
+        c.g.className = `g ${night ? 'night' : 'day'}`;
+        c.v.textContent = `${ch} ${cap.toLowerCase()}`;
+        const hrs = Math.abs(diffH);
+        const hTxt = `${Number.isInteger(hrs) ? hrs : hrs.toFixed(1)} h ${diffH >= 0 ? 'ahead' : 'behind'}`;
+        c.k.replaceChildren(hTxt, dd ? h('b', {}, dd > 0 ? ' · tomorrow' : ' · yesterday') : '');
+      }
+    };
+    fetch('/api/poem', { cache: 'no-store' }).then((r) => r.json())
+      .then((p) => { const tx = p && typeof p.text === 'string' ? p.text.trim() : ''; if (tx) { poem = tx; tick(); } }).catch(() => {});
+    ctx.interval(tick, 15000);
+  },
   async mount(root, ctx) {
     const tz = ctx.config?.tz || 'America/Los_Angeles';
     ctx.style(`

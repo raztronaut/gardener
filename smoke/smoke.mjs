@@ -386,6 +386,19 @@ async function main() {
       check('clock holidays: nearest occasion within a week', nh && nh.name === 'Halloween' && nh.days === 5 && mod.nextHoliday(2026, 11, 1) === null
         && mod.nextHoliday(2026, 12, 29)?.name === "New Year's Eve" && mod.nextHoliday(2026, 12, 31)?.days === 0, JSON.stringify(nh));
     } catch (e) { bad('clock holiday maths', e.message); }
+    // The clock's own fullscreen view (2026-11-02): fixed-height root, the next
+    // occasions / turns of the year computed right, and no year-progress bar.
+    try {
+      const ckSrc = readFileSync(join(PUBLIC, 'widgets', 'clock.js'), 'utf8');
+      const mod = await import('data:text/javascript,' + encodeURIComponent(ckSrc.split('export default')[0] + 'export { upcomingHolidays, nextTurns, isoWeek };'));
+      const up = mod.upcomingHolidays(2026, 11, 2, 4).map((x) => `${x.name}:${x.days}`).join(',');
+      const tu = mod.nextTurns(2026, 11, 2).map((x) => `${x.name}:${x.days}`).join(',');
+      check('clock fullscreen: next occasions, turns of the year and ISO week',
+        up === "Veterans Day:9,Thanksgiving:24,Christmas Eve:52,Christmas:53" && tu.startsWith('Winter:49,Spring:')
+          && mod.isoWeek(2026, 11, 2) === 45 && mod.isoWeek(2027, 1, 1) === 53, `${up} | ${tu}`);
+      check('clock fullscreen: own full-size openFull, text-only year (no bar)',
+        /async openFull\(body, ctx\)/.test(ckSrc) && /\.ckf \{[^}]*height:\d+px/.test(ckSrc) && !/ckf[\w-]*\s+\.(bar|rail|fill)/.test(ckSrc));
+    } catch (e) { bad('clock fullscreen', e.message); }
     // Weather forecast days must carry °C as well as °F (feedback 2026-09-23).
     try {
       const wxSrc = readFileSync(join(PUBLIC, 'widgets', 'weather.js'), 'utf8');
