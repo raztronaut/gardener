@@ -9,6 +9,8 @@
 // overflow rows are trimmed, never clipped. With nothing left today it falls
 // back to the next upcoming events. On a light day, the room left under today's
 // rows carries on into the coming days under small "TOMORROW · TUE" headings.
+// There, an all-day listing keeps the time column (a hushed "all day") so names
+// line up with the timed rows, and leftover height is shared out as row spacing.
 //
 // Each row carries a small picture of the event (its page's og:image, cropped and
 // cached server-side by /api/event-image): the box is always reserved, the picture
@@ -73,6 +75,7 @@ export default {
          a hushed echo and drop their countdown, so three "5 PM · in 11h"
          stacks read as one group instead of a stutter. */
       .won-ag.dup .tm { color:var(--ink-faint); font-weight:500; }
+      .won-ag .tm.ad { color:var(--ink-faint); font-weight:500; }
       .won-ag.dup .tm .lv { display:none; }
       .won-ag { cursor:var(--c-hand); }
       .won-ag .nm { font-size:14.5px; font-weight:600; line-height:1.25; color:var(--ink); min-width:0;
@@ -230,7 +233,14 @@ export default {
           const o = dayOffset(e.when);
           const label = o === 1 ? `Tomorrow · ${wdayFmt.format(e.when)}`
             : `${wdayFmt.format(e.when)}, ${MON[e.when.getMonth()]} ${e.when.getDate()}`;
-          later.push({ ...makeRow(e), label });
+          const r = makeRow(e);
+          // In a coming-day group, an all-day listing sits among timed rows: keep
+          // the time column (a hushed "all day") so every name starts on one line.
+          if (r.allDay) {
+            r.el.classList.remove('wide');
+            r.el.insertBefore(ctx.h('div', { class: 'tm ad' }, 'all day'), r.el.children[1]);
+          }
+          later.push({ ...r, label });
         });
       }
       // forget pictures of events no longer listed
@@ -322,7 +332,7 @@ export default {
       // between the survivors (gap + rule padding), so the agenda fills the card
       // to its foot instead of stopping short above an empty band.
       const n = list.querySelectorAll('.won-ag').length;
-      if (n > 1 && n < rows.length) {
+      if (n > 1 && n < rows.length + later.length) {
         const slack = list.getBoundingClientRect().bottom - list.lastChild.getBoundingClientRect().bottom;
         if (slack > 2) list.style.setProperty('--sp', `${(9 + Math.min(14, (slack - 2) / (2 * n - 1))).toFixed(1)}px`);
       }
