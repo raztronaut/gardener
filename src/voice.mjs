@@ -79,7 +79,14 @@ const vad = new sherpa.Vad({
   sileroVad: { model: join(MODELS, 'silero_vad.onnx'), threshold: 0.5, minSilenceDuration: 0.25, minSpeechDuration: 0.15, windowSize: 512, maxSpeechDuration: 20 },
   sampleRate: RATE, numThreads: 1, provider: 'cpu', debug: 0,
 }, 30);
-let kwsStream = kws.createStream();
+// TWO spotter streams, the second started 0.32 s after the first: the streaming model sees
+// audio in fixed chunks, and a phrase that lands across a chunk boundary can be missed
+// (measured: every other alignment). Offset by about half a chunk, one of the two always
+// sees it whole — 48/48 alignments detected vs 24/48 with one stream.
+const KWS_OFFSET = Math.round(RATE * 0.32);
+let kwsA = null, kwsB = null, kwsFed = 0;
+function resetSpotter() { kwsA = kws.createStream(); kwsB = null; kwsFed = 0; }
+resetSpotter();
 
 // ---- RAM-only audio buffers --------------------------------------------------------
 const ring = new Float32Array(RATE * RING_S); let ringPos = 0, ringFull = false;
@@ -120,15 +127,24 @@ const setState = (s, extra = {}) => { state = s; send({ t: 'state', state: s, ..
 function onAudio(x) {
   if (state === 'idle') {
     ringPush(x);
-    kwsStream.acceptWaveform({ sampleRate: RATE, samples: x });
-    while (kws.isReady(kwsStream)) {
-      kws.decode(kwsStream);
-      const r = kws.getResult(kwsStream);
-      if (r.keyword) { kws.reset(kwsStream); onKeyword(); break; }
+    for (const st of [kwsA, kwsB]) {
+      if (!st) continue;
+      st.acceptWaveform({ sampleRate: RATE, samples: x });
+      while (kws.isReady(st)) {
+        kws.decode(st);
+        if (kws.getResult(st).keyword) { resetSpotter(); onKeyword(); return; }
+      }
     }
+    kwsFed += x.length;
+    if (!kwsB && kwsFed >= KWS_OFFSET) kwsB = kws.createStream();
     return;
   }
-  if (state === 'checking') { appendUtter(x); return; } // keep what's said while the wake is verified
+  if (state === 'checking') { // keep what's said while the wake is verified (and notice it)
+    appendUtter(x); vad.acceptWaveform(x);
+    if (vad.isDetected()) { heardSpeech = true; tLastSpeech = Date.now(); }
+    while (!vad.isEmpty()) vad.pop();
+    return;
+  }
   if (state !== 'listening') return; // thinking: the mic is ignored (nothing buffered)
   // level for the edge animation (~30 Hz): RMS → 0..1, quick attack / slower release
   let e = 0; for (let i = 0; i < x.length; i++) e += x[i] * x[i];
@@ -144,7 +160,7 @@ function onAudio(x) {
   while (!vad.isEmpty()) vad.pop();
   if (heardSpeech && !partialBusy && now - lastPartialAt > PARTIAL_MS) {
     lastPartialAt = now; partialBusy = true;
-    transcribe(utter.subarray(0, utterLen)).then((p) => { partialBusy = false; if (p && state === 'listening') send({ t: 'partial', text: p }); });
+    transcribe(utter.subarray(0, utterLen)).then((p) => { partialBusy = false; p = stripWake(p); if (p && state === 'listening') send({ t: 'partial', text: p }); });
   }
   if (utterLen >= utter.length) return finish('max');
   if (heardSpeech && now - tLastSpeech > END_SILENCE_MS) return finish('end');
@@ -156,25 +172,35 @@ function appendUtter(x) {
   utter.set(room >= x.length ? x : x.subarray(0, room), utterLen); utterLen += Math.min(room, x.length);
 }
 async function onKeyword() {
-  // stage 2: the speech model must hear "hey garden" in the last 2 s (meanwhile the
-  // audio keeps flowing into the request buffer, so nothing said right after is lost)
-  state = 'checking'; utterLen = 0; vad.reset();
-  const heard = await transcribe(ringLast(RATE * 2));
-  if (!WAKE_RE.test(heard)) { log('wake rejected by the speech check'); utterLen = 0; kwsStream = kws.createStream(); state = 'idle'; return; }
+  // stage 2: the speech model must hear "hey garden" in the last 2 s. The request starts
+  // WITH that window (the spotter fires a beat after "garden", so a request said in one
+  // breath — "hey garden open the weather" — would otherwise lose its first word); the
+  // wake words are stripped from the text. Meanwhile the audio keeps flowing in.
+  state = 'checking'; vad.reset(); heardSpeech = false;
+  const win = ringLast(RATE * 2);
+  utter.set(win, 0); utterLen = win.length;
+  const heard = await transcribe(win);
+  if (!WAKE_RE.test(heard)) { log('wake rejected by the speech check'); utterLen = 0; resetSpotter(); state = 'idle'; return; }
   log('wake');
-  tWake = Date.now(); tLastSpeech = tWake; heardSpeech = false; lastPartialAt = 0; level = 0; partialBusy = false;
+  // words already said after "garden" (in the window, or during the check) count as speech
+  const said = !!stripWake(heard) || heardSpeech;
+  tWake = Date.now(); tLastSpeech = tWake; heardSpeech = said; lastPartialAt = 0; level = 0; partialBusy = false;
   setState('listening');
 }
 
 function cancel(why) {
   log(`cancel (${why})`);
-  utterLen = 0; vad.reset(); kwsStream = kws.createStream();
+  utterLen = 0; vad.reset(); resetSpotter();
   setState('idle', { end: 'cancel', why });
 }
 
+// "hey garden, open the weather" → "open the weather" (only a wake phrase near the start)
+const stripWake = (t) => String(t || '')
+  .replace(/^\s*(?:\S+\s+){0,2}?(?:hey|hay|hi|hei|heya|ok(?:ay)?)\b[\s,.!?-]*gard[eio]?ns?\b[\s,.!?-]*/i, '')
+  .replace(/^\s*gard[eio]?ns?\b[\s,.!?-]+/i, '').trim();
 async function finish(why) {
   state = 'thinking';
-  const text = await transcribe(utter.subarray(0, utterLen));
+  const text = stripWake(await transcribe(utter.subarray(0, utterLen)));
   utter.fill(0, 0, utterLen); utterLen = 0; vad.reset(); // the audio is gone now
   if (!text || text.replace(/[^a-z]/gi, '').length < 2) return cancel('nothing');
   log(`request (${why}, ${text.length} chars)`);
@@ -189,7 +215,7 @@ async function finish(why) {
     });
   } catch (e) { log(`agent: ${e.message || e}`); out = { ok: false, reply: 'Sorry — I couldn’t do that.' }; }
   log(`done in ${Date.now() - t0} ms (${out.ok ? 'ok' : 'failed'})`);
-  kwsStream = kws.createStream();
+  resetSpotter();
   setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' });
 }
 
@@ -203,7 +229,28 @@ function micSource() {
     return pick.find((n) => /mic/i.test(n)) || pick.find((n) => /usb/i.test(n)) || pick[0] || null;
   } catch { return null; }
 }
+// QA only: GARDENER_VOICE_WAV=a.wav[,b.wav…] plays those files (8 s apart, real-time pace)
+// into the pipeline instead of the mic — the whole path, wake word to the wall
+function startWavInput(files) {
+  const rs = (w) => {
+    if (w.sampleRate === RATE) return w.samples;
+    const r = new sherpa.LinearResampler(w.sampleRate, RATE);
+    return r.flush(w.samples);
+  };
+  const clips = files.split(',').map((f) => rs(sherpa.readWave(f)));
+  const silence = new Float32Array(RATE * 8);
+  const stream = [];
+  for (const c of clips) stream.push(silence.subarray(0, RATE * 3), c, silence);
+  const all = new Float32Array(stream.reduce((n, x) => n + x.length, 0)); let o = 0; for (const x of stream) { all.set(x, o); o += x.length; }
+  log(`QA input: ${clips.length} clip(s), ${(all.length / RATE).toFixed(1)} s`);
+  let pos = 0; const STEP = RATE / 50;
+  const iv = setInterval(() => {
+    if (pos >= all.length) { clearInterval(iv); log('QA input done'); return; }
+    onAudio(all.slice(pos, pos + STEP)); pos += STEP;
+  }, 20);
+}
 function startMic() {
+  if (process.env.GARDENER_VOICE_WAV) { startWavInput(process.env.GARDENER_VOICE_WAV); return; }
   if (mic || !enabled) return;
   const src = micSource();
   if (!src) { log('no microphone found — retrying in 10 s'); setTimeout(startMic, 10000); return; }

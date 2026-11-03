@@ -18,7 +18,10 @@ parentPort.on('message', ({ id, samples }) => {
   try {
     if (samples.length >= 16000 * 0.25) {
       const st = asr.createStream();
+      const lead = new Float32Array(16000 * 0.3); // a beat of silence first: the model keeps the first word
+      st.acceptWaveform({ sampleRate: 16000, samples: lead });
       st.acceptWaveform({ sampleRate: 16000, samples });
+      st.acceptWaveform({ sampleRate: 16000, samples: lead });
       asr.decode(st);
       text = String(asr.getResult(st).text || '').trim();
     }
