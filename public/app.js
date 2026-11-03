@@ -170,6 +170,9 @@ async function loadWidgets(enabled, mountPoint) {
     // (e.g. Mario's grow toy calls stopPropagation) and right-click edits.
     card.addEventListener('click', (e) => {
       if (e.button !== 0 || e.target.closest('[contenteditable="true"], [data-editable].pruning')) return;
+      // a full-screen 'stage' card (the Arcade) is already its own big view: a tap inside
+      // it (a game tile) must not open a second copy of it in the panel
+      if (w.size === 'stage') return;
       openWidgetPanel(entry.id);
     });
     // Staggered wake-up: each card eases in slightly after the previous one.
@@ -338,6 +341,7 @@ async function doSwitchDashboard(id) {
   if (!DASHBOARDS.find((d) => d.id === id)) return;
   if (panelOpen()) closePanel();
   try { window.__GARDEN_GAME?.stop?.(); } catch { /* ignore */ }
+  try { window.__SB2?.stop?.(); } catch { /* ignore */ } // the native SB2 port, belt and braces (its music must never outlive the Arcade)
   window.__GARDEN_GAME = null;
   document.body.classList.remove('arcade-full');
   const garden = document.getElementById('garden');
@@ -2636,6 +2640,11 @@ async function voiceAct({ name, input = {} }) {
     }
     case 'close': {
       closeRfMenu(); closeVolMenu();
+      if (game && game.inGame?.() && input.to !== 'wall') { // in a game: leave it, back to the library
+        try { await game.toLibrary(); } catch { /* ignore */ }
+        try { window.__SB2?.stop?.(); } catch { /* ignore */ } // (the native port's sound must never linger)
+        return { ok: true, say: 'Closed the game.' };
+      }
       if (paletteOpen()) { hidePalette(); const i = document.getElementById('feedbackInput'); if (i) i.value = ''; return { ok: true, say: 'Closed.' }; }
       if (panelOpen()) { closePanel(); return { ok: true, say: 'Closed.' }; }
       if (CURRENT_DASH !== 'main') { await switchDashboard(CURRENT_DASH); return { ok: true, say: 'Back to the garden.' }; } // the same id toggles back to main
@@ -2653,7 +2662,11 @@ async function voiceAct({ name, input = {} }) {
       if (!el && input.text) el = vBest(rows, (r) => `${r.dataset.name || ''} ${r.getAttribute('aria-label') || ''} ${r.dataset.wid ? (WIDGET_MODS[r.dataset.wid]?.title || r.dataset.wid) : ''} ${r.innerText || ''}`, input.text);
       if (!el) return { ok: false, error: `couldn't find "${input.text ?? input.index}" — the items are: ${rows.slice(0, 12).map((r) => vClip(r.dataset.name || r.innerText, 40)).join(' | ')}` };
       if (el.dataset.wid && !panelOpen()) { openWidgetPanel(el.dataset.wid); return { ok: true }; }
-      if (el.classList.contains('ax-tile')) { el.click(); await vWait(120); el.click(); return { ok: true, say: `Starting ${el.dataset.name || 'the game'}.` }; } // select, then play
+      if (el.classList.contains('ax-tile')) { // a tile starts on its second tap (the first selects it)
+        if (!el.classList.contains('row-sel')) { el.click(); await vWait(120); }
+        if (!document.body.classList.contains('arcade-full')) el.click();
+        return { ok: true, say: `Starting ${el.dataset.name || 'the game'}.` };
+      }
       el.click();
       return { ok: true, say: 'Done.' };
     }

@@ -478,6 +478,7 @@ export default {
     window.__GARDEN_GAME = {
       raw: rawInput,
       inGame: () => mode === 'game',
+      toLibrary: () => showPicker(), // leave the game, as Select + Start does (used by Hey Garden)
       input(action) {
         if (mode === 'game') return; // in-game the raw press/release edges drive EmulatorJS
         if (!roms.length) return;
@@ -648,6 +649,7 @@ export default {
     }
 
     function boot(rom) {
+      if (mode === 'game') return; // one game at a time — a second start would orphan the first (its sound kept playing)
       if (!rom) return;
       curRom = rom;
       if (rom.special === 'sb2') { bootPort(rom); return; }
