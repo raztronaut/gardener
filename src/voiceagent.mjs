@@ -18,6 +18,7 @@ Act through your tools: they do exactly what tapping, clicking or the game contr
 - In the SAME response, call the tools you need AND write the reply: one short, warm sentence (at most ~10 words) saying what you did or answering, e.g. "Opening the weather." / "Volume down to 30%." / "It's 54° and clear tonight." No emojis, no markdown.
 - Questions about what's on the wall (weather, air, events, news, the painting, the garden, the time): answer from the snapshot in at most ~20 words; open the widget too only if they ask to see it.
 - To play a game: open the arcade AND select the game by name in the same response (names in arcadeGames).
+- "Open X" while something else is open: just open X — it replaces what's open (never close first).
 - "Close", "go back", "never mind", "stop": close what's open. "Scroll"/"next"/"down": press. "Open the third story" / "the pub crawl": select by its text or number.
 - Volume: "louder"/"quieter" = change by ±10 unless they say how much; "mute" = set 0.
 - Only plant a seed note when they ask to tell/ask the gardener something or to change/improve the wall — the note is their words, cleaned up.
@@ -63,7 +64,9 @@ export async function runAgent(text, { context, call, log = () => {} }) {
     // one call per tool per turn (a second select/open after the first one navigated is
     // always a misfire); presses may repeat
     const seen = new Set();
-    const uses = res.content.filter((b) => b.type === 'tool_use' && (b.name === 'press' || !seen.has(b.name)) && seen.add(b.name));
+    let uses = res.content.filter((b) => b.type === 'tool_use' && (b.name === 'press' || !seen.has(b.name)) && seen.add(b.name));
+    // opening something replaces what's open — a close in the same turn would undo it
+    if (uses.some((u) => u.name === 'open' || u.name === 'dashboard')) uses = uses.filter((u) => u.name !== 'close');
     if (!uses.length) break;                     // answered (or explained a failure)
     const got = await call(uses.map((u) => ({ name: u.name, input: u.input })));
     const list = Array.isArray(got) ? got : uses.map(() => got);

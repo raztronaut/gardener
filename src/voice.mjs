@@ -19,7 +19,7 @@ import { createRequire } from 'node:module';
 import { spawn, execFileSync } from 'node:child_process';
 import http from 'node:http';
 import { Worker } from 'node:worker_threads';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { paths } from './config.mjs';
 import { runAgent } from './voiceagent.mjs';
@@ -40,7 +40,16 @@ const KEYWORDS = '▁HE Y ▁G ARD EN @HEY_GARDEN\n';
 const WAKE_RE = /\b(hey|hay|hi|hei|heya|ok(ay)?)\b[\s,.!?-]*gard[eio]?ns?\b/i;
 const RING_S = 2.5, MAX_S = 12, END_SILENCE_MS = 750, NO_SPEECH_MS = 5000, PARTIAL_MS = 450;
 
-const log = (m) => console.log(`[voice] ${new Date().toISOString()} ${m}`);
+// events only (wake, timings, tool names) — never what was said; capped at ~256 KB
+const LOG_FILE = join(paths.DATA, 'voice', 'voice.log');
+const log = (m) => {
+  const line = `[voice] ${new Date().toISOString()} ${m}`;
+  console.log(line);
+  try {
+    if (existsSync(LOG_FILE) && statSync(LOG_FILE).size > 256 * 1024) writeFileSync(LOG_FILE, readFileSync(LOG_FILE, 'utf8').slice(-128 * 1024));
+    appendFileSync(LOG_FILE, line + '\n');
+  } catch { /* ignore */ }
+};
 
 // ---- models (loaded once; ~350 MB resident) ------------------------------------------
 const kws = new sherpa.KeywordSpotter({

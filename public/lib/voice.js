@@ -34,11 +34,11 @@ void main() {
   float t = uTime;
   float wob = 0.5 + 0.5 * sin(a * 6.2831853 * 3.0 + t * 1.9) * sin(a * 6.2831853 * 5.0 - t * 1.3);
   float w = uRes.x * (0.014 + 0.012 * wob + 0.075 * uLevel * (0.35 + 0.65 * wob));
-  w *= (1.0 + uThink * 0.22 * sin(t * 3.6)) * uIntro;
+  w *= uIntro;
   float glow = exp(-d / max(w, 0.6));
   float core = exp(-d / max(w * 0.14, 0.6));
   float wash = exp(-d / max(uRes.x * 0.22 * uIntro, 0.6)) * (0.10 + 0.22 * uLevel);
-  vec3 col = pal(a + t * mix(0.05, 0.2, uThink) + 0.06 * sin(t * 0.8 + a * 12.566));
+  vec3 col = pal(a + t * 0.05 + 0.06 * sin(t * 0.8 + a * 12.566));
   col = mix(col, uTint, uTintAmt);
   float alpha = clamp(glow * 0.82 + core * 0.55 + wash, 0.0, 1.0) * uIntro;
   gl_FragColor = vec4(col * alpha, alpha);
@@ -88,7 +88,7 @@ function makeGlow() {
   return {
     wake() { S.introT = 1; S.thinkT = 0; S.tintT = 0; S.levelT = 0.15; S.intro = Math.max(S.intro, 0.02); run(); },
     level(v) { S.levelT = v; },
-    think() { S.thinkT = 1; S.levelT = 0.08; run(); },
+    think() { S.thinkT = 1; S.levelT = 0.1; run(); }, // thinking: the same slow, smooth flow — just calmer
     end(kind) {
       S.thinkT = 0; S.levelT = kind === 'done' ? 0.35 : 0;
       if (kind === 'done') { S.tintC = [0.45, 1.0, 0.74]; S.tintT = 0.85; }
