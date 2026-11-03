@@ -610,7 +610,7 @@ export default {
       }
       const shelf = h('div', { class: 'ax-shelf' },
         ...roms.map((rom, i) => h('button', {
-          class: 'eg-rom ax-tile', type: 'button', 'data-psel': '1',
+          class: 'eg-rom ax-tile', type: 'button', 'data-psel': '1', 'data-name': rom.name || '', 'aria-label': rom.name || '',
           onclick: () => (sel === i ? boot(rom) : setSel(i)),
         }, coverEl(rom))));
       body.replaceChildren(h('div', { class: 'ax' },

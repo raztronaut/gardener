@@ -113,6 +113,21 @@ On the shelf it is **Super Bomberman: The Garden Edition** (by Gui Dávid): the 
 stage select) = original pixel art in `public/arcade/sb2/garden/` built by `tools/sb2/garden/make.sh`
 (sources in `tools/sb2/garden/src/`, tools/sb2/NOTES-garden.md).
 
+## "Hey Garden" — voice control (hand-maintained; the tending must not modify it)
+`src/voice.mjs` (gardener-voice.service, MemoryMax 900M) listens on the USB mic through
+PulseAudio, 16 kHz, **audio only in RAM** (a 2.5 s ring + a ≤12 s request buffer, zeroed after
+use; never written, never sent). Wake word = sherpa-onnx keyword spotter ("HEY GARDEN") then a
+second check by the speech model (Parakeet TDT 110M, worker thread `src/voice-asr-worker.mjs`) on
+the last 2 s; the request ends on silence (silero VAD). Only the TEXT goes to
+`src/voiceagent.mjs` (Claude Haiku 5.5, tools: open / close / select / press / volume / command /
+dashboard / zoom / plant) — one model call in the common case (the wall supplies the reply when
+the model writes none). Transcripts are not logged. The wall side is `public/lib/voice.js`
+(Siri-style WebGL edge glow on a half-res canvas drawn only while active, live words, closure
+sounds in lib/uisound.js) + `voiceContext` / `voiceAct` at the end of app.js (the same functions a
+tap / click / pad press uses). SSE + replies on 127.0.0.1:8797 (wall origins only). `/voice`
+turns it off (mic closed). Models + QA: tools/voice/README.md. Keep `src/voice*.mjs`,
+`public/lib/voice.js` and `voiceAct` working; never add audio storage or upload.
+
 ## Arcade — retro-console emulator widget
 `public/widgets/emulator.js` (replaced the old Mario widget). **Off-grid since
 2026-10-01:** it is `enabled:false` in the manifest (no wall tile) and opens only

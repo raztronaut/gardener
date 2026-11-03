@@ -9,6 +9,12 @@
 //   uiSound('confirm')  a seed is planted (three-note chime)
 //   uiSound('select')   the controller's A: a brighter two-tone press
 //   uiSound('wake')     the wall wakes from night: a warm swell + a rising chime
+//   "Hey Garden" (lib/voice.js; played even at night / in a game — the person asked):
+//   uiSound('listen')   the wake: a quick rising three-note shimmer
+//   uiSound('heard')    the request is in, thinking: one soft high blip
+//   uiSound('done')     closure: a warm resolving fifth with a sparkle on top
+//   uiSound('fail')     a gentle falling minor step
+//   uiSound('cancel')   nothing was said: a soft falling pair
 let ctx = null, master = null, noise = null, last = 0;
 const VOL = 1.0;
 const BOOST = 2.5; // every tone ×2.5 (humans: "much louder", 2026-10-30), capped below clipping
@@ -56,8 +62,8 @@ function wake(t) {
   [523.25, 659.25, 783.99, 1174.66].forEach((f, i) => blip(t + 0.55 + i * 0.16, f, 1.1, 0.035));
 }
 
-export function uiSound(kind = 'tick') {
-  if (quiet() || !ready()) return;
+export function uiSound(kind = 'tick', { force = false } = {}) {
+  if ((!force && quiet()) || !ready()) return;
   const now = performance.now();
   // one action = one sound: a click that opens something already ticked, so a tick/nav
   // within 150 ms of any other sound is dropped (the HN row tap + its reader opening)
@@ -71,6 +77,11 @@ export function uiSound(kind = 'tick') {
   else if (kind === 'confirm') { [1046.5, 1318.5, 1568].forEach((f, i) => blip(t + i * 0.07, f, 0.35, 0.045)); }
   else if (kind === 'select') { click(t, 4200, 0.012, 0.2); blip(t, 1175, 0.07, 0.06); blip(t + 0.05, 1760, 0.12, 0.055); }
   else if (kind === 'wake') wake(t);
+  else if (kind === 'listen') { click(t, 6000, 0.02, 0.05); [784, 1175, 1568].forEach((f, i) => blip(t + i * 0.065, f, 0.26 + i * 0.05, 0.05 - i * 0.006)); }
+  else if (kind === 'heard') { blip(t, 1318.5, 0.14, 0.04); }
+  else if (kind === 'done') { blip(t, 523.25, 0.5, 0.03, 'triangle'); blip(t + 0.02, 1046.5, 0.38, 0.05); blip(t + 0.1, 1568, 0.6, 0.045); blip(t + 0.2, 2093, 0.5, 0.02); }
+  else if (kind === 'fail') { blip(t, 659.25, 0.22, 0.045, 'triangle'); blip(t + 0.13, 493.9, 0.42, 0.04, 'triangle'); }
+  else if (kind === 'cancel') { blip(t, 880, 0.12, 0.03); blip(t + 0.07, 659.25, 0.2, 0.025); }
 }
 
 // taps anywhere on something interactive

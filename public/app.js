@@ -1495,6 +1495,8 @@ const COMMANDS = [
   { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
+  { cmd: 'voice', aliases: ['mic', 'listen', 'heygarden'], icon: '🎙', desc: '"Hey Garden" voice control on / off (off = the mic is closed)',
+    run: () => { if (!VOICE) { toast('Voice is not running on this screen'); return; } VOICE.setEnabled(!VOICE.enabled()); } },
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
 ];
 
@@ -2126,6 +2128,7 @@ function wirePad() {
   const input = document.getElementById('feedbackInput');
   const panelBody = () => document.querySelector('#panel .panel-body');
   let padMapPeek = false; // true while the controller map is held open by R2
+  window.__gardenPadApply = (action) => apply(action); // "Hey Garden" presses buttons the same way
   const apply = (action) => {
     if (action === 'volup' || action === 'voldown' || action === 'volshow') { showVolume(); return; } // MX thumb wheel / R2+L1 + right stick (pad.mjs set it)
     // the heart (Home) button: open the Arcade from anywhere, or close it (and any game)
@@ -2569,3 +2572,140 @@ wireStreetAlarm();
 wirePlantAlarm();
 wireCursor();
 boot();
+wireVoice();
+
+// ---- "Hey Garden" (lib/voice.js on the wall, src/voice.mjs + src/voiceagent.mjs behind it) ----
+// The agent sees a snapshot of the wall (voiceContext) and acts through voiceAct, which
+// only calls the same functions a tap, click or controller press would.
+let VOICE = null, VOICE_GAMES = [];
+const vClip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+const vNorm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function voiceContext() {
+  const cards = [...document.querySelectorAll('#garden > .card[data-wid]')].map((c) => {
+    const id = c.dataset.wid, w = WIDGET_MODS[id] || {};
+    return { id, title: w.title || id, text: vClip(c.innerText, 260) };
+  });
+  const open = panelOpen();
+  const game = window.__GARDEN_GAME;
+  return {
+    dashboard: CURRENT_DASH,
+    dashboards: DASHBOARDS.map((d) => ({ id: d.id, name: d.name })),
+    widgets: cards,
+    open: open ? { title: document.getElementById('panelTitle')?.textContent || '', items: panelRows().slice(0, 16).map((r, i) => `${i + 1}. ${vClip(r.dataset.name || r.getAttribute('aria-label') || r.innerText, 90)}`), text: vClip(document.getElementById('panelBody')?.innerText, 700) } : null,
+    game: game ? { playing: !!game.inGame?.() } : null,
+    arcadeGames: VOICE_GAMES, // open('arcade') + select(text: a game) starts one
+    palette: paletteOpen(),
+    volume: volNow,
+    rainforest: RF && RF.isOn() ? RF.current() : 'off',
+    night: document.body.classList.contains('night'),
+    commands: COMMANDS.map((c) => ({ name: c.cmd, desc: c.desc, ...(c.options ? { args: c.options().map((o) => o.arg) } : {}) })),
+  };
+}
+// fuzzy "which thing did they mean": the best word overlap between the request and a label
+function vBest(items, label, want) {
+  const w = vNorm(want).split(' ').filter((x) => x.length > 1 && !['the', 'a', 'an', 'my', 'one', 'please', 'open'].includes(x));
+  let best = null, score = 0;
+  for (const it of items) {
+    const l = vNorm(label(it));
+    if (!l) continue;
+    let sc = 0;
+    if (l === vNorm(want)) sc += 10;
+    if (vNorm(want) && l.includes(vNorm(want))) sc += 4;
+    for (const x of w) if (l.split(' ').some((y) => y.startsWith(x) || x.startsWith(y))) sc += 1;
+    if (sc > score) { score = sc; best = it; }
+  }
+  return best;
+}
+const VOICE_PANELS = { events: () => showEvents(), hn: () => showHackerNews(), 'hacker news': () => showHackerNews(), help: () => showHelp(),
+  tendings: () => showIterations(), changelog: () => showIterations(), notes: () => showNotes(), controls: () => showPadMap(),
+  credits: () => showCredits(), architecture: () => showArchitecture(), camera: () => showCamera() };
+const vWait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function voiceAct({ name, input = {} }) {
+  const game = window.__GARDEN_GAME;
+  switch (name) {
+    case 'open': {
+      const t = vNorm(input.target);
+      if (t === 'arcade' || t === 'games') { if (CURRENT_DASH !== 'arcade') await switchDashboard('arcade'); return { ok: true, say: 'Opening the Arcade.' }; }
+      if (VOICE_PANELS[t]) { VOICE_PANELS[t](); return { ok: true, say: `Opening ${t === 'hn' ? 'Hacker News' : t}.` }; }
+      const ids = Object.keys(WIDGET_MODS).filter((id) => id !== 'emulator');
+      const id = ids.includes(input.target) ? input.target : vBest(ids, (i) => `${i.replace(/-/g, ' ')} ${WIDGET_MODS[i].title || ''}${i === 'daily' ? ' painting art' : ''}${i === 'sf-events' ? ' events out in sf' : ''}`, input.target);
+      if (!id) return { ok: false, error: `no widget or panel called "${input.target}"` };
+      if (paletteOpen()) hidePalette();
+      openWidgetPanel(id);
+      return { ok: true, say: `Opening ${WIDGET_MODS[id].title || id}.` };
+    }
+    case 'close': {
+      closeRfMenu(); closeVolMenu();
+      if (paletteOpen()) { hidePalette(); const i = document.getElementById('feedbackInput'); if (i) i.value = ''; return { ok: true, say: 'Closed.' }; }
+      if (panelOpen()) { closePanel(); return { ok: true, say: 'Closed.' }; }
+      if (CURRENT_DASH !== 'main') { await switchDashboard(CURRENT_DASH); return { ok: true, say: 'Back to the garden.' }; } // the same id toggles back to main
+      return { ok: true, info: 'nothing was open' };
+    }
+    case 'select': {
+      // what can be chosen: the open panel's rows, else the Arcade shelf, else the widgets;
+      // right after an open() the panel / shelf may still be rendering — wait a moment
+      const pick = () => (panelOpen() && panelRows().length ? panelRows() : document.querySelector('.ax-tile') ? [...document.querySelectorAll('.ax-tile')] : panelOpen() ? [] : focusCards());
+      let rows = pick();
+      for (let k = 0; k < 25 && (!rows.length || (CURRENT_DASH === 'arcade' && !document.querySelector('.ax-tile'))); k++) { await vWait(100); rows = pick(); }
+      if (!rows.length) return { ok: false, error: 'nothing to choose from is open' };
+      let el = null;
+      if (Number.isInteger(input.index)) el = rows[input.index - 1] || null;
+      if (!el && input.text) el = vBest(rows, (r) => `${r.dataset.name || ''} ${r.getAttribute('aria-label') || ''} ${r.dataset.wid ? (WIDGET_MODS[r.dataset.wid]?.title || r.dataset.wid) : ''} ${r.innerText || ''}`, input.text);
+      if (!el) return { ok: false, error: `couldn't find "${input.text ?? input.index}" — the items are: ${rows.slice(0, 12).map((r) => vClip(r.dataset.name || r.innerText, 40)).join(' | ')}` };
+      if (el.dataset.wid && !panelOpen()) { openWidgetPanel(el.dataset.wid); return { ok: true }; }
+      if (el.classList.contains('ax-tile')) { el.click(); await vWait(120); el.click(); return { ok: true, say: `Starting ${el.dataset.name || 'the game'}.` }; } // select, then play
+      el.click();
+      return { ok: true, say: 'Done.' };
+    }
+    case 'press': {
+      const map = { page_up: 'pageup', page_down: 'pagedown' };
+      const n = Math.max(1, Math.min(10, input.times || 1));
+      for (let i = 0; i < n; i++) { window.__gardenPadApply?.(map[input.button] || input.button); await vWait(110); }
+      return { ok: true, say: 'Done.' };
+    }
+    case 'volume': {
+      const cur = Number.isFinite(volNow) ? volNow : await fetch('/api/volume', { cache: 'no-store' }).then((r) => r.json()).then((v) => v.volume).catch(() => null);
+      if (!Number.isFinite(input.set) && !Number.isFinite(cur)) return { ok: false, error: 'could not read the current volume' };
+      const v = Number.isFinite(input.set) ? input.set : cur + (Number.isFinite(input.change) ? input.change : 0);
+      setVolume(v);
+      setTimeout(showVolume, 250); // after the level has reached the speakers
+      return { ok: true, say: `Volume ${Math.max(0, Math.min(100, Math.round(v)))}%.` };
+    }
+    case 'command': {
+      const c = COMMANDS.find((x) => x.cmd === vNorm(input.name) || x.aliases.includes(vNorm(input.name)));
+      if (!c) return { ok: false, error: `no command "${input.name}"` };
+      c.run(String(input.arg || '').toLowerCase());
+      return { ok: true, say: 'Done.' };
+    }
+    case 'dashboard': {
+      if (!DASHBOARDS.find((d) => d.id === input.id)) return { ok: false, error: `no dashboard "${input.id}"` };
+      if (CURRENT_DASH !== input.id) await switchDashboard(input.id === 'main' ? CURRENT_DASH : input.id);
+      return { ok: true, say: input.id === 'main' ? 'Back to the garden.' : `Opening ${(DASHBOARDS.find((d) => d.id === input.id) || {}).name || input.id}.` };
+    }
+    case 'zoom': applyZoom(input.to === 'in' ? 1 : input.to === 'out' ? -1 : 0); return { ok: true, say: input.to === 'reset' ? 'Back to 100%.' : `Zoomed ${input.to}.` };
+    case 'plant': {
+      const text = vClip(input.text, 800);
+      if (text.length < 3) return { ok: false, error: 'the note is empty' };
+      const r = await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, dashboard: CURRENT_DASH }) }).catch(() => null);
+      if (!r || !r.ok) return { ok: false, error: 'could not reach the gardener' };
+      toast('Planted — it grows tomorrow morning');
+      return { ok: true, say: 'Planted — it grows tomorrow morning.' };
+    }
+    default: return { ok: false, error: `unknown tool ${name}` };
+  }
+}
+function wireVoice() {
+  // only the wall itself listens (the kiosk on this machine) — not QA captures or the Roots mirror
+  if (SCREENSHOT || !['127.0.0.1', 'localhost'].includes(location.hostname)) return;
+  fetch('/api/roms').then((r) => r.json()).then((d) => { VOICE_GAMES = ['Super Bomberman: The Garden Edition', ...(d.roms || []).map((r) => r.name)]; }).catch(() => {});
+  import(`/lib/voice.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => {
+    VOICE = m.startVoice({
+      context: voiceContext,
+      act: voiceAct,
+      sound: (k) => UI_SOUND(k, { force: true }),
+      toast,
+      duck: (down) => { try { if (RF && RF.isOn()) RF.duck(down); } catch { /* ignore */ } },
+    });
+    if (qs.has('voicedemo')) setTimeout(() => VOICE.demo(), 1500);
+  }).catch(() => {});
+}

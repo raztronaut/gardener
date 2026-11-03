@@ -1,0 +1,17 @@
+[Unit]
+Description=The Gardener — "Hey Garden" voice (on-device wake word + speech-to-text → agent; audio never stored)
+After=gardener-backend.service pulseaudio.service
+Wants=gardener-backend.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=/home/talbot/gardener/scripts/gardener.sh voice
+Restart=always
+RestartSec=5
+# models ~350 MB resident; hard cap so it can never take the machine down
+MemoryHigh=700M
+MemoryMax=900M
+
+[Install]
+WantedBy=default.target
