@@ -792,3 +792,25 @@ body:not(.idle) .rfm-row:hover { background: rgba(116,247,176,.08); }
 #voiceCap.done .vc-ic { background: var(--mint); box-shadow: 0 0 14px rgba(116, 247, 176, .8); }
 #voiceCap.fail .vc-ic { background: #ff7a6b; box-shadow: 0 0 14px rgba(255, 122, 107, .7); }
 #voiceCap.done .vc-tx { color: #fff; }
+
+/* "Hey Garden" calibration card */
+#voiceCalib { position: absolute; inset: 0; z-index: 898; display: none; align-items: center; justify-content: center; pointer-events: none; }
+#voiceCalib.on { display: flex; }
+#voiceCalib .vk-card { width: 680px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+  padding: 44px 40px 38px; border-radius: 34px; background: rgba(6, 14, 12, .9); border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .55); }
+#voiceCalib .vk-kicker { font-size: 17px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--mint); }
+#voiceCalib .vk-ring { position: relative; width: 190px; height: 190px; margin: 6px 0; }
+#voiceCalib .vk-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+#voiceCalib .vk-ring circle { fill: none; stroke-width: 7; }
+#voiceCalib .vk-ring .bg { stroke: rgba(255, 255, 255, .1); }
+#voiceCalib .vk-ring .fg { stroke: var(--mint); stroke-linecap: round; transition: stroke-dashoffset .9s linear; }
+#voiceCalib.ana .vk-ring .fg { stroke: #7db8ff; transition: stroke-dashoffset .3s ease; }
+#voiceCalib.bad .vk-ring .fg { stroke: #ff7a6b; }
+#voiceCalib .vk-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 400; font-size: 58px; color: #fff; }
+#voiceCalib .vk-title { font-family: var(--font-display); font-size: 40px; line-height: 1.1; color: #fff; }
+#voiceCalib .vk-sub { font-size: 20px; line-height: 1.4; color: var(--ink-soft); max-width: 560px; }
+#voiceCalib .vk-dots { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 18px; color: var(--ink-soft); }
+#voiceCalib .vk-dots span { font-weight: 700; color: var(--mint); font-size: 22px; }
+#voiceCalib .vk-dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px rgba(116, 247, 176, .6); }

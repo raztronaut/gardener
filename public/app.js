@@ -1550,7 +1550,8 @@ const COMMANDS = [
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
   { cmd: 'voice', aliases: ['mic', 'listen', 'heygarden'], icon: '🎙', desc: '"Hey Garden" voice control on / off (off = the mic is closed)',
-    run: () => { if (!VOICE) { toast('Voice is not running on this screen'); return; } VOICE.setEnabled(!VOICE.enabled()); } },
+    run: (arg) => { if (!VOICE) { toast('Voice is not running on this screen'); return; } if (/^cal/.test(arg || '')) { VOICE.calibrate(60); return; } VOICE.setEnabled(!VOICE.enabled()); },
+    options: () => [{ arg: 'calibrate', icon: '🎚', label: 'Calibrate', desc: 'one minute: say “Hey Garden” around the house, it tunes itself to your voice' }, { arg: 'toggle', icon: '🎙', label: 'On / off', desc: 'turn listening on or off (off = the mic is closed)' }] },
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
 ];
 
