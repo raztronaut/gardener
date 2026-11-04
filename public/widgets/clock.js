@@ -543,6 +543,14 @@ export default {
     const fmtHolFull = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric' });
     // Paint the date-line heads-up, stepping down if the line is tight:
     // "Halloween Sat · 5d" → "Halloween · 5d" → hidden (the date always stays whole).
+    // Sub-pixel fit test: scrollWidth/clientWidth round to whole pixels, so a line a
+    // fraction of a pixel too wide read as "fits" and then rendered with an ellipsis.
+    const holRange = document.createRange();
+    const holOverflows = () => {
+      if (!hol.isConnected || !hol.clientWidth) return false;   // not laid out yet: the tick re-checks
+      holRange.selectNodeContents(hol);
+      return holRange.getBoundingClientRect().width > hol.getBoundingClientRect().width + 0.01;
+    };
     const paintHoliday = () => {
       if (!holiday) { hol.style.display = 'none'; hol.replaceChildren(); return; }
       const { name, days, utc } = holiday;
@@ -555,10 +563,12 @@ export default {
       hol.title = days === 0 ? `${name} — today` : `${name} · ${fmtHolFull.format(new Date(utc))} · in ${days} day${days === 1 ? '' : 's'}`;
       for (const [, post] of forms) {
         hol.replaceChildren(ctx.h('b', {}, name), post);
-        if (hol.scrollWidth <= hol.clientWidth + 1) return;
+        if (!holOverflows()) return;
       }
       hol.style.display = 'none';
     };
+    // Web fonts can land after the first paint and change the line's width — measure again then.
+    try { document.fonts && document.fonts.ready.then(() => paintHoliday()).catch(() => {}); } catch {}
     const tick = () => {
       const now = new Date();
       const parts = fmtTime.formatToParts(now);
@@ -574,6 +584,9 @@ export default {
       const [yy, mm, dd] = fmtYMD.format(now).split('-').map((n) => parseInt(n, 10));
       const hKey = `${yy}-${mm}-${dd}`;
       if (hKey !== lastHolDay) { lastHolDay = hKey; try { holiday = nextHoliday(yy, mm, dd); } catch { holiday = null; } paintHoliday(); }
+      // The fit was measured once; if the line overflows now (fonts swapped in after the
+      // first paint, or the card was resized), step it down again rather than ellipsize.
+      else if (holiday && hol.style.display !== 'none' && holOverflows()) paintHoliday();
       // On a festive day the greeting turns ("Happy Halloween") through waking hours.
       const g = poem || (holiday && holiday.days === 0 && holiday.greet && h >= 5 && h < 22
         ? holiday.greet : greetingFor(h, fmtWeekday.format(now)));

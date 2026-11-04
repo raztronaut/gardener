@@ -193,6 +193,7 @@ const TILE_CSS = `
     font-size:38px; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums; }
   .mt-n small { font-family:var(--font); font-size:15px; color:var(--ink-faint); margin-left:4px; }
   .mt-n .ctl { font-family:var(--font); font-size:14px; color:var(--ink); align-self:center; white-space:nowrap; }
+  .mt-lb .win .ctl { font-size:13px; letter-spacing:.04em; text-transform:none; font-weight:600; }
   .mt-bar { position:relative; display:flex; gap:2px; height:8px; }
   .mt-bar i { display:block; min-width:2px; border-radius:2px; }
   .mt-bar b { position:absolute; left:50%; top:-4px; bottom:-4px; width:2px; margin-left:-1px; background:var(--ink); border-radius:1px; }
@@ -207,10 +208,14 @@ function chamberBlock(h, d, ch, full = false) {
   const seats = c ? c.seats : null;
   const to = ch === 'S' ? (full ? 'D 51 · R 50 + VP to win' : '51 to win') : '218 to win';
   const n = (p) => h('span', {}, seats ? String(seats[p]) : '–', h('small', {}, p));
-  const ctl = c && c.ctl ? h('span', { class: 'ctl' }, `${PNAME[c.ctl]} win`) : null;
+  const ctl = c && c.ctl ? h('span', { class: 'ctl', style: { color: POLE[c.ctl] || '' } }, `${PNAME[c.ctl]} win`) : null;
+  // On the half-width tile a called chamber says so in the label row (in place of the
+  // "to win" target) — squeezed between the two seat counts it crowded them and pushed
+  // the House's R count off the card. The wider fullscreen keeps it between the numbers.
+  const lbRight = ctl && !full ? h('span', { class: 'to win' }, ctl) : h('span', { class: 'to' }, to);
   return h('div', { class: 'mt-c' },
-    h('div', { class: 'mt-lb' }, h('span', {}, ch === 'S' ? 'Senate' : 'House'), h('span', { class: 'to' }, to)),
-    h('div', { class: 'mt-n' }, n('D'), ctl, n('R')),
+    h('div', { class: 'mt-lb' }, h('span', {}, ch === 'S' ? 'Senate' : 'House'), lbRight),
+    h('div', { class: 'mt-n' }, n('D'), full ? ctl : null, n('R')),
     seatBar(h, d, ch));
 }
 function footText(d) {
