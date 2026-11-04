@@ -2692,6 +2692,10 @@ async function voiceAct({ name, input = {} }) {
     }
     case 'dashboard': {
       if (!DASHBOARDS.find((d) => d.id === input.id)) return { ok: false, error: `no dashboard "${input.id}"` };
+      if (input.id === 'main' && CURRENT_DASH === 'main') { // already home: just clear whatever is on top
+        closeRfMenu(); closeVolMenu(); if (paletteOpen()) hidePalette(); if (panelOpen()) closePanel();
+        return { ok: true, say: 'Back to the garden.' };
+      }
       if (CURRENT_DASH !== input.id) await switchDashboard(input.id === 'main' ? CURRENT_DASH : input.id);
       return { ok: true, say: input.id === 'main' ? 'Back to the garden.' : `Opening ${(DASHBOARDS.find((d) => d.id === input.id) || {}).name || input.id}.` };
     }

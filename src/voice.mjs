@@ -208,11 +208,12 @@ async function finish(why) {
   const t0 = Date.now();
   let out;
   try {
-    out = await runAgent(text, {
+    // the whole request is bounded: 20 s, then it gives up (never a stuck "thinking")
+    out = await Promise.race([new Promise((r) => setTimeout(() => r({ ok: false, reply: 'That took too long — try again?' }), 20000)), runAgent(text, {
       context: () => askWall('context', {}, 2500),
       call: (calls) => askWall('act', { calls }, 8000),
       log,
-    });
+    })]);
   } catch (e) { log(`agent: ${e.message || e}`); out = { ok: false, reply: 'Sorry — I couldn’t do that.' }; }
   log(`done in ${Date.now() - t0} ms (${out.ok ? 'ok' : 'failed'})`);
   resetSpotter();
@@ -314,4 +315,4 @@ http.createServer(async (req, res) => {
 
 if (!existsSync(KWS_DIR) || !existsSync(ASR_DIR)) log('models missing — see tools/voice/README.md');
 startMic();
-process.on('SIGTERM', () => { stopMic(); process.exit(0); });
+process.on('SIGTERM', () => { if (state !== 'idle') send({ t: 'state', state: 'idle', end: 'cancel' }); stopMic(); setTimeout(() => process.exit(0), 50); });

@@ -116,11 +116,16 @@ function makeCaption() {
 export function startVoice(api) {
   const glow = makeGlow();
   const cap = makeCaption();
-  let es = null, backoff = 2000, enabled = true, busy = false;
+  let es = null, backoff = 2000, enabled = true, busy = false, lastEv = 0, watchdog = 0;
+  // never stuck: back to rest if a listening / thinking moment hears nothing for 12 s, or
+  // if the voice service restarts mid-request (its hello says it's idle)
+  const settle = () => { if (busy) onEvent({ t: 'state', state: 'idle', end: 'cancel' }); };
+  const arm = () => { clearTimeout(watchdog); if (busy) watchdog = setTimeout(() => { if (Date.now() - lastEv > 11000) settle(); else arm(); }, 12000); };
   const post = (path, body) => fetch(ORIGIN + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
 
   const onEvent = async (ev) => {
-    if (ev.t === 'hello') { enabled = ev.enabled; return; }
+    lastEv = Date.now();
+    if (ev.t === 'hello') { enabled = ev.enabled; if (ev.state === 'idle') settle(); return; }
     if (ev.t === 'enabled') { enabled = ev.enabled; api.toast(enabled ? 'Hey Garden is listening again' : 'Hey Garden is off — the mic is closed'); return; }
     if (ev.t === 'level') { glow && glow.level(ev.v); return; }
     if (ev.t === 'partial') { cap.show(ev.text, 'live'); return; }
@@ -136,17 +141,18 @@ export function startVoice(api) {
     }
     if (ev.t !== 'state') return;
     if (ev.state === 'listening') {
-      busy = true;
+      busy = true; arm();
       api.duck(true);
       glow && glow.wake();
       api.sound('listen');
       cap.show(ev.text || 'Listening…', ev.text ? 'live' : 'hint');
     } else if (ev.state === 'thinking') {
+      arm();
       glow && glow.think();
       api.sound('heard');
       cap.show(ev.text || '…', 'think');
     } else if (ev.state === 'idle' && busy) {
-      busy = false;
+      busy = false; clearTimeout(watchdog);
       const end = ev.end || 'cancel';
       glow && glow.end(end);
       if (end === 'done') { api.sound('done'); if (ev.reply) cap.show(ev.reply, 'done'); cap.hide(ev.reply ? 2600 : 600); }
@@ -160,7 +166,7 @@ export function startVoice(api) {
     try { es = new EventSource(`${ORIGIN}/events`); } catch { return; }
     es.onopen = () => { backoff = 2000; };
     es.onmessage = (m) => { try { onEvent(JSON.parse(m.data)); } catch { /* ignore */ } };
-    es.onerror = () => { es.close(); es = null; setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); };
+    es.onerror = () => { es.close(); es = null; settle(); setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); };
   };
   connect();
   return {
