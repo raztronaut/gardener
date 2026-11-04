@@ -358,7 +358,7 @@ function calibAudio(x) {
     const p = transcribe(samples).then((t) => {
       if (/\b(hey|hay|hi|hei|heya|ok(ay)?|a)\b[\s,.!?-]*g[aeiou]?r?d?\w*/i.test(t) && /\bg[ao]r?d|gordon|garn/i.test(t)) { /* "hey" + a garden-ish word */ C.segs.push({ start, end: start + samples.length, text: t }); C.heard++; send({ t: 'calib', phase: 'record', left: Math.max(0, Math.ceil(C.seconds - (Date.now() - C.t0) / 1000)), heard: C.heard }); }
     });
-    C.checks.push(p);
+    C.checks.push(p); C.speech = (C.speech || 0) + 1;
   }
   if (now - C.lastTick > 1000) { C.lastTick = now; send({ t: 'calib', phase: 'record', left: Math.max(0, Math.ceil(C.seconds - (now - C.t0) / 1000)), heard: C.heard }); }
   if (C.len >= C.buf.length) { state = 'analyzing'; analyzeCalibration().catch((err) => { log(`calibration failed: ${err.message}`); endCalibration({ ok: false, why: 'something went wrong' }); }); }
@@ -427,7 +427,7 @@ async function analyzeCalibration() {
   const pad = Math.round(RATE * 0.5);
   const takes = C.segs.sort((a, b) => a.start - b.start).slice(0, 16)
     .map((g) => ({ ...g, x: audio.slice(Math.max(0, g.start - pad), Math.min(audio.length, g.end + pad)) }));
-  if (takes.length < 2) return endCalibration({ ok: false, why: `I only heard ${takes.length} “hey garden” — try again a bit louder` });
+  if (takes.length < 2) { log(`calibration: only ${takes.length} takes in ${C.speech || 0} speech segments`); return endCalibration({ ok: false, why: `I only heard ${takes.length} “hey garden” — try again a bit louder` }); }
   // negatives: the minute with the takes cut out (other talk, the room, the TV…)
   const neg = new Float32Array(audio);
   for (const g of takes) neg.fill(0, Math.max(0, g.start - pad), Math.min(neg.length, g.end + pad));
