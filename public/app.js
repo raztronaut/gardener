@@ -2781,7 +2781,7 @@ function voiceSheet({ subtitle, blocks } = {}) {
     const kids = [];
     if (b.heading) kids.push(h('div', { class: 'vs-h' }, vClip(b.heading, 80)));
     const items = Array.isArray(b.items) ? b.items.slice(0, 24) : [];
-    if (b.type === 'text' && b.text) kids.push(h('p', { class: 'vs-p' }, vClip(b.text, 900)));
+    if (b.type === 'text' && b.text) kids.push(h('p', { class: 'vs-p' }, vClip(b.text, 2400)));
     else if (b.type === 'list') kids.push(h('ul', { class: 'vs-list' }, ...items.map((it) => h('li', {}, vClip(str(it), 220)))));
     else if (b.type === 'steps') kids.push(h('ol', { class: 'vs-steps' }, ...items.map((it, i) => h('li', {}, h('b', {}, String(i + 1)), h('span', {}, vClip(str(it), 260))))));
     else if (b.type === 'facts') kids.push(h('div', { class: 'vs-facts' }, ...items.flatMap((it) => [h('div', { class: 'k' }, vClip(it && it.label, 40)), h('div', { class: 'v' }, vClip(it && it.value, 160))])));
@@ -2811,6 +2811,17 @@ function wireVoice() {
       act: voiceAct,
       sound: (k) => UI_SOUND(k, { force: true }),
       toast,
+      showText: (text) => { // a long answer, whole, as paragraphs of a few sentences
+        const sentences = String(text).match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [String(text)];
+        const paras = []; let cur = '';
+        for (const x of sentences) { if (cur && (cur + x).length > 320) { paras.push(cur.trim()); cur = ''; } cur += x; }
+        if (cur.trim()) paras.push(cur.trim());
+        if (paletteOpen()) hidePalette();
+        openPanel('Garden', voiceSheet({ blocks: paras.slice(0, 14).map((t) => ({ type: 'text', text: t })) }));
+      },
+      // the caption on liquid glass: baked once per size (it keeps a fixed width; its height
+      // steps by lines) and cached like the panels' glass
+      glass: (el) => { if (!GB || SCREENSHOT) return; GB.glassLayers(el); GB.bakePanel(el, { veil: 0.5 }).then((ok) => el.classList.toggle('nosnap', !ok), () => el.classList.add('nosnap')); },
       duck: (down) => { try { if (RF && RF.isOn()) RF.duck(down); } catch { /* ignore */ } },
     });
     if (qs.has('voicedemo')) setTimeout(() => VOICE.demo(), 1500);

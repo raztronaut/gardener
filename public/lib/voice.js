@@ -100,16 +100,18 @@ function makeGlow() {
   };
 }
 
-function makeCaption() {
+function makeCaption(api) {
   const el = document.createElement('div');
   el.id = 'voiceCap';
-  el.innerHTML = '<span class="vc-ic"></span><span class="vc-tx"></span>';
+  el.innerHTML = '<span class="vc-tx"></span>';
   (document.getElementById('zoomroot') || document.body).appendChild(el);
   const tx = el.querySelector('.vc-tx');
-  let hideT = 0;
+  let hideT = 0, glassT = 0, glassH = 0;
+  // re-bake the glass when the pill's height changes (a new line); cached per size
+  const reglass = () => { clearTimeout(glassT); glassT = setTimeout(() => { const hgt = el.offsetHeight; if (el.classList.contains('on') && hgt !== glassH) { glassH = hgt; api.glass && api.glass(el); } }, 330); }; // (after the slide-in settles)
   return {
-    show(text, cls) { clearTimeout(hideT); el.className = `on ${cls || ''}`; tx.textContent = text; },
-    hide(after = 0) { clearTimeout(hideT); hideT = setTimeout(() => { el.className = ''; }, after); },
+    show(text, cls) { clearTimeout(hideT); el.className = `on ${cls || ''}`; tx.textContent = text; reglass(); },
+    hide(after = 0) { clearTimeout(hideT); hideT = setTimeout(() => { el.className = ''; glassH = 0; }, after); },
   };
 }
 
@@ -159,7 +161,7 @@ function makeCalib() {
 
 export function startVoice(api) {
   const glow = makeGlow();
-  const cap = makeCaption();
+  const cap = makeCaption(api);
   const calib = makeCalib();
   let es = null, backoff = 2000, enabled = true, busy = false, lastEv = 0, watchdog = 0;
   // never stuck: back to rest if a listening / thinking moment hears nothing for 12 s, or
@@ -180,7 +182,7 @@ export function startVoice(api) {
       lastEv = Date.now(); arm();
       return;
     }
-    if (ev.t === 'partial') { cap.show(ev.text, 'live'); return; }
+    if (ev.t === 'partial') return; // (listening is the glowing edges only — words appear for the response)
     if (ev.t === 'context') { post('/reply', { id: ev.id, data: api.context() }); return; }
     if (ev.t === 'act') {
       const out = [];
@@ -197,17 +199,24 @@ export function startVoice(api) {
       api.duck(true);
       glow && glow.wake();
       api.sound('listen');
-      cap.show(ev.text || 'Listening…', ev.text ? 'live' : 'hint');
+      cap.hide(0);
     } else if (ev.state === 'thinking') {
       arm();
       glow && glow.think();
       api.sound('heard');
-      cap.show(ev.text || '…', 'think');
     } else if (ev.state === 'idle' && busy) {
       busy = false; clearTimeout(watchdog);
       const end = ev.end || 'cancel';
       glow && glow.end(end);
-      if (end === 'done') { api.sound('done'); if (ev.reply) cap.show(ev.reply, `done${ev.reply.length > 60 ? ' long' : ''}`); cap.hide(ev.reply ? Math.min(12000, 2600 + ev.reply.length * 55) : 600); }
+      if (end === 'done') {
+        api.sound('done');
+        const r = ev.reply || '';
+        // the answer is always shown whole: in the caption (wrapping, smaller when longer), or —
+        // when it's too long to read there — as a sheet in the panel
+        if (r.length > 320) { cap.hide(0); api.showText(r); }
+        else if (r) { cap.show(r, `done${r.length > 60 ? ' long' : ''}${r.length > 170 ? ' xl' : ''}`); cap.hide(Math.min(20000, 3000 + r.length * 60)); }
+        else cap.hide(600);
+      }
       else if (end === 'fail') { api.sound('fail'); cap.show(ev.reply || 'Sorry — I couldn’t do that.', 'fail'); cap.hide(2600); }
       else { api.sound('cancel'); cap.hide(0); }
       setTimeout(() => api.duck(false), 900);

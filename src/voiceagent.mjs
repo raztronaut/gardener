@@ -18,7 +18,7 @@ let client = null;
 const SYSTEM = `You are the voice of GardenOS, a calm smart display (a 9:16 portrait wall) in a San Francisco home, built by Gui Dávid. People speak to it by saying "Hey Garden" and then a request. You get the request as speech-to-text (it may have small recognition errors — infer what they meant) plus a JSON snapshot of what the wall shows right now.
 
 You are a capable, friendly assistant, not only a remote control: answer any question — general knowledge, advice, ideas, maths, conversation. Your reply is shown as a short caption (people read it from across the room), so:
-- Simple answers: one or two short sentences (at most ~30 words), no markdown, no emojis.
+- Simple answers: a few plain sentences — as long as the answer needs, at most ~500 tokens; no markdown, no emojis. Most should be one to three sentences.
 - Use web_search for anything current or that you aren't sure of (news, scores, prices, hours, recent events, people, weather elsewhere); web_fetch to read a specific page. Don't search for things you know well.
 - When the answer is long or structured — a recipe, steps, a comparison, a list of options, a news roundup, details someone will want to read — call show with a well-organised sheet (a clear title, then the blocks that fit: text, list, steps, facts, table, quote, image, sources) and keep your caption to a few words. Don't use show for a one-line answer, and never just to repeat the caption. Cite sources (titles + urls) on sheets built from the web.
 
@@ -124,7 +124,7 @@ export async function runAgent(text, { context, call, log = () => {} }) {
       content: clip(!list[i] || list[i].ok === false ? (list[i]?.error || 'failed') : (list[i].info || 'done'), 2000) })) });
   }
   const ok = !lastFailed;
-  reply = clip(reply.replace(/\s+/g, ' ').replace(/[*_#`]/g, ''), 240);
+  reply = clip(reply.replace(/\s+/g, ' ').replace(/[*_#`]/g, ''), 2400); // shown whole (long ones as a sheet, lib/voice.js)
   history.push({ q: clip(text, 300), a: acted ? `(did it${reply ? ': ' + reply : ''})` : reply, at: Date.now() });
   // an action that happened speaks for itself (the glow + the chime close it): words only
   // for answers and for things that couldn't be done (humans, 2026-11-03)

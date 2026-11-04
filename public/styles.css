@@ -778,20 +778,20 @@ body:not(.idle) .rfm-row:hover { background: rgba(116,247,176,.08); }
 /* the edge glow: one WebGL canvas over everything, drawn only while active (half res, scaled) */
 #voiceGlow { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 900; pointer-events: none; display: none; }
 #voiceGlow.on { display: block; }
-/* the words: a dark glass pill above the note bar */
-#voiceCap { position: absolute; left: 50%; bottom: 120px; z-index: 899; transform: translateX(-50%) translateY(8px);
-  max-width: 780px; display: flex; align-items: center; gap: 12px; padding: 14px 26px; border-radius: 999px;
-  background: rgba(6, 14, 12, .82); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 18px 50px rgba(0, 0, 0, .5);
-  color: var(--ink); font: 500 26px/1.25 var(--font); opacity: 0; pointer-events: none;
-  transition: opacity .28s ease, transform .28s ease; }
+/* the words: a liquid-glass pane above the note bar (baked like the panels' glass — app.js
+   api.glass), fixed width so the bake is reused; the title face, centred */
+#voiceCap { position: absolute; left: 50%; bottom: 118px; z-index: 899; width: 800px; box-sizing: border-box;
+  transform: translateX(-50%) translateY(10px); padding: 22px 34px; border-radius: 30px; text-align: center;
+  background: rgba(8, 22, 18, .78); border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+  color: #fff; font: 400 36px/1.2 var(--font-display); opacity: 0; pointer-events: none; overflow: hidden;
+  transition: opacity .3s ease, transform .3s ease; }
+#voiceCap.lgr { background: transparent; border-color: transparent; }
+#voiceCap.lgr.nosnap { background: rgba(8, 22, 18, .86); }
+#voiceCap > .vc-tx { position: relative; z-index: 3; display: block; text-wrap: balance; }
 #voiceCap.on { opacity: 1; transform: translateX(-50%) translateY(0); }
-#voiceCap .vc-tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#voiceCap.hint .vc-tx { color: var(--ink-soft); }
-#voiceCap.think .vc-tx { color: var(--ink-soft); }
-#voiceCap .vc-ic { width: 12px; height: 12px; border-radius: 50%; flex: none; background: linear-gradient(135deg, #4df5a8, #38ccff 45%, #ff66b8); }
-#voiceCap.done .vc-ic { background: var(--mint); box-shadow: 0 0 14px rgba(116, 247, 176, .8); }
-#voiceCap.fail .vc-ic { background: #ff7a6b; box-shadow: 0 0 14px rgba(255, 122, 107, .7); }
-#voiceCap.done .vc-tx { color: #fff; }
+#voiceCap.hint .vc-tx { color: var(--ink-soft); letter-spacing: .02em; }
+#voiceCap.think .vc-tx { color: rgba(255, 255, 255, .72); }
+#voiceCap.fail .vc-tx { color: #ffb4a8; }
 
 /* "Hey Garden" calibration card */
 #voiceCalib { position: absolute; inset: 0; z-index: 898; display: none; align-items: center; justify-content: center; pointer-events: none; }
@@ -816,8 +816,9 @@ body:not(.idle) .rfm-row:hover { background: rgba(116,247,176,.08); }
 #voiceCalib .vk-dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 10px rgba(116, 247, 176, .6); }
 
 /* answers: the caption may wrap to a few lines */
-#voiceCap.long { border-radius: 30px; padding: 18px 30px; }
-#voiceCap.long .vc-tx { white-space: normal; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+#voiceCap.long { font-size: 30px; line-height: 1.25; }
+#voiceCap.long .vc-tx { text-wrap: pretty; } /* never cut: always the whole answer */
+#voiceCap.xl { font-size: 26px; line-height: 1.3; }
 /* "Hey Garden" info sheets (app.js voiceSheet): read from across the room */
 .vs { display: flex; flex-direction: column; gap: 22px; padding: 4px 4px 18px; color: var(--ink); }
 .vs-sub { font-size: 19px; color: var(--ink-soft); margin-top: -6px; }
