@@ -58,7 +58,7 @@ export async function runAgent(text, { context, call, log = () => {} }) {
   const now = new Intl.DateTimeFormat('en-US', { timeZone: config.tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date());
   const openNow = snap && snap.open ? `the "${snap.open.title}" panel is open` : snap && snap.dashboard && snap.dashboard !== 'main' ? `the ${snap.dashboard} dashboard is showing` : 'nothing is open (the main wall)';
   const messages = [{ role: 'user', content: `It is ${now}. Right now ${openNow}${snap && snap.game && snap.game.playing ? ' and a game is running' : ''}. The wall:\n${clip(JSON.stringify(snap), 9000)}\n\nThe request: "${clip(text, 500)}"` }];
-  let reply = '', lastFailed = false;
+  let reply = '', lastFailed = false, acted = false;
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const res = await client.messages.create({ model: MODEL, max_tokens: 400, system: SYSTEM, tools: TOOLS, messages });
     log(`model round ${round + 1}: ${Date.now() - t0} ms, ${res.usage?.input_tokens ?? '?'} in / ${res.usage?.output_tokens ?? '?'} out`);
@@ -77,6 +77,7 @@ export async function runAgent(text, { context, call, log = () => {} }) {
     // GARDENER_VOICE_DEBUG=1 (QA) — never in normal running
     log(`tools: ${uses.map((u, i) => `${u.name}${process.env.GARDENER_VOICE_DEBUG === '1' ? JSON.stringify(u.input) + '→' + JSON.stringify(list[i]) : list[i]?.ok === false ? ' (failed)' : ''}`).join(', ')}`);
     lastFailed = list.some((r) => !r || r.ok === false);
+    if (list.some((r) => r && r.ok !== false && !r.info)) acted = true;
     const informative = list.some((r) => r && r.info);
     // the fast path — one model call: everything worked, nothing to read back; the reply is
     // the model's own line, else the wall's plain description of what it did
@@ -88,5 +89,8 @@ export async function runAgent(text, { context, call, log = () => {} }) {
   }
   const ok = !lastFailed;
   reply = clip(reply.replace(/\s+/g, ' ').replace(/[*_#`]/g, ''), 140);
-  return { ok, reply: reply || (ok ? 'Done.' : 'Sorry — I couldn’t do that.') };
+  // an action that happened speaks for itself (the glow + the chime close it): words only
+  // for answers and for things that couldn't be done (humans, 2026-11-03)
+  if (ok && acted) return { ok, reply: '' };
+  return { ok, reply: reply || (ok ? '' : 'Sorry — I couldn’t do that.') };
 }
