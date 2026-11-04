@@ -51,6 +51,15 @@ async function main() {
       const src = readFileSync(wf, 'utf8');
       check(`widget exports default: ${w.file}`, /export\s+default/.test(src), 'no `export default`');
     }
+    // Temporary replacements ("replaces" + "until", app.js applyReplacements): the
+    // target must be a real enabled widget (it comes back by itself) sharing the slot's
+    // order, and `until` must parse — a malformed one would silently never show.
+    for (const w of (manifest.widgets || []).filter((x) => x.replaces && x.enabled !== false)) {
+      const t = (manifest.widgets || []).find((x) => x.id === w.replaces);
+      check(`replacement ${w.id} → ${w.replaces}: target enabled, same order, valid until`,
+        !!t && t.enabled !== false && t.order === w.order && Number.isFinite(Date.parse(w.until)),
+        JSON.stringify({ target: !!t, enabled: t?.enabled, order: [w.order, t?.order], until: w.until }));
+    }
     // Every external host a main-wall widget fetches through the proxy (literal
     // `fetchJSON('https://host…` / fetchText) must be allowlisted, or that data
     // silently never arrives (e.g. daily.js's Wikidata notability ranking).
@@ -535,7 +544,9 @@ async function main() {
       const importAttr = (dom.match(/data-gardener-import="(\d+)"/) || [])[1];
       check('all widgets imported cleanly', !importAttr || importAttr === '0', `import failures=${importAttr}`);
       const count = (dom.match(/data-gardener-widget-count="(\d+)"/) || [])[1];
-      const expected = (manifest.widgets || []).filter((w) => w.enabled !== false).length;
+      // exactly one of each replacement pair is on the wall at any time
+      const enabledW = (manifest.widgets || []).filter((w) => w.enabled !== false);
+      const expected = enabledW.length - enabledW.filter((w) => w.replaces).length;
       check('all enabled widgets mounted', count && Number(count) === expected, `mounted ${count} of ${expected}`);
       const overflow = (dom.match(/data-gardener-overflow="(\d+)"/) || [])[1];
       check('fits 900×1600 (garden not overflowing)', overflow == null || Number(overflow) <= 24, `garden overflows by ${overflow}px`);

@@ -91,6 +91,15 @@ function makeCtx(widgetId) {
       if (document.getElementById(sid)) return;
       document.head.appendChild(h('style', { id: sid, html: cssText }));
     },
+    // A TEMPORARY replacement widget (manifest "replaces" + "until") may end its own
+    // run early: retire(at) persists "hand the slot back at `at`" (the earliest call
+    // wins), and the wall swaps the original card back by itself (see REPLACEMENTS).
+    retire(at = Date.now()) {
+      try {
+        const k = RETIRE_KEY(widgetId.split(':')[0]), prev = Number(localStorage.getItem(k));
+        if (!(prev > 0 && prev <= at)) localStorage.setItem(k, String(Math.round(at)));
+      } catch { /* storage unavailable: the manifest's "until" still ends it */ }
+    },
     loading: (msg = 'growing…') => h('div', { class: 'widget-loading' }, h('span', { class: 'spinner' }), msg),
     error: (msg = 'unavailable') => h('div', { class: 'widget-error' }, '⚠', msg),
   };
@@ -143,7 +152,7 @@ function renderPrank(body) {
 // then every mount() (the data-fetching part) runs in parallel. Sequential
 // awaiting made the remote Wall mirror serialize ~21 tunnel round-trips
 // (~10s boot); parallel collapses that to roughly the slowest single widget.
-async function loadWidgets(enabled, mountPoint) {
+async function loadWidgets(enabled, mountPoint, { before = null } = {}) {
   const mods = await Promise.all(enabled.map((entry) =>
     import(`${entry.file.startsWith('/') ? entry.file : `/widgets/${entry.file}`}?v=${window.__GARDEN_VERSION}`).catch((e) => ({ __importError: e }))));
   const mounts = [];
@@ -190,7 +199,7 @@ async function loadWidgets(enabled, mountPoint) {
       body = h('div', { class: 'card-body' });
       card.appendChild(body);
     }
-    mountPoint.appendChild(card);
+    if (before && before.parentNode === mountPoint) mountPoint.insertBefore(card, before); else mountPoint.appendChild(card);
     // One-day takeover: on its day, this widget shows the surprise message instead
     // of mounting normally (so nothing overwrites it). Every other day: mount as usual.
     if (prankActiveFor(entry.id)) { try { renderPrank(body); } catch { /* never break boot */ } return; }
@@ -232,9 +241,11 @@ async function loadWidgets(enabled, mountPoint) {
   // — before awaiting the data-fetching mounts — so a slow/stalled external API
   // fetch can't push readiness past the headless render budget. The fetches keep
   // resolving in the background; boot()'s finally re-affirms these same markers.
-  document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
-  document.documentElement.dataset.gardenerReady = 'true';
-  document.documentElement.dataset.gardenerBoot = 'ready';
+  if (!before) {
+    document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
+    document.documentElement.dataset.gardenerReady = 'true';
+    document.documentElement.dataset.gardenerBoot = 'ready';
+  }
   await Promise.all(mounts);
 }
 
@@ -281,6 +292,7 @@ async function boot() {
     setTimeout(checkOverflow, 3000);
     setTimeout(checkOverflow, 6500);
     startPolling();
+    setInterval(() => { checkReplacements().catch(() => {}); }, 60 * 1000);
     // Note bar: baked glass too — its backdrop (the bottom of the wall) never changes
     // while typing (the text sits ON the glass), so one cached bake is exact. No rim
     // highlight and no per-keystroke effect here (too heavy on the seed box).
@@ -322,10 +334,48 @@ async function dashboardWidgets(id) {
   let manifest = { widgets: [] };
   try { manifest = await (await fetch(`${d.manifest}?v=${window.__GARDEN_VERSION}`, { cache: 'no-store' })).json(); }
   catch (e) { markError('core', `manifest(${id}): ${e.message}`); }
-  let list = (manifest.widgets || []).filter((w) => w.enabled !== false).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  let list = applyReplacements((manifest.widgets || []).filter((w) => w.enabled !== false)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  if (id === 'main') REPLACEMENTS = (manifest.widgets || []).filter((w) => w.enabled !== false && w.replaces);
   if (id !== 'main') list = [{ id: 'clock', file: 'clock.js', order: 0 }, ...list.filter((w) => !PINNED.includes(w.id))];
   return list;
 }
+// ---- temporary replacements ------------------------------------------------------
+// A manifest entry with "replaces": "<id>", "until": "<ISO time>" takes that widget's
+// place on the wall (give it the same "order") until `until`, or earlier once the
+// widget calls ctx.retire(at) (persisted in localStorage). Then the original returns by
+// itself: on the next boot / dashboard switch, and live via checkReplacements(), which
+// swaps the card in place once nothing is open. Exactly one of each pair is mounted.
+const RETIRE_KEY = (id) => `garden.retire.${id}`;
+let REPLACEMENTS = [];
+function replacementLive(w, now = Date.now()) {
+  let end = Date.parse(w.until);
+  if (!Number.isFinite(end)) return false; // a malformed date never hides the original
+  try { const r = Number(localStorage.getItem(RETIRE_KEY(w.id))); if (r > 0) end = Math.min(end, r); } catch { /* ignore */ }
+  return now < end;
+}
+function applyReplacements(list) {
+  const hide = new Set();
+  for (const w of list) if (w.replaces) hide.add(replacementLive(w) ? w.replaces : w.id);
+  return list.filter((w) => !hide.has(w.id));
+}
+async function checkReplacements() {
+  if (CURRENT_DASH !== 'main' || panelOpen() || document.body.classList.contains('arcade-full')) return;
+  const garden = document.getElementById('garden');
+  for (const w of REPLACEMENTS) {
+    if (replacementLive(w)) continue;
+    const old = garden?.querySelector(`:scope > .card[data-wid="${CSS.escape(w.id)}"]`);
+    if (!old) continue;
+    const orig = (await dashboardWidgets('main')).find((x) => x.id === w.replaces);
+    if (!orig || !old.isConnected) continue;
+    try { old._unmount?.(); } catch { /* ignore */ }
+    const anchor = document.createComment(`was ${w.id}`);
+    old.replaceWith(anchor);
+    await loadWidgets([orig], garden, { before: anchor });
+    anchor.remove();
+    setTimeout(checkOverflow, 1500);
+  }
+}
+
 // Controller combo code: L1=a R1=b L2=c R2=d, sorted ("L1+R1+L2" → "abc").
 const comboCode = (combo) => (combo || '').split('+').map((b) => ({ L1: 'a', R1: 'b', L2: 'c', R2: 'd' })[b.trim()] || '').sort().join('');
 // Switches are QUEUED: a second combo pressed while the first switch is still loading its
