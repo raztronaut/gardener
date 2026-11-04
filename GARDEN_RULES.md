@@ -58,6 +58,9 @@ every day, including quiet no-feedback days.
   NOT push the start time later. (Requested 2026-07-29.)
 
 ## General standing rules
+- **Midterms card is temporary (2026-11-03 → 2026-11-06 noon PT)**: `midterms` takes Out in SF's
+  slot via the manifest's `replaces`/`until`; leave both entries (and sf-events enabled) alone —
+  it hands the slot back by itself. After 2026-11-06 the entry may be deleted.
 - **The Clock's top line is the day's two-word garden poem** (2026-10-30), not a greeting:
   written once a day by the tending run (src/poem.mjs, the last 100 poems in its prompt so it
   never repeats), served by GET /api/poem. Keep it; the greeting is only its fallback.
