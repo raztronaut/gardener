@@ -207,7 +207,7 @@ export function startVoice(api) {
       busy = false; clearTimeout(watchdog);
       const end = ev.end || 'cancel';
       glow && glow.end(end);
-      if (end === 'done') { api.sound('done'); if (ev.reply) cap.show(ev.reply, 'done'); cap.hide(ev.reply ? 2600 : 600); }
+      if (end === 'done') { api.sound('done'); if (ev.reply) cap.show(ev.reply, `done${ev.reply.length > 60 ? ' long' : ''}`); cap.hide(ev.reply ? Math.min(12000, 2600 + ev.reply.length * 55) : 600); }
       else if (end === 'fail') { api.sound('fail'); cap.show(ev.reply || 'Sorry — I couldn’t do that.', 'fail'); cap.hide(2600); }
       else { api.sound('cancel'); cap.hide(0); }
       setTimeout(() => api.duck(false), 900);

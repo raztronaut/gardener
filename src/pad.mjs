@@ -235,6 +235,15 @@ function volumeStep(dir) {
   }, 60);
 }
 
+// MX Master 3 square button (under the wheel) = push-to-talk for "Hey Garden": hold to talk,
+// release to send (src/hidpp.mjs diverts it from the mouse; src/voice.mjs /ptt)
+const VOICE_URL = `http://127.0.0.1:${process.env.GARDENER_VOICE_PORT || 8797}/ptt`;
+const ptt = (down) => fetch(VOICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down }), signal: AbortSignal.timeout(1500) }).catch(() => {});
+import('./hidpp.mjs').then(({ divertButton }) => {
+  const start = () => { if (!divertButton({ cid: 0x00c4, onDown: () => ptt(true), onUp: () => ptt(false), log })) setTimeout(start, 60000); };
+  start();
+}).catch((e) => log(`hid++: ${e.message}`));
+
 log('SN30 Pro bridge starting');
 attach();
 attachMouse();

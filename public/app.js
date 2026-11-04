@@ -2759,8 +2759,47 @@ async function voiceAct({ name, input = {} }) {
       toast('Planted — it grows tomorrow morning');
       return { ok: true, say: 'Planted — it grows tomorrow morning.' };
     }
+    case 'show': { // an info sheet from the agent: a fullscreen panel built from a few primitives
+      const sheet = voiceSheet(input);
+      if (!sheet) return { ok: false, error: 'the sheet was empty' };
+      if (paletteOpen()) hidePalette();
+      openPanel(vClip(input.title, 80) || 'Garden', sheet);
+      return { ok: true, say: '' };
+    }
     default: return { ok: false, error: `unknown tool ${name}` };
   }
+}
+// The sheet: title in the panel head, then the blocks in order. Plain DOM text only (no
+// HTML from the model); links become their domain (the wall has no pointer browsing).
+function voiceSheet({ subtitle, blocks } = {}) {
+  if (!Array.isArray(blocks) || !blocks.length) return null;
+  const dom = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+  const str = (v) => (typeof v === 'string' ? v : v == null ? '' : typeof v === 'object' ? (v.text || v.title || v.label || '') : String(v));
+  const els = [];
+  if (subtitle) els.push(h('div', { class: 'vs-sub' }, vClip(subtitle, 160)));
+  for (const b of blocks.slice(0, 14)) {
+    const kids = [];
+    if (b.heading) kids.push(h('div', { class: 'vs-h' }, vClip(b.heading, 80)));
+    const items = Array.isArray(b.items) ? b.items.slice(0, 24) : [];
+    if (b.type === 'text' && b.text) kids.push(h('p', { class: 'vs-p' }, vClip(b.text, 900)));
+    else if (b.type === 'list') kids.push(h('ul', { class: 'vs-list' }, ...items.map((it) => h('li', {}, vClip(str(it), 220)))));
+    else if (b.type === 'steps') kids.push(h('ol', { class: 'vs-steps' }, ...items.map((it, i) => h('li', {}, h('b', {}, String(i + 1)), h('span', {}, vClip(str(it), 260))))));
+    else if (b.type === 'facts') kids.push(h('div', { class: 'vs-facts' }, ...items.flatMap((it) => [h('div', { class: 'k' }, vClip(it && it.label, 40)), h('div', { class: 'v' }, vClip(it && it.value, 160))])));
+    else if (b.type === 'table' && Array.isArray(b.rows)) {
+      const cols = Array.isArray(b.columns) ? b.columns.slice(0, 6) : [];
+      kids.push(h('table', { class: 'vs-table' },
+        cols.length ? h('thead', {}, h('tr', {}, ...cols.map((c) => h('th', {}, vClip(c, 40))))) : null,
+        h('tbody', {}, ...b.rows.slice(0, 14).map((r) => h('tr', {}, ...(Array.isArray(r) ? r : [r]).slice(0, 6).map((c) => h('td', {}, vClip(str(c), 80))))))));
+    } else if (b.type === 'quote' && b.text) kids.push(h('blockquote', { class: 'vs-quote' }, vClip(b.text, 400), b.by ? h('cite', {}, `— ${vClip(b.by, 60)}`) : null));
+    else if (b.type === 'image' && /^https:\/\//.test(b.url || '')) {
+      const img = h('img', { src: b.url, alt: '', referrerpolicy: 'no-referrer', loading: 'eager' });
+      img.onerror = () => fig.remove();
+      const fig = h('figure', { class: 'vs-img' }, img, b.caption ? h('figcaption', {}, vClip(b.caption, 120)) : null);
+      kids.push(fig);
+    } else if (b.type === 'sources') kids.push(h('div', { class: 'vs-src' }, ...items.slice(0, 6).map((it) => h('span', {}, vClip(it && it.title, 70), h('i', {}, dom(it && it.url))))));
+    if (kids.length) els.push(h('section', { class: `vs-b vs-${b.type}` }, ...kids));
+  }
+  return h('div', { class: 'vs' }, ...els);
 }
 function wireVoice() {
   // only the wall itself listens (the kiosk on this machine) — not QA captures or the Roots mirror

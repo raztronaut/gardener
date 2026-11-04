@@ -18,3 +18,13 @@ The wake phrase is given to the keyword spotter as the model's own pieces. To ch
 QA without speaking: `curl -X POST -d '{"text":"open the weather"}' http://127.0.0.1:8797/say`
 (curl only — browser origins are refused). `GARDENER_VOICE_DEBUG=1` logs tool inputs; normal
 running logs only tool names.
+
+## Push-to-talk (MX Master 3 square button)
+`src/hidpp.mjs` diverts the button under the wheel (HID++ control 0x00C4) so holding it talks to
+Hey Garden (pad.mjs → POST /ptt). It needs access to the Logitech receiver's hidraw node:
+
+```sh
+sudo sh -c 'echo "KERNEL==\"hidraw*\", ATTRS{idVendor}==\"046d\", MODE=\"0660\", TAG+=\"uaccess\"" > /etc/udev/rules.d/70-gardener-logitech.rules && udevadm control --reload && udevadm trigger --subsystem-match=hidraw'
+systemctl --user restart gardener-pad
+```
+(While diverted the button no longer toggles the wheel's ratchet / free-spin.)

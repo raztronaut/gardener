@@ -130,6 +130,9 @@ let enabled = true;
 try { enabled = JSON.parse(readFileSync(STATE_FILE, 'utf8')).enabled !== false; } catch { /* default on */ }
 let state = 'idle';              // idle | checking (wake heard, verifying) | listening | thinking
 let tWake = 0, tLastSpeech = 0, heardSpeech = false, lastPartialAt = 0, lastLevelAt = 0, level = 0, partialBusy = false;
+// push-to-talk (the MX Master's square button, via pad.mjs): held = listening, no wake word,
+// no silence timeout; released → a short tail so the last word is in, then the request
+let ptt = false, pttUp = 0;
 const setState = (s, extra = {}) => { state = s; send({ t: 'state', state: s, ...extra }); };
 
 function onAudio(x) {
@@ -173,6 +176,12 @@ function onAudio(x) {
     transcribe(utter.subarray(0, utterLen)).then((p) => { partialBusy = false; p = stripWake(p); if (p && state === 'listening') send({ t: 'partial', text: p }); });
   }
   if (utterLen >= utter.length) return finish('max');
+  if (ptt) {
+    // released: wait ≥ 350 ms (the mic's latency + the last syllable), and while words are
+    // still coming in up to 1.2 s; then the request (or nothing, if nothing was said)
+    if (pttUp && ((now - pttUp > 350 && now - tLastSpeech > 300) || now - pttUp > 1200)) { ptt = false; return heardSpeech ? finish('ptt') : cancel('ptt-empty'); }
+    return;
+  }
   if (heardSpeech && now - tLastSpeech > END_SILENCE_MS) return finish('end');
   if (!heardSpeech && now - tWake > NO_SPEECH_MS) return cancel('silence');
 }
@@ -216,6 +225,7 @@ async function finish(why) {
   log(`request (${why}, ${text.length} chars)`);
   setState('thinking', { text });
   const t0 = Date.now();
+  const beat = setInterval(() => send({ t: 'beat' }), 4000); // a web search can take a while: keep the wall's watchdog fed
   let out;
   try {
     // the whole request is bounded: 20 s, then it gives up (never a stuck "thinking")
@@ -225,6 +235,7 @@ async function finish(why) {
       log,
     })]);
   } catch (e) { log(`agent: ${e.message || e}`); out = { ok: false, reply: 'Sorry — I couldn’t do that.' }; }
+  clearInterval(beat);
   log(`done in ${Date.now() - t0} ms (${out.ok ? 'ok' : 'failed'})`);
   resetSpotter();
   setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' });
@@ -311,9 +322,17 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ enabled, state, mic: !!mic, clients: clients.size, rssMB: Math.round(process.memoryUsage().rss / 1e6) }));
   }
-  if (req.method === 'POST' && (url.pathname === '/reply' || url.pathname === '/control' || url.pathname === '/say')) {
+  if (req.method === 'POST' && (url.pathname === '/reply' || url.pathname === '/control' || url.pathname === '/say' || url.pathname === '/ptt')) {
     let body; try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400, cors); return res.end(); }
     if (url.pathname === '/reply') { const f = pending.get(String(body.id || '')); if (f) f(body.data ?? {}); }
+    else if (url.pathname === '/ptt') {
+      if (body.down && enabled && (state === 'idle' || state === 'checking')) {
+        ptt = true; pttUp = 0; resetSpotter(); vad.reset();
+        const lead = ringLast(Math.round(RATE * 0.25)); utter.set(lead, 0); utterLen = lead.length; // the press may beat the first word
+        tWake = Date.now(); tLastSpeech = tWake; heardSpeech = false; lastPartialAt = 0; level = 0; partialBusy = false;
+        log('push-to-talk'); setState('listening', { ptt: true });
+      } else if (!body.down && ptt) pttUp = Date.now();
+    }
     else if (url.pathname === '/control') { if ('enabled' in body) setEnabled(body.enabled); if (body.calibrate) startCalibration(+body.seconds || 60); }
     else if (url.pathname === '/say' && !origin) { // QA only (curl, no browser origin): run a typed request
       if (state === 'idle' && typeof body.text === 'string') { tWake = Date.now(); setState('listening'); setTimeout(() => { const t = body.text; utterLen = 0; (async () => { setState('thinking', { text: t }); const out = await runAgent(t, { context: () => askWall('context', {}, 2500), call: (calls) => askWall('act', { calls }, 8000), log }).catch(() => ({ ok: false, reply: 'Sorry — I couldn’t do that.' })); setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' }); })(); }, 600); }
