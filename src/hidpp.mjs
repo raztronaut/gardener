@@ -34,15 +34,17 @@ export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {},
   const waits = new Map(); // `${dev}:${feat}:${fn}` → resolve
   const slots = new Map(); // device index → REPROG feature index (once known)
   let pressed = false, timer = 0, closed = false;
-  const write = (bytes) => { const b = Buffer.alloc(bytes[0] === SHORT ? 7 : 20); Buffer.from(bytes).copy(b); try { writeSync(fd, b); } catch { /* receiver gone */ } };
-  const ask = (dev, feat, fn, params, ms = 600) => new Promise((resolve) => {
+  const write = (bytes) => { const b = Buffer.alloc(bytes[0] === SHORT ? 7 : 20); Buffer.from(bytes).copy(b); if (process.env.GARDENER_HIDPP_TRACE === '1') log(`> ${[...b].map((x) => x.toString(16).padStart(2, '0')).join(' ')}`); try { writeSync(fd, b); } catch (e) { log(`hid++ write: ${e.code}`); } };
+  const ask = (dev, feat, fn, params, ms = 2500) => new Promise((resolve) => { // (a dozing wireless mouse answers late)
     const key = `${dev}:${feat}:${fn}`;
     const t = setTimeout(() => { waits.delete(key); resolve(null); }, ms);
     waits.set(key, (r) => { clearTimeout(t); resolve(r); });
     write([params.length > 3 ? LONG : SHORT, dev, feat, (fn << 4) | SWID, ...params]);
   });
   const rs = createReadStream(null, { fd, autoClose: false, highWaterMark: 64 });
+  const TRACE = process.env.GARDENER_HIDPP_TRACE === '1';
   rs.on('data', (d) => {
+    if (TRACE) log(`< ${[...d].map((x) => x.toString(16).padStart(2, '0')).join(' ')}`);
     for (let o = 0; o < d.length;) {
       const len = d[o] === LONG ? 20 : d[o] === SHORT ? 7 : d.length - o;
       const r = d.subarray(o, o + len); o += len;
@@ -74,6 +76,6 @@ export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {},
     }
   }
   apply(); timer = setInterval(apply, 20000);
-  function stop() { closed = true; clearInterval(timer); try { rs.destroy(); closeSync(fd); } catch { /* gone */ } }
+  function stop() { closed = true; clearInterval(timer); try { rs.destroy(); } catch { /* gone */ } } // (no closeSync: it waits on the pending read)
   return { stop };
 }
