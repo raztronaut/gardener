@@ -129,6 +129,10 @@ turns it off (mic closed). Models + QA: tools/voice/README.md. Keep `src/voice*.
 `public/lib/voice.js` and `voiceAct` working; never add audio storage or upload.
 
 ## Arcade — retro-console emulator widget
+**PS1 runs natively** (2026-11-03): `src/native.mjs` launches RetroArch + PCSX-ReARMed
+fullscreen over the kiosk (`/api/arcade/native`, one game at a time; Select+Start quits, the
+4-shoulder chord / heart / voice stop it); EmulatorJS's WASM psx ran ~15–25 fps. Binaries:
+tools/arcade/README.md.
 `public/widgets/emulator.js` (replaced the old Mario widget). **Off-grid since
 2026-10-01:** it is `enabled:false` in the manifest (no wall tile) and opens only
 via the controller chord **L1 + R1 + L2 + R2** held together (`src/pad.mjs` sends

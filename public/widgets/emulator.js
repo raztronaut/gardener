@@ -340,6 +340,7 @@ export default {
     let roms = [];
     let emuFrame = null;   // the EmulatorJS iframe (one per game)
     let portCtl = null;    // the running native port (Super Bomberman 2 · Tall)
+    let nativeOK = new Set(), nativeOn = false, nativePoll = 0; // consoles run natively (src/native.mjs: PS1)
     let cleanupTimers = []; // any timeouts we set (cleared on stop)
 
     // ---- HARD teardown: removing the iframe destroys EmulatorJS' document,
@@ -391,6 +392,7 @@ export default {
 
     function teardownGame() {
       stopTelemetry();
+      if (nativeOn) { nativeOn = false; clearInterval(nativePoll); fetch('/api/arcade/native/stop', { method: 'POST' }).catch(() => {}); }
       try { emuFrame?.remove(); } catch { /* ignore */ }
       emuFrame = null;
       try { portCtl?.stop(); } catch { /* ignore */ }
@@ -595,6 +597,7 @@ export default {
       document.body.classList.remove('arcade-full');
       mode = 'picker';
       teardownGame(); // if returning from a game, kill the previous core first
+      fetch('/api/arcade/native', { cache: 'no-store' }).then((r) => r.json()).then((n) => { nativeOK = new Set(n.systems || []); }).catch(() => {});
       try {
         const r = await fetch('/api/roms', { cache: 'no-store' });
         roms = (await r.json()).roms || [];
@@ -648,11 +651,33 @@ export default {
       }
     }
 
+    // ---- BOOT natively (RetroArch over the kiosk, src/native.mjs): PS1 at the full 60 fps.
+    // The window covers the wall and reads the pad itself; this side just waits for it to end.
+    async function bootNative(rom) {
+      recordPlay(rom);
+      mode = 'game';
+      document.body.classList.add('arcade-full');
+      if (activeTeardown && activeTeardown !== teardownGame) activeTeardown();
+      activeTeardown = teardownGame;
+      teardownGame();
+      body.replaceChildren(h('div', { class: 'eg-stage eg-native' }, h('div', { class: 'eg-empty' }, h('div', {}, `Starting ${rom.name}…`), h('div', {}, 'Select + Start to leave'))));
+      let r = null;
+      try { r = await (await fetch('/api/arcade/native', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: rom.file }) })).json(); } catch { r = null; }
+      if (!r || !r.ok) { mode = 'picker'; nativeOK.delete(rom.system); boot(rom); return; } // fall back to the browser core
+      nativeOn = true;
+      const t0 = Date.now();
+      nativePoll = setInterval(async () => {
+        let st = null; try { st = await (await fetch('/api/arcade/native', { cache: 'no-store' })).json(); } catch { return; }
+        if (!st.running && Date.now() - t0 > 2500 && mode === 'game') { nativeOn = false; clearInterval(nativePoll); showPicker(); }
+      }, 1000);
+    }
+
     function boot(rom) {
       if (mode === 'game') return; // one game at a time — a second start would orphan the first (its sound kept playing)
       if (!rom) return;
       curRom = rom;
       if (rom.special === 'sb2') { bootPort(rom); return; }
+      if (nativeOK.has(rom.system)) { bootNative(rom); return; }
       const core = CORE[rom.system];
       if (!core) return;
       recordPlay(rom); // bump play count + last-played for the detail panel

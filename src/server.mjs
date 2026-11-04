@@ -3,7 +3,7 @@
 // only. Includes an SSRF-hardened, allowlisted proxy so widgets can reach
 // keyless public APIs without CORS headaches.
 import http from 'node:http';
-import { promises as fs, readFileSync, appendFileSync } from 'node:fs';
+import { promises as fs, readFileSync, appendFileSync, existsSync } from 'node:fs';
 import { spawn, execFileSync } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
@@ -18,6 +18,7 @@ import { recover } from './recover.mjs';
 import { travelFor } from './travel.mjs';
 import { namesFor, dailyNames, dailyIsStale } from './eventnames.mjs';
 import { tendPoem, currentPoem } from './poem.mjs';
+import { nativeStatus, startNative, stopNative } from './native.mjs';
 import { eventImage } from './eventimages.mjs';
 import { extractReadable, readerResolve } from './reader.mjs';
 import { changelogPhrase } from './changelog.mjs';
@@ -772,6 +773,17 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && p === '/emu-frame.html') return serveEmuFrame(req, res, u);
     // List the ROMs the user dropped in data/roms/ (localhost-only server).
     if (req.method === 'GET' && p === '/api/roms') return json(res, 200, { roms: await listRoms() });
+    // Native emulation (src/native.mjs): consoles the browser can't run at full speed (PS1)
+    if (req.method === 'GET' && p === '/api/arcade/native') return json(res, 200, nativeStatus());
+    if (req.method === 'POST' && p === '/api/arcade/native/stop') return json(res, 200, stopNative());
+    if (req.method === 'POST' && p === '/api/arcade/native') {
+      let file; try { file = String(JSON.parse(await readBody(req, 4096)).file || ''); } catch { return json(res, 400, { error: 'bad json' }); }
+      const base = basename(file);
+      const full = normalize(join(paths.ROMS, base));
+      if (!base || base !== file || !full.startsWith(resolve(paths.ROMS)) || !existsSync(full)) return json(res, 404, { error: 'no such game' });
+      const system = ROM_SYSTEMS[extname(base).toLowerCase()];
+      return json(res, 200, startNative(full, system, log));
+    }
     // Basemap tiles for the wall's static maps (public/lib/staticmap.js): Esri's keyless
     // Dark Gray Canvas (base + a separate labels layer; attribution drawn on the map),
     // fetched once and cached on disk forever. (CARTO's tiles now watermark without a key.)
