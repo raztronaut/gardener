@@ -1,0 +1,100 @@
+{
+  "at": "2026-11-05T06:34:13.931Z",
+  "mode": "typed transcript; stubbed wall transport; real model APIs when needed",
+  "medianMs": 0.5,
+  "rows": [
+    {
+      "text": "open the weather",
+      "ms": 2,
+      "ok": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "direct open: 0 ms"
+      ]
+    },
+    {
+      "text": "close the panel",
+      "ms": 1,
+      "ok": true,
+      "calls": [
+        {
+          "name": "close",
+          "input": {}
+        }
+      ],
+      "logs": [
+        "direct close: 0 ms"
+      ]
+    },
+    {
+      "text": "start a timer for 2 minutes",
+      "ms": 1,
+      "ok": true,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "2"
+          }
+        }
+      ],
+      "logs": [
+        "direct command: 0 ms"
+      ]
+    },
+    {
+      "text": "open hacker news",
+      "ms": 0,
+      "ok": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hacker-news"
+          }
+        }
+      ],
+      "logs": [
+        "direct open: 0 ms"
+      ]
+    },
+    {
+      "text": "open the weather",
+      "ms": 0,
+      "ok": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "direct open: 0 ms"
+      ]
+    },
+    {
+      "text": "close the panel",
+      "ms": 0,
+      "ok": true,
+      "calls": [
+        {
+          "name": "close",
+          "input": {}
+        }
+      ],
+      "logs": [
+        "direct close: 0 ms"
+      ]
+    }
+  ]
+}

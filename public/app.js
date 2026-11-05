@@ -1591,6 +1591,7 @@ const COMMANDS = [
     } },
   { cmd: 'touch', aliases: ['calibrate'], icon: '👆', desc: 'calibrate camera touch (9 targets)', run: () => { if (panelOpen()) closePanel(); import(`/lib/touch.js?v=${window.__GARDEN_VERSION}`).then((m) => m.runSession()); } },
   { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
+  { cmd: 'rss', aliases: ['feeds'], icon: '📰', desc: 'feed reader — Hacker News and NASA', run: () => { if (!document.getElementById('feed-css')) document.head.appendChild(h('link', { id:'feed-css',rel:'stylesheet',href:'/lib/feed-reader.css' })); import('/lib/feed-reader.js').then((m) => m.openFeeds({h,openPanel,openReader})).catch(()=>toast('Feed reader could not load')); } },
   { cmd: 'headlines', aliases: ['fake', 'realorfake'], icon: '📰', desc: 'real or fake Hacker News? — /headlines real, fake or next to play', run: (arg) => import('/lib/headline-game.js').then((m) => /^(real|fake|next)$/.test(arg) ? m.guess(arg) : m.openGame({ h, openPanel, fetchStories: () => HN_CACHE?.stories || fetchHN() })).catch(() => toast('The game could not load')) },
   { cmd: 'mood', aliases: [], icon: '🌿', desc: 'ambient mood — fractal, idle glow and forest; /mood off to disable', run: (arg) => loadMood().then((m) => m.command(arg)),
     options: () => [{ arg: 'on', icon: '🌿', label: 'On', desc: 'follow the moment' }, { arg: 'off', icon: '⏹', label: 'Off', desc: 'restore the original palette' }] },

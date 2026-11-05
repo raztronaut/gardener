@@ -223,9 +223,10 @@ export function startVoice(api) {
     if (ev.t === 'context') { post('/reply', { id: ev.id, data: api.context() }); return; }
     if (ev.t === 'act') {
       const out = [];
-      for (const c of ev.calls || []) {
+      const calls = ev.calls || [];
+      for (const [index, c] of calls.entries()) {
         try { out.push(await api.act(c)); } catch (e) { out.push({ ok: false, error: String(e && e.message || e) }); }
-        await new Promise((r) => setTimeout(r, 90)); // let each step paint before the next
+        if (index < calls.length - 1) await new Promise((r) => setTimeout(r, 90)); // pause BETWEEN actions only
       }
       post('/reply', { id: ev.id, data: out });
       return;

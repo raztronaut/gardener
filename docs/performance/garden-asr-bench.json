@@ -1,0 +1,90 @@
+{
+  "sample": "bundled en-english.wav; not household speech",
+  "seconds": 0.992625,
+  "rows": [
+    {
+      "threads": 4,
+      "iteration": 0,
+      "ms": 267,
+      "decodeMs": 259,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "iteration": 1,
+      "ms": 439,
+      "decodeMs": 438,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "iteration": 2,
+      "ms": 513,
+      "decodeMs": 495,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "iteration": 3,
+      "ms": 391,
+      "decodeMs": 380,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "iteration": 0,
+      "ms": 117,
+      "decodeMs": 113,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "iteration": 1,
+      "ms": 109,
+      "decodeMs": 108,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "iteration": 2,
+      "ms": 104,
+      "decodeMs": 103,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "iteration": 3,
+      "ms": 106,
+      "decodeMs": 105,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "iteration": 0,
+      "ms": 159,
+      "decodeMs": 155,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "iteration": 1,
+      "ms": 153,
+      "decodeMs": 152,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "iteration": 2,
+      "ms": 148,
+      "decodeMs": 147,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "iteration": 3,
+      "ms": 146,
+      "decodeMs": 146,
+      "text": "I love you."
+    }
+  ]
+}

@@ -10,10 +10,11 @@ const asr = new sherpa.OfflineRecognizer({
   featConfig: { sampleRate: 16000, featureDim: 80 },
   modelConfig: {
     transducer: { encoder: join(D, 'encoder.int8.onnx'), decoder: join(D, 'decoder.int8.onnx'), joiner: join(D, 'joiner.int8.onnx') },
-    tokens: join(D, 'tokens.txt'), numThreads: 4, provider: 'cpu', modelType: 'nemo_transducer', debug: 0,
+    tokens: join(D, 'tokens.txt'), numThreads: workerData.threads || 2, provider: 'cpu', modelType: 'nemo_transducer', debug: 0,
   },
 });
 parentPort.on('message', ({ id, samples }) => {
+  const began = performance.now();
   let text = '';
   try {
     if (samples.length >= 16000 * 0.25) {
@@ -27,6 +28,6 @@ parentPort.on('message', ({ id, samples }) => {
     }
   } catch { text = ''; }
   samples.fill(0); // the audio is gone
-  parentPort.postMessage({ id, text });
+  parentPort.postMessage({ id, text, decodeMs: Math.round(performance.now() - began) });
 });
 parentPort.postMessage({ ready: true });

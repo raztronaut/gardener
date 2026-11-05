@@ -9,6 +9,7 @@
 // turn, so a plain command ("open the weather") is a single model call; a second turn only
 // happens when a tool fails or returns something the reply depends on.
 import Anthropic from '@anthropic-ai/sdk';
+import { directAction } from './voice-fast.mjs';
 import { config } from './config.mjs';
 import { botanist } from './botanist.mjs';
 import { routeRequest, answerFormat } from './jev.mjs';
@@ -89,6 +90,21 @@ const HISTORY_MS = 3 * 60 * 1000;
 let history = [];
 
 export async function runAgent(text, { context, call, notify = () => {}, log = () => {} }) {
+  const direct = directAction(text);
+  if (direct) {
+    const began = performance.now();
+    try {
+      const got = await call([direct]);
+      const result = Array.isArray(got) ? got[0] : got;
+      log(`direct ${direct.name}: ${Math.round(performance.now() - began)} ms`);
+      if (result?.ok === true) {
+        history.push({ q: clip(text, 300), a: '(did it)', at: Date.now() });
+        history = history.slice(-6);
+        return { ok: true, reply: '' };
+      }
+      return { ok: false, reply: result?.error || 'The wall could not do that.' };
+    } catch { return { ok: false, reply: 'The wall did not answer.' }; }
+  }
   if (!config.apiKey) return { ok: false, reply: 'I need an API key to do that.' };
   client ||= new Anthropic({ apiKey: config.apiKey });
   const t0 = Date.now();
@@ -109,6 +125,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const ctl = new AbortController();
     const resP = client.messages.create({ model: MODEL, max_tokens: 3000, system: SYSTEM, tools: TOOLS, messages }, { signal: ctl.signal });
+    resP.catch(() => {}); // routing may still be pending when the model rejects
     if (round === 0) {
       const j = await jevP;
       if (j) log(`jev: ${j.route} ${Math.round(j.confidence * 100)}% (${j.ms} ms)`);

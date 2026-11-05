@@ -1,0 +1,30 @@
+{
+  "at": "2026-11-05T06:37:56.500Z",
+  "method": "real /say -> voice service -> kiosk action -> idle SSE; includes fixed 600ms QA delay; no microphone/ASR",
+  "rows": [
+    {
+      "text": "open the weather",
+      "ok": true,
+      "totalMs": 971,
+      "agentWallMs": 344
+    },
+    {
+      "text": "close the panel",
+      "ok": true,
+      "totalMs": 817,
+      "agentWallMs": 194
+    },
+    {
+      "text": "open hacker news",
+      "ok": true,
+      "totalMs": 814,
+      "agentWallMs": 196
+    },
+    {
+      "text": "close the panel",
+      "ok": true,
+      "totalMs": 1019,
+      "agentWallMs": 394
+    }
+  ]
+}

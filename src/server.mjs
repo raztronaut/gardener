@@ -26,6 +26,7 @@ import { handleHouseApi } from './house-api.mjs';
 import { agentModel } from './models.mjs';
 import { ensureFractal, SLOT_MS, sceneParams } from './fractal.mjs';
 
+import { readFeed } from './feeds.mjs';
 import { gardenMood } from './mood.mjs';
 
 const START = Date.now();
@@ -503,6 +504,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/mood') {
       let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return json(res, 400, { error: 'bad json' }); }
       return json(res, 200, await gardenMood(typeof body?.context === 'string' ? body.context : ''));
+    }
+    if (req.method === 'GET' && p === '/api/feeds') {
+      const feed = await readFeed(u.searchParams.get('id') || 'hn');
+      return json(res, feed ? 200 : 404, feed || { error: 'Unknown feed' });
     }
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, stateObject());
     if (req.method === 'GET' && p === '/api/iterations') {

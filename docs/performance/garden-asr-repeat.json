@@ -1,0 +1,118 @@
+{
+  "sample": "bundled 0.wav; not household speech",
+  "seconds": 7.435,
+  "rows": [
+    {
+      "threads": 2,
+      "iteration": 0,
+      "ms": 734,
+      "decodeMs": 730,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 1,
+      "ms": 778,
+      "decodeMs": 777,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 2,
+      "ms": 982,
+      "decodeMs": 976,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 3,
+      "ms": 939,
+      "decodeMs": 931,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 0,
+      "ms": 2188,
+      "decodeMs": 2165,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 1,
+      "ms": 1899,
+      "decodeMs": 1888,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 2,
+      "ms": 2067,
+      "decodeMs": 2065,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 3,
+      "ms": 1581,
+      "decodeMs": 1569,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 0,
+      "ms": 720,
+      "decodeMs": 716,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 1,
+      "ms": 678,
+      "decodeMs": 675,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 2,
+      "ms": 643,
+      "decodeMs": 642,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "iteration": 3,
+      "ms": 527,
+      "decodeMs": 526,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 0,
+      "ms": 1057,
+      "decodeMs": 1053,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 1,
+      "ms": 1483,
+      "decodeMs": 1479,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 2,
+      "ms": 959,
+      "decodeMs": 959,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "iteration": 3,
+      "ms": 920,
+      "decodeMs": 916,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    }
+  ]
+}

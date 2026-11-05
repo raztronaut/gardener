@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { directAction } from '../../src/voice-fast.mjs';
+import { serialPoll } from '../../src/serial-poll.mjs';
+import { runAgent } from '../../src/voiceagent.mjs';
+const positives = [['open the weather','open'],['set a timer for two minutes','command'],['stop the timer','command'],['open feed reader','command']];
+for(const [s,name] of positives) assert.equal(directAction(s)?.name,name);
+for(const s of ['open the weather file','make the weather purple','do not open the weather','what is the weather','stop the botanist','allow it','start a timer for 0 minutes','open weather and delete my files']) assert.equal(directAction(s),null,s);
+let contexts=0,calls=0;
+assert.equal((await runAgent('open the weather',{context:async()=>{contexts++;},call:async()=>{calls++;return [{ok:true}];}})).ok,true);
+assert.equal(contexts,0);assert.equal(calls,1);
+assert.equal((await runAgent('open the weather',{call:async()=>[{ok:false,error:'missing widget'}]})).ok,false);
+let active=0,max=0,count=0;
+const stop=serialPoll(async()=>{active++;max=Math.max(max,active);await new Promise(r=>setTimeout(r,60));count++;active--;},{intervalMs:5,initialMs:0});
+await new Promise(r=>setTimeout(r,210));stop();await new Promise(r=>setTimeout(r,90));const n=count;await new Promise(r=>setTimeout(r,90));assert.equal(count,n);assert.equal(max,1);
+console.log('PASS: strict grammar, ambiguous/negative fallback, one action, failure handling, serial polling, cancellation');

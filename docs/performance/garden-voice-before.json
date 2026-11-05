@@ -1,0 +1,112 @@
+{
+  "at": "2026-11-05T06:33:29.410Z",
+  "mode": "typed transcript; stubbed wall transport; real model APIs when needed",
+  "medianMs": 928.0,
+  "rows": [
+    {
+      "text": "open the weather",
+      "ms": 1084,
+      "ok": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 96% (483 ms)",
+        "model round 1: 1080 ms, 7725 in / 46 out",
+        "tools: open"
+      ]
+    },
+    {
+      "text": "close the panel",
+      "ms": 1335,
+      "ok": true,
+      "calls": [
+        {
+          "name": "close",
+          "input": {}
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (264 ms)",
+        "model round 1: 1335 ms, 7744 in / 196 out",
+        "tools: close"
+      ]
+    },
+    {
+      "text": "start a timer for 2 minutes",
+      "ms": 694,
+      "ok": true,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "2"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (214 ms)",
+        "model round 1: 694 ms, 7770 in / 68 out",
+        "tools: command"
+      ]
+    },
+    {
+      "text": "open hacker news",
+      "ms": 772,
+      "ok": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hacker-news"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 85% (190 ms)",
+        "model round 1: 772 ms, 7790 in / 49 out",
+        "tools: open"
+      ]
+    },
+    {
+      "text": "open the weather",
+      "ms": 676,
+      "ok": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 97% (207 ms)",
+        "model round 1: 677 ms, 7809 in / 46 out",
+        "tools: open"
+      ]
+    },
+    {
+      "text": "close the panel",
+      "ms": 2040,
+      "ok": true,
+      "calls": [
+        {
+          "name": "close",
+          "input": {}
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (209 ms)",
+        "model round 1: 2040 ms, 7828 in / 288 out",
+        "tools: close"
+      ]
+    }
+  ]
+}

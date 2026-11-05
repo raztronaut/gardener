@@ -7,7 +7,7 @@
 //
 // A Botanist task takes minutes, but a voice request is capped at 20 s, so it is async:
 // ask() hands the words over and returns at once; a light watcher (one status call every
-// 3 s, only while a voice task is in flight) reports back through `notify` when the Botanist
+// 0.5 s, only while a voice task is in flight) reports back through `notify` when the Botanist
 // needs a permission, and when it is done (its last message, shown on the wall).
 //
 // Only TEXT crosses this bridge (the transcript of the request, the Botanist's reply).
@@ -18,10 +18,11 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { paths } from './config.mjs';
 import { riskOf } from './jev.mjs';
+import { serialPoll } from './serial-poll.mjs';
 
 const MCP_URL = process.env.GARDENER_PASEO_MCP || 'http://127.0.0.1:6767/mcp/agents';
 const PASEO_CLI = process.env.GARDENER_PASEO_CLI || join(homedir(), '.local/bin/paseo');
-const POLL_MS = 3000, WATCH_MAX_MS = 45 * 60 * 1000;
+const POLL_MS = 500, WATCH_MAX_MS = 45 * 60 * 1000;
 
 export function botanistId() {
   if (process.env.GARDENER_BOTANIST_AGENT) return process.env.GARDENER_BOTANIST_AGENT;
@@ -88,14 +89,15 @@ export const botanistWorking = () => !!watching;
 let watching = null; // { id, since, timer, prompt }
 const announced = new Set(); // permission ids already shown (across watchers: never twice)
 
-function watch(id, notify, log, prompt = '') {
-  if (watching) clearInterval(watching.timer);
-  const w = watching = { id, since: Date.now(), started: false, timer: null, prompt };
+function watch(id, notify, log, prompt = '', baseline = '') {
+  if (watching) watching.stop();
+  const w = watching = { id, since: Date.now(), started: false, stop: () => {}, prompt };
   const tick = async () => {
     if (watching !== w) return;
-    if (Date.now() - w.since > WATCH_MAX_MS) { clearInterval(w.timer); watching = null; notify({ kind: 'idle' }); return; }
+    if (Date.now() - w.since > WATCH_MAX_MS) { w.stop(); watching = null; notify({ kind: 'idle' }); return; }
     let s;
     try { s = await status(id); } catch (err) { log(`botanist: status failed (${err.message})`); return; }
+    if (watching !== w) return; // cancelled/replaced while the status RPC was pending
     for (const p of s.perms) {
       const key = p.id || p.requestId || JSON.stringify(p).slice(0, 80);
       if (announced.has(key)) continue;
@@ -107,6 +109,7 @@ function watch(id, notify, log, prompt = '') {
       // the gatekeeper (Jev): harmless steps go through by themselves, destructive ones are
       // refused, everything else asks the person (the gold card)
       const r = await riskOf(`the agent wants to use the tool "${what}"${why ? `: ${why}` : ''}`, { timeoutMs: 2000 }).catch(() => null);
+      if (watching !== w) return;
       if (r && r.confidence >= 0.6 && (r.risk === 'harmless' || r.risk === 'block')) {
         try {
           await mcp('respond_to_permission', { agentId: id, requestId: p.id || p.requestId, response: r.risk === 'harmless'
@@ -119,16 +122,20 @@ function watch(id, notify, log, prompt = '') {
     }
     const busy = /running|busy|working|thinking|initializ/i.test(s.status);
     if (busy) w.started = true;
+    let quickReply = '';
+    if (!busy && !w.started && baseline !== null && !s.perms.length && Date.now() - w.since > 2500) {
+      try { const r = await lastReply(id, w.prompt); if (r && r !== baseline) quickReply = r; } catch { /* retry */ }
+    }
+    if (watching !== w) return;
     // done = idle again after it started (or idle well after the hand-over)
-    if (!busy && !s.perms.length && (w.started || Date.now() - w.since > 15000)) {
-      clearInterval(w.timer); watching = null;
-      let reply = '';
-      try { reply = await lastReply(id, w.prompt); } catch (err) { log(`botanist: activity failed (${err.message})`); }
+    if (!busy && !s.perms.length && (w.started || quickReply || Date.now() - w.since > 15000)) {
+      w.stop(); watching = null;
+      let reply = quickReply;
+      try { reply ||= await lastReply(id, w.prompt); } catch (err) { log(`botanist: activity failed (${err.message})`); }
       notify({ kind: /error|fail/i.test(s.status) ? 'error' : 'done', text: clip(reply || 'The Botanist is done.', 2400) });
     }
   };
-  w.timer = setInterval(tick, POLL_MS);
-  setTimeout(tick, 2500); // delivery happens after ~2 quiet seconds
+  w.stop = serialPoll(tick, { intervalMs: POLL_MS, initialMs: 250, onError: (e) => log(`botanist: watcher failed (${e.message})`) });
 }
 
 // A voice task the gatekeeper is holding for the person's OK ("allow it" sends it).
@@ -137,9 +144,11 @@ const HOLD_MS = 3 * 60 * 1000;
 
 async function sendTask(id, task, notify, log) {
   const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
+  let baseline = '';
+  try { baseline = await lastReply(id); } catch { /* optional; no stale fast completion without baseline */ baseline = null; }
   try { await mcp('send_agent_prompt', { agentId: id, prompt, activeTurnBehavior: 'steer', notifyOnFinish: false }, 10000); }
   catch (err) { log(`botanist: mcp send failed (${err.message}) — using the CLI`); await cli(['send', id, '--no-wait', '--behavior', 'steer', '--prompt', prompt]); }
-  watch(id, notify, log, prompt);
+  watch(id, notify, log, prompt, baseline);
   notify({ kind: 'working' }); // the wall's quiet glow, until this request is done
 }
 
@@ -196,7 +205,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
     if (action === 'stop') {
       held = null;
       await mcp('cancel_agent', { agentId: id });
-      if (watching) { clearInterval(watching.timer); watching = null; }
+      if (watching) { watching.stop(); watching = null; }
       notify({ kind: 'idle' });
       return { ok: true, say: 'The Botanist stopped.' };
     }

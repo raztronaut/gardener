@@ -1,0 +1,14 @@
+[
+  {
+    "label": "before",
+    "simulatedWorkMs": 4000,
+    "reportedMs": 6024,
+    "requests": 5
+  },
+  {
+    "label": "after",
+    "simulatedWorkMs": 4000,
+    "reportedMs": 4290,
+    "requests": 12
+  }
+]

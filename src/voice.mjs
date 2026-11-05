@@ -83,8 +83,8 @@ const asrWorker = new Worker(new URL('./voice-asr-worker.mjs', import.meta.url),
 const asrWait = new Map(); let asrN = 0;
 asrWorker.on('message', (m) => { if (m.id) { asrWait.get(m.id)?.(m.text); asrWait.delete(m.id); } });
 asrWorker.on('error', (e) => { log(`asr worker: ${e.message}`); process.exit(1); }); // systemd restarts us
-const transcribe = (samples) => new Promise((resolve) => {
-  const id = ++asrN; asrWait.set(id, resolve);
+const transcribe = (samples, measure = false) => new Promise((resolve) => {
+  const id = ++asrN; const began = performance.now(); asrWait.set(id, (text) => { if (measure) log(`asr turnaround: ${Math.round(performance.now() - began)} ms`); resolve(text); });
   const copy = new Float32Array(samples); // a private copy, handed over (zeroed by the worker)
   asrWorker.postMessage({ id, samples: copy }, [copy.buffer]);
 });
@@ -224,7 +224,7 @@ const stripWake = (t) => String(t || '')
   .replace(/^\s*gard[eio]?ns?\b[\s,.!?-]+/i, '').trim();
 async function finish(why) {
   state = 'thinking';
-  const text = stripWake(await transcribe(utter.subarray(0, utterLen)));
+  const text = stripWake(await transcribe(utter.subarray(0, utterLen), true));
   utter.fill(0, 0, utterLen); utterLen = 0; vad.reset(); // the audio is gone now
   if (!text || text.replace(/[^a-z]/gi, '').length < 2) return cancel('nothing');
   log(`request (${why}, ${text.length} chars)`);
@@ -325,9 +325,10 @@ http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     res.write(`data: ${JSON.stringify({ t: 'hello', enabled, state, botanist: botanistWorking() })}\n\n`);
-    clients.add(res); primary = res;
+    res.gardenObserver = url.searchParams.get('observe') === '1';
+    clients.add(res); if (!res.gardenObserver) primary = res;
     const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch { /* closed */ } }, 20000);
-    req.on('close', () => { clearInterval(ping); clients.delete(res); if (primary === res) primary = [...clients].pop() || null; });
+    req.on('close', () => { clearInterval(ping); clients.delete(res); if (primary === res) primary = [...clients].filter((c) => !c.gardenObserver).pop() || null; });
     return;
   }
   if (req.method === 'GET' && url.pathname === '/status') {
