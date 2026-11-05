@@ -1,6 +1,9 @@
+import {setTodoDone} from './todo-store.js';
+import {todoTaskText} from './todo-assignees.js';
 // Opt-in compositions. Original tiles/fullscreens keep their own renderers.
 // A size is selectable only when it has an explicit, reviewed content design.
 export const VARIANTS = {
+  todos: {small:'The next task, with an open-task count',medium:'Three tasks with completion controls',wide:'Next task beside two upcoming tasks',tall:'Five tasks in a calm checklist'},
   clock: {small:'Time, date and the daily poem',wide:'Time beside New York and London'},
   'air-quality': {small:'AQI and its category',wide:'AQI beside the next six hours'},
   weather: {small:'Current temperature and next sun event',medium:'Now and three upcoming hours',wide:'Now beside a six-hour forecast'},
@@ -89,6 +92,13 @@ function transitRoot(size,d,card){
   if(size!=='small')rows.push(text(`${d.stale?'Saved data · ':''}511 · updated ${d.sourceAt?new Date(d.sourceAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'time unavailable'}`,'wv-footnote'));
   return rows;
 }
+function todosRoot(size,data){
+  const pending=(data||[]).filter(t=>!t.done),limit=({small:1,medium:3,wide:3,tall:5})[size];
+  const rows=pending.slice(0,limit).map((t,i)=>h('label',{class:'todo-glance-row',onClick:e=>e.stopPropagation()},h('input',{type:'checkbox','aria-label':`Mark ${t.title} complete`,onChange:e=>{try{setTodoDone(t.id,e.target.checked);}catch{e.target.checked=false;}}}),h('span',{class:'todo-glance-copy'},size==='wide'&&i===0?text('UP NEXT','rss-source'):null,todoTaskText(h,t))));
+  if(!rows.length)rows.push(text('All done.','todo-title'));
+  rows.push(text(pending.length>limit?`+ ${pending.length-limit} more · open all ${pending.length}`:`${pending.length} open · tap for details`,'todo-more'));
+  return rows;
+}
 function eventsRoot(size,d,card){
   const events=(d||[]).filter(e=>!e.when||+e.when>Date.now()-3*60*60*1000).slice(0,({small:1,wide:3,tall:5})[size]);
   if(!events.length)return [text(card.querySelector('.won-empty')?.textContent||'No upcoming plans to show.','wv-note')];
@@ -96,6 +106,6 @@ function eventsRoot(size,d,card){
 }
 export function renderVariant(id,size,{data,card}){
   if(!sizeAvailable(id,size)||size==='original')return null;
-  const renderers={clock:()=>clockRoot(size,card),'air-quality':()=>airRoot(size,data,card),weather:()=>weatherRoot(size,data,card),daily:()=>paintingRoot(size,data,card),'hacker-news':()=>newsRoot(size,data,card),gardyn:()=>gardynRoot(size,data,card),transit:()=>transitRoot(size,data,card),'sf-events':()=>eventsRoot(size,data,card),fractal:()=>{const src=card.querySelector('.frc img')?.src;return [src?h('img',{class:'wv-fractal-art',src,alt:'Trihourly fractal sculpture'}):text('The sculpture is growing.')];}};
+  const renderers={todos:()=>todosRoot(size,data),clock:()=>clockRoot(size,card),'air-quality':()=>airRoot(size,data,card),weather:()=>weatherRoot(size,data,card),daily:()=>paintingRoot(size,data,card),'hacker-news':()=>newsRoot(size,data,card),gardyn:()=>gardynRoot(size,data,card),transit:()=>transitRoot(size,data,card),'sf-events':()=>eventsRoot(size,data,card),fractal:()=>{const src=card.querySelector('.frc img')?.src;return [src?h('img',{class:'wv-fractal-art',src,alt:'Trihourly fractal sculpture'}):text('The sculpture is growing.')];}};
   return h('div',{class:`wv wv-${id} wv-${size}`},...(renderers[id]?.()||[]));
 }

@@ -2068,7 +2068,7 @@ async function openArcade() {
   }
   openWidgetPanel('emulator');
 }
-function openWidgetPanel(id) {
+function openWidgetPanel(id, options = {}) {
   if (id === 'hacker-news') return showHackerNews();
   if (id === 'sf-events') return showEvents();
   if (id === 'house-cleaning') return showRootsChores();
@@ -2078,15 +2078,17 @@ function openWidgetPanel(id) {
   // (e.g. the Mario game). It can set window.__GARDEN_GAME = {input, stop} to
   // take over controller input while open (see wirePad).
   if (typeof w.openFull === 'function') {
-    const body = h('div', { class: 'panel-widget panel-game' });
+    const body = h('div', { class: `panel-widget${id === 'emulator' ? ' panel-game' : ''}` });
     openPanel(w.title || id, body);
     const ctx = makeCtx(w.id + ':full');
+    let fullCleanup, fullClosed=false;
     panelWidgetStop = () => {
+      fullClosed=true;try{fullCleanup?.();}catch{}
       try { ctx._stop(); } catch { /* ignore */ }
       try { window.__GARDEN_GAME?.stop?.(); } catch { /* ignore */ }
       window.__GARDEN_GAME = null;
     };
-    Promise.resolve(w.openFull(body, ctx)).catch(() => {
+    Promise.resolve(w.openFull(body, ctx, options)).then(cleanup=>{if(typeof cleanup==='function'){if(fullClosed)cleanup();else fullCleanup=cleanup;}}).catch(() => {
       body.replaceChildren(h('div', { class: 'widget-error' }, 'could not open this widget'));
     });
     return;
@@ -2550,7 +2552,8 @@ function wireFeedback() {
         return;
       }
     }
-    if (e.target.closest?.('.theme-editor')) return;
+    if (e.target.closest?.('.todo-assignees') || document.querySelector('.todo-assignees[open]')) return;
+    if (e.target.closest?.('.theme-editor') || (e.target !== input && e.target.matches?.('input, textarea, select'))) return;
     if (mdEl) return; // markdown editor open → its textarea owns the keyboard
     // The top-right popovers (volume slider, forest menu) own the arrows while open:
     // ↑/→ louder · ↓/← quieter (volume) or move the row (forests), Enter picks, Esc closes.

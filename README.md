@@ -77,6 +77,12 @@ Type into the **"Plant a thought…"** bar at the bottom of the screen. It's sto
 compiled into the next morning's tending. No feedback? The gardener improves things on its own.
 
 ## To-do card
+Assign tasks to **House**, one resident, or several people with the multi-select
+picker in task details and the add-task form. **All** selects every resident. The
+wall shows `☐ Gui: finish agent setup`, with the assignee in bold. Household
+information lives in `public/lib/house-info.js`; the to-do store uses those shared
+resident IDs and migrates older single-name assignments without clearing tasks.
+
 The wall's **To do** card starts with Gui's task to install the host agent docs.
 Click its command to copy it, then open a terminal in this Paseo workspace with
 **Ctrl+Shift+T** or **+ → Terminal** in the workspace toolbar. Copying never runs

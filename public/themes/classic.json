@@ -1329,6 +1329,287 @@
       "style": {
         "font-size": "26px"
       }
+    },
+    "v3-todo-glance": {
+      "selector": ".todo-glance",
+      "style": {
+        "gap": "14px",
+        "justify-content": "center",
+        "overflow": "hidden"
+      }
+    },
+    "v3-todo-list": {
+      "selector": ".todo-glance .todo-list",
+      "style": {
+        "gap": "16px",
+        "flex": "0 1 auto"
+      }
+    },
+    "v3-todo-row": {
+      "selector": ".todo-glance-row",
+      "style": {
+        "display": "flex",
+        "align-items": "center",
+        "gap": "12px",
+        "min-width": "0",
+        "cursor": "var(--cursor-pointer)"
+      }
+    },
+    "v3-todo-check": {
+      "selector": ".todo-glance-row input",
+      "style": {
+        "flex": "0 0 22px",
+        "width": "22px",
+        "height": "22px",
+        "margin": "0",
+        "accent-color": "var(--color-accent)"
+      }
+    },
+    "v3-todo-copy": {
+      "selector": ".todo-glance-copy",
+      "style": {
+        "min-width": "0",
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "4px"
+      }
+    },
+    "v3-todo-title": {
+      "selector": ".todo-glance .todo-title, .wv-todos .todo-title",
+      "style": {
+        "font": "24px/1.2 var(--font-heading)",
+        "display": "-webkit-box",
+        "-webkit-line-clamp": "2",
+        "-webkit-box-orient": "vertical",
+        "overflow": "hidden",
+        "overflow-wrap": "anywhere"
+      }
+    },
+    "v3-todo-owner": {
+      "selector": ".todo-glance .todo-owner, .wv-todos .todo-owner",
+      "style": {
+        "font": "14px/1.3 var(--font-body)",
+        "color": "var(--color-text-muted)"
+      }
+    },
+    "v3-todo-more": {
+      "selector": ".todo-glance .todo-more, .wv-todos .todo-more",
+      "style": {
+        "font": "14px/1.3 var(--font-body)",
+        "color": "var(--color-accent)",
+        "margin-top": "auto",
+        "flex-shrink": "0"
+      }
+    },
+    "v3-todo-variants": {
+      "selector": ".wv-todos",
+      "style": {
+        "display": "flex",
+        "flex-direction": "column",
+        "gap": "18px",
+        "height": "100%",
+        "justify-content": "center",
+        "overflow": "hidden"
+      }
+    },
+    "v3-todo-wide": {
+      "selector": ".wv-todos.wv-wide",
+      "style": {
+        "display": "grid",
+        "grid-template-columns": "1.1fr 1fr",
+        "grid-template-rows": "1fr 1fr auto",
+        "gap": "16px 28px"
+      }
+    },
+    "v3-todo-wide-focus": {
+      "selector": ".wv-todos.wv-wide .todo-glance-row:first-child",
+      "style": {
+        "grid-row": "1 / 3",
+        "align-self": "center"
+      }
+    },
+    "v3-todo-wide-count": {
+      "selector": ".wv-todos.wv-wide .todo-more",
+      "style": {
+        "grid-column": "1 / -1"
+      }
+    },
+    "v3-todo-small-title": {
+      "selector": ".wv-todos.wv-small .todo-title",
+      "style": {
+        "font-size": "25px"
+      }
+    },
+    "v3-todo-full-title": {
+      "selector": ".todo-full .todo-title",
+      "style": {
+        "overflow-wrap": "anywhere"
+      }
+    },
+    "todo-assigned-text": {
+      "selector": ".todo-glance .todo-assigned-line, .wv-todos .todo-assigned-line",
+      "style": {
+        "font": "22px/1.35 var(--font-body)"
+      }
+    },
+    "todo-assignee-emphasis": {
+      "selector": ".todo-assignee-name",
+      "style": {
+        "font-weight": "700"
+      }
+    },
+    "todo-full-summary": {
+      "selector": ".todo-full-line",
+      "style": {
+        "align-items": "flex-start"
+      }
+    },
+    "todo-full-summary-text": {
+      "selector": ".todo-full .todo-assigned-line",
+      "style": {
+        "font": "24px/1.4 var(--font-body)",
+        "overflow-wrap": "anywhere"
+      }
+    },
+    "todo-full-summary-check": {
+      "selector": ".todo-full-line input",
+      "style": {
+        "margin-top": "5px"
+      }
+    },
+    "todo-assignment-field": {
+      "selector": ".todo-assignment-field",
+      "style": {
+        "display": "flex",
+        "align-items": "center",
+        "flex-wrap": "wrap",
+        "gap": "12px"
+      }
+    },
+    "todo-assignees": {
+      "selector": ".todo-assignees",
+      "style": {
+        "position": "relative",
+        "min-width": "150px",
+        "font": "16px/1.4 var(--font-body)"
+      }
+    },
+    "todo-assignee-summary": {
+      "selector": ".todo-assignees > summary",
+      "style": {
+        "padding": "10px 14px",
+        "border": "1px solid var(--stroke)",
+        "border-radius": "12px",
+        "background": "var(--color-canvas-raised)",
+        "color": "var(--color-text-primary)",
+        "cursor": "var(--cursor-pointer)"
+      }
+    },
+    "todo-assignee-menu": {
+      "selector": ".todo-assignee-menu",
+      "style": {
+        "position": "absolute",
+        "z-index": "30",
+        "top": "calc(100% + 8px)",
+        "left": "0",
+        "width": "240px",
+        "max-width": "calc(100vw - 80px)",
+        "padding": "12px",
+        "border": "1px solid var(--stroke)",
+        "border-radius": "14px",
+        "background": "var(--color-canvas-raised)",
+        "color": "var(--color-text-primary)"
+      }
+    },
+    "todo-assignee-menu-above": {
+      "selector": ".todo-assignees[data-placement=above] .todo-assignee-menu",
+      "style": {
+        "top": "auto",
+        "bottom": "calc(100% + 8px)"
+      }
+    },
+    "todo-assignee-tools": {
+      "selector": ".todo-assignee-tools",
+      "style": {
+        "display": "flex",
+        "align-items": "center",
+        "justify-content": "space-between",
+        "gap": "20px",
+        "padding": "0 4px 8px",
+        "color": "var(--color-text-muted)"
+      }
+    },
+    "todo-assignee-all": {
+      "selector": ".todo-assignee-menu .todo-assignee-all",
+      "style": {
+        "font": "inherit",
+        "padding": "5px 12px",
+        "border": "1px solid var(--stroke)",
+        "border-radius": "8px",
+        "background": "transparent",
+        "color": "var(--color-accent)",
+        "cursor": "var(--cursor-pointer)"
+      }
+    },
+    "todo-assignee-option": {
+      "selector": ".todo-assignee-option",
+      "style": {
+        "display": "flex",
+        "align-items": "center",
+        "gap": "12px",
+        "padding": "9px 6px",
+        "border-radius": "8px",
+        "cursor": "var(--cursor-pointer)"
+      }
+    },
+    "todo-assignee-option-hover": {
+      "selector": ".todo-assignee-option:hover",
+      "style": {
+        "background": "var(--color-canvas)"
+      }
+    },
+    "todo-assignee-option-check": {
+      "selector": ".todo-assignee-option input",
+      "style": {
+        "flex": "0 0 20px",
+        "width": "20px",
+        "height": "20px",
+        "min-width": "20px",
+        "margin": "0",
+        "padding": "0",
+        "accent-color": "var(--color-accent)"
+      }
+    },
+    "todo-assignee-focus": {
+      "selector": ".todo-assignees summary:focus-visible, .todo-assignee-all:focus-visible, .todo-assignee-option input:focus-visible",
+      "style": {
+        "outline": "2px solid var(--color-accent)",
+        "outline-offset": "3px"
+      }
+    },
+    "todo-task-header": {
+      "selector": ".todo-task-header",
+      "style": {
+        "display": "flex",
+        "justify-content": "space-between",
+        "align-items": "flex-start",
+        "flex-wrap": "wrap",
+        "gap": "16px 24px"
+      }
+    },
+    "todo-task-header-line": {
+      "selector": ".todo-task-header > .todo-full-line",
+      "style": {
+        "flex": "1 1 260px",
+        "min-width": "0"
+      }
+    },
+    "todo-task-header-assignment": {
+      "selector": ".todo-task-header > .todo-assignment-field",
+      "style": {
+        "flex": "0 0 auto",
+        "margin-left": "auto"
+      }
     }
   },
   "widgets": {},

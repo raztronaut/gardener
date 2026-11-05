@@ -1,24 +1,8 @@
-// Household to-dos live in this wall browser, independently of daily tending.
+// Household to-dos; the tile is a glance and the fullscreen holds instructions.
+import {readTasks,saveTasks,subscribeTasks,assigneeLabel} from '/lib/todo-store.js';
+import { HOUSE } from '/lib/house-info.js';
+import { assigneePicker, todoTaskText } from '/lib/todo-assignees.js';
 import { taskExplainer } from '/lib/task-explainer.js';
-const STORAGE_KEY = 'garden.todos.v1';
-const SETUP_COMMAND = 'sudo bash /home/talbot/gardener-github/scripts/install-host-docs.sh';
-const INITIAL_TASK = {
-  id: 'gui-install-host-docs',
-  title: 'Finish agent setup',
-  assignee: 'Gui',
-  command: SETUP_COMMAND,
-  terminalHint: true,
-  done: false,
-};
-
-function readTasks() {
-  try {
-    const tasks = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (Array.isArray(tasks) && tasks.every(t => t && typeof t.id === 'string' && typeof t.title === 'string')) return tasks;
-  } catch { /* A new browser starts with the real requested task below. */ }
-  return [{ ...INITIAL_TASK }];
-}
-
 async function copyCommand(command) {
   try {
     if (navigator.clipboard?.writeText) {
@@ -73,20 +57,21 @@ function render(body, ctx, full = false) {
     .todo-full .todo-list{gap:30px}
     .todo-full .todo-task{padding-bottom:24px;border-bottom:1px solid var(--stroke)}
     .todo-add{display:flex;gap:10px;flex-wrap:wrap}
-    .todo-add input{flex:1;min-width:180px;background:var(--color-canvas-raised);color:var(--color-text-primary);border:1px solid var(--stroke);border-radius:12px;padding:12px;font:inherit}
+    .todo-add > input[type=text]{flex:1;min-width:180px;background:var(--color-canvas-raised);color:var(--color-text-primary);border:1px solid var(--stroke);border-radius:12px;padding:12px;font:inherit}
     .todo-add button{border:1px solid var(--stroke);border-radius:12px;padding:12px 20px;background:var(--color-canvas-raised);color:var(--color-text-primary);font:inherit;cursor:pointer}
   `);
-  const root = h('div', { class: `todo-root${full ? ' todo-full' : ''}` });
+  const compact=!full&&document.documentElement.dataset.theme==='classic';
+  const root = h('div', { class: `todo-root${full ? ' todo-full' : compact?' todo-glance':''}` });
   const list = h('div', { class: 'todo-list' });
   const storageStatus = h('p', { class: 'todo-copy-status', role: 'status', hidden: true });
   root.append(list, storageStatus);
   body.replaceChildren(root);
-  let previous = '';
+  let previous = '', editingAssignment = false;
 
   function save(tasks) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+    try { saveTasks(tasks); }
     catch { storageStatus.hidden = false; storageStatus.textContent = 'Could not save. Browser storage is unavailable.'; return false; }
-    draw(true);
+    if (!editingAssignment) draw(true);
     return true;
   }
 
@@ -97,9 +82,25 @@ function render(body, ctx, full = false) {
     checkbox.addEventListener('change', () => {
       if (!save(readTasks().map(t => t.id === task.id ? { ...t, done: checkbox.checked } : t))) checkbox.checked = !!task.done;
     });
-    const row = h('article', { class: `todo-task${task.done ? ' is-done' : ''}` },
-      task.assignee ? h('div', { class: 'todo-owner' }, `For ${task.assignee} · when you see this`) : null,
-      h('div', { class: 'todo-title' }, task.title));
+    if(compact)return h('label',{class:'todo-glance-row',onClick:e=>e.stopPropagation()},checkbox,h('span',{class:'todo-glance-copy'},todoTaskText(h,task)));
+    const assignedText = todoTaskText(h, task);
+    const header = h('div', { class: 'todo-task-header' },
+      h('label', { class: 'todo-glance-row todo-full-line', onclick: e => e.stopPropagation() }, checkbox, assignedText));
+    const row = h('article', { class: `todo-task${task.done ? ' is-done' : ''}`, 'data-todo-id': task.id },
+      header);
+    if (full) {
+      const picker = assigneePicker(h, { value: task.assignees, label: `Assign ${task.title}`, onChange: assignees => {
+        editingAssignment = true;
+        try {
+          if (!save(readTasks().map(item => item.id === task.id ? { ...item, assignees } : item))) return false;
+          previous = JSON.stringify(readTasks());
+          assignedText.querySelector('strong').textContent = `${assigneeLabel({ assignees })}: `;
+          assignedText.title = `${assigneeLabel({ assignees })}: ${task.title}`;
+          return true;
+        } finally { editingAssignment = false; }
+      } });
+      header.append(h('div', { class: 'todo-assignment-field' }, h('span', { class: 'todo-hint' }, 'Assigned to'), picker.element));
+    }
     if (task.id === 'gui-install-host-docs') {
       row.append(h('p', { class: 'todo-hint' }, 'Guides for future agents. ',
         full ? null : h('a', { href: '#', class: 'todo-details', onclick: e => e.preventDefault() }, 'Why sudo? →')));
@@ -125,37 +126,39 @@ function render(body, ctx, full = false) {
     if (task.terminalHint) row.append(h('p', { class: 'todo-hint' },
       'In this Paseo workspace, open a terminal with ', h('strong', {}, 'Ctrl + Shift + T'),
       ' or click ', h('strong', {}, '+ → Terminal'), ' in the workspace toolbar. Enter your password in the terminal.'));
-    const checkLabel = h('label', { class: 'todo-check', onclick: e => e.stopPropagation() }, checkbox, task.done ? 'Completed' : task.command ? 'Mark done after running' : 'Mark done');
-    row.append(checkLabel);
     return row;
   }
 
   function draw(force = false) {
+    if (editingAssignment) return;
     const tasks = readTasks(), signature = JSON.stringify(tasks);
     if (!force && signature === previous) return;
     previous = signature;
-    const pending = tasks.filter(t => !t.done), visible = full ? [...pending, ...tasks.filter(t => t.done)] : pending.slice(0, 1);
+    const pending = tasks.filter(t => !t.done), visible = full ? [...pending, ...tasks.filter(t => t.done)] : pending.slice(0, compact?3:1);
     list.replaceChildren(...visible.map(taskRow));
     if (!visible.length) list.append(h('div', { class: 'todo-title' }, 'All done'), h('p', { class: 'todo-hint' }, full ? 'Add another task below.' : 'Open to see completed tasks or add a new one.'));
-    if (!full && pending.length > 1) list.append(h('div', { class: 'todo-more' }, `+ ${pending.length - 1} more · open to view`));
+    root.querySelector('.todo-more')?.remove();
+    if(!full)root.append(h('div',{class:'todo-more'},pending.length>visible.length?`+ ${pending.length-visible.length} more · open all ${pending.length}`:pending.length?`${pending.length} open · tap card for details`:'A little room to breathe.'));
   }
 
   if (full) {
     const input = h('input', { type: 'text', maxlength: '200', placeholder: 'Add a to-do', 'aria-label': 'New to-do', required: true });
-    const form = h('form', { class: 'todo-add' }, input, h('button', { type: 'submit' }, 'Add task'));
+    const picker = assigneePicker(h, { value: [HOUSE.id], label: 'Assign new to-do' });
+    const form = h('form', { class: 'todo-add' }, input, picker.element, h('button', { type: 'submit' }, 'Add task'));
     form.addEventListener('submit', e => {
       e.preventDefault();
       const title = input.value.trim();
       if (!title) return;
-      if (save([...readTasks(), { id: crypto.randomUUID(), title, done: false }])) input.value = '';
+      if (save([...readTasks(), { id: crypto.randomUUID(), title, assignees: picker.value(), done: false }])) input.value = '';
     });
     root.append(form);
   }
   draw();
-  ctx.interval(() => draw(), 1000);
+  return subscribeTasks(()=>draw());
 }
 
 export default {
+  getVariantData:()=>readTasks(),
   id: 'todos', title: 'To do', size: 'md', homeSize: 'medium', chrome: true,
   mount: (body, ctx) => render(body, ctx),
   openFull: (body, ctx) => render(body, ctx, true),
