@@ -130,6 +130,18 @@ tap / click / pad press uses). SSE + replies on 127.0.0.1:8797 (wall origins onl
 turns it off (mic closed). Models + QA: tools/voice/README.md. Keep `src/voice*.mjs`,
 `public/lib/voice.js` and `voiceAct` working; never add audio storage or upload.
 
+## The Botanist + desk (hand-maintained; the tending must not modify it)
+"Hey Garden, botanist, ..." hands a request (text only) to **the Botanist**: a coding agent in
+Paseo on this machine (workspace "Commands from the OS"; agent id in the gitignored
+`data/voice/botanist.json`). `src/botanist.mjs` = the bridge over the local Paseo daemon's MCP
+endpoint (127.0.0.1:6767, no child processes — the `paseo` CLI is ~200 MB/2 s, too heavy for the
+voice service's cap): ask / status / allow / deny / stop, async (a watcher reports `working`,
+`permission`, `done`, `error` → the wall's quiet edge glow + the Botanist card, lib/voice.js).
+**`tools/desk/desk`** (linked to `~/.local/bin/desk`) is its computer use — Codex's own isn't on
+Linux: screenshots (GTK) + mouse/keyboard (XTest via ctypes), no installs, no sudo. The only
+screen is this wall (900×1600). The wall explains all of it in **`/botanist`** (alias `/desk`)
+— keep that panel in step with `desk --help`. Timers are the wall's own (`/timer`), never the Botanist.
+
 ## Arcade — retro-console emulator widget
 **PS1 runs natively** (2026-11-03): `src/native.mjs` launches RetroArch + PCSX-ReARMed
 fullscreen over the kiosk (`/api/arcade/native`, one game at a time; Select+Start quits, the

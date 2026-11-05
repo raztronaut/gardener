@@ -904,9 +904,50 @@ function showHelp() {
       cmd('/notes', 'notes you’ve planted — and delete any before tending'),
       cmd('/grow', 'tend the garden now on the notes you’ve planted'),
       cmd('shift + T', 'mark “take trash out” done (on trash day)'),
+      cmd('/botanist  ·  /desk', 'the Botanist — the coding agent you can talk to; what to say, and how it uses the screen'),
+      cmd('/timer', 'two-minute countdown card in the top-left (/timer 5, /timer off)'),
       cmd('/night', 'toggle the dark screen-saver veil'),
       cmd('/refresh', 'reload the garden now'),
       cmd('esc', 'close this panel'))));
+}
+
+// /botanist (/desk) — the Botanist: the coding agent in Paseo ("Commands from the OS")
+// that "Hey Garden, botanist, ..." talks to (src/botanist.mjs), and desk, the command it
+// sees and drives this screen with (tools/desk/desk). Keep in step with desk --help.
+function showBotanist() {
+  const cmd = (c, d) => h('div', { class: 'help-cmd' }, h('code', {}, c), h('span', {}, d));
+  const head = (t) => h('div', { class: 'help-h' }, t);
+  openPanel('The Botanist — voice & the screen', h('div', { class: 'help' },
+    h('p', { class: 'help-lead' }, 'The Botanist is a coding agent running on this computer. Hey Garden passes it anything the wall can’t do itself: change code, run things, fix and build, and use the screen like a person — look, click, type.'),
+    head('Say'),
+    h('div', { class: 'help-cmds' },
+      cmd('“Hey Garden, botanist, …”', 'hand it a task in your own words — also “tell / ask the botanist …”'),
+      cmd('“What is the botanist doing?”', 'busy, idle, or waiting for your OK'),
+      cmd('“Allow it”  ·  “deny it”', 'answer when it asks permission'),
+      cmd('“Stop the botanist”', 'cancel what it’s doing')),
+    head('Try'),
+    h('div', { class: 'help-cmds' },
+      cmd('“…open the calculator and work out 12 times 7”', 'it opens the app, clicks the buttons, reads the answer, closes it'),
+      cmd('“…how much disk space is free?”', 'runs a command and tells you'),
+      cmd('“…add a 7-day forecast to the weather card”', 'changes GardenOS itself')),
+    head('On the wall'),
+    h('div', { class: 'help-cmds' },
+      cmd('a quiet edge glow', 'it’s working on your request — stays until it’s done'),
+      cmd('mint card', 'done — its answer, top of the wall'),
+      cmd('gold card', 'it needs your OK (“allow it” / “deny it”)'),
+      cmd('rose card', 'it stopped or something failed')),
+    head('desk — how it sees and uses the screen'),
+    h('p', { class: 'help-lead' }, 'One screen: this wall (900 × 1600). Apps it opens appear over the garden; it closes them when done. Coordinates are screen pixels from the top-left.'),
+    h('div', { class: 'help-cmds' },
+      cmd('desk shot', 'screenshot to /tmp/desk.png — it looks before it clicks'),
+      cmd('desk click X Y', 'click (--right, --double)'),
+      cmd('desk move X Y  ·  desk scroll up|down', 'move the pointer · scroll'),
+      cmd('desk type "text"', 'type into the focused window (plain characters)'),
+      cmd('desk key ctrl+s', 'keys and combos — Return, Escape, alt+F4 …'),
+      cmd('desk windows', 'list open windows'),
+      cmd('desk focus · desk close <title>', 'bring a window forward · close it'),
+      cmd('desk --help', 'the full reference')),
+    h('p', { class: 'help-note' }, 'It runs with full access: anyone who says “Hey Garden, botanist” can have it act on this computer. To approve each step, set its Paseo workspace (Commands from the OS) to Auto — then answer with “allow it” / “deny it”.')));
 }
 
 // Show the feedback the humans have planted (pending vs already grown in).
@@ -1550,6 +1591,7 @@ const COMMANDS = [
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
   { cmd: 'timer', aliases: ['countdown'], icon: '⏱', desc: 'countdown card in the top-left — default 2 minutes; /timer 5, /timer 90s, /timer off', run: (arg) => runTimer(arg),
     options: () => [{ arg: '2', icon: '⏱', label: '2 minutes', desc: 'two-minute countdown' }, { arg: '5', icon: '⏱', label: '5 minutes', desc: 'five-minute countdown' }, { arg: 'off', icon: '⏹', label: 'Off', desc: 'stop the countdown' }] },
+  { cmd: 'botanist', aliases: ['desk', 'agent'], icon: '🌿', desc: 'the Botanist — what to say, and how it uses the screen (desk)', run: () => showBotanist() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
   { cmd: 'voice', aliases: ['mic', 'listen', 'heygarden'], icon: '🎙', desc: '"Hey Garden" voice control on / off (off = the mic is closed)',
     run: (arg) => { if (!VOICE) { toast('Voice is not running on this screen'); return; } if (/^cal/.test(arg || '')) { VOICE.calibrate(60); return; } VOICE.setEnabled(!VOICE.enabled()); },

@@ -587,6 +587,11 @@ body.screenshot .osalarm { display: none !important; }
 .help-cmd code { font-family: var(--font-mono); font-size: 14px; color: var(--mint);
   background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 8px; padding: 3px 10px; min-width: 116px; text-align: center; }
 .help-cmd span { color: var(--ink); font-size: 15px; }
+/* /botanist panel: section headings (like a card's corner title) + the safety note */
+.help-h { margin-top: 10px; font-family: var(--font-display); font-size: 14px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-soft); }
+.help-note { margin-top: 6px; padding: 12px 16px; border-radius: 14px; font-size: 15px; line-height: 1.45; color: #f3d79a;
+  background: rgba(255, 217, 138, .07); border: 1px solid rgba(255, 217, 138, .28); }
 
 /* delete control on a pending /notes row */
 .cl-row .note-del { flex: 0 0 auto; align-self: center; font-size: 16px; line-height: 1;
