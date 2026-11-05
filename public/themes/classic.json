@@ -1511,14 +1511,15 @@
         "position": "absolute",
         "z-index": "30",
         "top": "calc(100% + 8px)",
-        "left": "0",
+        "left": "auto",
         "width": "240px",
         "max-width": "calc(100vw - 80px)",
         "padding": "12px",
         "border": "1px solid var(--stroke)",
         "border-radius": "14px",
         "background": "var(--color-canvas-raised)",
-        "color": "var(--color-text-primary)"
+        "color": "var(--color-text-primary)",
+        "right": "0"
       }
     },
     "todo-assignee-menu-above": {
