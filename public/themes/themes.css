@@ -1,0 +1,14 @@
+/* Classic deliberately has no overrides. New designs belong in this file. */
+.theme-switch { display: flex; align-items: center; gap: 7px; color: var(--ink-soft); font: 14px var(--font); }
+.theme-switch select { max-width: 150px; color: var(--ink); background: var(--bg-1); border: 1px solid var(--stroke-strong); border-radius: 9px; padding: 7px; font: inherit; }
+.theme-switch select:focus-visible, .theme-choice:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
+.theme-picker { display: grid; gap: 18px; color: var(--ink-soft); }
+.theme-choice { display: grid; gap: 8px; padding: 22px; text-align: left; font: 20px var(--font); color: var(--ink); background: var(--glass-2); border: 1px solid var(--stroke); border-radius: 18px; cursor: pointer; }
+.theme-choice strong { font: 30px var(--font-display); }
+.theme-choice span { color: var(--ink-soft); }
+.theme-choice[aria-pressed="true"] { border-color: var(--mint); background: var(--glass); }
+
+
+.theme-choice { min-width: 0; white-space: normal; }
+.theme-choice strong, .theme-choice span { pointer-events: none; }
+.theme-switch { white-space: nowrap; }

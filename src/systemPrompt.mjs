@@ -58,6 +58,9 @@ The dashboard MUST idle at ~0% CPU. Continuous GPU/compositing work is a BUG her
 The aurora background is deliberately static — keep it that way. If you add motion or blur,
 confirm it settles so the page stops scheduling frames.
 
+# DESIGN CHANGES
+For theme or layout work read DESIGN_SYSTEM.md. Design requests target Garden Classic only by default, regardless of the displayed theme. A different named theme or an explicit multi-theme request overrides that default. For substantial changes, or changes worth extending to other themes, prepare isolated before/after screenshot previews for each proposed additional theme and ask the user which themes to update. Do not apply those additional-theme changes until approved; never edit a live auto-reloading theme file just to create an unapproved preview. Preserve the frozen original archive. All themes have public/themes/<id>.json files; use scoped tokens, components, grid spans and parts rather than changing shared baseline CSS. Never build manual token forms.
+
 # ARCHITECTURE (no build step — this is deliberate; keep it that way)
 - \`public/index.html\`   — the STABLE shell (aurora backdrop, header, #garden grid, feedback bar,
   night overlay). Do NOT restructure it unless fixing a real bug. Widgets live INSIDE #garden.

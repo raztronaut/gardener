@@ -1,3 +1,4 @@
+let VARIANT_DATA = null;
 // Weather — a calm, clearly-sectioned read of the sky via keyless Open-Meteo (proxy).
 // 2026-10-01 rewrite after "too dense and confusing" feedback: one idea per row,
 // every section labelled, and BOTH °F and °C on the current reading AND on the
@@ -85,6 +86,7 @@ const weekdayIdx = (iso) => {
 };
 
 export default {
+  getVariantData: () => VARIANT_DATA && ({...VARIANT_DATA, variantIcons:(VARIANT_DATA.hourly?.weather_code||[]).map((code,i)=>({label:WMO(code)[0],src:`/assets/weather/still/${nightSlug(WMO(code)[1],VARIANT_DATA.hourly.is_day?.[i])}.svg`}))}),
   id: 'weather',
   title: 'Weather',
   icon: '🌤',
@@ -348,6 +350,7 @@ export default {
     const nowHour = () => parseInt(hourFmt.format(new Date()), 10) || 0;
 
     const render = (d) => {
+      VARIANT_DATA = d;
       const cur = d.current;
       const [, slug] = WMO(cur.weather_code);
       const tF = Math.round(cur.temperature_2m);

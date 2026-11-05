@@ -76,6 +76,31 @@ function setHeld(key, dir) {
   held.set(key, { dir, t });
 }
 
+const sleepButtons = new Set();
+let sleepHold = null, sleepClaimed = false;
+function sleepButton(value, number) {
+  if (value === 1) {
+    sleepButtons.add(number);
+    if (sleepButtons.size === 2 && !sleepHold && !sleepClaimed) {
+      sleepHold = setTimeout(() => { sleepHold = null; sleepClaimed = true; send('snooze'); }, 5000);
+    }
+  } else {
+    clearTimeout(sleepHold); sleepHold = null;
+    if (!sleepClaimed) {
+      // Preserve game raw edges and individual Help/Changelog taps.
+      if (sleepButtons.size === 2) {
+        send('jbkd').then(() => send('jbld')).then(() => send('jbku')).then(() => send('jblu'));
+        sleepClaimed = true;
+      } else {
+        const raw = 'jb' + String.fromCharCode(97 + number);
+        send(raw + 'd').then(() => send(raw + 'u'));
+        const action = MAP.buttons[number]; if (action) send(action);
+      }
+    }
+    sleepButtons.delete(number);
+    if (!sleepButtons.size) sleepClaimed = false;
+  }
+}
 let rawLogged = 0;
 const rawAxis = {}; // last raw direction per axis (only transitions are sent)
 const zoomDown = new Set(); // which of the zoom-pair buttons are currently held
@@ -105,6 +130,7 @@ function onEvent(value, type, number) {
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
   if (rawLogged < 300) { rawLogged++; log(`raw ${t === 1 ? 'button' : 'axis'} #${number} = ${value}`); }
+  if (t === 1 && (number === 10 || number === 11)) { sleepButton(value, number); return; }
   // Raw edges for games (the Arcade): every button press/release → 'jb<idx a..p><d|u>',
   // every d-pad/stick direction change → 'jx<l|c|r>' / 'jy<u|c|d>'. The wall ignores
   // these unless a game is running; the normal actions below are sent as before.
@@ -191,6 +217,7 @@ function attach() {
     }
   });
   const retry = (why) => {
+    clearTimeout(sleepHold); sleepHold = null; sleepButtons.clear(); sleepClaimed = false;
     for (const v of held.values()) clearInterval(v.t);
     held.clear();
     // log once when the controller goes away, then retry quietly (every 3 s while it
@@ -257,7 +284,19 @@ function volumeStep(dir) {
 const VOICE_URL = `http://127.0.0.1:${process.env.GARDENER_VOICE_PORT || 8797}/ptt`;
 const ptt = (down) => fetch(VOICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down }), signal: AbortSignal.timeout(1500) }).catch(() => {});
 import('./hidpp.mjs').then(({ divertButton }) => {
-  const start = () => { if (!divertButton({ cid: 0x00c4, onDown: () => ptt(true), onUp: () => ptt(false), log })) setTimeout(start, 60000); };
+  let gestureX = 0, gestureY = 0, firstMotion = true;
+  const start = () => { if (!divertButton({ controls: [
+    { cid: 0x00c4, onDown: () => ptt(true), onUp: () => ptt(false) },
+    { cid: 0x00c3, // thumb-rest gesture button; keep SmartShift push-to-talk separate
+      onDown: () => { gestureX = 0; gestureY = 0; firstMotion = true; },
+      onMove: (dx, dy) => {
+        // MX 3S can emit a stale initial raw-motion packet when diversion begins.
+        if (firstMotion) { firstMotion = false; return; }
+        gestureX += dx; gestureY += dy;
+      },
+      onUp: () => { if (Math.abs(gestureX) >= 120 && Math.abs(gestureX) > Math.abs(gestureY) * 1.5) send(gestureX > 0 ? 'pagenext' : 'pageprev'); },
+    },
+  ], log })) setTimeout(start, 60000); };
   start();
 }).catch((e) => log(`hid++: ${e.message}`));
 

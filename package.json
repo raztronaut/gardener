@@ -1,7 +1,7 @@
 {
   "name": "the-gardener",
   "version": "2.0.0",
-  "description": "The Gardener™ — a self-cultivating, 24/7 ambient dashboard that improves itself daily.",
+  "description": "The Gardener\u2122 \u2014 a self-cultivating, 24/7 ambient dashboard that improves itself daily.",
   "private": true,
   "type": "module",
   "engines": {
@@ -13,7 +13,10 @@
     "smoke": "node smoke/smoke.mjs",
     "day": "node src/display.mjs day",
     "night": "node src/display.mjs night",
-    "display-sync": "node src/display.mjs sync"
+    "display-sync": "node src/display.mjs sync",
+    "design:check": "node tools/design.mjs validate-all && node tools/design.mjs lint-all && node tools/design.mjs schema && node --test tools/design/test.mjs",
+    "design:audit": "node tools/design.mjs audit",
+    "design:catalog": "node tools/design/catalog.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.287",

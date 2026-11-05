@@ -1,4 +1,5 @@
 import { makeTranscript } from './voice-transcript.js';
+import { designColor } from './design-values.js';
 // The Gardener™ — "Hey Garden" on the wall: the Siri-style edge glow, the live words,
 // the sounds and the tool calls (the listening itself is src/voice.mjs, on-device).
 //
@@ -14,10 +15,10 @@ const ORIGIN = `http://${location.hostname}:${new URLSearchParams(location.searc
 const VERT = `attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
 const FRAG = `precision mediump float;
 uniform vec2 uRes; uniform float uTime, uLevel, uIntro, uThink, uTintAmt, uDim; uniform vec3 uTint;
+uniform vec3 uPalette0, uPalette1, uPalette2, uPalette3, uPalette4;
 vec3 pal(float x) {
   x = fract(x) * 5.0;
-  vec3 c0 = vec3(0.30, 0.96, 0.66), c1 = vec3(0.22, 0.80, 1.00), c2 = vec3(0.52, 0.45, 1.00),
-       c3 = vec3(1.00, 0.40, 0.72), c4 = vec3(1.00, 0.74, 0.32);
+  vec3 c0 = uPalette0, c1 = uPalette1, c2 = uPalette2, c3 = uPalette3, c4 = uPalette4;
   float f = fract(x); f = f * f * (3.0 - 2.0 * f);
   if (x < 1.0) return mix(c0, c1, f);
   if (x < 2.0) return mix(c1, c2, f);
@@ -61,6 +62,15 @@ function makeGlow() {
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   const U = {}; for (const n of ['uRes', 'uTime', 'uLevel', 'uIntro', 'uThink', 'uTintAmt', 'uTint', 'uDim']) U[n] = gl.getUniformLocation(pr, n);
+  const paletteDefaults = [[.30,.96,.66],[.22,.80,1],[.52,.45,1],[1,.40,.72],[1,.74,.32]];
+  const paletteUniforms = paletteDefaults.map((_,i)=>gl.getUniformLocation(pr,'uPalette'+i));
+  const refreshPalette = () => {
+    gl.useProgram(pr);
+    paletteDefaults.forEach((fallback,i)=>gl.uniform3f(paletteUniforms[i],...designColor('--color-voice-'+(i+1),fallback)));
+  };
+  refreshPalette();
+  addEventListener('garden:design',refreshPalette);
+  addEventListener('garden:theme',refreshPalette);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
   // animated state (eased toward targets every frame)
@@ -100,8 +110,8 @@ function makeGlow() {
     think() { S.thinkT = 1; S.levelT = 0.1; run(); }, // thinking: the same slow, smooth flow — just calmer
     end(kind) {
       S.thinkT = 0; S.levelT = kind === 'done' ? 0.35 : 0;
-      if (kind === 'done') { S.tintC = [0.45, 1.0, 0.74]; S.tintT = 0.85; }
-      else if (kind === 'fail') { S.tintC = [1.0, 0.45, 0.38]; S.tintT = 0.75; }
+      if (kind === 'done') { S.tintC = designColor('--color-voice-success', [0.45, 1.0, 0.74]); S.tintT = 0.85; }
+      else if (kind === 'fail') { S.tintC = designColor('--color-voice-error', [1.0, 0.45, 0.38]); S.tintT = 0.75; }
       // hold the closure wash for a beat, then fold the glow back into the edges
       setTimeout(() => { S.introT = 0; S.levelT = 0; }, kind === 'cancel' ? 0 : 520);
       run();

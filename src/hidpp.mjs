@@ -25,7 +25,9 @@ function receivers() {
   return out;
 }
 
-export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {}, log = () => {} } = {}) {
+export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {}, controls = null, log = () => {} } = {}) {
+  const bindings = controls || [{ cid, onDown, onUp }];
+  const heldControls = new Set();
   const nodes = receivers();
   if (!nodes.length) { log('hid++: no Logitech receiver'); return null; }
   let fd = -1, path = null;
@@ -33,7 +35,7 @@ export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {},
   if (fd < 0) return null;
   const waits = new Map(); // `${dev}:${feat}:${fn}` → resolve
   const slots = new Map(); // device index → REPROG feature index (once known)
-  let pressed = false, timer = 0, closed = false;
+  let timer = 0, closed = false;
   const write = (bytes) => { const b = Buffer.alloc(bytes[0] === SHORT ? 7 : 20); Buffer.from(bytes).copy(b); if (process.env.GARDENER_HIDPP_TRACE === '1') log(`> ${[...b].map((x) => x.toString(16).padStart(2, '0')).join(' ')}`); try { writeSync(fd, b); } catch (e) { log(`hid++ write: ${e.code}`); } };
   const ask = (dev, feat, fn, params, ms = 2500) => new Promise((resolve) => { // (a dozing wireless mouse answers late)
     const key = `${dev}:${feat}:${fn}`;
@@ -53,11 +55,17 @@ export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {},
       if (feat === 0x41 || (r[0] === SHORT && feat === 0x41)) { setTimeout(apply, 400); continue; } // a device (re)connected
       if (feat === 0xff || feat === 0x8f) { const w = waits.get(`${dev}:${r[3]}:${r[4] >> 4}`); if (w) { waits.delete(`${dev}:${r[3]}:${r[4] >> 4}`); w(null); } continue; } // error reply
       if ((fnsw & 0x0f) === SWID) { const key = `${dev}:${feat}:${fnsw >> 4}`; const w = waits.get(key); if (w) { waits.delete(key); w(r); } continue; }
+      if (slots.get(dev) === feat && (fnsw >> 4) === 1 && r.length >= 8) {
+        for (const control of bindings) if (heldControls.has(control.cid)) control.onMove?.(r.readInt16BE(4), r.readInt16BE(6));
+      }
       // a notification: the diverted buttons now held, as CIDs (fn 0, swid 0)
       if (slots.get(dev) === feat && (fnsw >> 4) === 0) {
-        let held = false;
-        for (let i = 4; i + 1 < r.length; i += 2) if (((r[i] << 8) | r[i + 1]) === cid) held = true;
-        if (held && !pressed) { pressed = true; onDown(); } else if (!held && pressed) { pressed = false; onUp(); }
+        for (const control of bindings) {
+          let held = false;
+          for (let i = 4; i + 1 < r.length; i += 2) if (r.readUInt16BE(i) === control.cid) held = true;
+          if (held && !heldControls.has(control.cid)) { heldControls.add(control.cid); control.onDown?.(); }
+          else if (!held && heldControls.has(control.cid)) { heldControls.delete(control.cid); control.onUp?.(); }
+        }
       }
     }
   });
@@ -70,9 +78,13 @@ export function divertButton({ cid = 0x00c4, onDown = () => {}, onUp = () => {},
         if (!r || !r[4]) continue;
         feat = r[4]; slots.set(dev, feat);
       }
-      // setCidReporting(cid, divert=1 + divert-valid=1)
-      const ok = await ask(dev, feat, 3, [cid >> 8, cid & 0xff, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-      if (ok && !slots.has(`logged${dev}`)) { slots.set(`logged${dev}`, 1); log(`hid++: button 0x${cid.toString(16)} diverted on device ${dev} (${path})`); }
+      for (const control of bindings) {
+        // rawXY + rawXY-valid (0x30) suppress cursor motion during the gesture.
+        const flags = control.onMove ? 0x33 : 0x03;
+        const ok = await ask(dev, feat, 3, [control.cid >> 8, control.cid & 0xff, flags, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        const logged = `logged${dev}:${control.cid}`;
+        if (ok && !slots.has(logged)) { slots.set(logged, 1); log(`hid++: button 0x${control.cid.toString(16)} diverted on device ${dev} (${path})${control.onMove ? ' with gesture motion' : ''}`); }
+      }
     }
   }
   apply(); timer = setInterval(apply, 20000);

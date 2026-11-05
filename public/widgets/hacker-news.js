@@ -1,3 +1,4 @@
+let VARIANT_DATA = null;
 // Hacker News — top stories (rank, title, score, comments, source domain) via
 // the keyless Firebase API (through the SSRF-safe proxy).
 //   https://hacker-news.firebaseio.com/v0/topstories.json -> [id, id, ...]
@@ -118,6 +119,7 @@ export function rankMovement(prevRank, curRank) {
 }
 
 export default {
+  getVariantData: () => VARIANT_DATA,
   id: 'hacker-news',
   title: 'Hacker News',
   icon: '📰',
@@ -189,9 +191,8 @@ export default {
       // the top COUNT — so a crude/flagged title is skipped, not shown.
       const top = ids.slice(0, FETCH);
       const fetched = await Promise.all(top.map((id) => ctx.fetchJSON(ITEM(id)).catch(() => null)));
-      const stories = fetched
-        .filter((s) => s && s.title && isClean(s.title))
-        .slice(0, COUNT);
+      VARIANT_DATA = fetched.filter(s => s && s.title && isClean(s.title));
+      const stories = VARIANT_DATA.slice(0, COUNT);
       // Calm tile (2026-11-01 prune): rank, title and ONE quiet line — the score
       // and where it's from (or the ASK/SHOW/JOB kind). Comments, age, the 🔥/🗣
       // cues and rank movement live in the fullscreen front page (app.js).

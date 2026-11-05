@@ -6,7 +6,10 @@
   <meta name="color-scheme" content="dark" />
   <title>The Gardener</title>
   <link rel="icon" href="/assets/logo.png" />
+  <script src="/lib/theme-boot.js"></script>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/themes/themes.css" />
+  <link rel="stylesheet" href="/lib/widget-pages.css" />
 </head>
 <body>
   <!-- Zoom root: controller zoom (L1/R1) scales THIS wrapper. Fixed-position
@@ -36,6 +39,7 @@
         </div>
       </div>
       <div class="topright">
+        <button id="themeSelect" class="gbtn theme-switch" type="button" aria-label="Appearance and themes">◐ Appearance</button>
         <!-- Trash-to-curb dashboard button: shown all day on trash day (Tue) so the
              bins can be put out & marked done early; the full-screen takeover only
              fires at night. Toggled by app.js (refreshTrashAlarm). -->

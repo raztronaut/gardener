@@ -177,6 +177,9 @@ export function bumpUiVersion() {
 
 export function getNight() { return getKV('night', '0') === '1'; }
 export function setNight(on) { setKV('night', on ? '1' : '0'); }
+export function getSnoozeUntil() { return Number(getKV('display_snooze_until', '0')) || 0; }
+export function setSnoozeUntil(until) { setKV('display_snooze_until', String(until)); }
+
 
 // ---- hand edits ("pruning"): persistent text overrides for template/widget
 // chrome (titles, brand, subtitle), keyed by slot; stored in kv as edit:<slot>.

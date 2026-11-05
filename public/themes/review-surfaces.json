@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "description": "Review real states; use inert fixtures for voice, permissions and reminders.",
+  "surfaces": [
+    {
+      "id": "wall",
+      "selector": "#stage",
+      "review": "All populated pages"
+    },
+    {
+      "id": "appearance",
+      "selector": ".theme-picker",
+      "review": "Click Appearance; check descriptions and focus"
+    },
+    {
+      "id": "forest",
+      "selector": "#rfMenu",
+      "review": "Right-click forest; check hover, active and keyboard selection"
+    },
+    {
+      "id": "volume",
+      "selector": "#volMenu",
+      "review": "Click volume; check thumb and focus"
+    },
+    {
+      "id": "commands",
+      "selector": "#cmdpal",
+      "review": "Type /; check selected row and explanation"
+    },
+    {
+      "id": "fullscreen",
+      "selector": ".panel-card",
+      "review": "Open each widget; inspect loading/error, labels and scrollbars"
+    },
+    {
+      "id": "editing",
+      "selector": ".home-edit-bar, .widget-edit-bar",
+      "review": "Use /widgets; inspect drag/remove/size states"
+    },
+    {
+      "id": "gallery",
+      "selector": ".widget-drawer",
+      "review": "Add widgets; inspect previews and disabled states"
+    },
+    {
+      "id": "note-editor",
+      "selector": ".mdeditor",
+      "review": "Cmd/Ctrl+Up; inspect placeholder and caret"
+    },
+    {
+      "id": "countdown",
+      "selector": "#countdownCard",
+      "review": "Disposable-browser timer; inspect running/completed states"
+    },
+    {
+      "id": "toast",
+      "selector": "#toast",
+      "review": "Harmless status message"
+    },
+    {
+      "id": "voice",
+      "selector": "#voiceCap",
+      "review": "Inert listening/thinking/reply/error fixtures"
+    },
+    {
+      "id": "botanist",
+      "selector": "#botanistCard",
+      "review": "Inert reply/permission/error fixtures"
+    },
+    {
+      "id": "calibration",
+      "selector": "#voiceCalib .vk-card",
+      "review": "Inert calibration fixture"
+    },
+    {
+      "id": "voice-glow",
+      "selector": "#voiceGlow",
+      "review": "Local voicedemo; inspect palette and idle performance"
+    },
+    {
+      "id": "reminders",
+      "selector": ".oa-card",
+      "review": "Inert fixtures; preserve semantic colors and dismissal"
+    }
+  ]
+}

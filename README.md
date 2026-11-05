@@ -101,3 +101,77 @@ the existing widgets. Register it in `public/widgets/manifest.json`.
   text. It tints fractal art and the idle background, and switches the rainforest location
   only if sounds are already playing. Missing Jev uses a time-based fallback. No new service,
   agent, dependency, image generation, or camera access is needed.
+
+### Widget pages
+
+On the main GardenOS wall, swipe horizontally across the widget area or use the
+numbered buttons under the title to change pages. Page 2 starts empty. Open
+**Widgets** to see the full active widget catalog, assign widgets to pages, move
+them up/down, remove them, or add removed widgets back onto the current page.
+The clock stays on every page. You can add pages, or remove the last extra page
+and move its widgets back. Layout changes save in this browser's local storage;
+they do not change the manifest or personal dashboards. New widgets registered
+in the main manifest appear on page 1. Temporary replacements share their
+original widget's saved position.
+
+### Wall pages and arranging widgets
+
+Tiny dots above the chat input show the current page. Switch with a touch swipe,
+Ctrl+Shift+Left/Right, the MX thumb-rest gesture button held while moving left/right
+(and releasing), or L3 held with left/right on the controller D-pad or left stick.
+A mouse held at a side edge in the middle of the screen switches after 2.2 seconds,
+once per entry. Panels and games keep their own controls.
+
+Use `/widgets` or hold a widget for half a second to edit it on the wall. The ×
+removes it; the middle handle drags it; ↔ toggles standard/full width where offered.
+The Add widgets drawer shows previews of available widgets; choosing an existing
+widget on another page moves it here. Drag a widget to an edge to move it between
+pages. A focused drag handle also accepts arrow keys to reorder, or Ctrl+Left/Right
+to move between pages. Done or Escape ends editing. Layouts save in this browser.
+
+The home grid in Classic and Moonstone is two small-widget columns by seven rows
+(14 small slots including the pinned clock). Pages never scroll, even while
+editing; overflow uses another page and only creates one when needed. Hold a
+widget to edit and drag from its body; the layout commits on drop. The bottom
+editing bar overlays the chat area without changing the home grid. The size
+picker offers Small (2×1 grid units), Medium (2×2), Wide (4×2), Tall (2×3), and
+Large (4×4), with different content arrangements for each footprint.
+
+Voice layout commands run directly, e.g. “make the weather taller”, “make the
+clock two by two”, “move the painting to page two”, “remove the weather widget”,
+“add weather”, “move weather before air”, and “next page”. The voice model has a
+batch `layout` tool; Jev routes layout requests to the wall. The Botanist receives
+the runtime layout snapshot when a request needs new code. Trusted local scripts
+can inspect `window.gardenWall.context().layout` and use the same operations via
+`window.gardenWall.act({name:'layout',input:{changes:[...]}})`.
+
+Validate finite layout and direct voice grammar with
+`node tools/widget-layout/test.mjs`.
+
+New widgets should declare `homeSize` as small, medium, wide, tall, or large,
+chosen for their contents, plus corresponding footprint-specific designs in the
+shared theme data. Saved user size choices take precedence.
+
+**Original presentation restored (2026-11-04):** the equal-track home redesign and
+footprint-specific content/style overrides were reverted after review. Cards
+use their original authored grid, typography, padding and contents by default.
+The page/editor/voice controls remain; `Original` in the size picker restores
+a card’s authored size. The rejected arrangement is preserved under the old
+browser storage key; the restored presentation uses a separate layout key.
+
+Widget size choices now show previews of the current content and disable
+undesigned sizes. The availability/design registry is `public/lib/widget-variants.js`;
+see `tools/widget-layout/VARIANTS.md` for content rationale and checks. Original
+remains the default. Hovering at a side edge shows its progress cue and changes
+pages after 1.5 seconds, once per entry.
+
+### Keep the screen awake for an hour
+Press **Ctrl + Shift + Space**, or hold **Start + Select for five seconds** on the
+SN30 Pro. Each use resets the deadline to one hour from now, wakes the panel and
+restores brightness. Night timers and idle checks respect this override; it
+survives backend restarts. A warning appears one minute before the normal display
+schedule resumes. Quick controller taps retain Help / Changelog; a quick combined
+press retains Arcade exit. Native PS1 games also exit on the held combo because
+RetroArch reads the controller directly; use the keyboard shortcut during PS1 play.
+The GNOME global shortcut runs `scripts/snooze-screen.sh` (localhost port 8787).
+Validation: `node tools/display-snooze.test.mjs`.

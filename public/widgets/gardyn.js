@@ -568,6 +568,7 @@ function build(h, body, tz, log = LOG) {
 }
 
 export default {
+  getVariantData: () => ({ day:todayIndex('America/Los_Angeles'), stage:gardenStage(todayIndex('America/Los_Angeles')), plants:PLANTS.map(p=>({...p,status:plantStatus(p,todayIndex('America/Los_Angeles'))})) }),
   id: 'gardyn',
   title: 'Gardyn',
   icon: '🌸',

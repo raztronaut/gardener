@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "description": "Static source possibilities; mounted runtime inventory is authoritative for active states.",
+  "sources": {
+    "public/styles.css": "24c73034644496d3e8f8d3b25a960b66ea6e5f5feb9f7ea0d7317b3de139e6a4",
+    "public/lib/widget-pages.css": "e5cb18ffc6ae5c9c848caf0d29cc03e1a36bd84436ffc6714faaa753eef305fe",
+    "public/themes/themes.css": "7a60ea12f8a12845b7c5c5157215824cf00e4c6504bdb1d8be00795c1974a9fc",
+    "public/widgets/air-quality.js": "f980de4fbd41b3a76e0556f70fde3f0da3372bfe418a978962360a0534363b96",
+    "public/widgets/clock.js": "4759327dc29ae06b24a62378327b5f54e499d767ab92c5d6189412c7102e5869",
+    "public/widgets/daily.js": "6b9c9cb8595cbb9d8d44312835837549517bea351c0c1a667f6c49bf950fae90",
+    "public/widgets/emulator.js": "0a2d6483b8d31ac6c5bb7eb661c88bee3cf347e2cc0d08b80205a8cab802c7eb",
+    "public/widgets/fractal.js": "408a189705c5ccf1e1936fa9191944333b0beb863f21da467c2b8c40a8587a19",
+    "public/widgets/gardyn.js": "1ba4bdf7475291c221c5ef1d0692eac00c0028ac508b80ddd4960918bc7afcca",
+    "public/widgets/hacker-news.js": "7bb3e360c42ac9f70f5c3d8cb2b1360c26b59d3d41726438b2e357e5359b9b80",
+    "public/widgets/midterms.js": "792380e3d8c871e030fb2f964dfae4b3666e650defed802c7760d2ac74b11726",
+    "public/widgets/rss.js": "d494433bbab4b70fedfaad0f6edcd6fa61e875719cc96db38f6de8aed7831e23",
+    "public/widgets/sf-events.js": "19d9886d2df7742dd2d29869774f5aa3859fd96816fb069de83ce81db0161739",
+    "public/widgets/transit.js": "74fb2e2c6cf449ae222020185e661f20f5353b5d00785fc7ad670bff92f61355",
+    "public/widgets/weather.js": "36400e98054d9fb0d9e935c0f3f596128b3d492e52757ec9955de220934db61d"
+  },
+  "cssBlocks": 20,
+  "tokens": 6272,
+  "skipped": []
+}

@@ -142,8 +142,8 @@ function watch(id, notify, log, prompt = '', baseline = '') {
 let held = null; // { task, at }
 const HOLD_MS = 3 * 60 * 1000;
 
-async function sendTask(id, task, notify, log, signal) {
-  const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
+async function sendTask(id, task, notify, log, design = null, signal) {
+  const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDesign context: ${JSON.stringify(design)}. For any GardenOS design/layout/widget request, first read /home/talbot/gardener/DESIGN_SYSTEM.md. It describes the editable theme file, semantic tokens, generated widget token inventory, grid spans, validation and live preview. Interpret the natural language yourself; never ask the person for CSS values. Design requests target Garden Classic only by default, regardless of the displayed theme. A different named theme or an explicit multi-theme request overrides that default. For substantial changes, or changes worth extending to other themes, prepare isolated before/after screenshot previews for each proposed additional theme and ask the user which themes to update. Do not apply those additional-theme changes until approved; never edit a live auto-reloading theme file just to create an unapproved preview. Preserve the frozen original archive. New widgets use the widget contract and real data, not mocks.\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
   let baseline = '';
   try { baseline = await lastReply(id, '', 250); } catch { /* optional; no stale fast completion without baseline */ baseline = null; }
   signal?.throwIfAborted();
@@ -154,7 +154,7 @@ async function sendTask(id, task, notify, log, signal) {
 }
 
 // action: ask | status | allow | deny | stop
-export async function botanist({ action = 'ask', task = '' } = {}, { notify = () => {}, log = () => {}, signal } = {}) {
+export async function botanist({ action = 'ask', task = '', design = null } = {}, { notify = () => {}, log = () => {}, signal } = {}) {
   signal?.throwIfAborted();
   const id = botanistId();
   if (!id) return { ok: false, error: 'The Botanist is not connected (no agent id set).' };
@@ -171,11 +171,11 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
         return { ok: false, error: 'That’s too risky to do by voice.' };
       }
       if (!r || r.risk !== 'harmless' || r.confidence < 0.5) {
-        held = { task, at: Date.now() };
+        held = { task, design, at: Date.now() };
         notify({ kind: 'permission', text: `Before I do this — "${clip(task, 200)}". Say "Hey Garden, allow it" or "deny it".` });
         return { ok: true, say: 'The Botanist is waiting for your OK.' };
       }
-      await sendTask(id, task, notify, log, signal);
+      await sendTask(id, task, notify, log, design, signal);
       return { ok: true, say: 'Sent to the Botanist.' };
     }
     if (action === 'status') {
@@ -189,9 +189,9 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
     if (action === 'allow' || action === 'deny') {
       // a task the gatekeeper is holding comes first
       if (held && Date.now() - held.at < HOLD_MS) {
-        const t = held.task; held = null;
+        const t = held.task, heldDesign = held.design; held = null;
         if (action === 'deny') { notify({ kind: 'dismiss' }); return { ok: true, say: 'Okay — I won’t.' }; }
-        await sendTask(id, t, notify, log, signal);
+        await sendTask(id, t, notify, log, heldDesign, signal);
         return { ok: true, say: 'Allowed — the Botanist is on it.' };
       }
       held = null;

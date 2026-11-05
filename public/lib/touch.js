@@ -1,3 +1,4 @@
+import { designValue } from './design-values.js';
 // The Gardener™ — camera touch calibration session (/touch).
 //
 // A webcam looks at the (vertical) wall from below. Like the classic single-webcam
@@ -231,8 +232,8 @@ function showFeed(cal) {
     g.clearRect(0, 0, PW, PH);
     if (feedCal) {
       const quad = [[0, 0], [W, 0], [W, H], [0, H]].map(([x, y]) => apply(feedCal.S2C, x, y));
-      g.strokeStyle = '#74f7b0'; g.lineWidth = 2; g.beginPath(); quad.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
-      if (feedTip) { const [x, y] = apply(feedCal.S2C, feedTip[0], feedTip[1]); g.fillStyle = '#ffd98a'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+      g.strokeStyle = designValue('--color-touch-target', '#74f7b0'); g.lineWidth = 2; g.beginPath(); quad.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke();
+      if (feedTip) { const [x, y] = apply(feedCal.S2C, feedTip[0], feedTip[1]); g.fillStyle = designValue('--color-touch-tip', '#ffd98a'); g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
     }
     requestAnimationFrame(draw);
   };

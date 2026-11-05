@@ -6,6 +6,15 @@ an autonomous Claude agent ("the daily tending") improves the **widgets** based 
 day's user feedback (or self-directed when there's none), gated by smoke tests + a
 visual review, and deployed only on green via git.
 
+## AI design requests
+
+For appearance, theme, widget sizing, or layout work, read DESIGN_SYSTEM.md first.
+Design requests target Garden Classic only by default, regardless of the displayed theme. A different named theme or an explicit multi-theme request overrides that default. For substantial changes, or changes worth extending to other themes, prepare isolated before/after screenshot previews for each proposed additional theme and ask the user which themes to update. Do not apply those additional-theme changes until approved; never edit a live auto-reloading theme file just to create an unapproved preview. Preserve the frozen original archive.
+Use public/themes/classic.json by default; the displayed theme is context, not
+authorization to change it. Do not add manual token controls or browser-specific
+design overrides. The Botanist bridge supplies the active design context.
+New widget requests still use the widget contract and real data.
+
 ## Layout
 - `public/` — the live frontend (served statically).
   - `index.html` stable shell · `styles.css` theme + CSS vars · `app.js` widget runtime.

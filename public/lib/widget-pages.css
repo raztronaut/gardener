@@ -1,0 +1,48 @@
+/* Page navigation and in-place editing are shared shell features. */
+.widget-pages { display:flex; justify-content:center; align-items:center; gap:7px; height:18px; padding:0; margin:0 0 12px; pointer-events:none; }
+.widget-pages[hidden], .widget-edit-bar[hidden], .widget-drawer[hidden] { display:none; }
+.widget-pages > span { width:5px; height:5px; border-radius:50%; background:var(--ink); opacity:.25; transition:opacity .2s; }
+.widget-pages > .current { opacity:.9; }
+.widget-edit-bar { position:fixed; z-index:180; top:14px; left:20px; right:20px; display:flex; align-items:center; gap:14px; padding:12px 16px; border:1px solid var(--stroke-strong); border-radius:20px; background:var(--bg-1); color:var(--ink); box-shadow:var(--shadow); }
+.widget-edit-bar > span:nth-child(2) { flex:1; }
+.widget-edit-bar button, .widget-drawer button { font:inherit; color:var(--ink); border:1px solid var(--stroke); background:var(--glass-2); border-radius:14px; padding:10px 16px; cursor:pointer; }
+.widget-layout-status { font-size:12px; opacity:.7; }
+.widget-editing { outline:1px dashed var(--stroke-strong); outline-offset:5px; overflow:visible !important; }
+.widget-edit-controls { position:absolute; z-index:20; top:-12px; left:6px; right:6px; display:flex; justify-content:space-between; pointer-events:none; }
+.widget-edit-controls button { pointer-events:auto; display:grid; place-items:center; width:34px; height:34px; border-radius:50%; border:1px solid var(--stroke-strong); background:var(--bg-1); color:var(--ink); font:22px var(--font); box-shadow:0 2px 8px #0005; cursor:pointer; }
+.widget-edit-controls .widget-drag-handle { cursor:grab; touch-action:none; }
+.widget-edit-controls button:focus-visible, .widget-drawer button:focus-visible, .widget-edit-bar button:focus-visible { outline:2px solid var(--mint); outline-offset:3px; }
+#garden > .widget-wide { grid-column:1 / -1 !important; }
+.widget-dragging { opacity:.45; outline:2px solid var(--mint); }
+.widget-is-dragging, .widget-is-dragging * { cursor:grabbing !important; user-select:none; }
+.editing-widgets #garden { padding-top:20px; padding-bottom:0; gap:24px var(--gap); grid-auto-rows:minmax(min-content, max-content) !important; align-content:start !important; overflow-y:auto !important; }
+.editing-widgets #garden > .card { min-height:var(--widget-edit-height) !important; }
+.editing-widgets #garden::after { content:""; grid-column:1 / -1; min-height:420px; order:10000; }
+.widget-edit-controls button[hidden] { display:none; }
+.widget-drawer { position:fixed; z-index:181; left:12px; right:12px; bottom:12px; max-height:44vh; overflow-y:auto; overscroll-behavior:contain; padding:18px 22px; border:1px solid var(--stroke-strong); border-radius:28px; background:var(--bg-1); color:var(--ink); box-shadow:0 -12px 50px #0005; }
+.widget-drawer-head { display:flex; justify-content:space-between; align-items:center; }
+.widget-drawer h2 { font:28px var(--font-display); margin:0; }
+.widget-drawer p { color:var(--ink-soft); margin:8px 0 18px; }
+.widget-gallery { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.widget-gallery .widget-gallery-item { text-align:left; padding:12px; display:flex; flex-direction:column; gap:8px; min-width:0; }
+.widget-gallery-item:disabled { cursor:default; opacity:.55; }
+.widget-gallery-item > span { font-size:13px; color:var(--ink-soft); }
+.widget-preview { height:116px; width:100%; overflow:hidden; border-radius:12px; background:var(--glass); pointer-events:none; }
+.widget-preview-card { width:380px; height:232px; min-height:232px; transform:scale(.5); transform-origin:top left; margin:0; pointer-events:none; }
+.widget-page-tools { display:flex; gap:12px; margin-top:18px; }
+.widget-page-tools button:disabled { opacity:.35; cursor:default; }
+.widget-edge { position:fixed; z-index:179; top:35%; bottom:35%; width:5px; border-radius:8px; background:var(--ink); opacity:0; pointer-events:none; }
+.widget-edge.left { left:3px; } .widget-edge.right { right:3px; }
+.widget-edge.dwelling { animation:widget-dwell var(--edge-duration, 1.5s) linear forwards; }
+@keyframes widget-dwell { from {opacity:.12; transform:scaleY(.15);} to {opacity:.65; transform:scaleY(1);} }
+@media (prefers-reduced-motion:reduce) { .widget-pages > span {transition:none;} .widget-edge.dwelling {animation:none;opacity:.5;} }
+@media(max-width:600px) { .widget-gallery {grid-template-columns:repeat(2,minmax(0,1fr));} .widget-edit-bar .widget-layout-status {display:none;} }
+
+.widget-preview .frc img { visibility:visible !important; opacity:1 !important; }
+/* The indicator stays tiny; its transparent button supplies the pointer hit area. */
+.widget-pages > button { pointer-events:auto; position:relative; display:grid; place-items:center; flex:none; width:12px !important; height:18px !important; padding:0 !important; margin:0 !important; border:0 !important; border-radius:0 !important; background:transparent !important; box-shadow:none !important; cursor:pointer; }
+.widget-pages > button::after { content:""; display:block; width:5px; height:5px; border-radius:50%; background:var(--ink); opacity:.25; }
+.widget-pages > button.current::after { opacity:.9; }
+.widget-pages > button > span { display:none; }
+.widget-pages > button:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+.widget-pages { gap:0; }

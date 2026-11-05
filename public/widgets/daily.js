@@ -1,3 +1,4 @@
+let VARIANT_DATA = null;
 // Painting of the Day — one public-domain artwork about gardens, flowers, forests,
 // jungles and the living world, from a CURATED list (public/lib/paintings.js,
 // generated + verified against the Art Institute of Chicago and Met open-access APIs
@@ -37,6 +38,7 @@ const SPECIAL_DAYS = {
 const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export default {
+  getVariantData: () => VARIANT_DATA,
   id: 'daily',
   title: 'Painting of the Day',
   icon: '🖼️',
@@ -129,6 +131,7 @@ export default {
     let shownId = '';
     const showPainting = (p) => {
       if (!p || p.id === shownId) return;
+      if (!full) VARIANT_DATA = p;
       shownId = p.id;
       titleEl.textContent = p.title;
       artistEl.textContent = p.artist || 'Unknown artist';

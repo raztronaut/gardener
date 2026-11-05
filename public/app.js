@@ -1,3 +1,7 @@
+import { designValue, designColor } from './lib/design-values.js';
+import { THEMES, currentTheme, setTheme, initThemes, designContext } from './lib/themes.js';
+import { tokenizeStyleSheet } from './lib/design-system.js';
+import { initWidgetPages } from './lib/widget-pages.js';
 // The Gardener™ — frontend runtime (stable template).
 // Loads widgets from /widgets/manifest.json, mounts them into #garden, polls
 // the backend for version/night changes, and handles the feedback bar.
@@ -56,6 +60,7 @@ function makeCtx(widgetId) {
     config: window.__GARDEN_STATE || {},
     h,
     openArticle: (url, title) => openReader(url, title),
+    design: { value: designValue, color: designColor },
     proxyUrl: (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
     // Fetch JSON through the SSRF-safe backend proxy by default.
     async fetchJSON(url, { viaProxy = true, timeout = 24000 } = {}) {
@@ -90,7 +95,9 @@ function makeCtx(widgetId) {
     style(cssText) {
       const sid = `style-${widgetId}`;
       if (document.getElementById(sid)) return;
-      document.head.appendChild(h('style', { id: sid, html: cssText }));
+      const style = h('style', { id: sid, html: cssText });
+      document.head.appendChild(style);
+      tokenizeStyleSheet(style.sheet, widgetId);
     },
     // A TEMPORARY replacement widget (manifest "replaces" + "until") may end its own
     // run early: retire(at) persists "hand the slot back at `at`" (the earliest call
@@ -283,6 +290,7 @@ async function boot() {
   // Concurrent load (order preserved inside loadWidgets) — see its comment.
   try {
     await loadWidgets(enabled, garden);
+    widgetPages = initWidgetPages({ garden, h, definition: id => WIDGET_MODS[id], blocked: () => panelOpen() || paletteOpen() || !!window.__GARDEN_GAME || !!document.querySelector('.osalarm[aria-hidden="false"]'), changed: () => requestAnimationFrame(checkOverflow) });
   } finally {
     // Always publish the contract markers smoke depends on, even on partial failure.
     document.documentElement.dataset.gardenerReady = 'true';
@@ -442,7 +450,7 @@ function checkOverflow() {
   // than the card is silently cut off. Measure each and surface the worst, plus
   // the names of clipped widgets — smoke fails on this so clipping can't ship.
   let maxClip = 0; const clipped = [];
-  for (const card of garden.querySelectorAll(':scope > .card')) {
+  for (const card of garden.querySelectorAll(':scope > .card:not(.widget-page-hidden)')) {
     let clip = Math.round(card.scrollHeight - card.clientHeight);
     // scrollHeight can't see UPWARD spill: a vertically-centred body whose content
     // outgrows it overflows both ways, sliding under the card title (the Air card
@@ -465,6 +473,35 @@ function checkOverflow() {
   document.documentElement.dataset.gardenerCardClip = String(maxClip);
   document.documentElement.dataset.gardenerClipped = clipped.join(', ');
 }
+
+// One-hour display override. The server owns expiry, including across restarts.
+let snoozeWarned = 0, snoozeSeen = 0, snoozeWarningTimer;
+function updateSnooze(until) {
+  if (until > Date.now() && until !== snoozeSeen) {
+    snoozeSeen = until;
+    clearTimeout(snoozeWarningTimer);
+    snoozeWarningTimer = setTimeout(() => updateSnooze(until), Math.max(0, until - Date.now() - 60000));
+    toast('Awake until ' + new Date(until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+  }
+  const left = until - Date.now();
+  if (left > 0 && left <= 60100 && snoozeWarned !== until) {
+    snoozeWarned = until;
+    toast('Sleep in 60 seconds — Ctrl + Shift + Space or hold Start + Select 5s to extend', 60000);
+  }
+}
+async function snoozeScreen() {
+  try {
+    const r = await fetch('/api/display/snooze', { method: 'POST' });
+    if (!r.ok) throw new Error('snooze failed');
+    const s = await r.json(); setNight(false); updateSnooze(s.snoozeUntil);
+  } catch { toast('Could not snooze the screen — try again'); }
+}
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey && e.code === 'Space') {
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (!e.repeat) snoozeScreen();
+  }
+}, true);
 
 // ---- night veil -------------------------------------------------------------
 function setNight(on) {
@@ -490,6 +527,7 @@ function startPolling() {
     try {
       const s = await (await fetch('/api/state', { cache: 'no-store' })).json();
       setNight(!!s.night);
+      updateSnooze(s.snoozeUntil || 0);
       setIterBadge(s.iteration, s.agentModel);
       checkOverflow();
       if (typeof s.version === 'number') {
@@ -501,11 +539,11 @@ function startPolling() {
 }
 
 // ---- feedback bar -----------------------------------------------------------
-function toast(msg) {
+function toast(msg, duration = 2600) {
   const t = document.getElementById('toast');
   if (!t) return;
   t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 2600);
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 // ---- command panel (/iterations changelog, /help) --------------------------
 function focusInput() {
@@ -889,7 +927,7 @@ async function showIterations() {
           h('div', { class: 'cl-phrase' }, it.phrase || 'self-directed improvement'),
           h('div', { class: 'cl-meta' }, `${fmtWhen(it.at)}${it.feedback ? ` · ${it.feedback} feedback` : ' · self-directed'}`))))
     : [h('div', { class: 'cl-empty' }, 'No tendings yet — the garden grows each morning.')];
-  openPanel('Changelog — how the garden has grown', h('div', { class: 'cl' }, ...rows));
+  openPanel('Changelog — how the garden has grown', h('div', { class: 'cl changelog' }, ...rows));
 }
 
 function showHelp() {
@@ -907,6 +945,7 @@ function showHelp() {
       cmd('shift + T', 'mark “take trash out” done (on trash day)'),
       cmd('/botanist  ·  /desk', 'the Botanist: what to say, how it uses the screen'),
       cmd('/timer', 'two-minute countdown card in the top-left (/timer 5, /timer off)'),
+      cmd('Ctrl + Shift + Space · hold Start + Select 5s', 'keep the screen awake for one hour'),
       cmd('/night', 'toggle the dark screen-saver veil'),
       cmd('/refresh', 'reload the garden now'),
       cmd('esc', 'close this panel'))));
@@ -1342,7 +1381,7 @@ function showPadMap() {
     ${dot(533, 190)}${line(533, 190, 612, 176)}${lab(620, 180, 'start', ['A — run selected'])}
     ${dot(495, 221)}${line(495, 221, 612, 224)}${lab(620, 228, 'start', ['B — events panel'])}
     ${dot(457, 190)}${line(457, 190, 430, 296)}${lab(430, 314, 'middle', ['Y — Hacker News'])}
-    ${dot(415, 248)}${line(415, 248, 560, 312)}${lab(560, 330, 'middle', ['right stick — highlight widgets', 'A opens the highlighted one'])}
+    ${dot(415, 248)}${line(415, 248, 560, 312)}${lab(560, 330, 'middle', ['right stick — highlight widgets', 'L3 + ← / → — switch pages'])}
     <text x="${W / 2}" y="${H - 34}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">controller off? hold START + B, then wait ~5 seconds — it re-pairs by itself</text>
     <text x="${W / 2}" y="${H - 14}" text-anchor="middle" font-size="12" fill="#6f9388" font-family="Inter,sans-serif">8BitDo SN30 Pro · Bluetooth · also type /controls</text>
   </svg>`;
@@ -1575,10 +1614,36 @@ function wirePlantAlarm() {
   setInterval(refreshPlantAlarm, 30000);
 }
 
+let widgetPages;
+
 // ---- slash-command registry + palette ---------------------------------------
 // One source of truth for every /command: the submit dispatcher and the
 // Claude-Code-style autocomplete palette both read from here.
+function showThemes(arg = '') {
+  const id = arg.trim().toLowerCase();
+  if (id && !['list', 'show'].includes(id)) {
+    const target = ['original', 'default', 'reset', 'garden classic'].includes(id) ? 'classic' : id;
+    if (!setTheme(target)) { toast('Choose /theme classic or /theme moonstone'); return; }
+    toast('Theme: ' + THEMES.find(t => t.id === target).label);
+    return;
+  }
+  openPanel('Appearance', h('div', { class: 'theme-picker' },
+    h('p', {}, 'Your original garden is always one tap away.'),
+    ...THEMES.map(t => {
+      const button = h('button', { type: 'button', class: 'theme-choice', 'aria-pressed': String(t.id === currentTheme()) },
+        h('strong', {}, t.label), h('span', {}, t.description));
+      button.addEventListener('click', () => { setTheme(t.id); showThemes(); });
+      return button;
+    }),
+    h('p', {}, 'To change the design, tell the Botanist or ask in Paseo.'),
+    h('p', {}, '“Make the buttons darker yellow.” · “Make the clock 2 by 2.” · “Give this theme a completely different typeface.”'),
+    h('p', {}, 'Design requests update Garden Classic by default. Other themes change only when requested or approved after screenshot previews.')));
+}
+initThemes(() => showThemes());
 const COMMANDS = [
+  { cmd: 'widgets', aliases: ['edit-widgets'], icon: '⊞', desc: 'arrange widgets on the wall; add, remove, resize and move between pages', run: () => widgetPages?.edit() },
+  { cmd: 'theme', aliases: ['themes', 'appearance'], icon: '◐', desc: 'switch the whole design; classic restores the original, moonstone is matte slate and lavender', run: showThemes,
+    options: () => THEMES.map(t => ({ arg: t.id, icon: '◐', label: t.label, desc: t.description })) },
   { cmd: 'help', aliases: ['?'], icon: '🌿', desc: 'how the garden works' , run: () => showHelp() },
   { cmd: 'tendings', aliases: ['iterations', 'changelog'], icon: '❀', desc: 'changelog — how the garden has grown', run: () => showIterations() },
   { cmd: 'grow', aliases: [], icon: '🌱', desc: 'run a tending cycle now on the planted notes', run: () => showGrow() },
@@ -1926,7 +1991,7 @@ let focusIdx = -1, focusClearT = 0, selectMode = false;
 // the widgets + the top-right sound (rainforest) button, reached by moving up past the top row
 function focusCards() {
   const top = ['volBtn', 'rfBtn'].map((id) => document.getElementById(id)).filter((b) => b && b.offsetParent);
-  return [...document.querySelectorAll('#garden > .card[data-wid]'), ...top];
+  return [...document.querySelectorAll('#garden > .card[data-wid]:not(.widget-page-hidden)'), ...top];
 }
 function setFocus(i) {
   const cards = focusCards();
@@ -2238,6 +2303,7 @@ document.addEventListener('mouseover', (e) => {
 function wirePad() {
   const input = document.getElementById('feedbackInput');
   const panelBody = () => document.querySelector('#panel .panel-body');
+  let pageChord = false;
   let padMapPeek = false; // true while the controller map is held open by R2
   window.__gardenPadApply = (action) => apply(action); // "Hey Garden" presses buttons the same way
   const apply = (action) => {
@@ -2255,6 +2321,12 @@ function wirePad() {
       return;
     }
     // Raw controller edges (jb…/jx…/jy…) only matter to a running game.
+    if (!window.__GARDEN_GAME) {
+      if (action === 'jbnd') pageChord = true;
+      if (action === 'jbnu') pageChord = false;
+      if (pageChord && (action === 'jxl' || action === 'jxr')) { widgetPages?.step(action === 'jxr' ? 1 : -1); return; }
+      if (pageChord && ['left','right','fopen'].includes(action)) return;
+    }
     if (/^[jq][bxy]/.test(action)) { try { window.__GARDEN_GAME?.raw?.(action); } catch { /* ignore */ } return; } // j = player 1, q = player 2
     // player 2 (an Xbox controller, pad.mjs) came or went: games give it the second seat
     if (action === 'ptwoon' || action === 'ptwooff') { const on = action === 'ptwoon'; if (on !== !!window.__GARDEN_P2) toast(on ? 'Player 2 controller connected' : 'Player 2 controller disconnected'); window.__GARDEN_P2 = on; return; }
@@ -2332,6 +2404,8 @@ function wirePad() {
         padMapPeek = false;
         switchDashboard('arcade');
         break;
+      case 'pageprev': widgetPages?.step(-1); break;
+      case 'pagenext': widgetPages?.step(1); break;
       case 'mxup': mouseForward(); break;   // MX Master top thumb button (via pad.mjs)
       case 'mxdown': mouseBack(); break;    // MX Master bottom thumb button
       case 'padmap': // R2 down — peek the controller map instantly
@@ -2476,6 +2550,7 @@ function wireFeedback() {
         return;
       }
     }
+    if (e.target.closest?.('.theme-editor')) return;
     if (mdEl) return; // markdown editor open → its textarea owns the keyboard
     // The top-right popovers (volume slider, forest menu) own the arrows while open:
     // ↑/→ louder · ↓/← quieter (volume) or move the row (forests), Enter picks, Esc closes.
@@ -2547,7 +2622,7 @@ function wireFeedback() {
   input.addEventListener('blur', () => setTimeout(() => {
     // Don't steal focus back while a panel/editor is open, a hand-pruning edit is
     // active, or the wall is in keyboard selection mode.
-    if (!panelOpen() && !mdEl && !selectMode && !(document.activeElement && document.activeElement.isContentEditable)) focusInput();
+    if (!panelOpen() && !mdEl && !selectMode && !(document.activeElement && (document.activeElement.isContentEditable || document.activeElement.closest?.('button, select, textarea, .theme-editor')))) focusInput();
   }, 0));
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
   document.getElementById('panelClose')?.addEventListener('click', closePanel);
@@ -2704,6 +2779,7 @@ if (!SCREENSHOT) { try { if (localStorage.getItem('garden.countdown')) loadCount
 // The agent sees a snapshot of the wall (voiceContext) and acts through voiceAct, which
 // only calls the same functions a tap, click or controller press would.
 let VOICE = null, VOICE_GAMES = [];
+window.gardenWall = { context: () => voiceContext(), act: request => voiceAct(request) };
 const vClip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const vNorm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 function voiceContext() {
@@ -2716,6 +2792,7 @@ function voiceContext() {
   return {
     dashboard: CURRENT_DASH,
     dashboards: DASHBOARDS.map((d) => ({ id: d.id, name: d.name })),
+    layout: widgetPages?.snapshot(),
     widgets: cards,
     open: open ? { title: document.getElementById('panelTitle')?.textContent || '', items: panelRows().slice(0, 16).map((r, i) => `${i + 1}. ${vClip(r.dataset.name || r.getAttribute('aria-label') || r.innerText, 90)}`), text: vClip(document.getElementById('panelBody')?.innerText, 700) } : null,
     game: game ? { playing: !!game.inGame?.() } : null,
@@ -2724,6 +2801,8 @@ function voiceContext() {
     volume: volNow,
     rainforest: RF && RF.isOn() ? RF.current() : 'off',
     night: document.body.classList.contains('night'),
+    theme: currentTheme(),
+    design: designContext(),
     commands: COMMANDS.map((c) => ({ name: c.cmd, desc: c.desc, ...(c.options ? { args: c.options().map((o) => o.arg) } : {}) })),
   };
 }
@@ -2749,6 +2828,13 @@ const vWait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function voiceAct({ name, input = {} }) {
   const game = window.__GARDEN_GAME;
   switch (name) {
+    case 'layout': {
+      if (!widgetPages) return { ok:false, error:'The wall is still loading.' };
+      if (CURRENT_DASH !== 'main') await switchDashboard(CURRENT_DASH);
+      if (paletteOpen()) hidePalette();
+      if (panelOpen()) closePanel();
+      return widgetPages.execute(input);
+    }
     case 'open': {
       const t = vNorm(input.target);
       if (t === 'arcade' || t === 'games') { if (CURRENT_DASH !== 'arcade') await switchDashboard('arcade'); return { ok: true, say: 'Opening the Arcade.' }; }
@@ -2762,6 +2848,7 @@ async function voiceAct({ name, input = {} }) {
     }
     case 'close': {
       closeRfMenu(); closeVolMenu();
+      if (widgetPages?.editing) { widgetPages.done(); return {ok:true,say:'Finished arranging widgets.'}; }
       if (game && game.inGame?.() && input.to !== 'wall') { // in a game: leave it, back to the library
         try { await game.toLibrary(); } catch { /* ignore */ }
         try { window.__SB2?.stop?.(); } catch { /* ignore */ } // (the native port's sound must never linger)

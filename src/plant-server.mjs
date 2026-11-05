@@ -4,6 +4,7 @@
 // the proxy, state, and iteration endpoints stay on the localhost-only main
 // server (8787) and are never reachable from the internet.
 import http from 'node:http';
+import { THEMES } from '../public/lib/theme-registry.js';
 import { promises as fs, appendFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { config, paths } from './config.mjs';
@@ -49,7 +50,7 @@ function send(res, code, type, body) {
 // assets/data the page needs. POSTs are never forwarded, and sensitive routes
 // (/api/feedback GET, /api/night, /api/pad/action, …) are NOT exposed.
 const WALL_EXACT = new Set([
-  '/app.js', '/styles.css',
+  '/app.js', '/styles.css', '/themes/themes.css', ...THEMES.flatMap(theme => [theme.file, ...(theme.assets || [])]),
   '/api/state', '/api/version', '/api/iterations', '/api/proxy',
   '/api/house/status', '/api/pad/stream',
   '/api/fractal', '/api/fractal.png', '/api/gardyn', // read-only GETs for the Fractal + Gardyn widgets

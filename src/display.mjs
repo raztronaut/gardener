@@ -13,7 +13,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, appendFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config, paths, isNightNow, isEveningNow, eveningLevel } from './config.mjs';
-import { setNight } from './db.mjs';
+import { setNight, getSnoozeUntil, setSnoozeUntil } from './db.mjs';
+import { pathToFileURL } from 'node:url';
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] [display] ${msg}\n`;
@@ -63,6 +64,7 @@ function trimShell() {
 }
 
 export function goNight() {
+  if (getSnoozeUntil() > Date.now()) { goDay(); return; }
   setNight(true); // layer 1 — always works (frontend overlay)
   trimShell();
   run('xset', ['s', 'off']); // no screensaver interference
@@ -77,7 +79,7 @@ export function goNight() {
 // touched the mouse/keyboard for NIGHT_IDLE_MIN minutes → put it back to sleep.
 const NIGHT_IDLE_MIN = 10;
 export function nightKeep() {
-  if (!isNightNow()) return;
+  if (!isNightNow() || getSnoozeUntil() > Date.now()) return;
   let on = true, idleMs = 0;
   try { on = /Monitor is On/.test(execFileSync('xset', ['q'], { env: xenv(), timeout: 5000 }).toString()); } catch { /* assume on */ }
   if (!on) return;
@@ -99,6 +101,7 @@ export function goDay() {
 // Full at 7AM; from 8PM it steps down every 10 min (evening timer) to ~30% by
 // 10PM, when night switches it off.
 export function goEvening() {
+  if (getSnoozeUntil() > Date.now()) { goDay(); return; }
   setNight(false);
   const b = String(eveningLevel());
   run('xrandr', ['--output', config.output, '--brightness', b]);
@@ -113,6 +116,22 @@ export function sync() {
   else { log('sync → day'); goDay(); }
 }
 
+export function snoozeDisplay(now = Date.now()) {
+  const until = now + 60 * 60 * 1000;
+  setSnoozeUntil(until);
+  goDay();
+  return until;
+}
+
+export function expireSnooze(now = Date.now()) {
+  const until = getSnoozeUntil();
+  if (!until || until > now) return false;
+  setSnoozeUntil(0);
+  sync();
+  return true;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
 const mode = process.argv[2];
 if (mode === 'night') goNight();
 else if (mode === 'day') goDay();
@@ -120,3 +139,5 @@ else if (mode === 'evening' || mode === 'dim') goEvening();
 else if (mode === 'nightkeep') nightKeep();
 else if (mode === 'sync') sync();
 else { console.error('usage: node src/display.mjs day|night|evening|sync'); process.exit(2); }
+
+}

@@ -14,6 +14,8 @@ import {
   getUiVersion, getNight, setNight, latestIteration, setKV, getKV,
   recentIterations, latestCommitted, getEdits, setEdit, isIterating,
 } from './db.mjs';
+import { snoozeDisplay, expireSnooze } from './display.mjs';
+import { getSnoozeUntil } from './db.mjs';
 import { recover } from './recover.mjs';
 import { travelFor } from './travel.mjs';
 import { namesFor, dailyNames, dailyIsStale } from './eventnames.mjs';
@@ -31,6 +33,7 @@ import { readFeed } from './feeds.mjs';
 import { gardenMood } from './mood.mjs';
 
 const START = Date.now();
+setInterval(() => { try { expireSnooze(); } catch (e) { log(`snooze expiry: ${e.message}`); } }, 1000).unref();
 
 function log(msg) {
   const line = `[${new Date().toISOString()}] [server] ${msg}\n`;
@@ -463,6 +466,7 @@ function stateObject() {
   return {
     version: getUiVersion(),
     night: getNight(),
+    snoozeUntil: getSnoozeUntil(),
     location: config.location,
     publicUrl: publicUrlNow(),
     canvas: { w: config.width, h: config.height },
@@ -518,7 +522,7 @@ const server = http.createServer(async (req, res) => {
       // line and skips test-status boilerplate ("all checks green") otherwise.
       const iterations = recentIterations(80)
         .filter((x) => x.status === 'committed')
-        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, phrase: changelogPhrase(x.summary) || 'self-directed improvement' }));
+        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, phrase: changelogPhrase(x.summary, Infinity) || 'self-directed improvement' }));
       return json(res, 200, { iterations });
     }
     if (req.method === 'GET' && p === '/api/feedback') {
@@ -565,6 +569,7 @@ const server = http.createServer(async (req, res) => {
         return json(res, 500, { ok: false, error: 'could not start a tending' });
       }
     }
+    if (req.method === 'POST' && p === '/api/display/snooze') return json(res, 200, { ok: true, snoozeUntil: snoozeDisplay() });
     if (req.method === 'GET' && p === '/api/night') return json(res, 200, { night: getNight() });
     if (req.method === 'POST' && p === '/api/night') {
       const raw = await readBody(req);
@@ -771,6 +776,7 @@ const server = http.createServer(async (req, res) => {
       let action = '';
       try { action = String(JSON.parse(await readBody(req)).action || ''); } catch { return json(res, 400, { error: 'bad json' }); }
       if (!/^[a-z]{1,16}$/.test(action)) return json(res, 400, { error: 'bad action' });
+      if (action === 'snooze') snoozeDisplay();
       for (const c of padClients) { try { c.write(`data: ${JSON.stringify({ action })}\n\n`); } catch { padClients.delete(c); } }
       return json(res, 200, { ok: true, listeners: padClients.size });
     }

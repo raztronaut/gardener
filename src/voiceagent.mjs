@@ -9,7 +9,7 @@
 // turn, so a plain command ("open the weather") is a single model call; a second turn only
 // happens when a tool fails or returns something the reply depends on.
 import Anthropic from '@anthropic-ai/sdk';
-import { directAction } from './voice-fast.mjs';
+import { directAction, isLayoutRequest } from './voice-fast.mjs';
 import { config } from './config.mjs';
 import { botanist } from './botanist.mjs';
 import { routeRequest, answerFormat } from './jev.mjs';
@@ -40,11 +40,24 @@ Act through your tools: they do exactly what tapping, clicking or the game contr
 - "Close", "go back", "never mind", "stop": close what's open. "Scroll"/"next"/"down": press. "Open the third story" / "the pub crawl": select by its text or number.
 - Volume: "louder"/"quieter" = change by ±10 unless they say how much; "mute" = set 0.
 - Only plant a seed note when they ask to tell/ask the gardener something or to change/improve the wall — the note is their words, cleaned up.
+- Existing widget layout is a direct wall action: use layout for resizing (small/medium/wide/tall/large or columns+rows), reordering, moving to a page, adding/removing available widgets, adding/removing pages, changing pages, and edit/done. Put related changes in ONE changes array. Widget IDs, current sizes, pages and availableSizes are in snapshot.layout. Only request sizes in that widget’s availableSizes; other sizes have no designed renderer. Original restores the authored card. Add restores an available widget; only a genuinely NEW widget needs the Botanist. Do not plant notes, ask permission or start a coding task for these quick reversible operations. "Make the weather taller" = tall; "make the clock 2 by 2" = columns 2, rows 2. Never say it worked unless the layout tool succeeds.
+- Design changes beyond existing layout choices (fonts, buttons, colors, new card designs, creating new widgets) go to the Botanist in the person’s own words. Pass the active theme context; the bridge supplies it. Do not ask them for CSS values or expose token controls. A request such as “make the clock 2 by 2” means a layout change, not opening the clock.
+- Appearance: use command theme with arg classic (original garden / restore / reset) or moonstone (matte slate and lavender). With no argument it opens the picker. Switching an existing theme is a wall command; designing or modifying a theme goes to the Botanist. Design requests target Garden Classic only by default, regardless of the displayed theme. A different named theme or an explicit multi-theme request overrides that default. For substantial changes, or changes worth extending to other themes, prepare isolated before/after screenshot previews for each proposed additional theme and ask the user which themes to update. Do not apply those additional-theme changes until approved; never edit a live auto-reloading theme file just to create an unapproved preview. Preserve the frozen original archive.
 - Timers / countdowns ("start a two-minute countdown", "set a timer for 5 minutes", "stop the timer"): command timer with arg = the duration ("2" = 2 minutes, "90s", "1:30") or "off". It is the wall's own card — never the Botanist.
 - The Botanist is a separate AI coding agent (running in Paseo on this machine) that can change the computer itself: edit code and files, run commands, fix and build things, change GardenOS's own code. They do NOT have to name it: use the botanist tool whenever the request needs acting ON this computer — change, add to, fix or build anything (a new feature or change on the wall, a broken card, code), run commands, check this computer's own state (why it's slow, disk, memory, network, what's running), open or use an app on the computer (calculator, files, terminal, browser, text editor, settings — anything that isn't a wall widget or panel), files, downloads, installs, or anything that needs looking at the screen and clicking or typing; when they ask to open or use an app, do NOT just answer the question yourself — and of course when they address it ("botanist, ...", "tell / ask the botanist ...", misheard as "bottom list", "but honest"). Pass their request as the task, in their words, cleaned up — don't solve it yourself. Its answer appears on the wall later by itself; your caption is a few words ("Sent to the Botanist."). "What is the botanist doing?" = status. "Allow it" / "yes, do it" / "approve" right after the Botanist asked for permission = allow; "deny it" / "no" = deny; "stop the botanist" = stop. Never hand the Botanist something your own tools or the wall's commands can already do (open, close, volume, timers, dashboards, sounds...).
 - If something isn't possible, say so kindly in a few words. Never invent widgets, commands or facts that aren't in the snapshot or your sources.`;
 
+const LAYOUT_CHANGE = { type:'object', properties: {
+  action:{type:'string',enum:['inspect','resize','reorder','move','add','remove','page','add_page','remove_page','edit','done']},
+  widget:{type:'string',description:'Available widget ID or title from snapshot.layout; clock is pinned on all pages.'},
+  size:{type:'string',enum:['original','small','medium','wide','tall','large']},
+  columns:{type:'integer',enum:[2,4]}, rows:{type:'integer',minimum:1,maximum:4},
+  page:{anyOf:[{type:'integer',minimum:1,maximum:20},{type:'string',enum:['next','previous']}]},
+  before:{type:'string'},after:{type:'string'},position:{type:'integer',minimum:1},direction:{type:'string',enum:['earlier','later']},
+},required:['action'] };
 const TOOLS = [
+  { name:'layout', description:'Instantly arrange existing wall widgets and pages without the Botanist. Send one or more changes in order. resize uses size or columns+rows; add restores an available widget, optionally on a page; reorder uses before/after widget IDs, position or direction. Pages are 1-based. Overflow automatically moves to another page. inspect returns the current layout. This does not create new widget code.',
+    input_schema:{type:'object',properties:{changes:{type:'array',items:LAYOUT_CHANGE,minItems:1,maxItems:20}},required:['changes']} },
   { name: 'open', description: 'Open a widget fullscreen or a panel. target = a widget id from the snapshot (e.g. weather, air-quality, clock, daily = the painting, hacker-news, sf-events, gardyn, fractal) or one of: arcade, events, hn, help, tendings, notes, controls, credits, architecture, camera.',
     input_schema: { type: 'object', properties: { target: { type: 'string' } }, required: ['target'] } },
   { name: 'close', description: 'Close whatever is open: the fullscreen panel, a menu, the palette, or the running game (back to the wall).',
@@ -118,7 +131,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   // (~1 s sooner); otherwise it adds nothing. Control phrases about the Botanist itself
   // (allow / deny / stop / status) always go through the model.
   const control = /\b(allow|approve|deny|reject|stop|cancel|halt|what('s| is) the botanist|botanist doing|status)\b/i.test(text);
-  const jevP = control ? Promise.resolve(null) : routeRequest(text, { timeoutMs: 1200 }).catch(() => null);
+  const jevP = (control || isLayoutRequest(text)) ? Promise.resolve(null) : routeRequest(text, { timeoutMs: 1200 }).catch(() => null);
   const snap = await context();
   signal?.throwIfAborted();
   if (process.env.GARDENER_VOICE_DEBUG === '1') log(`QA request: ${JSON.stringify(text)} snapshot: ${JSON.stringify(snap).slice(0, 300)}`);
@@ -140,7 +153,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
       if (j && j.route === 'botanist' && j.confidence >= JEV_SURE && (j.p.botanist ?? 0) >= 0.7) {
         ctl.abort(); resP.catch(() => {});
         signal?.throwIfAborted();
-        const r = await botanist({ action: 'ask', task: text }, { notify, log, signal });
+        const r = await botanist({ action: 'ask', task: text, design: { ...snap?.design, wallLayout: snap?.layout } }, { notify, log, signal });
         log(`tools: botanist (via jev)${r.ok ? '' : ' (failed)'}`);
         history.push({ q: clip(text, 300), a: r.ok ? `(${r.say || 'sent to the Botanist'})` : r.error, at: Date.now() });
         return r.ok ? { ok: true, reply: '' } : { ok: false, reply: r.error || 'I couldn’t reach the Botanist.' };
@@ -166,7 +179,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
     const got = wallUses.length ? await call(wallUses.map((u) => ({ name: u.name, input: u.input }))) : [];
     const wallList = Array.isArray(got) ? got : wallUses.map(() => got);
     const list = [];
-    for (const u of uses) list.push(u.name === 'botanist' ? await botanist(u.input || {}, { notify, log, signal }) : wallList[wallUses.indexOf(u)]);
+    for (const u of uses) list.push(u.name === 'botanist' ? await botanist({ ...(u.input || {}), design: { ...snap?.design, wallLayout: snap?.layout } }, { notify, log, signal }) : wallList[wallUses.indexOf(u)]);
     // tool names + ok/failed only; the inputs (which can carry the person's words) only with
     // GARDENER_VOICE_DEBUG=1 (QA) — never in normal running
     log(`tools: ${uses.map((u, i) => `${u.name}${process.env.GARDENER_VOICE_DEBUG === '1' ? JSON.stringify(u.input) + '→' + JSON.stringify(list[i]) : list[i]?.ok === false ? ' (failed)' : ''}`).join(', ')}`);

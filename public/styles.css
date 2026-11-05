@@ -905,3 +905,21 @@ body.garden-mood::after { content:''; position:fixed; inset:0; pointer-events:no
 .headline-result { min-height:220px; font-size:22px; }
 .headline-result h2 { font-family:var(--font-display); font-weight:400; }
 .headline-result a { display:block; color:var(--mint); margin-bottom:24px; }
+
+/* Main wall pages and the widget overview. */
+.widget-page-hidden { display: none !important; }
+.widget-pages { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:0 2px 8px; }
+.widget-pages[hidden], .widget-page-empty[hidden] { display:none; }
+.widget-pages button, .widget-manager button, .widget-manager select, .widget-page-empty button {
+  font:inherit; color:var(--ink); background:rgba(140,180,155,.15); border:1px solid rgba(180,210,190,.28); border-radius:12px; padding:8px 14px; cursor:pointer;
+}
+.widget-pages button[aria-current="page"] { background:rgba(140,210,170,.4); }
+.widget-pages button:disabled, .widget-manager button:disabled { opacity:.35; cursor:default; }
+.widget-manager { display:flex; flex-direction:column; gap:14px; }
+.widget-manager-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid rgba(180,210,190,.18); }
+.widget-manager-row > span { flex:1; min-width:140px; }
+.widget-manager select option { color:#18251e; background:#e5eee8; }
+.widget-layout-status { opacity:.7; font-size:.85em; }
+.widget-page-empty { grid-column:1 / -1; order:999; text-align:center; align-self:center; padding:40px; }
+#garden { touch-action:pan-y; }
+#topbar .brand:has(.widget-pages) { flex-direction:column; align-items:flex-start; gap:10px; }

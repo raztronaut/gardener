@@ -1,3 +1,4 @@
+let VARIANT_DATA = null;
 // Air Quality — a compact square tile: the US AQI reading, its category, and PM2.5.
 // Keyless Open-Meteo air-quality API (through the proxy). Sized 'sq' (quarter-width
 // square) so two small tiles fit where one half-width card used to.
@@ -198,7 +199,8 @@ function renderFull(h, d, tz) {
   const cat = aqiCat(aqi);
   const lead = dominant(cur);
   const leadInfo = lead && POLL_INFO[lead.label];
-  const vsy = vsYesterday(d.hourly, aqi, tz);
+  VARIANT_DATA = { ...d, aqi, category:cat.short, bandColor:cat.color, bands:CATS, index:nowIndex(d.hourly?.time,tz) };
+        const vsy = vsYesterday(d.hourly, aqi, tz);
   const times = (d.hourly && d.hourly.time) || [];
   const vals = (d.hourly && d.hourly.us_aqi) || [];
   const i0 = nowIndex(times, tz);
@@ -270,6 +272,7 @@ function renderFull(h, d, tz) {
 }
 
 export default {
+  getVariantData: () => VARIANT_DATA,
   id: 'air-quality',
   title: 'Air',
   icon: '🌬',
@@ -407,6 +410,7 @@ export default {
         // How the air compares to the same hour yesterday (overnight shift). Shown
         // above the health tip only when it moved notably; the tip then drops to a
         // single line so the pair keeps the tip's original two-line footprint.
+        VARIANT_DATA = { ...d, aqi, category:cat.short, bandColor:cat.color, bands:CATS, index:nowIndex(d.hourly?.time,tz) };
         const vsy = vsYesterday(d.hourly, aqi, tz);
         const hr12 = (hh) => `${((hh + 11) % 12) + 1}${hh < 12 ? 'a' : 'p'}`;
         // Which pollutant is driving the AQI? Only surfaced when it's NOT PM2.5

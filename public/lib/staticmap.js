@@ -33,7 +33,7 @@ export function staticMap({ bbox, width, height, labels = true, maxZoom = 16, di
 
   const el = document.createElement('div');
   el.className = 'smap';
-  el.style.cssText = `position:relative;width:${width}px;height:${height}px;overflow:hidden;background:#070b0a`;
+  el.style.cssText = `position:relative;width:${width}px;height:${height}px;overflow:hidden;background:var(--color-map-canvas, #070b0a)`;
   const layer = (style, op) => {
     const d = document.createElement('div');
     d.style.cssText = `position:absolute;inset:0;opacity:${op}`;
@@ -58,7 +58,7 @@ export function staticMap({ bbox, width, height, labels = true, maxZoom = 16, di
   svg.style.cssText = 'position:absolute;inset:0;overflow:visible';
   const credit = document.createElement('div');
   credit.textContent = 'Esri, HERE, Garmin, © OpenStreetMap';
-  credit.style.cssText = 'position:absolute;right:6px;bottom:4px;font-size:10px;color:rgba(255,255,255,.35);font-family:var(--font)';
+  credit.style.cssText = 'position:absolute;right:6px;bottom:4px;font-size:10px;color:var(--color-map-credit, rgba(255,255,255,.35));font-family:var(--font)';
   el.append(tiles, ...(lab ? [lab] : []), svg, credit);
 
   const project = (lat, lon) => [W(lon) - ox, Y(lat) - oy];

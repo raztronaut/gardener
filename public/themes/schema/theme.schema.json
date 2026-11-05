@@ -1,0 +1,1008 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GardenOS theme",
+  "type": "object",
+  "required": [
+    "version",
+    "id"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "label": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "palette": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^--palette-[a-z0-9-]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000,
+            "pattern": "^[^{};<>\\x00-\\x1f]+$"
+          }
+        },
+        "colors": {
+          "type": "object",
+          "properties": {
+            "--color-accent-ring": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color accent ring"
+            },
+            "--accent-ring": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-accent-ring"
+            },
+            "--color-accent-wash": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color accent wash"
+            },
+            "--accent-wash": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-accent-wash"
+            },
+            "--color-canvas": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color canvas"
+            },
+            "--bg-0": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-canvas"
+            },
+            "--color-canvas-raised": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color canvas raised"
+            },
+            "--bg-1": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-canvas-raised"
+            },
+            "--color-button-fill": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color button fill"
+            },
+            "--button-fill": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-button-fill"
+            },
+            "--color-button-hover": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color button hover"
+            },
+            "--button-hover": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-button-hover"
+            },
+            "--color-button-text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color button text"
+            },
+            "--button-ink": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-button-text"
+            },
+            "--color-choice-description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color choice description"
+            },
+            "--choice-description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-choice-description"
+            },
+            "--color-choice-fill": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color choice fill"
+            },
+            "--choice-fill": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-choice-fill"
+            },
+            "--color-choice-text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color choice text"
+            },
+            "--choice-ink": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-choice-text"
+            },
+            "--color-choice-selected": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color choice selected"
+            },
+            "--choice-selected": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-choice-selected"
+            },
+            "--color-warning": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Semantic attention/permission state; preserve meaning."
+            },
+            "--gold": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-warning"
+            },
+            "--color-text-primary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color text primary"
+            },
+            "--ink": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-text-primary"
+            },
+            "--color-text-muted": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Readable secondary descriptions and fine labels."
+            },
+            "--ink-faint": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-text-muted"
+            },
+            "--color-text-secondary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color text secondary"
+            },
+            "--ink-soft": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-text-secondary"
+            },
+            "--color-accent": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Primary interactive accent; independent of success/status colors."
+            },
+            "--mint": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-accent"
+            },
+            "--color-accent-secondary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color accent secondary"
+            },
+            "--mint-2": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-accent-secondary"
+            },
+            "--color-overlay-description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color overlay description"
+            },
+            "--overlay-description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-overlay-description"
+            },
+            "--color-overlay-text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "color overlay text"
+            },
+            "--overlay-ink": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-overlay-text"
+            },
+            "--color-error": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Semantic error state; preserve meaning."
+            },
+            "--rose": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --color-error"
+            },
+            "--color-voice-1": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional voice glow palette stop 1; absent preserves the original shader palette."
+            },
+            "--color-voice-2": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional voice glow palette stop 2; absent preserves the original shader palette."
+            },
+            "--color-voice-3": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional voice glow palette stop 3; absent preserves the original shader palette."
+            },
+            "--color-voice-4": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional voice glow palette stop 4; absent preserves the original shader palette."
+            },
+            "--color-voice-5": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional voice glow palette stop 5; absent preserves the original shader palette."
+            },
+            "--color-voice-success": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional successful voice reply tint; preserve success meaning."
+            },
+            "--color-voice-error": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional failed voice reply tint; preserve error meaning."
+            },
+            "--color-touch-target": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional touch calibration outline color."
+            },
+            "--color-touch-tip": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional touch calibration tip color."
+            },
+            "--color-map-canvas": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional map loading/background color."
+            },
+            "--color-map-credit": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Optional map attribution text color; preserve legibility."
+            },
+            "--color-dialog-veil": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Dimmed backdrop behind a dialog; separate from dialog surface."
+            }
+          },
+          "additionalProperties": false
+        },
+        "typography": {
+          "type": "object",
+          "properties": {
+            "--font-body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "font body"
+            },
+            "--font": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --font-body"
+            },
+            "--font-heading": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Headlines and large numbers; separate from body copy."
+            },
+            "--font-display": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --font-heading"
+            },
+            "--font-code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "font code"
+            },
+            "--font-mono": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --font-code"
+            },
+            "--text-body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "text body"
+            },
+            "--text-description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "text description"
+            },
+            "--text-heading": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "text heading"
+            },
+            "--text-label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "text label"
+            }
+          },
+          "additionalProperties": false
+        },
+        "spacing": {
+          "type": "object",
+          "properties": {
+            "--space-button-padding": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "space button padding"
+            },
+            "--button-padding": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --space-button-padding"
+            },
+            "--space-grid-gap": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Space between wall cards."
+            },
+            "--gap": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --space-grid-gap"
+            },
+            "--space-card-padding": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "space card padding"
+            },
+            "--pad": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --space-card-padding"
+            },
+            "--space-shell-padding": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "space shell padding"
+            },
+            "--shell-padding": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --space-shell-padding"
+            }
+          },
+          "additionalProperties": false
+        },
+        "shape": {
+          "type": "object",
+          "properties": {
+            "--radius-button": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "radius button"
+            },
+            "--button-radius": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --radius-button"
+            },
+            "--radius-choice": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "radius choice"
+            },
+            "--choice-radius": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --radius-choice"
+            },
+            "--radius-overlay": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "radius overlay"
+            },
+            "--overlay-radius": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --radius-overlay"
+            },
+            "--radius-card": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Shared wall-card corner radius."
+            },
+            "--radius": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --radius-card"
+            }
+          },
+          "additionalProperties": false
+        },
+        "materials": {
+          "type": "object",
+          "properties": {
+            "--surface-glass": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "surface glass"
+            },
+            "--glass": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --surface-glass"
+            },
+            "--surface-glass-raised": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "surface glass raised"
+            },
+            "--glass-2": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --surface-glass-raised"
+            },
+            "--glass-base": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "glass base"
+            },
+            "--glass-drop": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "glass drop"
+            },
+            "--glass-edge": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "glass edge"
+            },
+            "--glass-fill": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "glass fill"
+            },
+            "--glass-rim": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "glass rim"
+            },
+            "--glass-tint": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "glass tint"
+            },
+            "--shadow-overlay": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "shadow overlay"
+            },
+            "--shadow": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --shadow-overlay"
+            },
+            "--border-subtle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "border subtle"
+            },
+            "--stroke": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --border-subtle"
+            },
+            "--border-strong": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "border strong"
+            },
+            "--stroke-strong": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --border-strong"
+            },
+            "--surface-hover": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "surface hover"
+            },
+            "--surface-overlay": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Opaque menu, caption, and floating-card surface."
+            },
+            "--surface-raised": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "surface raised"
+            },
+            "--surface-selected": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "surface selected"
+            },
+            "--surface-canvas-aura": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Static canvas background composition."
+            },
+            "--shadow-drag-ghost": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "Depth of a dragged card preview."
+            }
+          },
+          "additionalProperties": false
+        },
+        "cursor": {
+          "type": "object",
+          "properties": {
+            "--cursor-default": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "cursor default"
+            },
+            "--c-arrow": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --cursor-default"
+            },
+            "--cursor-pointer": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "cursor pointer"
+            },
+            "--c-hand": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --cursor-pointer"
+            },
+            "--cursor-text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "description": "cursor text"
+            },
+            "--c-text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$",
+              "deprecated": true,
+              "description": "Use --cursor-text"
+            }
+          },
+          "additionalProperties": false
+        },
+        "overrides": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^--ds-[a-z0-9-]+$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000,
+            "pattern": "^[^{};<>\\x00-\\x1f]+$"
+          }
+        }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "rowSize": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000,
+          "pattern": "^[^{};<>\\x00-\\x1f]+$"
+        },
+        "align": {
+          "enum": [
+            "start",
+            "end",
+            "center",
+            "stretch",
+            "space-between",
+            "space-around",
+            "space-evenly"
+          ]
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "selector",
+          "style"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "style": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^(--[a-z][a-z0-9-]*|-?[a-z][a-z0-9-]*)$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$"
+            }
+          }
+        }
+      }
+    },
+    "widgets": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 12
+          },
+          "rows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "order": {
+            "type": "integer"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "style": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^(--[a-z][a-z0-9-]*|-?[a-z][a-z0-9-]*)$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$"
+            }
+          },
+          "tokens": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^--[a-z][a-z0-9-]*$"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8000,
+              "pattern": "^[^{};<>\\x00-\\x1f]+$"
+            }
+          },
+          "parts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^(--[a-z][a-z0-9-]*|-?[a-z][a-z0-9-]*)$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8000,
+                "pattern": "^[^{};<>\\x00-\\x1f]+$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

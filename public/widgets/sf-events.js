@@ -1,3 +1,4 @@
+let VARIANT_DATA = null;
 // Out in SF — a calm concierge line of free events around the city, sourced from
 // SF RATS / FunCheap (see /lib/events.js). The full scrollable list lives behind
 // the /events command (and opening this card fullscreen).
@@ -27,6 +28,7 @@
 import { fetchEvents, splitTitle, localeRank, shortNames, TZ, MON } from '/lib/events.js';
 
 export default {
+  getVariantData: () => VARIANT_DATA,
   id: 'sf-events',
   title: 'Out in SF',
   icon: '🎉',
@@ -143,6 +145,7 @@ export default {
     body.replaceChildren(ctx.h('div', { class: 'won' }, head, list));
 
     const render = (evs) => {
+      VARIANT_DATA = evs || [];
       const all = evs || [];
       const todayEvs = all.filter((e) => { const o = dayOffset(e.when); return o != null && o <= 0; });
       const showingToday = todayEvs.length > 0;

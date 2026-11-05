@@ -1,3 +1,4 @@
+let VARIANT_DATA = null;
 // Read-only 511 Muni data; credential and configured origin stay on the server.
 const STYLE = `
 .tr-tile { min-height:0; height:100%; display:flex; flex-direction:column; justify-content:center; gap:4px; }
@@ -33,6 +34,7 @@ async function render(body,ctx,full) {
   const refresh=async()=>{
     try {
       const data=await ctx.fetchJSON('/api/transit',{viaProxy:false,timeout:26000});
+      VARIANT_DATA=data;
       const valid=(data.arrivals||[]).filter(a=>a.time>Date.now()-30000);
       if(!full){root.replaceChildren(...(valid.length?valid.slice(0,2).map(a=>row(a,h,false)):[h('div',{class:'tr-empty'},data.error||'No upcoming predictions nearby.')]),...(data.stale?[h('div',{class:'tr-sub'},'Saved data · open to check freshness')]:[]));return;}
       const stamp=data.sourceAt?new Date(data.sourceAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'unavailable';
@@ -40,4 +42,5 @@ async function render(body,ctx,full) {
     } catch {root.replaceChildren(h('p',{class:'tr-empty'},'Live transit is temporarily unavailable.'));}
   };await refresh();ctx.interval(refresh,90000);
 }
-export default {id:'transit',title:'Nearby transit',icon:'🚋',size:'md',chrome:true,frame:false,mount:(body,ctx)=>render(body,ctx,false),openFull:(body,ctx)=>render(body,ctx,true)};
+export default {
+  getVariantData: () => VARIANT_DATA,id:'transit',title:'Nearby transit',icon:'🚋',size:'md',chrome:true,frame:false,mount:(body,ctx)=>render(body,ctx,false),openFull:(body,ctx)=>render(body,ctx,true)};
