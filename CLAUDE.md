@@ -40,6 +40,8 @@ visual review, and deployed only on green via git.
 - Current: **arcade** (L1+R1+L2+R2 — the game library screen; in a game Select+Start
   returns to the library) and **gui** (L1+R1+L2 — Gui Dávid's love notes for Louise;
   all text in `public/dashboards/gui/love.js`).
+  **razi** (L1+R1+R2 — Razi's: NASA's Astronomy Picture of the Day, big; API first,
+  falls back to parsing science.nasa.gov/apod/ when api.nasa.gov is down). Free combo left: L1+L2+R2, R1+L2+R2.
 - Seeds planted while a dashboard is open are stored with that `dashboard`
   (feedback column). `iterate.mjs` tends main (always) and then each dashboard that
   has seeds, each as its OWN agent run (own context, prompt, iteration, commit),

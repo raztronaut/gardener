@@ -17,6 +17,12 @@
       "name": "Gui Dávid",
       "combo": "L1+R1+L2",
       "manifest": "/dashboards/gui/manifest.json"
+    },
+    {
+      "id": "razi",
+      "name": "Razi",
+      "combo": "L1+R1+R2",
+      "manifest": "/dashboards/razi/manifest.json"
     }
   ]
 }

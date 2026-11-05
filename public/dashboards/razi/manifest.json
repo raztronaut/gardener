@@ -1,0 +1,5 @@
+{
+  "widgets": [
+    { "id": "apod", "file": "/dashboards/razi/widgets/apod.js", "enabled": true, "order": 1 }
+  ]
+}
