@@ -54,6 +54,12 @@
       "_note": "TEMPORARY (2026 US midterms, asked for by the humans 2026-11-03): shows in Out in SF's slot until `until`, or 12 h after both chambers are called (the widget calls ctx.retire); then sf-events comes back by itself (app.js applyReplacements / checkReplacements). Keep sf-events enabled; this entry is inert after 2026-11-06 and may be deleted then."
     },
     {
+      "id": "todos",
+      "file": "todos.js",
+      "enabled": true,
+      "order": 8.5
+    },
+    {
       "id": "gardyn",
       "file": "gardyn.js",
       "enabled": true,

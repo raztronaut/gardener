@@ -76,6 +76,13 @@ sudo ./scripts/setup-autologin.sh
 Type into the **"Plant a thought…"** bar at the bottom of the screen. It's stored durably and
 compiled into the next morning's tending. No feedback? The gardener improves things on its own.
 
+## To-do card
+The wall's **To do** card starts with Gui's task to install the host agent docs.
+Click its command to copy it, then open a terminal in this Paseo workspace with
+**Ctrl+Shift+T** or **+ → Terminal** in the workspace toolbar. Copying never runs
+the command. Mark the task done after running it. Open the card to add tasks or
+review completed ones; the list and completion state persist in this wall browser.
+
 ## Adding/extending widgets (the contract)
 A widget is `public/widgets/<id>.js` default-exporting `{ id, title, icon, size, chrome, mount(body, ctx) }`.
 `mount` must not throw; fetch external data via `ctx.fetchJSON(url)` (through the SSRF-safe proxy — add
