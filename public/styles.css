@@ -583,7 +583,7 @@ body.screenshot .osalarm { display: none !important; }
 .help { display: flex; flex-direction: column; gap: 14px; }
 .help-lead { font-size: 16px; line-height: 1.5; color: var(--ink-soft); }
 .help-cmds { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-.help-cmd { display: flex; gap: 14px; align-items: baseline; }
+.help-cmd { display: flex; gap: 14px; align-items: baseline; font-variant-ligatures: none; font-feature-settings: "liga" 0, "dlig" 0, "calt" 0; }
 .help-cmd code { font-family: var(--font-mono); font-size: 14px; color: var(--mint); font-variant-ligatures: none; font-feature-settings: "liga" 0, "dlig" 0, "calt" 0; /* keep -- as two hyphens */
   background: rgba(120,247,176,.08); border: 1px solid var(--stroke); border-radius: 8px; padding: 3px 10px; min-width: 116px; text-align: center; }
 .help-cmd span { color: var(--ink); font-size: 15px; }
