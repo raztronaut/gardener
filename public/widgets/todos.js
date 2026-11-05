@@ -66,10 +66,6 @@ function render(body, ctx, full = false) {
     .todo-ai-ask{font:inherit;font-size:17px;padding:10px 16px;border:1px solid var(--stroke);border-radius:12px;background:var(--color-canvas-raised);color:var(--color-accent);cursor:pointer}
     .todo-ai-ask:disabled{cursor:wait;opacity:.65}
     .todo-ai-ask:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px}
-    .todo-ai-result{padding:16px;border:1px solid var(--stroke);border-radius:16px;line-height:1.5;max-width:100%;overflow-wrap:anywhere}
-    .todo-ai-result p{margin:0 0 14px}
-    .todo-ai-result p:last-child{margin-bottom:0}
-    .todo-ai-heading{font-family:var(--font-heading);font-size:24px;margin-bottom:12px;color:var(--color-accent)}
     .todo-check{display:flex;align-items:center;gap:10px;font-size:16px;cursor:pointer;width:fit-content}
     .todo-check input{width:20px;height:20px;accent-color:var(--color-accent);cursor:pointer;margin:0}
     .todo-task.is-done .todo-title{text-decoration:line-through;color:var(--color-text-muted)}

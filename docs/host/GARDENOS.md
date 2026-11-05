@@ -16,6 +16,11 @@ generic installation guide. Last verified: 2026-11-05. Read `/AGENTS.md` first.
   (`wks_91072100070aa0fb`); voice workspace: **Commands from the OS**
   (`wks_47b29bf1f3bdf1b6`). Both use `/`.
 
+Paseo Desktop is installed under `/home/talbot/apps/paseo`. The local
+`~/Applications/Paseo.AppImage` alias points to `~/.local/bin/paseo-desktop`
+so `paseo agent open` can discover this custom ARM64 installation. The setup
+to-do uses that command to open Gui’s own conversation in the root workspace.
+
 The app is a Node server plus vanilla HTML/CSS/browser modules under `public/`.
 The autonomous daily gardener uses feedback to tend it. “Hey Garden” voice
 control and the Botanist bridge route spoken coding requests into Paseo.
