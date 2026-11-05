@@ -1,4 +1,5 @@
 // Household to-dos live in this wall browser, independently of daily tending.
+import { taskExplainer } from '/lib/task-explainer.js';
 const STORAGE_KEY = 'garden.todos.v1';
 const SETUP_COMMAND = 'sudo bash /home/talbot/gardener-github/scripts/install-host-docs.sh';
 const INITIAL_TASK = {
@@ -61,6 +62,14 @@ function render(body, ctx, full = false) {
     .todo-explanation p{margin:0 0 14px}
     .todo-explanation code{font:inherit;color:var(--color-accent)}
     .todo-explanation a{color:var(--color-accent)}
+    .todo-ai{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:18px}
+    .todo-ai-ask{font:inherit;font-size:17px;padding:10px 16px;border:1px solid var(--stroke);border-radius:12px;background:var(--color-canvas-raised);color:var(--color-accent);cursor:pointer}
+    .todo-ai-ask:disabled{cursor:wait;opacity:.65}
+    .todo-ai-ask:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px}
+    .todo-ai-result{padding:16px;border:1px solid var(--stroke);border-radius:16px;line-height:1.5;max-width:100%;overflow-wrap:anywhere}
+    .todo-ai-result p{margin:0 0 14px}
+    .todo-ai-result p:last-child{margin-bottom:0}
+    .todo-ai-heading{font-family:var(--font-heading);font-size:24px;margin-bottom:12px;color:var(--color-accent)}
     .todo-check{display:flex;align-items:center;gap:10px;font-size:16px;cursor:pointer;width:fit-content}
     .todo-check input{width:20px;height:20px;accent-color:var(--color-accent);cursor:pointer;margin:0}
     .todo-task.is-done .todo-title{text-decoration:line-through;color:var(--color-text-muted)}
@@ -104,7 +113,7 @@ function render(body, ctx, full = false) {
           h('code', {}, '/AGENTS.md'), ', ', h('code', {}, '/CLAUDE.md'), ', and ', h('code', {}, '/GARDENOS.md'), '.'),
         h('p', {}, h('strong', {}, 'Why sudo? '), 'That folder (/) is owned by the administrator, so copying files there needs your permission. The agent cannot enter your password for you.'),
         h('p', {}, 'The installer copies only these guide files and backs up any existing versions. GardenOS and its services keep running. You can mark this task done after it finishes.'),
-        h('a', { href: 'https://github.com/raztronaut/gardener/blob/main/scripts/install-host-docs.sh', target: '_blank', rel: 'noopener noreferrer' }, 'Read the installer script before running it ↗')));
+        taskExplainer(h)));
     }
     if (task.command) {
       const label = h('span', { class: 'todo-copy-label' }, 'Click command to copy');

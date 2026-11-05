@@ -31,6 +31,7 @@ import { ensureFractal, SLOT_MS, sceneParams } from './fractal.mjs';
 import { nearbyTransit } from './transit.mjs';
 import { readFeed } from './feeds.mjs';
 import { gardenMood } from './mood.mjs';
+import { explainSetup } from './task-explainer.mjs';
 
 const START = Date.now();
 setInterval(() => { try { expireSnooze(); } catch (e) { log(`snooze expiry: ${e.message}`); } }, 1000).unref();
@@ -506,6 +507,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, version: getUiVersion(), night: getNight(), uptime: Math.round((Date.now() - START) / 1000) });
     if (req.method === 'GET' && p === '/api/version') return json(res, 200, { version: getUiVersion() });
+    if (req.method === 'POST' && p === '/api/todos/explain') {
+      let body;
+      try { body = JSON.parse(await readBody(req, 1024)); }
+      catch { return json(res, 400, { error: 'Invalid explanation request.' }); }
+      if (body?.id !== 'gui-install-host-docs') return json(res, 400, { error: 'This task does not have a connected explainer.' });
+      try { return json(res, 200, await explainSetup(body.id)); }
+      catch { log('task explainer: request failed'); return json(res, 503, { error: 'AI could not read and explain the installer right now. Try again in a moment.' }); }
+    }
     if (req.method === 'POST' && p === '/api/mood') {
       let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return json(res, 400, { error: 'bad json' }); }
       return json(res, 200, await gardenMood(typeof body?.context === 'string' ? body.context : ''));

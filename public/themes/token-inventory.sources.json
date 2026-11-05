@@ -15,11 +15,11 @@
     "public/widgets/midterms.js": "792380e3d8c871e030fb2f964dfae4b3666e650defed802c7760d2ac74b11726",
     "public/widgets/rss.js": "d494433bbab4b70fedfaad0f6edcd6fa61e875719cc96db38f6de8aed7831e23",
     "public/widgets/sf-events.js": "19d9886d2df7742dd2d29869774f5aa3859fd96816fb069de83ce81db0161739",
-    "public/widgets/todos.js": "8ab988506c3c70077f906d2c612e78d1f7300bc42b13cbb5198686ee45e8e1d8",
+    "public/widgets/todos.js": "43c50004fc3b46ab14e8282f8b798c64cd469ffb88e25658fee3a2a14f295fce",
     "public/widgets/transit.js": "74fb2e2c6cf449ae222020185e661f20f5353b5d00785fc7ad670bff92f61355",
     "public/widgets/weather.js": "36400e98054d9fb0d9e935c0f3f596128b3d492e52757ec9955de220934db61d"
   },
   "cssBlocks": 21,
-  "tokens": 6533,
+  "tokens": 6608,
   "skipped": []
 }
