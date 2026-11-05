@@ -11,9 +11,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.mjs';
 import { botanist } from './botanist.mjs';
+import { routeRequest } from './jev.mjs';
 
 const MODEL = process.env.GARDENER_VOICE_MODEL || 'claude-haiku-5-5';
 const MAX_ROUNDS = 4;
+const JEV_SURE = 0.55; // Jev confidence needed to skip the model and go straight to the Botanist
 let client = null;
 
 const SYSTEM = `You are the voice of GardenOS, a calm smart display (a 9:16 portrait wall) in a San Francisco home, built by Gui Dávid. People speak to it by saying "Hey Garden" and then a request. You get the request as speech-to-text (it may have small recognition errors — infer what they meant) plus a JSON snapshot of what the wall shows right now.
@@ -36,7 +38,7 @@ Act through your tools: they do exactly what tapping, clicking or the game contr
 - Volume: "louder"/"quieter" = change by ±10 unless they say how much; "mute" = set 0.
 - Only plant a seed note when they ask to tell/ask the gardener something or to change/improve the wall — the note is their words, cleaned up.
 - Timers / countdowns ("start a two-minute countdown", "set a timer for 5 minutes", "stop the timer"): command timer with arg = the duration ("2" = 2 minutes, "90s", "1:30") or "off". It is the wall's own card — never the Botanist.
-- The Botanist is a separate AI coding agent (running in Paseo on this machine) that can change the computer itself: edit code and files, run commands, fix and build things, change GardenOS's own code. Use the botanist tool when they address it ("botanist, ...", "tell the botanist ...", "ask the botanist ...", misheard as "bottom list", "but honest", "the botanist") or ask for something only it can do (change/fix/build code or the system, run something on the computer). Pass their request as the task, in their words, cleaned up — don't solve it yourself. Its answer appears on the wall later by itself; your caption is a few words ("Sent to the Botanist."). "What is the botanist doing?" = status. "Allow it" / "yes, do it" / "approve" right after the Botanist asked for permission = allow; "deny it" / "no" = deny; "stop the botanist" = stop. Never hand the Botanist something your own tools or the wall's commands can already do (open, close, volume, timers, dashboards, sounds...).
+- The Botanist is a separate AI coding agent (running in Paseo on this machine) that can change the computer itself: edit code and files, run commands, fix and build things, change GardenOS's own code. They do NOT have to name it: use the botanist tool whenever the request needs acting ON this computer — change, add to, fix or build anything (a new feature or change on the wall, a broken card, code), run commands, check this computer's own state (why it's slow, disk, memory, network, what's running), open or use an app on the computer (calculator, files, terminal, browser, text editor, settings — anything that isn't a wall widget or panel), files, downloads, installs, or anything that needs looking at the screen and clicking or typing; when they ask to open or use an app, do NOT just answer the question yourself — and of course when they address it ("botanist, ...", "tell / ask the botanist ...", misheard as "bottom list", "but honest"). Pass their request as the task, in their words, cleaned up — don't solve it yourself. Its answer appears on the wall later by itself; your caption is a few words ("Sent to the Botanist."). "What is the botanist doing?" = status. "Allow it" / "yes, do it" / "approve" right after the Botanist asked for permission = allow; "deny it" / "no" = deny; "stop the botanist" = stop. Never hand the Botanist something your own tools or the wall's commands can already do (open, close, volume, timers, dashboards, sounds...).
 - If something isn't possible, say so kindly in a few words. Never invent widgets, commands or facts that aren't in the snapshot or your sources.`;
 
 const TOOLS = [
@@ -90,6 +92,12 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   if (!config.apiKey) return { ok: false, reply: 'I need an API key to do that.' };
   client ||= new Anthropic({ apiKey: config.apiKey });
   const t0 = Date.now();
+  // Jev (src/jev.mjs) routes the request IN PARALLEL with the model call: when it is sure this
+  // is a job for the Botanist, the model call is cancelled and the task goes straight there
+  // (~1 s sooner); otherwise it adds nothing. Control phrases about the Botanist itself
+  // (allow / deny / stop / status) always go through the model.
+  const control = /\b(allow|approve|deny|reject|stop|cancel|halt|what('s| is) the botanist|botanist doing|status)\b/i.test(text);
+  const jevP = control ? Promise.resolve(null) : routeRequest(text, { timeoutMs: 1200 }).catch(() => null);
   const snap = await context();
   if (process.env.GARDENER_VOICE_DEBUG === '1') log(`QA request: ${JSON.stringify(text)} snapshot: ${JSON.stringify(snap).slice(0, 300)}`);
   const now = new Intl.DateTimeFormat('en-US', { timeZone: config.tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date());
@@ -99,7 +107,20 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   const messages = [...past, { role: 'user', content: `It is ${now}. Right now ${openNow}${snap && snap.game && snap.game.playing ? ' and a game is running' : ''}. The wall:\n${clip(JSON.stringify(snap), 9000)}\n\nThe request: "${clip(text, 500)}"` }];
   let reply = '', lastFailed = false, acted = false;
   for (let round = 0; round < MAX_ROUNDS; round++) {
-    const res = await client.messages.create({ model: MODEL, max_tokens: 3000, system: SYSTEM, tools: TOOLS, messages });
+    const ctl = new AbortController();
+    const resP = client.messages.create({ model: MODEL, max_tokens: 3000, system: SYSTEM, tools: TOOLS, messages }, { signal: ctl.signal });
+    if (round === 0) {
+      const j = await jevP;
+      if (j) log(`jev: ${j.route} ${Math.round(j.confidence * 100)}% (${j.ms} ms)`);
+      if (j && j.route === 'botanist' && j.confidence >= JEV_SURE && (j.p.botanist ?? 0) >= 0.7) {
+        ctl.abort(); resP.catch(() => {});
+        const r = await botanist({ action: 'ask', task: text }, { notify, log });
+        log(`tools: botanist (via jev)${r.ok ? '' : ' (failed)'}`);
+        history.push({ q: clip(text, 300), a: r.ok ? '(sent to the Botanist)' : r.error, at: Date.now() });
+        return r.ok ? { ok: true, reply: '' } : { ok: false, reply: r.error || 'I couldn’t reach the Botanist.' };
+      }
+    }
+    const res = await resP;
     log(`model round ${round + 1}: ${Date.now() - t0} ms, ${res.usage?.input_tokens ?? '?'} in / ${res.usage?.output_tokens ?? '?'} out`);
     const said = res.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
     if (said) reply = said;
