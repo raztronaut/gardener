@@ -24,6 +24,10 @@ import { join } from 'node:path';
 import { paths } from './config.mjs';
 import { runAgent } from './voiceagent.mjs';
 import { botanistWorking } from './botanist.mjs';
+import { meantForWall } from './jev.mjs';
+// false wakes: below this, Jev thinks the words weren't said TO the wall (TV, chatter) — measured:
+// short real commands >= 0.38 ("allow it"), overheard chatter mostly 0.13-0.3
+const WAKE_MIN = +(process.env.GARDENER_WAKE_MIN || 0.3);
 
 const require = createRequire(import.meta.url);
 const sherpa = require('sherpa-onnx-node');
@@ -224,6 +228,12 @@ async function finish(why) {
   utter.fill(0, 0, utterLen); utterLen = 0; vad.reset(); // the audio is gone now
   if (!text || text.replace(/[^a-z]/gi, '').length < 2) return cancel('nothing');
   log(`request (${why}, ${text.length} chars)`);
+  // a false wake? one quick Jev number (~0.2 s): was this said TO the wall? push-to-talk is
+  // always deliberate, so it's never filtered; no answer from Jev = carry on
+  if (why !== 'ptt' && !ptt) {
+    const m = await meantForWall(text, { timeoutMs: 800 }).catch(() => null);
+    if (m && m.p < WAKE_MIN) { log(`not for me (jev ${m.p}, ${m.ms} ms)`); return cancel('not-for-me'); }
+  }
   setState('thinking', { text });
   const t0 = Date.now();
   const beat = setInterval(() => send({ t: 'beat' }), 4000); // a web search can take a while: keep the wall's watchdog fed
@@ -240,7 +250,7 @@ async function finish(why) {
   clearInterval(beat);
   log(`done in ${Date.now() - t0} ms (${out.ok ? 'ok' : 'failed'})`);
   resetSpotter();
-  setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' });
+  setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '', ...(out.format ? { format: out.format } : {}) });
 }
 
 // ---- the mic -------------------------------------------------------------------------
@@ -337,7 +347,7 @@ http.createServer(async (req, res) => {
     }
     else if (url.pathname === '/control') { if ('enabled' in body) setEnabled(body.enabled); if (body.calibrate) startCalibration(+body.seconds || 60); }
     else if (url.pathname === '/say' && !origin) { // QA only (curl, no browser origin): run a typed request
-      if (state === 'idle' && typeof body.text === 'string') { tWake = Date.now(); setState('listening'); setTimeout(() => { const t = body.text; utterLen = 0; (async () => { setState('thinking', { text: t }); const out = await runAgent(t, { context: () => askWall('context', {}, 2500), call: (calls) => askWall('act', { calls }, 8000), notify: (ev) => send({ t: 'botanist', ...ev }), log }).catch(() => ({ ok: false, reply: 'Sorry — I couldn’t do that.' })); setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' }); })(); }, 600); }
+      if (state === 'idle' && typeof body.text === 'string') { tWake = Date.now(); setState('listening'); setTimeout(() => { const t = body.text; utterLen = 0; (async () => { setState('thinking', { text: t }); const out = await runAgent(t, { context: () => askWall('context', {}, 2500), call: (calls) => askWall('act', { calls }, 8000), notify: (ev) => send({ t: 'botanist', ...ev }), log }).catch(() => ({ ok: false, reply: 'Sorry — I couldn’t do that.' })); setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '', ...(out.format ? { format: out.format } : {}) }); })(); }, 600); }
     }
     res.writeHead(200, { ...cors, 'Content-Type': 'application/json' }); return res.end('{"ok":true}');
   }

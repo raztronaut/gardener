@@ -5,6 +5,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync } from 'node:fs';
 import { config } from './config.mjs';
+import { screenshotPrecheck } from './jev.mjs';
 
 const PROMPT = `You are the discerning art director for "The Gardener", a 24/7 ambient
 wall dashboard rendered in a LOCKED 900×1600 portrait (9:16) window.
@@ -27,7 +28,12 @@ Set "ok" to true only if the dashboard renders cleanly and looks good.`;
 
 export async function reviewScreenshot(pngPath) {
   const client = new Anthropic({ apiKey: config.apiKey });
-  const b64 = readFileSync(pngPath).toString('base64');
+  const bytes = readFileSync(pngPath);
+  const b64 = bytes.toString('base64');
+  // Jev's fast first look (~0.5 s): where it suspects a defect, the reviewer is told to check
+  // that spot. It only ADDS scrutiny — the verdict below is still the reviewer's own.
+  const pre = await screenshotPrecheck(bytes).catch(() => null);
+  const hint = pre ? `\n\nA fast automated pre-check (it can be wrong — verify with your own eyes, and don't flag what isn't there): layout ${pre.layout === 'defect' ? 'MAY HAVE A DEFECT' : 'looks clean'} (${Math.round((pre.p.defect ?? 0) * 100)}% defect)${pre.where ? `; look closely at x ${Math.round(pre.where.left * 900)}-${Math.round(pre.where.right * 900)}, y ${Math.round(pre.where.top * 1600)}-${Math.round(pre.where.bottom * 1600)} (of 900x1600)` : ''}${pre.legible != null ? `; legibility from across a room ~${Math.round(pre.legible * 10)}/10` : ''}.` : '';
   const msg = await client.messages.create({
     model: config.model,
     max_tokens: 1500,
@@ -36,7 +42,7 @@ export async function reviewScreenshot(pngPath) {
       role: 'user',
       content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
-        { type: 'text', text: PROMPT },
+        { type: 'text', text: PROMPT + hint },
       ],
     }],
   });
@@ -44,6 +50,7 @@ export async function reviewScreenshot(pngPath) {
   const verdict = extractJson(text);
   if (!verdict) return { ok: true, score: null, issues: [], notes: 'review unparseable; not blocking', raw: text };
   verdict.issues = Array.isArray(verdict.issues) ? verdict.issues : [];
+  if (pre) verdict.precheck = pre;
   return verdict;
 }
 

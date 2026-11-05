@@ -146,6 +146,8 @@ function makeBotanistCard(api) {
       // a permission stays until it's answered (the next event) or 3 minutes pass
       hideT = setTimeout(() => { el.className = ''; }, kind === 'permission' ? 180000 : Math.min(30000, 8000 + text.length * 70));
     },
+    hide() { clearTimeout(hideT); el.className = ''; },
+    waiting: () => el.classList.contains('permission') && el.classList.contains('on'),
   };
 }
 
@@ -230,8 +232,9 @@ export function startVoice(api) {
     }
     if (ev.t === 'botanist') { // the Botanist reports back (any time, independent of a request)
       // working: the quiet edge glow stays on until THIS request is done / failed / stopped
-      if (ev.kind === 'working') { glow && glow.work(true); return; }
-      if (ev.kind === 'idle') { glow && glow.work(false); return; }
+      if (ev.kind === 'working') { if (bcard.waiting()) bcard.hide(); glow && glow.work(true); return; }
+      if (ev.kind === 'idle') { if (bcard.waiting()) bcard.hide(); glow && glow.work(false); return; }
+      if (ev.kind === 'dismiss') { bcard.hide(); return; } // answered (allow / deny): the gold card goes
       if (ev.kind === 'done' || ev.kind === 'error') glow && glow.work(false);
       api.sound(ev.kind === 'error' ? 'fail' : ev.kind === 'permission' ? 'heard' : 'done');
       bcard.show(ev.kind, String(ev.text || ''));
@@ -257,7 +260,8 @@ export function startVoice(api) {
         const r = ev.reply || '';
         // the answer is always shown whole: in the caption (wrapping, smaller when longer), or —
         // when it's too long to read there — as a sheet in the panel
-        if (r.length > 320) { cap.hide(0); api.showText(r); }
+        // the voice service says caption or sheet (Jev reads the answer); else: by length
+        if (ev.format ? ev.format === 'sheet' : r.length > 320) { cap.hide(0); api.showText(r); }
         else if (r) { cap.show(r, `done${r.length > 60 ? ' long' : ''}${r.length > 170 ? ' xl' : ''}`); cap.hide(Math.min(20000, 3000 + r.length * 60)); }
         else cap.hide(600);
       }

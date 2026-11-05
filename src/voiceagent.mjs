@@ -11,7 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.mjs';
 import { botanist } from './botanist.mjs';
-import { routeRequest } from './jev.mjs';
+import { routeRequest, answerFormat } from './jev.mjs';
 
 const MODEL = process.env.GARDENER_VOICE_MODEL || 'claude-haiku-5-5';
 const MAX_ROUNDS = 4;
@@ -116,7 +116,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
         ctl.abort(); resP.catch(() => {});
         const r = await botanist({ action: 'ask', task: text }, { notify, log });
         log(`tools: botanist (via jev)${r.ok ? '' : ' (failed)'}`);
-        history.push({ q: clip(text, 300), a: r.ok ? '(sent to the Botanist)' : r.error, at: Date.now() });
+        history.push({ q: clip(text, 300), a: r.ok ? `(${r.say || 'sent to the Botanist'})` : r.error, at: Date.now() });
         return r.ok ? { ok: true, reply: '' } : { ok: false, reply: r.error || 'I couldn’t reach the Botanist.' };
       }
     }
@@ -159,5 +159,13 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   // an action that happened speaks for itself (the glow + the chime close it): words only
   // for answers and for things that couldn't be done (humans, 2026-11-03)
   if (ok && acted) return { ok, reply: '' };
-  return { ok, reply: reply || (ok ? '' : 'Sorry — I couldn’t do that.') };
+  const final = reply || (ok ? '' : 'Sorry — I couldn’t do that.');
+  // caption or sheet? short answers are captions, very long ones sheets; in between Jev reads
+  // the answer and decides (~0.2 s); no answer from Jev = the wall's old length rule
+  let format;
+  if (ok && final.length > 140 && final.length <= 900) {
+    const f = await answerFormat(text, final, { timeoutMs: 900 }).catch(() => null);
+    if (f) { format = f.format; log(`jev: ${f.format} (${f.ms} ms)`); }
+  } else if (final.length > 900) format = 'sheet';
+  return { ok, reply: final, ...(format ? { format } : {}) };
 }

@@ -17,6 +17,7 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { paths } from './config.mjs';
+import { riskOf } from './jev.mjs';
 
 const MCP_URL = process.env.GARDENER_PASEO_MCP || 'http://127.0.0.1:6767/mcp/agents';
 const PASEO_CLI = process.env.GARDENER_PASEO_CLI || join(homedir(), '.local/bin/paseo');
@@ -103,6 +104,17 @@ function watch(id, notify, log, prompt = '') {
       // a command is shown as-is (its symbols matter); a description is tidied
       const cmd = p.input?.command || p.detail?.command;
       const why = cmd ? String(cmd).replace(/\s+/g, ' ').trim() : tidy(p.input?.description || (p.description !== '-' && p.description) || p.input?.file_path || '');
+      // the gatekeeper (Jev): harmless steps go through by themselves, destructive ones are
+      // refused, everything else asks the person (the gold card)
+      const r = await riskOf(`the agent wants to use the tool "${what}"${why ? `: ${why}` : ''}`, { timeoutMs: 2000 }).catch(() => null);
+      if (r && r.confidence >= 0.6 && (r.risk === 'harmless' || r.risk === 'block')) {
+        try {
+          await mcp('respond_to_permission', { agentId: id, requestId: p.id || p.requestId, response: r.risk === 'harmless'
+            ? { behavior: 'allow' } : { behavior: 'deny', message: 'Refused by the GardenOS gatekeeper: too risky to do by voice. Tell the person what you wanted to do and why.' } });
+          log(`botanist: gatekeeper ${r.risk === 'harmless' ? 'allowed' : 'denied'} ${what} (${Math.round(r.confidence * 100)}%)`);
+          continue;
+        } catch (err) { log(`botanist: gatekeeper reply failed (${err.message})`); }
+      }
       notify({ kind: 'permission', text: `The Botanist asks to use ${what}${why ? `: ${clip(why, 140)}` : ''}. Say "Hey Garden, allow it" or "deny it".` });
     }
     const busy = /running|busy|working|thinking|initializ/i.test(s.status);
@@ -119,6 +131,18 @@ function watch(id, notify, log, prompt = '') {
   setTimeout(tick, 2500); // delivery happens after ~2 quiet seconds
 }
 
+// A voice task the gatekeeper is holding for the person's OK ("allow it" sends it).
+let held = null; // { task, at }
+const HOLD_MS = 3 * 60 * 1000;
+
+async function sendTask(id, task, notify, log) {
+  const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
+  try { await mcp('send_agent_prompt', { agentId: id, prompt, activeTurnBehavior: 'steer', notifyOnFinish: false }, 10000); }
+  catch (err) { log(`botanist: mcp send failed (${err.message}) — using the CLI`); await cli(['send', id, '--no-wait', '--behavior', 'steer', '--prompt', prompt]); }
+  watch(id, notify, log, prompt);
+  notify({ kind: 'working' }); // the wall's quiet glow, until this request is done
+}
+
 // action: ask | status | allow | deny | stop
 export async function botanist({ action = 'ask', task = '' } = {}, { notify = () => {}, log = () => {} } = {}) {
   const id = botanistId();
@@ -126,14 +150,24 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
   try {
     if (action === 'ask') {
       if (!task.trim()) return { ok: false, error: 'no task' };
-      const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
-      try { await mcp('send_agent_prompt', { agentId: id, prompt, activeTurnBehavior: 'steer', notifyOnFinish: false }, 10000); }
-      catch (err) { log(`botanist: mcp send failed (${err.message}) — using the CLI`); await cli(['send', id, '--no-wait', '--behavior', 'steer', '--prompt', prompt]); }
-      watch(id, notify, log, prompt);
-      notify({ kind: 'working' }); // the wall's quiet glow, until this request is done
+      // the gatekeeper (Jev): harmless → straight to the Botanist; anything that changes something
+      // → held for "allow it"; destructive → refused. If Jev can't be reached, it asks (fails closed).
+      const r = await riskOf(task, { timeoutMs: 1500 }).catch(() => null);
+      log(`botanist: risk ${r ? `${r.risk} ${Math.round(r.confidence * 100)}%` : 'unknown (jev unreachable)'}`);
+      if (r && r.risk === 'block' && r.confidence >= 0.5) {
+        notify({ kind: 'error', text: `I won't do that by voice: "${clip(task, 160)}". It could lose or expose something important — do it from Paseo if you really mean it.` });
+        return { ok: false, error: 'That’s too risky to do by voice.' };
+      }
+      if (!r || r.risk !== 'harmless' || r.confidence < 0.5) {
+        held = { task, at: Date.now() };
+        notify({ kind: 'permission', text: `Before I do this — "${clip(task, 200)}". Say "Hey Garden, allow it" or "deny it".` });
+        return { ok: true, say: 'The Botanist is waiting for your OK.' };
+      }
+      await sendTask(id, task, notify, log);
       return { ok: true, say: 'Sent to the Botanist.' };
     }
     if (action === 'status') {
+      if (held && Date.now() - held.at < HOLD_MS) return { ok: true, info: `The Botanist is waiting for your OK to: "${clip(held.task, 300)}". Say "allow it" or "deny it".` };
       const s = await status(id);
       let last = '';
       try { last = await lastReply(id); } catch { /* optional */ }
@@ -141,6 +175,14 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
       return { ok: true, info: `The Botanist is ${state}.${last ? ` Its latest message: ${clip(last, 600)}` : ''}` };
     }
     if (action === 'allow' || action === 'deny') {
+      // a task the gatekeeper is holding comes first
+      if (held && Date.now() - held.at < HOLD_MS) {
+        const t = held.task; held = null;
+        if (action === 'deny') { notify({ kind: 'dismiss' }); return { ok: true, say: 'Okay — I won’t.' }; }
+        await sendTask(id, t, notify, log);
+        return { ok: true, say: 'Allowed — the Botanist is on it.' };
+      }
+      held = null;
       const s = await status(id);
       if (!s.perms.length) return { ok: false, error: 'The Botanist is not waiting for a permission.' };
       for (const p of s.perms) {
@@ -148,9 +190,11 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
           response: action === 'allow' ? { behavior: 'allow' } : { behavior: 'deny', message: 'Denied by voice from the GardenOS wall.' } });
       }
       if (!watching) watch(id, notify, log);
+      notify({ kind: action === 'allow' ? 'working' : 'dismiss' });
       return { ok: true, say: action === 'allow' ? 'Allowed.' : 'Denied.' };
     }
     if (action === 'stop') {
+      held = null;
       await mcp('cancel_agent', { agentId: id });
       if (watching) { clearInterval(watching.timer); watching = null; }
       notify({ kind: 'idle' });

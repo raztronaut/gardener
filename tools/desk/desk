@@ -11,11 +11,15 @@ runs fullscreen; apps you open appear over it. Coordinates are screen pixels (0,
   desk scroll up|down [N]
   desk type "text"             types ASCII text into the focused window
   desk key COMBO               e.g. Return, Escape, ctrl+s, alt+F4, ctrl+shift+t
+  desk find "WHAT"             locate something on screen by description (Jev, ~0.5 s) -> its centre
+                               X Y, box and confidence; e.g. desk find "the Save button"
+  desk click-on "WHAT" [--min C]  find + click its centre, only if confidence >= C (default 0.5)
   desk windows                 lists open windows: id, title
   desk focus ID|TEXT           raises + focuses a window (id or part of its title)
   desk close ID|TEXT           closes a window politely (focus + alt+F4)
 
 Typical loop: desk shot -> look at /tmp/desk.png -> desk click / type / key -> desk shot again.
+Faster: desk click-on "the OK button" (no need to read pixel coordinates yourself); check with desk shot.
 No dependencies beyond libX11 / libXtst / GTK (python3-gi) that ship with the OS.
 """
 import ctypes, ctypes.util, os, re, subprocess, sys, time
@@ -107,6 +111,40 @@ def screenshot(path, maxside):
     pb.savev(path, 'png', [], [])
     print('%s  (%dx%d screen; image scale %.3f: screen = image * %.3f)' % (path, w, h, 1 / scale, scale))
 
+def jev_key():
+    k = os.environ.get('OPENROUTER_API_KEY')
+    if k: return k
+    try:
+        for line in open(os.path.expanduser('~/gardener/.env')):
+            if line.startswith('OPENROUTER_API_KEY='): return line.split('=', 1)[1].strip()
+    except OSError: pass
+    sys.exit('desk: find needs OPENROUTER_API_KEY (env or ~/gardener/.env)')
+
+def locate(what):
+    import base64, json, tempfile, urllib.request
+    import gi
+    gi.require_version('Gdk', '3.0')
+    from gi.repository import Gdk, GdkPixbuf
+    root = Gdk.get_default_root_window()
+    w, h = root.get_width(), root.get_height()
+    pb = Gdk.pixbuf_get_from_window(root, 0, 0, w, h)
+    s = max(w, h) / 800 if max(w, h) > 800 else 1
+    pb = pb.scale_simple(round(w / s), round(h / s), GdkPixbuf.InterpType.BILINEAR)
+    ok, png = pb.save_to_bufferv('png', [], [])
+    body = json.dumps({'model': '~typesafe/jev-latest',
+        'state': [{'type': 'text', 'text': 'A screenshot of a %dx%d computer screen (a wall display; app windows may be open over it).' % (w, h)},
+                  {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + base64.b64encode(png).decode()}}],
+        'questions': {'target': {'type': 'box', 'instructions': 'Find: %s. Box exactly that element (tight).' % what}}}).encode()
+    req = urllib.request.Request('https://openrouter.ai/api/alpha/decisions', data=body, method='POST',
+        headers={'authorization': 'Bearer ' + jev_key(), 'content-type': 'application/json', 'X-Title': 'GardenOS desk'})
+    try:
+        ans = json.load(urllib.request.urlopen(req, timeout=15))['answers']['target']
+    except Exception as e:
+        sys.exit('desk: find failed (%s)' % e)
+    b = ans['box']
+    x0, x1, y0, y1 = round(b['left'] * w), round(b['right'] * w), round(b['top'] * h), round(b['bottom'] * h)
+    return (x0 + x1) // 2, (y0 + y1) // 2, (x0, y0, x1, y1), float(ans.get('confidence') or 0)
+
 def windows():
     out = subprocess.run(['xprop', '-root', '_NET_CLIENT_LIST'], capture_output=True, text=True).stdout
     ids = re.findall(r'0x[0-9a-f]+', out)
@@ -159,6 +197,18 @@ elif cmd == 'type':
     type_text(' '.join(rest)); print('typed %d chars' % len(' '.join(rest)))
 elif cmd == 'key':
     combo(rest[0]); print('pressed', rest[0])
+elif cmd in ('find', 'click-on'):
+    mn = 0.5
+    if '--min' in rest:
+        k = rest.index('--min'); mn = float(rest[k + 1]); rest = rest[:k] + rest[k + 2:]
+    what = ' '.join(rest)
+    if not what: sys.exit('desk: %s needs a description, e.g. desk %s "the Save button"' % (cmd, cmd))
+    cx, cy, (x0, y0, x1, y1), conf = locate(what)
+    print('%s: centre %d %d   box %d,%d-%d,%d   confidence %.2f' % (what, cx, cy, x0, y0, x1, y1, conf))
+    if cmd == 'click-on':
+        if conf < mn:
+            print('not clicked: confidence %.2f < %.2f (check with desk shot, or click the centre yourself)' % (conf, mn)); sys.exit(2)
+        move(cx, cy); button(1, True); button(1, False); print('clicked %d %d' % (cx, cy))
 elif cmd == 'windows':
     for i, t in windows(): print(i, t)
 elif cmd == 'focus':

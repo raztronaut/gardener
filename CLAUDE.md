@@ -141,6 +141,13 @@ voice service's cap): ask / status / allow / deny / stop, async (a watcher repor
 Linux: screenshots (GTK) + mouse/keyboard (XTest via ctypes), no installs, no sudo. The only
 screen is this wall (900×1600). The wall explains all of it in **`/botanist`** (alias `/desk`)
 — keep that panel in step with `desk --help`. Timers are the wall's own (`/timer`), never the Botanist.
+**Jev** (`src/jev.mjs`; TypeSafe's decision model via OpenRouter, `OPENROUTER_API_KEY` in .env; ~0.2–0.5 s,
+fails open) does the quick decisions: routes each request wall / answer / botanist in parallel with
+Haiku (sure → straight to the Botanist; no keyword needed); the **gatekeeper** (`riskOf`: harmless →
+go, ask → held for "allow it", block → refused; fails CLOSED = ask); the **false-wake filter** in
+voice.mjs (`meantForWall` < 0.3 → dropped; push-to-talk exempt); **caption or sheet** for answers
+140–900 chars; `desk find` / `desk click-on` (box on a screenshot, ≤800 px — bigger images 400);
+and a pre-check in `visualReview.mjs` that tells the reviewer where to look (adds scrutiny only).
 
 ## Arcade — retro-console emulator widget
 **PS1 runs natively** (2026-11-03): `src/native.mjs` launches RetroArch + PCSX-ReARMed

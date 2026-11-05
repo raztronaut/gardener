@@ -921,7 +921,7 @@ function showBotanist() {
     h('p', { class: 'help-lead' }, 'The Botanist is a coding agent running on this computer. Hey Garden passes it anything the wall can’t do itself: change code, run things, fix and build, and use the screen like a person — look, click, type.'),
     head('Say'),
     h('div', { class: 'help-cmds' },
-      cmd('“Hey Garden, botanist, …”', 'hand it a task in your own words — also “tell / ask the botanist …”'),
+      cmd('“Hey Garden, …”', 'just ask — anything that needs the computer goes to it by itself (no need to say “botanist”)'),
       cmd('“What is the botanist doing?”', 'busy, idle, or waiting for your OK'),
       cmd('“Allow it”  ·  “deny it”', 'answer when it asks permission'),
       cmd('“Stop the botanist”', 'cancel what it’s doing')),
@@ -934,11 +934,13 @@ function showBotanist() {
     h('div', { class: 'help-cmds' },
       cmd('a quiet edge glow', 'it’s working on your request — stays until it’s done'),
       cmd('mint card', 'done — its answer, top of the wall'),
-      cmd('gold card', 'it needs your OK (“allow it” / “deny it”)'),
+      cmd('gold card', 'it needs your OK before changing something (“allow it” / “deny it”)'),
       cmd('rose card', 'it stopped or something failed')),
     head('desk — how it sees and uses the screen'),
     h('p', { class: 'help-lead' }, 'One screen: this wall (900 × 1600). Apps it opens appear over the garden; it closes them when done. Coordinates are screen pixels from the top-left.'),
     h('div', { class: 'help-cmds' },
+      cmd('desk click-on "the OK button"', 'finds it by description and clicks — only when sure'),
+      cmd('desk find "…"', 'where something is on screen (centre, box, confidence)'),
       cmd('desk shot', 'screenshot to /tmp/desk.png — it looks before it clicks'),
       cmd('desk click X Y', 'click (--right, --double)'),
       cmd('desk move X Y  ·  desk scroll up / down', 'move the pointer · scroll'),
@@ -947,7 +949,12 @@ function showBotanist() {
       cmd('desk windows', 'list open windows'),
       cmd('desk focus · desk close <title>', 'bring a window forward · close it'),
       cmd('desk --help', 'the full reference')),
-    h('p', { class: 'help-note' }, 'It runs with full access: anyone who says “Hey Garden, botanist” can have it act on this computer. To approve each step, set its Paseo workspace (Commands from the OS) to Auto — then answer with “allow it” / “deny it”.')));
+    head('The gatekeeper'),
+    h('div', { class: 'help-cmds' },
+      cmd('harmless', 'looking, checking, opening apps, calculating — it just does it'),
+      cmd('needs your OK', 'changing code or files, installing, restarting, settings, sending — a gold card waits for “allow it”'),
+      cmd('refused', 'wiping or mass-deleting, disabling security, sharing secrets, spending money — never by voice')),
+    h('p', { class: 'help-note' }, 'The Botanist has full access to this computer. The gatekeeper (Jev) checks every voice request first; anything risky waits for your “allow it”, and destructive things are refused. Do those from Paseo if you really mean them.')));
 }
 
 // Show the feedback the humans have planted (pending vs already grown in).
