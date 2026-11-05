@@ -45,7 +45,7 @@ function render(body, ctx, full = false) {
   ctx.style(`
     .todo-root{display:flex;flex-direction:column;gap:14px;min-height:0;height:100%;font-family:var(--font-body)}
     .todo-list{display:flex;flex-direction:column;gap:18px;min-height:0}
-    .todo-task{display:flex;flex-direction:column;gap:10px;min-width:0}
+    .todo-task{display:flex;flex-direction:column;gap:8px;min-width:0}
     .todo-owner,.todo-hint,.todo-copy-status,.todo-more{font-size:15px;line-height:1.4;color:var(--color-text-muted)}
     .todo-title{font-family:var(--font-heading);font-size:28px;line-height:1.15;color:var(--color-text-primary)}
     .todo-command{display:flex;flex-direction:column;gap:8px;align-items:stretch;text-align:left;width:100%;padding:12px;border:1px solid var(--stroke);border-radius:var(--radius-button,12px);background:var(--color-canvas-raised);color:var(--color-text-primary);font:inherit;cursor:pointer}
@@ -56,6 +56,11 @@ function render(body, ctx, full = false) {
     .todo-copy-status{min-height:1.4em;margin:0}
     .todo-hint{margin:0}
     .todo-hint strong{font-weight:600;color:var(--color-text-primary)}
+    .todo-details{padding:0;border:0;background:none;color:var(--color-accent);font:inherit;text-decoration:underline;cursor:pointer}
+    .todo-explanation{font-size:19px;line-height:1.5;color:var(--color-text-primary)}
+    .todo-explanation p{margin:0 0 14px}
+    .todo-explanation code{font:inherit;color:var(--color-accent)}
+    .todo-explanation a{color:var(--color-accent)}
     .todo-check{display:flex;align-items:center;gap:10px;font-size:16px;cursor:pointer;width:fit-content}
     .todo-check input{width:20px;height:20px;accent-color:var(--color-accent);cursor:pointer;margin:0}
     .todo-task.is-done .todo-title{text-decoration:line-through;color:var(--color-text-muted)}
@@ -90,16 +95,27 @@ function render(body, ctx, full = false) {
     const row = h('article', { class: `todo-task${task.done ? ' is-done' : ''}` },
       task.assignee ? h('div', { class: 'todo-owner' }, `For ${task.assignee} · when you see this`) : null,
       h('div', { class: 'todo-title' }, task.title));
+    if (task.id === 'gui-install-host-docs') {
+      row.append(h('p', { class: 'todo-hint' }, 'Guides for future agents. ',
+        full ? null : h('a', { href: '#', class: 'todo-details', onclick: e => e.preventDefault() }, 'Why sudo? →')));
+      if (full) row.append(h('div', { class: 'todo-explanation' },
+        h('p', {}, 'We asked the agent to document this GardenOS computer so future Paseo agents know where the live app is, how the wall works, and how to work on it without starting from scratch.'),
+        h('p', {}, 'This command installs three instruction files at the top of the filesystem: ',
+          h('code', {}, '/AGENTS.md'), ', ', h('code', {}, '/CLAUDE.md'), ', and ', h('code', {}, '/GARDENOS.md'), '.'),
+        h('p', {}, h('strong', {}, 'Why sudo? '), 'That folder (/) is owned by the administrator, so copying files there needs your permission. The agent cannot enter your password for you.'),
+        h('p', {}, 'The installer copies only these guide files and backs up any existing versions. GardenOS and its services keep running. You can mark this task done after it finishes.'),
+        h('a', { href: 'https://github.com/raztronaut/gardener/blob/main/scripts/install-host-docs.sh', target: '_blank', rel: 'noopener noreferrer' }, 'Read the installer script before running it ↗')));
+    }
     if (task.command) {
       const label = h('span', { class: 'todo-copy-label' }, 'Click command to copy');
-      const status = h('span', { class: 'todo-copy-status', role: 'status' });
+      label.setAttribute('role', 'status');
       const button = h('button', { type: 'button', class: 'todo-command', 'aria-label': 'Copy setup command' }, h('code', {}, task.command), label);
       button.addEventListener('click', async e => {
         e.stopPropagation();
-        try { await copyCommand(task.command); label.textContent = 'Copied'; status.textContent = 'Paste into your Paseo terminal and press Enter.'; }
-        catch { label.textContent = 'Copy unavailable'; status.textContent = 'Select the command and copy it manually.'; }
+        try { await copyCommand(task.command); label.textContent = 'Copied · paste into your Paseo terminal'; }
+        catch { label.textContent = 'Copy unavailable · select and copy the command manually'; }
       });
-      row.append(button, status);
+      row.append(button);
     }
     if (task.terminalHint) row.append(h('p', { class: 'todo-hint' },
       'In this Paseo workspace, open a terminal with ', h('strong', {}, 'Ctrl + Shift + T'),
