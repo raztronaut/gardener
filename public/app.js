@@ -55,6 +55,7 @@ function makeCtx(widgetId) {
   const ctx = {
     config: window.__GARDEN_STATE || {},
     h,
+    openArticle: (url, title) => openReader(url, title),
     proxyUrl: (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
     // Fetch JSON through the SSRF-safe backend proxy by default.
     async fetchJSON(url, { viaProxy = true, timeout = 24000 } = {}) {

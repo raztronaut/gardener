@@ -1,0 +1,203 @@
+{
+  "cancelDuringContext": true,
+  "obsoleteReplyIgnored": true,
+  "nextCorrectedTurnSucceeds": true,
+  "events": [
+    {
+      "t": "hello",
+      "enabled": true,
+      "state": "idle",
+      "botanist": false
+    },
+    {
+      "t": "state",
+      "state": "listening"
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "transcript",
+      "text": "Could you please open the weather panel?",
+      "phase": "Heard"
+    },
+    {
+      "t": "state",
+      "state": "thinking",
+      "text": "Could you please open the weather panel?",
+      "turnId": 1
+    },
+    {
+      "t": "context",
+      "id": "mw3ab527-1",
+      "turnId": 1
+    },
+    {
+      "t": "cancel-turn",
+      "turnId": 1
+    },
+    {
+      "t": "state",
+      "state": "idle",
+      "end": "cancel",
+      "why": "user"
+    },
+    {
+      "t": "state",
+      "state": "listening"
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "qa-audio",
+      "index": 0,
+      "down": true
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "level",
+      "v": 0
+    },
+    {
+      "t": "transcript",
+      "text": "set a timer for ten minutes",
+      "phase": "Corrected request"
+    },
+    {
+      "t": "state",
+      "state": "thinking",
+      "text": "set a timer for ten minutes",
+      "turnId": 2
+    },
+    {
+      "t": "act",
+      "id": "mw3ab6c5-2",
+      "turnId": 2,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "10"
+          }
+        }
+      ]
+    },
+    {
+      "t": "state",
+      "state": "idle",
+      "end": "done",
+      "reply": ""
+    }
+  ]
+}

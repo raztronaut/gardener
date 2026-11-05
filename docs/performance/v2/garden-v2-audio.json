@@ -1,0 +1,228 @@
+{
+  "at": "2026-11-05T08:24:28.674Z",
+  "method": "synthetic flite speech -> paced PCM -> real VAD/Parakeet -> edit -> stub wall; push-to-talk, no wake test",
+  "checks": {
+    "livePartials": true,
+    "news": true,
+    "timer": true,
+    "noAbandonedWeather": true,
+    "spokenCancel": true
+  },
+  "events": [
+    {
+      "ms": 2770,
+      "t": "hello",
+      "enabled": true,
+      "state": "idle",
+      "botanist": false
+    },
+    {
+      "ms": 4932,
+      "t": "state",
+      "state": "listening",
+      "ptt": true
+    },
+    {
+      "ms": 6638,
+      "t": "partial",
+      "text": "OK.",
+      "turnId": 1
+    },
+    {
+      "ms": 7131,
+      "t": "partial",
+      "text": "Open the weather.",
+      "turnId": 1
+    },
+    {
+      "ms": 7607,
+      "t": "partial",
+      "text": "Open the weather actual.",
+      "turnId": 1
+    },
+    {
+      "ms": 8103,
+      "t": "partial",
+      "text": "Open the weather actually open.",
+      "turnId": 1
+    },
+    {
+      "ms": 8600,
+      "t": "partial",
+      "text": "Open the weather actually open hacker news.",
+      "turnId": 1
+    },
+    {
+      "ms": 9086,
+      "t": "partial",
+      "text": "Open the weather actually open hacker news.",
+      "turnId": 1
+    },
+    {
+      "ms": 9914,
+      "t": "transcript",
+      "text": "Open Hacker News",
+      "phase": "Corrected request"
+    },
+    {
+      "ms": 9914,
+      "t": "state",
+      "state": "thinking",
+      "text": "Open Hacker News",
+      "turnId": 1
+    },
+    {
+      "ms": 9914,
+      "t": "act",
+      "id": "mw3a45xe-1",
+      "turnId": 1,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hacker-news"
+          }
+        }
+      ]
+    },
+    {
+      "ms": 9921,
+      "t": "state",
+      "state": "idle",
+      "end": "done",
+      "reply": ""
+    },
+    {
+      "ms": 19975,
+      "t": "state",
+      "state": "listening",
+      "ptt": true
+    },
+    {
+      "ms": 22049,
+      "t": "partial",
+      "text": "Please, Kents.",
+      "turnId": 2
+    },
+    {
+      "ms": 22534,
+      "t": "partial",
+      "text": "Please cancel this man.",
+      "turnId": 2
+    },
+    {
+      "ms": 23014,
+      "t": "partial",
+      "text": "Please cancel this message.",
+      "turnId": 2
+    },
+    {
+      "ms": 23517,
+      "t": "partial",
+      "text": "Please cancel this message.",
+      "turnId": 2
+    },
+    {
+      "ms": 24329,
+      "t": "cancel-turn",
+      "turnId": 2
+    },
+    {
+      "ms": 24329,
+      "t": "state",
+      "state": "idle",
+      "end": "cancel",
+      "why": "spoken-cancel"
+    },
+    {
+      "ms": 34418,
+      "t": "state",
+      "state": "listening",
+      "ptt": true
+    },
+    {
+      "ms": 36419,
+      "t": "partial",
+      "text": "Set a timer for?",
+      "turnId": 3
+    },
+    {
+      "ms": 36921,
+      "t": "partial",
+      "text": "Set a timer for two men.",
+      "turnId": 3
+    },
+    {
+      "ms": 37411,
+      "t": "partial",
+      "text": "Set a timer for two minute second.",
+      "turnId": 3
+    },
+    {
+      "ms": 37920,
+      "t": "partial",
+      "text": "Set a timer for two minutes actually set.",
+      "turnId": 3
+    },
+    {
+      "ms": 38421,
+      "t": "partial",
+      "text": "Set a timer for two minutes actually set a timer.",
+      "turnId": 3
+    },
+    {
+      "ms": 38880,
+      "t": "partial",
+      "text": "Set a timer for two minutes actually set a timer for ten.",
+      "turnId": 3
+    },
+    {
+      "ms": 39364,
+      "t": "partial",
+      "text": "Set a timer for two minutes, actually set a timer for ten minutes.",
+      "turnId": 3
+    },
+    {
+      "ms": 39839,
+      "t": "partial",
+      "text": "Set a timer for two minutes, actually set a timer for ten minutes.",
+      "turnId": 3
+    },
+    {
+      "ms": 40671,
+      "t": "transcript",
+      "text": "set a timer for ten minutes.",
+      "phase": "Corrected request"
+    },
+    {
+      "ms": 40671,
+      "t": "state",
+      "state": "thinking",
+      "text": "set a timer for ten minutes.",
+      "turnId": 3
+    },
+    {
+      "ms": 40671,
+      "t": "act",
+      "id": "mw3a4tnr-2",
+      "turnId": 3,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "10"
+          }
+        }
+      ]
+    },
+    {
+      "ms": 40682,
+      "t": "state",
+      "state": "idle",
+      "end": "done",
+      "reply": ""
+    }
+  ],
+  "logs": "[voice] 2026-11-05T08:23:46.641Z QA input: 3 clip(s), 41.5 s\n[voice] 2026-11-05T08:23:46.656Z events on http://127.0.0.1:8857/events\n[voice] 2026-11-05T08:23:48.869Z push-to-talk\n[voice] 2026-11-05T08:23:53.847Z asr turnaround: 336 ms\n[voice] 2026-11-05T08:23:53.849Z request (ptt, 42 chars)\n[voice] 2026-11-05T08:23:53.865Z direct open: 7 ms\n[voice] 2026-11-05T08:23:53.865Z done in 12 ms (ok)\n[voice] 2026-11-05T08:24:03.916Z push-to-talk\n[voice] 2026-11-05T08:24:08.268Z asr turnaround: 383 ms\n[voice] 2026-11-05T08:24:08.269Z request (ptt, 26 chars)\n[voice] 2026-11-05T08:24:08.272Z cancel (spoken-cancel)\n[voice] 2026-11-05T08:24:18.359Z push-to-talk\n[voice] 2026-11-05T08:24:24.609Z asr turnaround: 579 ms\n[voice] 2026-11-05T08:24:24.610Z request (ptt, 66 chars)\n[voice] 2026-11-05T08:24:24.626Z direct command: 11 ms\n[voice] 2026-11-05T08:24:24.627Z done in 15 ms (ok)\n"
+}

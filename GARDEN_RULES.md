@@ -126,3 +126,5 @@ every day, including quiet no-feedback days.
 - Keep entries short and concrete. Date removals so the history is legible.
 
 - **Transit reauthorized (2026-11-04):** the humans requested nearby bus/train arrivals and locations and supplied a location and 511 token. This explicitly lifts the earlier transit ban for the new `transit` widget. Keep it based on real provider data, with freshness and missing-data states; credentials remain server-side.
+
+- **Live voice transcription (2026-11-05):** show the active utterance as it is recognized, including revisions, with a clear Cancel action. Clear it after the turn; do not persist household transcripts. Spoken cancellation discards the voice request; named actions such as “stop the timer” remain actions.

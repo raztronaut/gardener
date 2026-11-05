@@ -1,0 +1,413 @@
+{
+  "at": "2026-11-05T08:25:40.369Z",
+  "passed": 78,
+  "total": 78,
+  "rows": [
+    {
+      "text": "cancel",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "stop",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "please stop",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "stop that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "don't do that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "do not do that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "open weather actually stop",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "cancel that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "please cancel my request",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "never mind",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "scratch that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "stop listening",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "stop the voice message",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "discard that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "open weather actually cancel that",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "open news never mind",
+      "expected": "cancel",
+      "actual": "cancel",
+      "ok": true
+    },
+    {
+      "text": "stop the timer",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "stop the botanist",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "cancel the countdown",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "stop editing",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "stop the music",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "how do I cancel that subscription",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "type cancel that",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "say never mind",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "search for stop listening",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "write stop listening",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "open the weather",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "do not cancel that",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "how do I cancel that",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "why do people say cancel that",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "never mind the weather show news",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "do not stop the timer",
+      "expected": "submit",
+      "actual": "submit",
+      "ok": true
+    },
+    {
+      "text": "open weather actually",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "set a timer for",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "open the",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "move clock to",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "what is the weather and",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "wait",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "hold on",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "open weather I mean",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "start a timer for five no sorry",
+      "expected": "wait",
+      "actual": "wait",
+      "ok": true
+    },
+    {
+      "text": "open weather actually open hacker news",
+      "expected": "correct",
+      "actual": "correct",
+      "ok": true
+    },
+    {
+      "text": "set a timer for five no ten minutes",
+      "expected": "correct",
+      "actual": "correct",
+      "ok": true
+    },
+    {
+      "text": "set a timer for 5 minutes actually 10 minutes",
+      "expected": "correct",
+      "actual": "correct",
+      "ok": true
+    },
+    {
+      "text": "open weather no actually show the clock",
+      "expected": "correct",
+      "actual": "correct",
+      "ok": true
+    },
+    {
+      "text": "open weather no clock",
+      "expected": "correct",
+      "actual": "correct",
+      "ok": true
+    },
+    {
+      "text": "open weather i mean show the clock",
+      "expected": "correct",
+      "actual": "correct",
+      "ok": true
+    },
+    {
+      "text": "open the weather",
+      "ok": true
+    },
+    {
+      "text": "show the weather",
+      "ok": true
+    },
+    {
+      "text": "show me the weather",
+      "ok": true
+    },
+    {
+      "text": "open the air quality",
+      "ok": true
+    },
+    {
+      "text": "show the air quality",
+      "ok": true
+    },
+    {
+      "text": "show me the air quality",
+      "ok": true
+    },
+    {
+      "text": "open the hacker news",
+      "ok": true
+    },
+    {
+      "text": "show the hacker news",
+      "ok": true
+    },
+    {
+      "text": "show me the hacker news",
+      "ok": true
+    },
+    {
+      "text": "open the fractal",
+      "ok": true
+    },
+    {
+      "text": "show the fractal",
+      "ok": true
+    },
+    {
+      "text": "show me the fractal",
+      "ok": true
+    },
+    {
+      "text": "open the clock",
+      "ok": true
+    },
+    {
+      "text": "show the clock",
+      "ok": true
+    },
+    {
+      "text": "show me the clock",
+      "ok": true
+    },
+    {
+      "text": "open the gardyn",
+      "ok": true
+    },
+    {
+      "text": "show the gardyn",
+      "ok": true
+    },
+    {
+      "text": "show me the gardyn",
+      "ok": true
+    },
+    {
+      "text": "open the transit",
+      "ok": true
+    },
+    {
+      "text": "show the transit",
+      "ok": true
+    },
+    {
+      "text": "show me the transit",
+      "ok": true
+    },
+    {
+      "text": "open the nearby transit",
+      "ok": true
+    },
+    {
+      "text": "show the nearby transit",
+      "ok": true
+    },
+    {
+      "text": "show me the nearby transit",
+      "ok": true
+    },
+    {
+      "text": "do not open the weather",
+      "ok": true
+    },
+    {
+      "text": "open weather and delete my files",
+      "ok": true
+    },
+    {
+      "text": "open the weather file",
+      "ok": true
+    },
+    {
+      "text": "make the weather purple",
+      "ok": true
+    },
+    {
+      "text": "open my news document",
+      "ok": true
+    },
+    {
+      "text": "please stop running tests",
+      "ok": true
+    },
+    {
+      "text": "stop timer and close calculator",
+      "ok": true
+    }
+  ]
+}

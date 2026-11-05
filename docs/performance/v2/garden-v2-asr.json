@@ -1,0 +1,294 @@
+{
+  "at": "2026-11-05T08:21:50.087Z",
+  "method": "36 bundled-sample decodes; clean, quiet, seeded additive noise; reversed thread order; not household audio",
+  "rows": [
+    {
+      "threads": 2,
+      "file": "en-english.wav",
+      "condition": "clean",
+      "ms": 186,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "file": "en-english.wav",
+      "condition": "quiet",
+      "ms": 117,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "file": "en-english.wav",
+      "condition": "noise",
+      "ms": 116,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "file": "0.wav",
+      "condition": "clean",
+      "ms": 547,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "file": "0.wav",
+      "condition": "quiet",
+      "ms": 535,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "file": "0.wav",
+      "condition": "noise",
+      "ms": 495,
+      "correct": false,
+      "text": "Well, I don't wish to see it anymore, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 1,
+      "file": "en-english.wav",
+      "condition": "clean",
+      "ms": 154,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "file": "en-english.wav",
+      "condition": "quiet",
+      "ms": 149,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "file": "en-english.wav",
+      "condition": "noise",
+      "ms": 144,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "file": "0.wav",
+      "condition": "clean",
+      "ms": 719,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 1,
+      "file": "0.wav",
+      "condition": "quiet",
+      "ms": 746,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 1,
+      "file": "0.wav",
+      "condition": "noise",
+      "ms": 699,
+      "correct": false,
+      "text": "Well, I don't wish to see it anymore, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "file": "en-english.wav",
+      "condition": "clean",
+      "ms": 132,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "file": "en-english.wav",
+      "condition": "quiet",
+      "ms": 201,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "file": "en-english.wav",
+      "condition": "noise",
+      "ms": 174,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "file": "0.wav",
+      "condition": "clean",
+      "ms": 480,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "file": "0.wav",
+      "condition": "quiet",
+      "ms": 530,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "file": "0.wav",
+      "condition": "noise",
+      "ms": 489,
+      "correct": false,
+      "text": "Well, I don't wish to see it anymore, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "file": "en-english.wav",
+      "condition": "clean",
+      "ms": 127,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "file": "en-english.wav",
+      "condition": "quiet",
+      "ms": 151,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "file": "en-english.wav",
+      "condition": "noise",
+      "ms": 119,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 4,
+      "file": "0.wav",
+      "condition": "clean",
+      "ms": 536,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "file": "0.wav",
+      "condition": "quiet",
+      "ms": 592,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 4,
+      "file": "0.wav",
+      "condition": "noise",
+      "ms": 635,
+      "correct": false,
+      "text": "Well, I don't wish to see it anymore, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 1,
+      "file": "en-english.wav",
+      "condition": "clean",
+      "ms": 155,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "file": "en-english.wav",
+      "condition": "quiet",
+      "ms": 154,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "file": "en-english.wav",
+      "condition": "noise",
+      "ms": 145,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 1,
+      "file": "0.wav",
+      "condition": "clean",
+      "ms": 722,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 1,
+      "file": "0.wav",
+      "condition": "quiet",
+      "ms": 728,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 1,
+      "file": "0.wav",
+      "condition": "noise",
+      "ms": 703,
+      "correct": false,
+      "text": "Well, I don't wish to see it anymore, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "file": "en-english.wav",
+      "condition": "clean",
+      "ms": 119,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "file": "en-english.wav",
+      "condition": "quiet",
+      "ms": 112,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "file": "en-english.wav",
+      "condition": "noise",
+      "ms": 108,
+      "correct": true,
+      "text": "I love you."
+    },
+    {
+      "threads": 2,
+      "file": "0.wav",
+      "condition": "clean",
+      "ms": 532,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "file": "0.wav",
+      "condition": "quiet",
+      "ms": 587,
+      "correct": true,
+      "text": "Well, I don't wish to see it any more, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    },
+    {
+      "threads": 2,
+      "file": "0.wav",
+      "condition": "noise",
+      "ms": 832,
+      "correct": false,
+      "text": "Well, I don't wish to see it anymore, observed Phoebe, turning away her eyes. It is certainly very like the old portrait."
+    }
+  ]
+}

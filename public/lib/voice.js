@@ -1,3 +1,4 @@
+import { makeTranscript } from './voice-transcript.js';
 // The Gardener™ — "Hey Garden" on the wall: the Siri-style edge glow, the live words,
 // the sounds and the tool calls (the listening itself is src/voice.mjs, on-device).
 //
@@ -196,6 +197,13 @@ function makeCalib() {
 }
 
 export function startVoice(api) {
+  const transcript = makeTranscript({cancel: () => post('/control', {cancel: true}), style: `
+    #voiceTranscript { position:fixed; z-index:550; left:5%; right:5%; bottom:110px; padding:20px 24px; border-radius:22px; background:var(--bg-1,#091c14); color:var(--ink,#e0f5e9); border:1px solid var(--stroke); box-shadow:0 8px 32px #0006; font-family:var(--font); }
+    #voiceTranscript[hidden] { display:none; }
+    .vt-label { font-size:15px; color:var(--ink-soft); margin-bottom:8px; }
+    .vt-text { font-size:26px; line-height:1.3; max-height:145px; overflow:auto; padding-right:100px; white-space:pre-wrap; }
+    #voiceTranscript button { position:absolute; right:20px; top:20px; border:1px solid var(--stroke); border-radius:12px; background:transparent; color:inherit; font:inherit; padding:10px 14px; cursor:pointer; }
+  `});
   const glow = makeGlow();
   const cap = makeCaption(api);
   const bcard = makeBotanistCard(api);
@@ -207,9 +215,10 @@ export function startVoice(api) {
   const arm = () => { clearTimeout(watchdog); if (busy) watchdog = setTimeout(() => { if (Date.now() - lastEv > 11000) settle(); else arm(); }, 12000); };
   const post = (path, body) => fetch(ORIGIN + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
 
+  const cancelledTurns = new Set();
   const onEvent = async (ev) => {
     lastEv = Date.now();
-    if (ev.t === 'hello') { enabled = ev.enabled; if (ev.state === 'idle') settle(); glow && glow.work(!!ev.botanist); return; }
+    if (ev.t === 'hello') { cancelledTurns.clear(); enabled = ev.enabled; if (ev.state === 'idle') settle(); glow && glow.work(!!ev.botanist); return; }
     if (ev.t === 'enabled') { enabled = ev.enabled; api.toast(enabled ? 'Hey Garden is listening again' : 'Hey Garden is off — the mic is closed'); return; }
     if (ev.t === 'level') { glow && glow.level(ev.v); return; }
     if (ev.t === 'calib') {
@@ -219,12 +228,15 @@ export function startVoice(api) {
       lastEv = Date.now(); arm();
       return;
     }
-    if (ev.t === 'partial') return; // (listening is the glowing edges only — words appear for the response)
+    if (ev.t === 'partial') { if (busy) transcript.update(ev.text, 'Listening · words may revise'); return; }
+    if (ev.t === 'transcript') { transcript.update(ev.text, ev.phase || 'Heard'); return; }
+    if (ev.t === 'cancel-turn') { cancelledTurns.add(ev.turnId); if(cancelledTurns.size>64)cancelledTurns.delete(cancelledTurns.values().next().value); return; }
     if (ev.t === 'context') { post('/reply', { id: ev.id, data: api.context() }); return; }
     if (ev.t === 'act') {
       const out = [];
       const calls = ev.calls || [];
       for (const [index, c] of calls.entries()) {
+        if (ev.turnId && cancelledTurns.has(ev.turnId)) break;
         try { out.push(await api.act(c)); } catch (e) { out.push({ ok: false, error: String(e && e.message || e) }); }
         if (index < calls.length - 1) await new Promise((r) => setTimeout(r, 90)); // pause BETWEEN actions only
       }
@@ -248,12 +260,15 @@ export function startVoice(api) {
       glow && glow.wake();
       api.sound('listen');
       cap.hide(0);
+      transcript.update('', 'Listening');
     } else if (ev.state === 'thinking') {
+      transcript.update(ev.text || '', 'Working');
       arm();
       glow && glow.think();
       api.sound('heard');
     } else if (ev.state === 'idle' && busy) {
       busy = false; clearTimeout(watchdog);
+      transcript.hide(ev.end === 'cancel' ? 0 : 1400);
       const end = ev.end || 'cancel';
       glow && glow.end(end);
       if (end === 'done') {

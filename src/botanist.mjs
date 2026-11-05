@@ -67,8 +67,8 @@ async function status(id) {
 // agents, "[User] <first line>" from Codex) followed by its lines, tool steps ("[Shell] <cmd>"),
 // and the agent's words. The reply = the lines after the last "[...]" header, minus the sent
 // prompt's own lines.
-async function lastReply(id, sentPrompt = '') {
-  const a = await mcp('get_agent_activity', { agentId: id, limit: 12 });
+async function lastReply(id, sentPrompt = '', timeoutMs = 8000) {
+  const a = await mcp('get_agent_activity', { agentId: id, limit: 12 }, timeoutMs);
   const text = String(typeof a === 'string' ? a : a.content || a.activity || '');
   const lines = text.split('\n');
   let h = -1;
@@ -142,10 +142,11 @@ function watch(id, notify, log, prompt = '', baseline = '') {
 let held = null; // { task, at }
 const HOLD_MS = 3 * 60 * 1000;
 
-async function sendTask(id, task, notify, log) {
+async function sendTask(id, task, notify, log, signal) {
   const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
   let baseline = '';
-  try { baseline = await lastReply(id); } catch { /* optional; no stale fast completion without baseline */ baseline = null; }
+  try { baseline = await lastReply(id, '', 250); } catch { /* optional; no stale fast completion without baseline */ baseline = null; }
+  signal?.throwIfAborted();
   try { await mcp('send_agent_prompt', { agentId: id, prompt, activeTurnBehavior: 'steer', notifyOnFinish: false }, 10000); }
   catch (err) { log(`botanist: mcp send failed (${err.message}) — using the CLI`); await cli(['send', id, '--no-wait', '--behavior', 'steer', '--prompt', prompt]); }
   watch(id, notify, log, prompt, baseline);
@@ -153,7 +154,8 @@ async function sendTask(id, task, notify, log) {
 }
 
 // action: ask | status | allow | deny | stop
-export async function botanist({ action = 'ask', task = '' } = {}, { notify = () => {}, log = () => {} } = {}) {
+export async function botanist({ action = 'ask', task = '' } = {}, { notify = () => {}, log = () => {}, signal } = {}) {
+  signal?.throwIfAborted();
   const id = botanistId();
   if (!id) return { ok: false, error: 'The Botanist is not connected (no agent id set).' };
   try {
@@ -162,6 +164,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
       // the gatekeeper (Jev): harmless → straight to the Botanist; anything that changes something
       // → held for "allow it"; destructive → refused. If Jev can't be reached, it asks (fails closed).
       const r = await riskOf(task, { timeoutMs: 1500 }).catch(() => null);
+      signal?.throwIfAborted();
       log(`botanist: risk ${r ? `${r.risk} ${Math.round(r.confidence * 100)}%` : 'unknown (jev unreachable)'}`);
       if (r && r.risk === 'block' && r.confidence >= 0.5) {
         notify({ kind: 'error', text: `I won't do that by voice: "${clip(task, 160)}". It could lose or expose something important — do it from Paseo if you really mean it.` });
@@ -172,7 +175,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
         notify({ kind: 'permission', text: `Before I do this — "${clip(task, 200)}". Say "Hey Garden, allow it" or "deny it".` });
         return { ok: true, say: 'The Botanist is waiting for your OK.' };
       }
-      await sendTask(id, task, notify, log);
+      await sendTask(id, task, notify, log, signal);
       return { ok: true, say: 'Sent to the Botanist.' };
     }
     if (action === 'status') {
@@ -188,7 +191,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
       if (held && Date.now() - held.at < HOLD_MS) {
         const t = held.task; held = null;
         if (action === 'deny') { notify({ kind: 'dismiss' }); return { ok: true, say: 'Okay — I won’t.' }; }
-        await sendTask(id, t, notify, log);
+        await sendTask(id, t, notify, log, signal);
         return { ok: true, say: 'Allowed — the Botanist is on it.' };
       }
       held = null;

@@ -1,0 +1,106 @@
+{
+  "at": "2026-11-05T08:22:51.549Z",
+  "method": "real local MCP read-only status/activity calls; no agents spawned or prompted",
+  "rows": [
+    {
+      "method": "get_agent_activity",
+      "ms": 3319.49,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 55.35,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 90.32,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 55.33,
+      "ok": true
+    },
+    {
+      "method": "get_agent_activity",
+      "ms": 80.62,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 65.13,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 118.95,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 32.67,
+      "ok": true
+    },
+    {
+      "method": "get_agent_activity",
+      "ms": 30.46,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 22.34,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 29.45,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 40.76,
+      "ok": true
+    },
+    {
+      "method": "get_agent_activity",
+      "ms": 33.26,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 35.39,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 32.16,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 32.47,
+      "ok": true
+    },
+    {
+      "method": "get_agent_activity",
+      "ms": 32.22,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 52.78,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 24.48,
+      "ok": true
+    },
+    {
+      "method": "get_agent_status",
+      "ms": 30.62,
+      "ok": true
+    }
+  ]
+}

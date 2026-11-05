@@ -28,6 +28,8 @@ You are a capable, friendly assistant, not only a remote control: answer any que
 
 The speech-to-text doesn't know the wall's names — expect them misheard: Gardyn (the indoor garden widget) as "garden", "gardening", "open me"; Bomberman as "bomber man" or dropped ("play super, the garden edition" = Super Bomberman: The Garden Edition); Hacker News as "hacker", "the news"; Out in SF as "outing", "out in essay", "events"; the Trihourly Fractal as "fractal", "the art"; Painting of the Day as "the painting"; rainforest places (Amazon, Mata Atlântica = "atlantic", Borneo, Daintree, Olympic, Yosemite). Match to the closest real thing.
 
+Respect self-corrections: act only on the final intended request. “Stop the timer” is a timer action; “cancel this voice message” discards the utterance. Never execute an abandoned clause. If a correction is incomplete or ambiguous, ask what they meant without calling an action tool.
+
 Act through your tools: they do exactly what tapping, clicking or the game controller does on the wall. Use the FEWEST calls — usually exactly one; never call a tool without its arguments, and never repeat a call. A request to DO something must always be done with a tool call — never answer it with words only. Rules:
 - In the SAME response, call the tools you need AND write the reply: one short, warm sentence (at most ~10 words) saying what you did or answering, e.g. "Opening the weather." / "Volume down to 30%." / "It's 54° and clear tonight." No emojis, no markdown.
 - Questions about what's on the wall (weather, air, events, news, the painting, the garden, the time): answer from the snapshot in at most ~20 words; open the widget too only if they ask to see it.
@@ -89,12 +91,15 @@ const clip = (s, n) => (String(s || '').length > n ? String(s).slice(0, n - 1) +
 const HISTORY_MS = 3 * 60 * 1000;
 let history = [];
 
-export async function runAgent(text, { context, call, notify = () => {}, log = () => {} }) {
+export async function runAgent(text, { context, call, notify = () => {}, log = () => {}, signal }) {
+  signal?.throwIfAborted();
   const direct = directAction(text);
   if (direct) {
     const began = performance.now();
     try {
+      signal?.throwIfAborted();
       const got = await call([direct]);
+      signal?.throwIfAborted();
       const result = Array.isArray(got) ? got[0] : got;
       log(`direct ${direct.name}: ${Math.round(performance.now() - began)} ms`);
       if (result?.ok === true) {
@@ -115,6 +120,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   const control = /\b(allow|approve|deny|reject|stop|cancel|halt|what('s| is) the botanist|botanist doing|status)\b/i.test(text);
   const jevP = control ? Promise.resolve(null) : routeRequest(text, { timeoutMs: 1200 }).catch(() => null);
   const snap = await context();
+  signal?.throwIfAborted();
   if (process.env.GARDENER_VOICE_DEBUG === '1') log(`QA request: ${JSON.stringify(text)} snapshot: ${JSON.stringify(snap).slice(0, 300)}`);
   const now = new Intl.DateTimeFormat('en-US', { timeZone: config.tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date());
   const openNow = snap && snap.open ? `the "${snap.open.title}" panel is open` : snap && snap.dashboard && snap.dashboard !== 'main' ? `the ${snap.dashboard} dashboard is showing` : 'nothing is open (the main wall)';
@@ -124,21 +130,25 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
   let reply = '', lastFailed = false, acted = false;
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const ctl = new AbortController();
-    const resP = client.messages.create({ model: MODEL, max_tokens: 3000, system: SYSTEM, tools: TOOLS, messages }, { signal: ctl.signal });
+    const resP = client.messages.create({ model: MODEL, max_tokens: 3000, system: [{type:'text',text:SYSTEM,cache_control:{type:'ephemeral'}}], tools: TOOLS, messages }, { signal: signal ? AbortSignal.any([signal, ctl.signal]) : ctl.signal });
     resP.catch(() => {}); // routing may still be pending when the model rejects
     if (round === 0) {
-      const j = await jevP;
+      // A slow router must not hold a completed answer/tool response hostage.
+      const first = await Promise.race([jevP.then(j => ({j})), resP.then(res => ({res}))]);
+      const j = first.j;
       if (j) log(`jev: ${j.route} ${Math.round(j.confidence * 100)}% (${j.ms} ms)`);
       if (j && j.route === 'botanist' && j.confidence >= JEV_SURE && (j.p.botanist ?? 0) >= 0.7) {
         ctl.abort(); resP.catch(() => {});
-        const r = await botanist({ action: 'ask', task: text }, { notify, log });
+        signal?.throwIfAborted();
+        const r = await botanist({ action: 'ask', task: text }, { notify, log, signal });
         log(`tools: botanist (via jev)${r.ok ? '' : ' (failed)'}`);
         history.push({ q: clip(text, 300), a: r.ok ? `(${r.say || 'sent to the Botanist'})` : r.error, at: Date.now() });
         return r.ok ? { ok: true, reply: '' } : { ok: false, reply: r.error || 'I couldn’t reach the Botanist.' };
       }
     }
     const res = await resP;
-    log(`model round ${round + 1}: ${Date.now() - t0} ms, ${res.usage?.input_tokens ?? '?'} in / ${res.usage?.output_tokens ?? '?'} out`);
+    signal?.throwIfAborted();
+    log(`model round ${round + 1}: ${Date.now() - t0} ms, ${res.usage?.input_tokens ?? '?'} in / ${res.usage?.output_tokens ?? '?'} out / ${res.usage?.cache_read_input_tokens ?? 0} cache-read / ${res.usage?.cache_creation_input_tokens ?? 0} cache-write`);
     const said = res.content.filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
     if (said) reply = said;
     // a long server-side search can pause the turn: hand it back to carry on
@@ -152,10 +162,11 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
     if (!uses.length) break;                     // answered (or explained a failure)
     // the botanist runs here (the Paseo bridge); everything else is the wall's
     const wallUses = uses.filter((u) => u.name !== 'botanist');
+    signal?.throwIfAborted();
     const got = wallUses.length ? await call(wallUses.map((u) => ({ name: u.name, input: u.input }))) : [];
     const wallList = Array.isArray(got) ? got : wallUses.map(() => got);
     const list = [];
-    for (const u of uses) list.push(u.name === 'botanist' ? await botanist(u.input || {}, { notify, log }) : wallList[wallUses.indexOf(u)]);
+    for (const u of uses) list.push(u.name === 'botanist' ? await botanist(u.input || {}, { notify, log, signal }) : wallList[wallUses.indexOf(u)]);
     // tool names + ok/failed only; the inputs (which can carry the person's words) only with
     // GARDENER_VOICE_DEBUG=1 (QA) — never in normal running
     log(`tools: ${uses.map((u, i) => `${u.name}${process.env.GARDENER_VOICE_DEBUG === '1' ? JSON.stringify(u.input) + '→' + JSON.stringify(list[i]) : list[i]?.ok === false ? ' (failed)' : ''}`).join(', ')}`);
@@ -170,6 +181,7 @@ export async function runAgent(text, { context, call, notify = () => {}, log = (
     messages.push({ role: 'user', content: uses.map((u, i) => ({ type: 'tool_result', tool_use_id: u.id, is_error: !list[i] || list[i].ok === false,
       content: clip(!list[i] || list[i].ok === false ? (list[i]?.error || 'failed') : (list[i].info || 'done'), 2000) })) });
   }
+  signal?.throwIfAborted();
   const ok = !lastFailed;
   reply = clip(reply.replace(/\s+/g, ' ').replace(/[*_#`]/g, ''), 2400); // shown whole (long ones as a sheet, lib/voice.js)
   history.push({ q: clip(text, 300), a: acted ? `(did it${reply ? ': ' + reply : ''})` : reply, at: Date.now() });

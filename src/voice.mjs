@@ -22,6 +22,7 @@ import { Worker } from 'node:worker_threads';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { paths } from './config.mjs';
+import { VoiceTurns, editUtterance, silenceBudget } from './voice-turn.mjs';
 import { runAgent } from './voiceagent.mjs';
 import { botanistWorking } from './botanist.mjs';
 import { meantForWall } from './jev.mjs';
@@ -50,6 +51,8 @@ const escRe = (w) => w.replace(/[^a-z]/gi, '');
 let WAKE_RE = null;
 const buildWakeRe = () => { WAKE_RE = new RegExp(`\\b(hey|hay|hi|hei|heya|ok(ay)?)\\b[\\s,.!?-]*(gard[eio]?ns?${CAL.words.map((w) => '|' + escRe(w)).join('')})\\b`, 'i'); };
 buildWakeRe();
+const turns = new VoiceTurns();
+let captureEpoch = 0, latestPartial = '', partialCapture = 0;
 const RING_S = 2.5, MAX_S = 12, END_SILENCE_MS = 750, NO_SPEECH_MS = 5000, PARTIAL_MS = 450;
 
 // events only (wake, timings, tool names) — never what was said; capped at ~256 KB
@@ -120,13 +123,17 @@ let primary = null; // the most recently connected wall: the one that answers co
 const send = (ev) => { const line = `data: ${JSON.stringify(ev)}\n\n`; for (const c of clients) { try { c.write(line); } catch { clients.delete(c); } } };
 const pending = new Map(); // request id → resolve (tool results / context from the wall)
 let reqN = 0;
-function askWall(type, payload, timeoutMs = 6000) {
+function askWall(type, payload, timeoutMs = 6000, signal) {
   const id = `${Date.now().toString(36)}-${++reqN}`;
   return new Promise((resolve) => {
+    if (signal?.aborted) return resolve({ ok: false, error: 'cancelled' });
     if (!primary) return resolve({ ok: false, error: 'the wall is not connected' });
-    const t = setTimeout(() => { pending.delete(id); resolve({ ok: false, error: 'the wall did not answer' }); }, timeoutMs);
-    pending.set(id, (v) => { clearTimeout(t); pending.delete(id); resolve(v); });
-    try { primary.write(`data: ${JSON.stringify({ t: type, id, ...payload })}\n\n`); } catch { /* gone */ }
+    const settle = (value) => { clearTimeout(t); pending.delete(id); signal?.removeEventListener('abort', aborted); resolve(value); };
+    const aborted = () => settle({ok:false,error:'cancelled'});
+    const t = setTimeout(() => settle({ok:false,error:'the wall did not answer'}), timeoutMs);
+    signal?.addEventListener('abort', aborted, {once:true});
+    pending.set(id, settle);
+    try { primary.write(`data: ${JSON.stringify({ t: type, id, turnId: turns.current?.id, ...payload })}\n\n`); } catch { /* gone */ }
   });
 }
 
@@ -143,7 +150,7 @@ const setState = (s, extra = {}) => { state = s; send({ t: 'state', state: s, ..
 function onAudio(x) {
   if (CAL.gain !== 1) for (let i = 0; i < x.length; i++) { const v = x[i] * CAL.gain; x[i] = v > 1 ? 1 : v < -1 ? -1 : v; } // calibrated mic boost
   if (state === 'calibrating') { calibAudio(x); return; }
-  if (state === 'idle') {
+  if (state === 'idle' || state === 'thinking') {
     ringPush(x);
     for (const st of [kwsA, kwsB]) {
       if (!st) continue;
@@ -163,7 +170,7 @@ function onAudio(x) {
     while (!vad.isEmpty()) vad.pop();
     return;
   }
-  if (state !== 'listening') return; // thinking: the mic is ignored (nothing buffered)
+  if (state !== 'listening' && state !== 'finalizing') return;
   // level for the edge animation (~30 Hz): RMS → 0..1, quick attack / slower release
   let e = 0; for (let i = 0; i < x.length; i++) e += x[i] * x[i];
   const rms = Math.sqrt(e / Math.max(1, x.length));
@@ -176,9 +183,11 @@ function onAudio(x) {
   vad.acceptWaveform(x);
   if (vad.isDetected()) { heardSpeech = true; tLastSpeech = now; }
   while (!vad.isEmpty()) vad.pop();
+  if (state === 'finalizing') return; // keep VAD/audio while the candidate final is decoding
   if (heardSpeech && !partialBusy && now - lastPartialAt > PARTIAL_MS) {
     lastPartialAt = now; partialBusy = true;
-    transcribe(utter.subarray(0, utterLen)).then((p) => { partialBusy = false; p = stripWake(p); if (p && state === 'listening') send({ t: 'partial', text: p }); });
+    const epoch = captureEpoch, len = utterLen;
+    transcribe(utter.subarray(0, len)).then((p) => { if (epoch !== captureEpoch) return; partialBusy = false; p = stripWake(p); if (p && state === 'listening') { latestPartial = p; partialCapture = len; send({ t: 'partial', text: p, turnId: turns.current?.id }); } });
   }
   if (utterLen >= utter.length) return finish('max');
   if (ptt) {
@@ -187,7 +196,7 @@ function onAudio(x) {
     if (pttUp && ((now - pttUp > 350 && now - tLastSpeech > 300) || now - pttUp > 1200)) { ptt = false; return heardSpeech ? finish('ptt') : cancel('ptt-empty'); }
     return;
   }
-  if (heardSpeech && now - tLastSpeech > END_SILENCE_MS) return finish('end');
+  if (heardSpeech && now - tLastSpeech > silenceBudget(latestPartial)) return finish('end');
   if (!heardSpeech && now - tWake > NO_SPEECH_MS) return cancel('silence');
 }
 
@@ -200,57 +209,78 @@ async function onKeyword() {
   // WITH that window (the spotter fires a beat after "garden", so a request said in one
   // breath — "hey garden open the weather" — would otherwise lose its first word); the
   // wake words are stripped from the text. Meanwhile the audio keeps flowing in.
+  const previous = state;
+  const epoch = ++captureEpoch;
   state = 'checking'; vad.reset(); heardSpeech = false;
   const win = ringLast(RATE * 2);
   utter.set(win, 0); utterLen = win.length;
   const heard = await transcribe(win);
-  if (!WAKE_RE.test(heard)) { log('wake rejected by the speech check'); utterLen = 0; resetSpotter(); state = 'idle'; return; }
+  if (epoch !== captureEpoch || state !== 'checking') return;
+  if (!WAKE_RE.test(heard)) { log('wake rejected by the speech check'); utterLen = 0; resetSpotter(); state = previous === 'thinking' && turns.current ? 'thinking' : 'idle'; return; }
+  if (turns.current) send({t:'cancel-turn',turnId:turns.current.id});
+  turns.begin(); latestPartial=''; partialCapture=0;
   log('wake');
   // words already said after "garden" (in the window, or during the check) count as speech
   const said = !!stripWake(heard) || heardSpeech;
   tWake = Date.now(); tLastSpeech = tWake; heardSpeech = said; lastPartialAt = 0; level = 0; partialBusy = false;
   setState('listening');
+  const initial=stripWake(heard); if(initial)send({t:'partial',text:initial});
 }
 
 function cancel(why) {
+  if (turns.current) send({t:'cancel-turn',turnId:turns.current.id});
+  turns.cancel(); captureEpoch++; ptt=false; pttUp=0; partialBusy=false; latestPartial=''; partialCapture=0;
   log(`cancel (${why})`);
-  utterLen = 0; vad.reset(); resetSpotter();
-  setState('idle', { end: 'cancel', why });
+  utter.fill(0,0,utterLen); utterLen=0; vad.reset(); resetSpotter();
+  setState('idle', {end:'cancel',why});
 }
-
-// "hey garden, open the weather" → "open the weather" (only a wake phrase near the start)
 const stripWake = (t) => String(t || '')
   .replace(/^\s*(?:\S+\s+){0,2}?(?:hey|hay|hi|hei|heya|ok(?:ay)?)\b[\s,.!?-]*gard[eio]?ns?\b[\s,.!?-]*/i, '')
   .replace(/^\s*gard[eio]?ns?\b[\s,.!?-]+/i, '').trim();
-async function finish(why) {
-  state = 'thinking';
-  const text = stripWake(await transcribe(utter.subarray(0, utterLen), true));
-  utter.fill(0, 0, utterLen); utterLen = 0; vad.reset(); // the audio is gone now
-  if (!text || text.replace(/[^a-z]/gi, '').length < 2) return cancel('nothing');
-  log(`request (${why}, ${text.length} chars)`);
-  // a false wake? one quick Jev number (~0.2 s): was this said TO the wall? push-to-talk is
-  // always deliberate, so it's never filtered; no answer from Jev = carry on
-  if (why !== 'ptt' && !ptt) {
-    const m = await meantForWall(text, { timeoutMs: 800 }).catch(() => null);
-    if (m && m.p < WAKE_MIN) { log(`not for me (jev ${m.p}, ${m.ms} ms)`); return cancel('not-for-me'); }
+async function executeText(raw, turn, why) {
+  if (!turns.isCurrent(turn)) return;
+  const edited=editUtterance(raw);
+  if (edited.kind==='cancel') return cancel('spoken-cancel');
+  if (edited.kind==='wait') {
+    setState('idle',{end:'fail',reply:'I heard an unfinished correction. Please say the full request again.'}); turns.cancel(); return;
   }
-  setState('thinking', { text });
-  const t0 = Date.now();
-  const beat = setInterval(() => send({ t: 'beat' }), 4000); // a web search can take a while: keep the wall's watchdog fed
-  let out;
+  const text=edited.text;
+  send({t:'transcript',text,phase:edited.kind==='correct'?'Corrected request':'Heard'});
+  if (why!=='ptt' && why!=='qa') {
+    const m=await meantForWall(text,{timeoutMs:800}).catch(()=>null);
+    if (!turns.isCurrent(turn)) return;
+    if (m && m.p<WAKE_MIN) return cancel('not-for-me');
+  }
+  setState('thinking',{text,turnId:turn.id});
+  const t0=Date.now(), signal=turn.controller.signal;
+  const beat=setInterval(()=>send({t:'beat'}),4000);
+  const deadline=setTimeout(()=>{if(turns.isCurrent(turn)){cancel('timeout');send({t:'transcript',text:'That took too long. Please try again.',phase:'Stopped'});}},20000);
   try {
-    // the whole request is bounded: 20 s, then it gives up (never a stuck "thinking")
-    out = await Promise.race([new Promise((r) => setTimeout(() => r({ ok: false, reply: 'That took too long — try again?' }), 20000)), runAgent(text, {
-      context: () => askWall('context', {}, 2500),
-      call: (calls) => askWall('act', { calls }, 8000),
-      notify: (ev) => send({ t: 'botanist', ...ev }), // the Botanist reports back later, on its own
-      log,
-    })]);
-  } catch (e) { log(`agent: ${e.message || e}`); out = { ok: false, reply: 'Sorry — I couldn’t do that.' }; }
-  clearInterval(beat);
-  log(`done in ${Date.now() - t0} ms (${out.ok ? 'ok' : 'failed'})`);
-  resetSpotter();
-  setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '', ...(out.format ? { format: out.format } : {}) });
+    const out=await runAgent(text,{
+      signal, context:()=>askWall('context',{},2500,signal),
+      call:(calls)=>askWall('act',{calls},8000,signal),
+      notify:(ev)=>{if(!signal.aborted)send({t:'botanist',...ev});},log,
+    });
+    if (!turns.isCurrent(turn)) return;
+    log(`done in ${Date.now()-t0} ms (${out.ok?'ok':'failed'})`);
+    if(state==='checking') { turns.current=null; return; }
+    resetSpotter(); setState('idle',{end:out.ok?'done':'fail',reply:out.reply||'',...(out.format?{format:out.format}:{})});
+    turns.current=null;
+  } catch(e) {
+    if(turns.isCurrent(turn)){log(`agent failed (${e.name})`);setState('idle',{end:'fail',reply:'I couldn’t finish that request.'});turns.cancel();}
+  } finally {clearInterval(beat);clearTimeout(deadline);}
+}
+async function finish(why) {
+  const turn=turns.current;
+  if(!turn) return cancel('no-turn');
+  state='finalizing'; const epoch=captureEpoch, speechAt=tLastSpeech;
+  const text=stripWake(await transcribe(utter.subarray(0,utterLen),true));
+  if(!turns.isCurrent(turn)||epoch!==captureEpoch) return;
+  if(why !== 'max' && tLastSpeech > speechAt) { setState('listening'); latestPartial=text; send({t:'partial',text}); return; }
+  utter.fill(0,0,utterLen);utterLen=0;vad.reset();
+  if(!text||text.replace(/[^a-z]/gi,'').length<2)return cancel('nothing');
+  log(`request (${why}, ${text.length} chars)`);
+  await executeText(text,turn,why);
 }
 
 // ---- the mic -------------------------------------------------------------------------
@@ -277,9 +307,12 @@ function startWavInput(files) {
   for (const c of clips) stream.push(silence.subarray(0, RATE * 3), c, silence);
   const all = new Float32Array(stream.reduce((n, x) => n + x.length, 0)); let o = 0; for (const x of stream) { all.set(x, o); o += x.length; }
   log(`QA input: ${clips.length} clip(s), ${(all.length / RATE).toFixed(1)} s`);
+  let markerOffset=0; const markers=[];
+  clips.forEach((c,index)=>{markers.push({at:markerOffset+RATE*2,index,down:true},{at:markerOffset+RATE*3+c.length+RATE*.5,index,down:false});markerOffset+=RATE*11+c.length;});
   let pos = 0; const STEP = RATE / 50;
   const iv = setInterval(() => {
     if (pos >= all.length) { clearInterval(iv); log('QA input done'); return; }
+    while(markers.length && markers[0].at<=pos){const m=markers.shift();send({t:'qa-audio',index:m.index,down:m.down});}
     onAudio(all.slice(pos, pos + STEP)); pos += STEP;
   }, 20);
 }
@@ -339,16 +372,22 @@ http.createServer(async (req, res) => {
     let body; try { body = JSON.parse(await readBody(req)); } catch { res.writeHead(400, cors); return res.end(); }
     if (url.pathname === '/reply') { const f = pending.get(String(body.id || '')); if (f) f(body.data ?? {}); }
     else if (url.pathname === '/ptt') {
-      if (body.down && enabled && (state === 'idle' || state === 'checking')) {
+      if (body.down && enabled && (state === 'idle' || state === 'checking' || state === 'thinking' || state === 'finalizing')) {
+        if(turns.current) send({t:'cancel-turn',turnId:turns.current.id});
+        turns.begin(); captureEpoch++; latestPartial=''; partialCapture=0; partialBusy=false;
         ptt = true; pttUp = 0; resetSpotter(); vad.reset();
         const lead = ringLast(Math.round(RATE * 0.25)); utter.set(lead, 0); utterLen = lead.length; // the press may beat the first word
         tWake = Date.now(); tLastSpeech = tWake; heardSpeech = false; lastPartialAt = 0; level = 0; partialBusy = false;
         log('push-to-talk'); setState('listening', { ptt: true });
       } else if (!body.down && ptt) pttUp = Date.now();
     }
-    else if (url.pathname === '/control') { if ('enabled' in body) setEnabled(body.enabled); if (body.calibrate) startCalibration(+body.seconds || 60); }
-    else if (url.pathname === '/say' && !origin) { // QA only (curl, no browser origin): run a typed request
-      if (state === 'idle' && typeof body.text === 'string') { tWake = Date.now(); setState('listening'); setTimeout(() => { const t = body.text; utterLen = 0; (async () => { setState('thinking', { text: t }); const out = await runAgent(t, { context: () => askWall('context', {}, 2500), call: (calls) => askWall('act', { calls }, 8000), notify: (ev) => send({ t: 'botanist', ...ev }), log }).catch(() => ({ ok: false, reply: 'Sorry — I couldn’t do that.' })); setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '', ...(out.format ? { format: out.format } : {}) }); })(); }, 600); }
+    else if (url.pathname === '/control') { if (body.cancel) cancel('user'); if ('enabled' in body) setEnabled(body.enabled); if (body.calibrate) startCalibration(+body.seconds || 60); }
+    else if (url.pathname === '/say' && !origin) {
+      if(typeof body.text==='string') {
+        if(turns.current)send({t:'cancel-turn',turnId:turns.current.id});
+        const turn=turns.begin(); captureEpoch++; tWake=Date.now(); tLastSpeech=tWake; heardSpeech=false; setState('listening');
+        setTimeout(()=>{if(turns.isCurrent(turn))executeText(body.text,turn,'qa');},600);
+      }
     }
     res.writeHead(200, { ...cors, 'Content-Type': 'application/json' }); return res.end('{"ok":true}');
   }

@@ -1,0 +1,119 @@
+{
+  "at": "2026-11-05T08:19:56.130Z",
+  "sampleMs": 5022,
+  "clockTicksPerSecond": 100,
+  "top": [
+    {
+      "pid": 132898,
+      "name": "Paseo",
+      "ticks": 258690,
+      "rssKiB": 484572,
+      "cpuOneCorePercent": 105.54
+    },
+    {
+      "pid": 132869,
+      "name": "Paseo",
+      "ticks": 290956,
+      "rssKiB": 172028,
+      "cpuOneCorePercent": 99.76
+    },
+    {
+      "pid": 150094,
+      "name": "chrome",
+      "ticks": 207278,
+      "rssKiB": 145028,
+      "cpuOneCorePercent": 29.07
+    },
+    {
+      "pid": 2362,
+      "name": "gnome-shell",
+      "ticks": 1347843,
+      "rssKiB": 288128,
+      "cpuOneCorePercent": 28.67
+    },
+    {
+      "pid": 1723,
+      "name": "Xorg",
+      "ticks": 2761024,
+      "rssKiB": 189192,
+      "cpuOneCorePercent": 22.3
+    },
+    {
+      "pid": 173941,
+      "name": "node",
+      "ticks": 2016,
+      "rssKiB": 374580,
+      "cpuOneCorePercent": 19.91
+    },
+    {
+      "pid": 96403,
+      "name": "chrome",
+      "ticks": 380548,
+      "rssKiB": 286712,
+      "cpuOneCorePercent": 17.13
+    },
+    {
+      "pid": 96476,
+      "name": "chrome",
+      "ticks": 292634,
+      "rssKiB": 276256,
+      "cpuOneCorePercent": 16.73
+    },
+    {
+      "pid": 273,
+      "name": "irq/199-gk20a_s",
+      "ticks": 454910,
+      "rssKiB": 0,
+      "cpuOneCorePercent": 5.77
+    },
+    {
+      "pid": 132611,
+      "name": "Paseo",
+      "ticks": 22085,
+      "rssKiB": 115628,
+      "cpuOneCorePercent": 5.18
+    },
+    {
+      "pid": 1647,
+      "name": "pulseaudio",
+      "ticks": 591723,
+      "rssKiB": 20520,
+      "cpuOneCorePercent": 3.98
+    },
+    {
+      "pid": 89673,
+      "name": "Paseo Daemon",
+      "ticks": 72056,
+      "rssKiB": 234356,
+      "cpuOneCorePercent": 3.78
+    },
+    {
+      "pid": 148725,
+      "name": "chrome",
+      "ticks": 28965,
+      "rssKiB": 57460,
+      "cpuOneCorePercent": 3.58
+    },
+    {
+      "pid": 741,
+      "name": "sugov:4",
+      "ticks": 78813,
+      "rssKiB": 0,
+      "cpuOneCorePercent": 2.39
+    },
+    {
+      "pid": 167185,
+      "name": "codex",
+      "ticks": 1059,
+      "rssKiB": 315200,
+      "cpuOneCorePercent": 2.19
+    }
+  ],
+  "memory": [
+    "MemTotal:        7802744 kB",
+    "MemAvailable:    2019540 kB",
+    "SwapTotal:       3901344 kB",
+    "SwapFree:        1696824 kB"
+  ],
+  "load": "6.09 5.37 4.59 7/1385 174847"
+}

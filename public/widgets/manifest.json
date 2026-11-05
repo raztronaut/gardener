@@ -70,6 +70,12 @@
       "file": "transit.js",
       "enabled": true,
       "order": 11
+    },
+    {
+      "id": "rss",
+      "file": "rss.js",
+      "enabled": true,
+      "order": 12
     }
   ]
 }

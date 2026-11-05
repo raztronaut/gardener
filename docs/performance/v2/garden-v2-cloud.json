@@ -1,0 +1,449 @@
+{
+  "at": "2026-11-05T08:21:05.718Z",
+  "method": "interleaved real model APIs, stubbed wall actions; small convenience sample; before/after share local imported helpers",
+  "rows": [
+    {
+      "label": "before",
+      "repetition": 0,
+      "text": "Could you bring up the weather panel?",
+      "ms": 1031,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (461 ms)",
+        "model round 1: 1023 ms, 8709 in / 46 out",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 0,
+      "text": "Could you bring up the weather panel?",
+      "ms": 759,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (176 ms)",
+        "model round 1: 753 ms, 235 in / 46 out / 8565 cache-read / 0 cache-write",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 0,
+      "text": "Please show me the latest Hacker News",
+      "ms": 883,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hn"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 79% (180 ms)",
+        "model round 1: 882 ms, 8736 in / 46 out",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 0,
+      "text": "Please show me the latest Hacker News",
+      "ms": 798,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hn"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 74% (300 ms)",
+        "model round 1: 797 ms, 262 in / 46 out / 8565 cache-read / 0 cache-write",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 0,
+      "text": "Could you set a countdown of ninety seconds?",
+      "ms": 796,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "90s"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (186 ms)",
+        "model round 1: 795 ms, 8767 in / 69 out",
+        "tools: command"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 0,
+      "text": "Could you set a countdown of ninety seconds?",
+      "ms": 848,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "90s"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (194 ms)",
+        "model round 1: 848 ms, 293 in / 69 out / 8565 cache-read / 0 cache-write",
+        "tools: command"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 0,
+      "text": "Could you switch back to the main GardenOS wall?",
+      "ms": 1164,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "dashboard",
+          "input": {
+            "id": "main"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 98% (160 ms)",
+        "model round 1: 1164 ms, 8799 in / 148 out",
+        "tools: dashboard"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 0,
+      "text": "Could you switch back to the main GardenOS wall?",
+      "ms": 1146,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "dashboard",
+          "input": {
+            "id": "main"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 98% (168 ms)",
+        "model round 1: 1145 ms, 325 in / 149 out / 8565 cache-read / 0 cache-write",
+        "tools: dashboard"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 0,
+      "text": "What is seventeen times twenty three?",
+      "ms": 809,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "jev: answer 100% (192 ms)",
+        "model round 1: 807 ms, 8826 in / 44 out"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 0,
+      "text": "What is seventeen times twenty three?",
+      "ms": 910,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "jev: answer 100% (217 ms)",
+        "model round 1: 909 ms, 352 in / 39 out / 8565 cache-read / 0 cache-write"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 0,
+      "text": "How do I cancel a timer without cancelling my voice message?",
+      "ms": 1562,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "model round 1: 1394 ms, 8871 in / 228 out",
+        "jev: caption (167 ms)"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 0,
+      "text": "How do I cancel a timer without cancelling my voice message?",
+      "ms": 1548,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "model round 1: 1385 ms, 397 in / 152 out / 8565 cache-read / 0 cache-write",
+        "jev: caption (163 ms)"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 1,
+      "text": "Could you bring up the weather panel?",
+      "ms": 716,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (167 ms)",
+        "model round 1: 715 ms, 465 in / 46 out / 8565 cache-read / 0 cache-write",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 1,
+      "text": "Could you bring up the weather panel?",
+      "ms": 1056,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "weather"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (297 ms)",
+        "model round 1: 1056 ms, 8963 in / 46 out",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 1,
+      "text": "Please show me the latest Hacker News",
+      "ms": 923,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hn"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 76% (166 ms)",
+        "model round 1: 923 ms, 465 in / 46 out / 8565 cache-read / 0 cache-write",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 1,
+      "text": "Please show me the latest Hacker News",
+      "ms": 1040,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "open",
+          "input": {
+            "target": "hn"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 73% (175 ms)",
+        "model round 1: 1038 ms, 8963 in / 140 out",
+        "tools: open"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 1,
+      "text": "Could you set a countdown of ninety seconds?",
+      "ms": 791,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "90s"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (173 ms)",
+        "model round 1: 789 ms, 469 in / 69 out / 8565 cache-read / 0 cache-write",
+        "tools: command"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 1,
+      "text": "Could you set a countdown of ninety seconds?",
+      "ms": 1299,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "command",
+          "input": {
+            "name": "timer",
+            "arg": "90s"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 100% (169 ms)",
+        "model round 1: 1297 ms, 8967 in / 137 out",
+        "tools: command"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 1,
+      "text": "Could you switch back to the main GardenOS wall?",
+      "ms": 1260,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "dashboard",
+          "input": {
+            "id": "main"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 98% (180 ms)",
+        "model round 1: 1260 ms, 470 in / 149 out / 8565 cache-read / 0 cache-write",
+        "tools: dashboard"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 1,
+      "text": "Could you switch back to the main GardenOS wall?",
+      "ms": 1009,
+      "ok": true,
+      "correct": true,
+      "calls": [
+        {
+          "name": "dashboard",
+          "input": {
+            "id": "main"
+          }
+        }
+      ],
+      "logs": [
+        "jev: wall 98% (186 ms)",
+        "model round 1: 1009 ms, 8968 in / 123 out",
+        "tools: dashboard"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 1,
+      "text": "What is seventeen times twenty three?",
+      "ms": 650,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "jev: answer 100% (163 ms)",
+        "model round 1: 650 ms, 465 in / 17 out / 8565 cache-read / 0 cache-write"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 1,
+      "text": "What is seventeen times twenty three?",
+      "ms": 644,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "jev: answer 100% (164 ms)",
+        "model round 1: 644 ms, 8963 in / 17 out"
+      ]
+    },
+    {
+      "label": "after",
+      "repetition": 1,
+      "text": "How do I cancel a timer without cancelling my voice message?",
+      "ms": 1433,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "model round 1: 1433 ms, 472 in / 175 out / 8565 cache-read / 0 cache-write"
+      ]
+    },
+    {
+      "label": "before",
+      "repetition": 1,
+      "text": "How do I cancel a timer without cancelling my voice message?",
+      "ms": 2235,
+      "ok": true,
+      "correct": true,
+      "calls": [],
+      "logs": [
+        "model round 1: 2050 ms, 8970 in / 302 out",
+        "jev: caption (184 ms)"
+      ]
+    }
+  ]
+}

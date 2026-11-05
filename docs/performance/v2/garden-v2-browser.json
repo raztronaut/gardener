@@ -1,0 +1,20 @@
+[
+  {
+    "theme": "classic",
+    "rssCard": true,
+    "articleReader": true,
+    "liveText": true,
+    "cancelButton": true,
+    "clearedAfterCancel": true,
+    "pageErrors": []
+  },
+  {
+    "theme": "moonstone",
+    "rssCard": true,
+    "articleReader": true,
+    "liveText": true,
+    "cancelButton": true,
+    "clearedAfterCancel": true,
+    "pageErrors": []
+  }
+]
