@@ -1548,6 +1548,8 @@ const COMMANDS = [
   { cmd: 'credits', aliases: ['sounds'], icon: '🎙', desc: 'who recorded the forest sounds (licences)', run: () => showCredits() },
   { cmd: 'fps', aliases: ['fpstest'], icon: '⏱', desc: 'run the 60fps render test', run: () => runFpsTest() },
   { cmd: 'architecture', aliases: ['arch'], icon: '🛠', desc: 'how this system is built', run: () => showArchitecture() },
+  { cmd: 'timer', aliases: ['countdown'], icon: '⏱', desc: 'countdown card in the top-left — default 2 minutes; /timer 5, /timer 90s, /timer off', run: (arg) => runTimer(arg),
+    options: () => [{ arg: '2', icon: '⏱', label: '2 minutes', desc: 'two-minute countdown' }, { arg: '5', icon: '⏱', label: '5 minutes', desc: 'five-minute countdown' }, { arg: 'off', icon: '⏹', label: 'Off', desc: 'stop the countdown' }] },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
   { cmd: 'voice', aliases: ['mic', 'listen', 'heygarden'], icon: '🎙', desc: '"Hey Garden" voice control on / off (off = the mic is closed)',
     run: (arg) => { if (!VOICE) { toast('Voice is not running on this screen'); return; } if (/^cal/.test(arg || '')) { VOICE.calibrate(60); return; } VOICE.setEnabled(!VOICE.enabled()); },
@@ -2630,6 +2632,19 @@ wirePlantAlarm();
 wireCursor();
 boot();
 wireVoice();
+// countdown card (lib/countdown.js): loaded once, resumes a countdown that was running before a reload
+let COUNTDOWN = null;
+const loadCountdown = () => (COUNTDOWN ||= import(`/lib/countdown.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { m.init({ sound: (k) => UI_SOUND(k, { force: true }) }); return m; }));
+function runTimer(arg) {
+  loadCountdown().then((m) => {
+    const a = String(arg || '').trim().toLowerCase();
+    if (['off', 'stop', 'cancel', 'clear'].includes(a)) { m.stop(); toast('Countdown stopped'); return; }
+    const secs = m.parse(a);
+    if (!secs) { toast(`Try /timer 2, /timer 90s or /timer off`); return; }
+    m.start(secs);
+  }).catch(() => toast('The countdown could not load'));
+}
+if (!SCREENSHOT) { try { if (localStorage.getItem('garden.countdown')) loadCountdown(); } catch { /* ignore */ } }
 
 // ---- "Hey Garden" (lib/voice.js on the wall, src/voice.mjs + src/voiceagent.mjs behind it) ----
 // The agent sees a snapshot of the wall (voiceContext) and acts through voiceAct, which

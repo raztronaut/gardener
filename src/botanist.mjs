@@ -79,6 +79,8 @@ async function lastReply(id, sentPrompt = '') {
   return tidy(rest.join('\n'));
 }
 
+// true while a voice-sent request is in flight (the wall asks on connect: its glow survives a reload)
+export const botanistWorking = () => !!watching;
 let watching = null; // { id, since, timer, prompt }
 const announced = new Set(); // permission ids already shown (across watchers: never twice)
 
@@ -87,7 +89,7 @@ function watch(id, notify, log, prompt = '') {
   const w = watching = { id, since: Date.now(), started: false, timer: null, prompt };
   const tick = async () => {
     if (watching !== w) return;
-    if (Date.now() - w.since > WATCH_MAX_MS) { clearInterval(w.timer); watching = null; return; }
+    if (Date.now() - w.since > WATCH_MAX_MS) { clearInterval(w.timer); watching = null; notify({ kind: 'idle' }); return; }
     let s;
     try { s = await status(id); } catch (err) { log(`botanist: status failed (${err.message})`); return; }
     for (const p of s.perms) {
@@ -125,6 +127,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
       try { await mcp('send_agent_prompt', { agentId: id, prompt, activeTurnBehavior: 'steer', notifyOnFinish: false }, 10000); }
       catch (err) { log(`botanist: mcp send failed (${err.message}) — using the CLI`); await cli(['send', id, '--no-wait', '--behavior', 'steer', '--prompt', prompt]); }
       watch(id, notify, log, prompt);
+      notify({ kind: 'working' }); // the wall's quiet glow, until this request is done
       return { ok: true, say: 'Sent to the Botanist.' };
     }
     if (action === 'status') {
@@ -147,6 +150,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
     if (action === 'stop') {
       await mcp('cancel_agent', { agentId: id });
       if (watching) { clearInterval(watching.timer); watching = null; }
+      notify({ kind: 'idle' });
       return { ok: true, say: 'The Botanist stopped.' };
     }
     return { ok: false, error: `unknown action ${action}` };

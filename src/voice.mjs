@@ -23,6 +23,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, sta
 import { join } from 'node:path';
 import { paths } from './config.mjs';
 import { runAgent } from './voiceagent.mjs';
+import { botanistWorking } from './botanist.mjs';
 
 const require = createRequire(import.meta.url);
 const sherpa = require('sherpa-onnx-node');
@@ -313,7 +314,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (req.method === 'GET' && url.pathname === '/events') {
     res.writeHead(200, { ...cors, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify({ t: 'hello', enabled, state })}\n\n`);
+    res.write(`data: ${JSON.stringify({ t: 'hello', enabled, state, botanist: botanistWorking() })}\n\n`);
     clients.add(res); primary = res;
     const ping = setInterval(() => { try { res.write(': ping\n\n'); } catch { /* closed */ } }, 20000);
     req.on('close', () => { clearInterval(ping); clients.delete(res); if (primary === res) primary = [...clients].pop() || null; });

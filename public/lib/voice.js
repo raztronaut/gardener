@@ -12,7 +12,7 @@ const ORIGIN = `http://${location.hostname}:${new URLSearchParams(location.searc
 
 const VERT = `attribute vec2 p; void main(){ gl_Position = vec4(p, 0.0, 1.0); }`;
 const FRAG = `precision mediump float;
-uniform vec2 uRes; uniform float uTime, uLevel, uIntro, uThink, uTintAmt; uniform vec3 uTint;
+uniform vec2 uRes; uniform float uTime, uLevel, uIntro, uThink, uTintAmt, uDim; uniform vec3 uTint;
 vec3 pal(float x) {
   x = fract(x) * 5.0;
   vec3 c0 = vec3(0.30, 0.96, 0.66), c1 = vec3(0.22, 0.80, 1.00), c2 = vec3(0.52, 0.45, 1.00),
@@ -40,7 +40,7 @@ void main() {
   float wash = exp(-d / max(uRes.x * 0.22 * uIntro, 0.6)) * (0.10 + 0.22 * uLevel);
   vec3 col = pal(a + t * 0.05 + 0.06 * sin(t * 0.8 + a * 12.566));
   col = mix(col, uTint, uTintAmt);
-  float alpha = clamp(glow * 0.82 + core * 0.55 + wash, 0.0, 1.0) * uIntro;
+  float alpha = clamp(glow * 0.82 + core * 0.55 + wash, 0.0, 1.0) * uIntro * (1.0 - 0.6 * uDim); // the Botanist's working glow: dimmer
   gl_FragColor = vec4(col * alpha, alpha);
 }`;
 
@@ -59,11 +59,12 @@ function makeGlow() {
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  const U = {}; for (const n of ['uRes', 'uTime', 'uLevel', 'uIntro', 'uThink', 'uTintAmt', 'uTint']) U[n] = gl.getUniformLocation(pr, n);
+  const U = {}; for (const n of ['uRes', 'uTime', 'uLevel', 'uIntro', 'uThink', 'uTintAmt', 'uTint', 'uDim']) U[n] = gl.getUniformLocation(pr, n);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
   // animated state (eased toward targets every frame)
-  const S = { intro: 0, introT: 0, level: 0, levelT: 0, think: 0, thinkT: 0, tint: 0, tintT: 0, tintC: [0.45, 1, 0.75], t0: performance.now() };
+  const S = { intro: 0, introT: 0, level: 0, levelT: 0, think: 0, thinkT: 0, tint: 0, tintT: 0, tintC: [0.45, 1, 0.75], t0: performance.now(),
+    work: 0, workT: 0, time: 0, last: performance.now() }; // work = the Botanist busy on a request (a quiet, slow glow)
   let raf = 0;
   const size = () => { cv.width = Math.round(innerWidth / 2); cv.height = Math.round(innerHeight / 2); };
   size(); addEventListener('resize', size);
@@ -73,19 +74,26 @@ function makeGlow() {
     S.level += (S.levelT - S.level) * k(S.levelT > S.level ? 22 : 7);
     S.think += (S.thinkT - S.think) * k(4);
     S.tint += (S.tintT - S.tint) * k(6);
+    S.work += (S.workT - S.work) * k(S.workT > S.work ? 1.2 : 2.5); // fades in slowly
+    // the Botanist alone (no voice request on top): dimmer, a third of the speed, ~20 fps
+    const dim = S.work * (1 - Math.min(1, S.introT));
+    const dt = Math.min(0.1, (now - S.last) / 1000);
+    if (dim > 0.5 && dt < 0.048) { raf = requestAnimationFrame(frame); return; }
+    S.last = now; S.time += dt * (1 - 0.68 * dim);
     gl.viewport(0, 0, cv.width, cv.height);
     gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
     gl.uniform2f(U.uRes, cv.width, cv.height);
-    gl.uniform1f(U.uTime, (now - S.t0) / 1000);
-    gl.uniform1f(U.uLevel, S.level); gl.uniform1f(U.uIntro, S.intro);
+    gl.uniform1f(U.uTime, S.time); gl.uniform1f(U.uDim, dim);
+    gl.uniform1f(U.uLevel, S.level); gl.uniform1f(U.uIntro, Math.max(S.intro, S.work * 0.75));
     gl.uniform1f(U.uThink, S.think); gl.uniform1f(U.uTintAmt, S.tint);
     gl.uniform3f(U.uTint, ...S.tintC);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    if (S.introT === 0 && S.intro < 0.004) { raf = 0; cv.classList.remove('on'); gl.clear(gl.COLOR_BUFFER_BIT); return; }
+    if (S.introT === 0 && S.intro < 0.004 && S.workT === 0 && S.work < 0.004) { raf = 0; cv.classList.remove('on'); gl.clear(gl.COLOR_BUFFER_BIT); return; }
     raf = requestAnimationFrame(frame);
   };
   const run = () => { cv.classList.add('on'); if (!raf) raf = requestAnimationFrame(frame); };
   return {
+    work(on) { S.workT = on ? 1 : 0; if (on) run(); }, // the Botanist is working on a request
     wake() { S.introT = 1; S.thinkT = 0; S.tintT = 0; S.levelT = 0.15; S.intro = Math.max(S.intro, 0.02); run(); },
     level(v) { S.levelT = v; },
     think() { S.thinkT = 1; S.levelT = 0.1; run(); }, // thinking: the same slow, smooth flow — just calmer
@@ -199,7 +207,7 @@ export function startVoice(api) {
 
   const onEvent = async (ev) => {
     lastEv = Date.now();
-    if (ev.t === 'hello') { enabled = ev.enabled; if (ev.state === 'idle') settle(); return; }
+    if (ev.t === 'hello') { enabled = ev.enabled; if (ev.state === 'idle') settle(); glow && glow.work(!!ev.botanist); return; }
     if (ev.t === 'enabled') { enabled = ev.enabled; api.toast(enabled ? 'Hey Garden is listening again' : 'Hey Garden is off — the mic is closed'); return; }
     if (ev.t === 'level') { glow && glow.level(ev.v); return; }
     if (ev.t === 'calib') {
@@ -221,6 +229,10 @@ export function startVoice(api) {
       return;
     }
     if (ev.t === 'botanist') { // the Botanist reports back (any time, independent of a request)
+      // working: the quiet edge glow stays on until THIS request is done / failed / stopped
+      if (ev.kind === 'working') { glow && glow.work(true); return; }
+      if (ev.kind === 'idle') { glow && glow.work(false); return; }
+      if (ev.kind === 'done' || ev.kind === 'error') glow && glow.work(false);
       api.sound(ev.kind === 'error' ? 'fail' : ev.kind === 'permission' ? 'heard' : 'done');
       bcard.show(ev.kind, String(ev.text || ''));
       return;
