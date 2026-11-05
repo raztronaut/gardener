@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""desk — see and control this computer's desktop (X11, display :0), for agents.
+
+This machine has ONE screen, 900x1600 portrait, and it is the GardenOS wall: the kiosk
+runs fullscreen; apps you open appear over it. Coordinates are screen pixels (0,0 = top-left).
+
+  desk shot [PATH] [--max N]   screenshot -> PNG (default /tmp/desk.png, longest side <= N, default 1600);
+                               prints the path and the scale factor (click coords = image coords * scale)
+  desk click X Y [--right] [--double]
+  desk move X Y
+  desk scroll up|down [N]
+  desk type "text"             types ASCII text into the focused window
+  desk key COMBO               e.g. Return, Escape, ctrl+s, alt+F4, ctrl+shift+t
+  desk windows                 lists open windows: id, title
+  desk focus ID|TEXT           raises + focuses a window (id or part of its title)
+  desk close ID|TEXT           closes a window politely (focus + alt+F4)
+
+Typical loop: desk shot -> look at /tmp/desk.png -> desk click / type / key -> desk shot again.
+No dependencies beyond libX11 / libXtst / GTK (python3-gi) that ship with the OS.
+"""
+import ctypes, ctypes.util, os, re, subprocess, sys, time
+
+os.environ.setdefault('DISPLAY', ':0')
+if not os.environ.get('XAUTHORITY') and os.path.exists('/run/user/%d/gdm/Xauthority' % os.getuid()):
+    os.environ['XAUTHORITY'] = '/run/user/%d/gdm/Xauthority' % os.getuid()
+
+X = ctypes.cdll.LoadLibrary(ctypes.util.find_library('X11') or 'libX11.so.6')
+XT = ctypes.cdll.LoadLibrary(ctypes.util.find_library('Xtst') or 'libXtst.so.6')
+X.XOpenDisplay.restype = ctypes.c_void_p
+X.XOpenDisplay.argtypes = [ctypes.c_char_p]
+X.XStringToKeysym.restype = ctypes.c_ulong
+X.XStringToKeysym.argtypes = [ctypes.c_char_p]
+X.XKeysymToKeycode.restype = ctypes.c_ubyte
+X.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+X.XKeycodeToKeysym.restype = ctypes.c_ulong
+X.XKeycodeToKeysym.argtypes = [ctypes.c_void_p, ctypes.c_ubyte, ctypes.c_int]
+X.XFlush.argtypes = [ctypes.c_void_p]
+for f in ('XTestFakeMotionEvent',):
+    getattr(XT, f).argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+XT.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+XT.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+
+d = X.XOpenDisplay(None)
+if not d:
+    sys.exit('desk: cannot open the X display (DISPLAY=%s)' % os.environ.get('DISPLAY'))
+
+def flush(pause=0.02):
+    X.XFlush(d); time.sleep(pause)
+
+def move(x, y):
+    XT.XTestFakeMotionEvent(d, -1, int(x), int(y), 0); flush()
+
+def button(b, down):
+    XT.XTestFakeButtonEvent(d, b, 1 if down else 0, 0); flush()
+
+ALIASES = {'enter': 'Return', 'return': 'Return', 'esc': 'Escape', 'escape': 'Escape', 'tab': 'Tab', 'space': 'space',
+           'backspace': 'BackSpace', 'delete': 'Delete', 'del': 'Delete', 'up': 'Up', 'down': 'Down', 'left': 'Left', 'right': 'Right',
+           'home': 'Home', 'end': 'End', 'pageup': 'Prior', 'pagedown': 'Next', 'ctrl': 'Control_L', 'control': 'Control_L',
+           'shift': 'Shift_L', 'alt': 'Alt_L', 'super': 'Super_L', 'win': 'Super_L', 'meta': 'Super_L'}
+CHARS = {' ': 'space', '\n': 'Return', '\t': 'Tab', '!': 'exclam', '"': 'quotedbl', '#': 'numbersign', '$': 'dollar', '%': 'percent',
+         '&': 'ampersand', "'": 'apostrophe', '(': 'parenleft', ')': 'parenright', '*': 'asterisk', '+': 'plus', ',': 'comma',
+         '-': 'minus', '.': 'period', '/': 'slash', ':': 'colon', ';': 'semicolon', '<': 'less', '=': 'equal', '>': 'greater',
+         '?': 'question', '@': 'at', '[': 'bracketleft', '\\': 'backslash', ']': 'bracketright', '^': 'asciicircum', '_': 'underscore',
+         '`': 'grave', '{': 'braceleft', '|': 'bar', '}': 'braceright', '~': 'asciitilde'}
+
+def keycode(name):
+    ks = X.XStringToKeysym(name.encode())
+    if not ks:
+        sys.exit('desk: unknown key %r' % name)
+    kc = X.XKeysymToKeycode(d, ks)
+    if not kc:
+        sys.exit('desk: key %r is not on this keyboard map' % name)
+    return kc, ks
+
+def key(kc, down):
+    XT.XTestFakeKeyEvent(d, kc, 1 if down else 0, 0); flush(0.008)
+
+def combo(spec):
+    names = [ALIASES.get(p.lower(), p) for p in re.split(r'\+(?=.)', spec)]
+    codes = [keycode(n)[0] for n in names]
+    for c in codes: key(c, True)
+    for c in reversed(codes): key(c, False)
+
+def type_text(text):
+    shift = keycode('Shift_L')[0]
+    for ch in text:
+        name = CHARS.get(ch, ch)
+        if not re.fullmatch(r'[A-Za-z0-9]|[A-Za-z_]+', name):
+            print('desk: skipped non-ASCII %r' % ch, file=sys.stderr); continue
+        kc, ks = keycode(name)
+        need_shift = X.XKeycodeToKeysym(d, kc, 0) != ks
+        if need_shift: key(shift, True)
+        key(kc, True); key(kc, False)
+        if need_shift: key(shift, False)
+
+def screenshot(path, maxside):
+    import gi
+    gi.require_version('Gdk', '3.0')
+    from gi.repository import Gdk, GdkPixbuf
+    root = Gdk.get_default_root_window()
+    w, h = root.get_width(), root.get_height()
+    pb = Gdk.pixbuf_get_from_window(root, 0, 0, w, h)
+    scale = 1.0
+    if max(w, h) > maxside:
+        scale = max(w, h) / maxside
+        pb = pb.scale_simple(round(w / scale), round(h / scale), GdkPixbuf.InterpType.BILINEAR)
+    pb.savev(path, 'png', [], [])
+    print('%s  (%dx%d screen; image scale %.3f: screen = image * %.3f)' % (path, w, h, 1 / scale, scale))
+
+def windows():
+    out = subprocess.run(['xprop', '-root', '_NET_CLIENT_LIST'], capture_output=True, text=True).stdout
+    ids = re.findall(r'0x[0-9a-f]+', out)
+    rows = []
+    for i in ids:
+        t = subprocess.run(['xprop', '-id', i, '_NET_WM_NAME', 'WM_NAME'], capture_output=True, text=True).stdout
+        m = re.search(r'= "(.*)"', t)
+        rows.append((i, m.group(1) if m else ''))
+    return rows
+
+def find(target):
+    rows = windows()
+    for i, t in rows:
+        if target.lower() == i.lower(): return i, t
+    for i, t in rows:
+        if target.lower() in t.lower(): return i, t
+    sys.exit('desk: no window matches %r (see: desk windows)' % target)
+
+def focus(xid):
+    import gi
+    gi.require_version('Gdk', '3.0'); gi.require_version('GdkX11', '3.0')
+    from gi.repository import Gdk, GdkX11
+    win = GdkX11.X11Window.foreign_new_for_display(Gdk.Display.get_default(), int(xid, 16))
+    win.show(); win.raise_(); win.focus(0)
+    Gdk.Display.get_default().flush(); time.sleep(0.25)
+
+a = sys.argv[1:]
+if not a or a[0] in ('-h', '--help', 'help'):
+    print(__doc__.strip()); sys.exit(0)
+cmd, rest = a[0], a[1:]
+if cmd == 'shot':
+    mx = 1600
+    if '--max' in rest:
+        k = rest.index('--max'); mx = int(rest[k + 1]); rest = rest[:k] + rest[k + 2:]
+    screenshot(rest[0] if rest else '/tmp/desk.png', mx)
+elif cmd in ('click', 'move'):
+    x, y = int(float(rest[0])), int(float(rest[1]))
+    move(x, y)
+    if cmd == 'click':
+        b = 3 if '--right' in rest else 1
+        for _ in range(2 if '--double' in rest else 1):
+            button(b, True); button(b, False); time.sleep(0.06)
+    print('%s %d,%d' % (cmd, x, y))
+elif cmd == 'scroll':
+    b = 4 if rest and rest[0] == 'up' else 5
+    for _ in range(int(rest[1]) if len(rest) > 1 else 3):
+        button(b, True); button(b, False)
+    print('scrolled', 'up' if b == 4 else 'down')
+elif cmd == 'type':
+    type_text(' '.join(rest)); print('typed %d chars' % len(' '.join(rest)))
+elif cmd == 'key':
+    combo(rest[0]); print('pressed', rest[0])
+elif cmd == 'windows':
+    for i, t in windows(): print(i, t)
+elif cmd == 'focus':
+    i, t = find(' '.join(rest)); focus(i); print('focused', i, t)
+elif cmd == 'close':
+    i, t = find(' '.join(rest)); focus(i); combo('alt+F4'); print('closed', i, t)
+else:
+    sys.exit('desk: unknown command %r (desk --help)' % cmd)

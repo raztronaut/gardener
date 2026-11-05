@@ -126,7 +126,7 @@ export async function botanist({ action = 'ask', task = '' } = {}, { notify = ()
   try {
     if (action === 'ask') {
       if (!task.trim()) return { ok: false, error: 'no task' };
-      const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
+      const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
       try { await mcp('send_agent_prompt', { agentId: id, prompt, activeTurnBehavior: 'steer', notifyOnFinish: false }, 10000); }
       catch (err) { log(`botanist: mcp send failed (${err.message}) — using the CLI`); await cli(['send', id, '--no-wait', '--behavior', 'steer', '--prompt', prompt]); }
       watch(id, notify, log, prompt);
