@@ -61,9 +61,10 @@ async function status(id) {
 }
 
 // The Botanist's latest words: the most recent assistant message in its timeline.
-// The timeline is one text: "[Message received] <sender>\n<prompt lines>\n<reply lines>",
-// "[Shell] <command>\n<reply lines>", ... oldest first. The reply = the lines after the last
-// "[...]" header, minus that header's own line(s) — for a received message, its prompt.
+// The timeline is one text, oldest first: a prompt ("[Message received] <sender>" from Claude
+// agents, "[User] <first line>" from Codex) followed by its lines, tool steps ("[Shell] <cmd>"),
+// and the agent's words. The reply = the lines after the last "[...]" header, minus the sent
+// prompt's own lines.
 async function lastReply(id, sentPrompt = '') {
   const a = await mcp('get_agent_activity', { agentId: id, limit: 12 });
   const text = String(typeof a === 'string' ? a : a.content || a.activity || '');
@@ -72,11 +73,13 @@ async function lastReply(id, sentPrompt = '') {
   for (let i = lines.length - 1; i >= 0; i--) if (/^\[[A-Z][^\]]*\]/.test(lines[i])) { h = i; break; }
   if (h < 0) return '';
   let rest = lines.slice(h + 1);
-  if (/^\[Message received\]/.test(lines[h])) {
+  // Claude agents log a prompt as [Message received], Codex agents as [User]
+  if (/^\[(Message received|User)\]/.test(lines[h])) {
     const sent = new Set(String(sentPrompt).split('\n').map((l) => l.trim()).filter(Boolean));
     rest = rest.filter((l) => !sent.has(l.trim()));
   }
-  return tidy(rest.join('\n'));
+  // Codex separates tool output from its answer with a --- line
+  return tidy(rest.filter((l) => !/^\s*[-–—=*_]{3,}\s*$/.test(l)).join('\n'));
 }
 
 // true while a voice-sent request is in flight (the wall asks on connect: its glow survives a reload)
