@@ -1,5 +1,10 @@
 # The Gardener™ 🌱
 
+For this computer's project locations, services, and Paseo root workspace, see
+[the host guide](docs/host/GARDENOS.md) and [agent startup instructions](docs/host/AGENTS.md).
+Install those instructions at `/` with `sudo bash scripts/install-host-docs.sh`
+on the dedicated GardenOS computer; the installer preserves existing root docs.
+
 A self-cultivating, always-on **ambient dashboard** for a wall-mounted 900×1600 (9:16)
 display. It runs 24/7 on this NVIDIA Jetson Orin Nano. Each morning an autonomous Claude
 agent **tends the garden** — improving its widgets based on the day's feedback (or its own
