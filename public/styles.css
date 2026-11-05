@@ -890,3 +890,18 @@ body:not(.idle) .rfm-row:hover { background: rgba(116,247,176,.08); }
 .vs-img figcaption { margin-top: 8px; font-size: 16px; color: var(--ink-faint); }
 .vs-src { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 15px; color: var(--ink-soft); }
 .vs-src span i { font-style: normal; color: var(--ink-faint); margin-left: 6px; }
+
+/* Ambient tint affects the art only; text and glass keep their contrast. */
+body.garden-mood [data-wid="fractal"] .art { filter: hue-rotate(var(--mood-hue, 0deg)); }
+body.garden-mood::after { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--mood-glow) 9%, transparent), transparent 65%); }
+.headline-game { padding:30px; display:flex; flex-direction:column; gap:24px; max-width:760px; margin:auto; }
+.headline-progress { color:var(--ink-soft); font-size:18px; }
+.headline-title { font-family:var(--font-display); font-weight:400; font-size:38px; line-height:1.25; min-height:150px; }
+.headline-choices { display:flex; gap:20px; }
+.headline-game button { font:inherit; font-size:24px; padding:18px 36px; border-radius:18px; border:1px solid var(--stroke); background:rgba(20,45,35,.85); color:var(--ink); cursor:pointer; }
+.headline-game button:disabled { opacity:.45; cursor:default; }
+.headline-game button:focus-visible { outline:3px solid var(--mint); outline-offset:4px; }
+.headline-result { min-height:220px; font-size:22px; }
+.headline-result h2 { font-family:var(--font-display); font-weight:400; }
+.headline-result a { display:block; color:var(--mint); margin-bottom:24px; }

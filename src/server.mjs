@@ -26,6 +26,8 @@ import { handleHouseApi } from './house-api.mjs';
 import { agentModel } from './models.mjs';
 import { ensureFractal, SLOT_MS, sceneParams } from './fractal.mjs';
 
+import { gardenMood } from './mood.mjs';
+
 const START = Date.now();
 
 function log(msg) {
@@ -498,6 +500,10 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, version: getUiVersion(), night: getNight(), uptime: Math.round((Date.now() - START) / 1000) });
     if (req.method === 'GET' && p === '/api/version') return json(res, 200, { version: getUiVersion() });
+    if (req.method === 'POST' && p === '/api/mood') {
+      let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return json(res, 400, { error: 'bad json' }); }
+      return json(res, 200, await gardenMood(typeof body?.context === 'string' ? body.context : ''));
+    }
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, stateObject());
     if (req.method === 'GET' && p === '/api/iterations') {
       // One concise "what changed" phrase per committed tending — powers the

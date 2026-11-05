@@ -1591,6 +1591,9 @@ const COMMANDS = [
     } },
   { cmd: 'touch', aliases: ['calibrate'], icon: '👆', desc: 'calibrate camera touch (9 targets)', run: () => { if (panelOpen()) closePanel(); import(`/lib/touch.js?v=${window.__GARDEN_VERSION}`).then((m) => m.runSession()); } },
   { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
+  { cmd: 'headlines', aliases: ['fake', 'realorfake'], icon: '📰', desc: 'real or fake Hacker News? — /headlines real, fake or next to play', run: (arg) => import('/lib/headline-game.js').then((m) => /^(real|fake|next)$/.test(arg) ? m.guess(arg) : m.openGame({ h, openPanel, fetchStories: () => HN_CACHE?.stories || fetchHN() })).catch(() => toast('The game could not load')) },
+  { cmd: 'mood', aliases: [], icon: '🌿', desc: 'ambient mood — fractal, idle glow and forest; /mood off to disable', run: (arg) => loadMood().then((m) => m.command(arg)),
+    options: () => [{ arg: 'on', icon: '🌿', label: 'On', desc: 'follow the moment' }, { arg: 'off', icon: '⏹', label: 'Off', desc: 'restore the original palette' }] },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
   { cmd: 'controls', aliases: ['controller', 'pad'], icon: '🎮', desc: 'controller button map', run: () => showPadMap() },
   { cmd: 'credits', aliases: ['sounds'], icon: '🎙', desc: 'who recorded the forest sounds (licences)', run: () => showCredits() },
@@ -2893,3 +2896,13 @@ function wireVoice() {
     if (qs.has('voicedemo')) setTimeout(() => VOICE.demo(), 1500);
   }).catch(() => {});
 }
+
+// Ambient decisions stay off the voice/command critical path.
+let MOOD_MODULE;
+function loadMood() {
+  return MOOD_MODULE ||= import('/lib/garden-mood.js').then((m) => {
+    m.init({ toast, forest: (place) => { if (RF?.isOn() && RF.current() !== place) { RF.start(place); updateRfButton(); } } });
+    return m;
+  });
+}
+if (!SCREENSHOT) loadMood().catch(() => {});

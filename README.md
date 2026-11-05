@@ -90,3 +90,14 @@ the existing widgets. Register it in `public/widgets/manifest.json`.
 - Latest QA screenshot: `data/screenshots/latest.png`.
 - Force a state: `npm run day` / `npm run night` / `npm run display-sync`.
 - Roll back manually: `git log`, then `git reset --hard <good-commit>` (the kiosk reloads on next version bump).
+
+## Headline game and Garden mood
+- `/headlines` mixes live Hacker News posts with authored fictional headlines. Tap Real/Fake,
+  then Next; `/headlines real`, `/headlines fake`, and `/headlines next` also work through the
+  command interface used by voice. Reveals link real stories back to HN. Household scores
+  persist in this browser; fiction stays inside the game, never the news feed.
+- `/mood` or `/mood on` enables ambient tinting (on by default); `/mood off` restores the
+  original visuals. Every 15 minutes a shared, cached Jev choice reads time and public widget
+  text. It tints fractal art and the idle background, and switches the rainforest location
+  only if sounds are already playing. Missing Jev uses a time-based fallback. No new service,
+  agent, dependency, image generation, or camera access is needed.
