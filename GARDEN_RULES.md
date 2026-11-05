@@ -124,3 +124,5 @@ every day, including quiet no-feedback days.
 - You may ADD rules. You may NOT delete, weaken, or contradict an existing rule unless a
   feedback note explicitly revokes it (and then update the bullet to reflect that).
 - Keep entries short and concrete. Date removals so the history is legible.
+
+- **Transit reauthorized (2026-11-04):** the humans requested nearby bus/train arrivals and locations and supplied a location and 511 token. This explicitly lifts the earlier transit ban for the new `transit` widget. Keep it based on real provider data, with freshness and missing-data states; credentials remain server-side.

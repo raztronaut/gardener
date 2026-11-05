@@ -1,8 +1,8 @@
 // Deliberately narrow grammar: unmatched or ambiguous speech always uses the agent.
 export function directAction(text) {
   const t = String(text).toLowerCase().trim().replace(/[.!?]+$/, '').replace(/\s+/g, ' ');
-  const widgets = { weather: 'weather', 'air quality': 'air-quality', 'hacker news': 'hacker-news', fractal: 'fractal', clock: 'clock', gardyn: 'gardyn' };
-  let m = t.match(/^(?:open|show)(?: me)?(?: the)? (weather|air quality|hacker news|fractal|clock|gardyn)$/);
+  const widgets = { weather: 'weather', 'air quality': 'air-quality', 'hacker news': 'hacker-news', fractal: 'fractal', clock: 'clock', gardyn: 'gardyn', transit:'transit', 'nearby transit':'transit' };
+  let m = t.match(/^(?:open|show)(?: me)?(?: the)? (weather|air quality|hacker news|fractal|clock|gardyn|transit|nearby transit)$/);
   if (m) return { name: 'open', input: { target: widgets[m[1]] } };
   if (/^(?:close(?: the panel)?|go back|never mind)$/.test(t)) return { name: 'close', input: {} };
   if (/^(?:go home|show the wall|back to the wall)$/.test(t)) return { name: 'dashboard', input: { id: 'main' } };

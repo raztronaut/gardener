@@ -61,7 +61,21 @@ DTD/entity declarations are rejected and titles render as text. Articles use the
 sandboxed reader. Browser QA verified 20 HN stories, 10 NASA stories, source switching and
 opening the reader. Cached backend retrieval was under 1 ms in the initial probe.
 
-No transit widget was added: 511 arrivals/vehicle monitoring require an API token and a
-meaningful nearby stop/intersection is still needed. None is configured. Existing SF weather
-coordinates are approximate and are not silently treated as the household's transit stop.
+The new Nearby transit tile is live, with a fullscreen arrivals list and a north-up schematic
+of reported Muni vehicle positions. The supplied address was geocoded and verified against
+511 stops (nearest Quintara/Funston stops about 43–44 metres away). The private origin and
+511 token are stored in the mode-600, ignored environment file, not this report or git.
+Nearby Taraval corridor stops include L rail predictions alongside buses 6 and 48.
+
+One regional StopMonitoring response supplies both arrival predictions and vehicle positions;
+refreshes share a 90-second server cache, with a daily stop-list cache. This avoids separate
+per-stop and per-vehicle calls. Scheduled estimates are marked ~; stale responses are labeled;
+old vehicle positions are excluded. The schematic is explicitly not a street map. Only Muni
+is covered, not every regional transit operator. Straight-line distances are not walk times.
+
+`node tools/performance/test-transit.mjs` checks normalization, deduplication, expired arrivals,
+old positions and missing data. Live browser QA verified arrivals, map, stop list and the
+“open transit” voice action. Final full smoke suite: 175 checks passed. RSS QA verified real
+HN/NASA feeds and the sandboxed article reader. The small transit tile initially clipped;
+it was corrected and the final render check passed.
 https://511.org/open-data/transit

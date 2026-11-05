@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { normalizeTransit, meters } from '../../src/transit.mjs';
+const now=Date.now(),origin={lat:37,lon:-122},stops=[{id:'1',name:'A',distance:10},{id:'2',name:'B',distance:30}];
+const visit=(id,extra={})=>({MonitoringRef:id,RecordedAtTime:new Date(now).toISOString(),MonitoredVehicleJourney:{LineRef:'L',VehicleRef:'123',VehicleLocation:{Latitude:'37',Longitude:'-122'},MonitoredCall:{ExpectedArrivalTime:new Date(now+60000).toISOString(),DestinationDisplay:'Downtown'},...extra}});
+const payload=visits=>({ServiceDelivery:{StopMonitoringDelivery:{MonitoredStopVisit:visits}}});
+const d=normalizeTransit(payload([visit('1'),visit('2'),visit('9')]),stops,origin,now);
+assert.equal(d.arrivals.length,1);assert.equal(d.arrivals[0].stop,'A');assert.equal(d.vehicles.length,1);assert.equal(meters(origin,origin),0);
+assert.equal(normalizeTransit({},stops,origin,now).arrivals.length,0);
+assert.equal(normalizeTransit(payload([visit('1',{MonitoredCall:{ExpectedArrivalTime:new Date(now-60000).toISOString()}})]),stops,origin,now).arrivals.length,0);
+const old=visit('1');old.RecordedAtTime=new Date(now-360000).toISOString();assert.equal(normalizeTransit(payload([old]),stops,origin,now).vehicles.length,0);
+console.log('PASS transit distance, deduplication, stop filtering, expired predictions, old positions, empty data');
