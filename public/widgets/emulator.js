@@ -454,27 +454,30 @@ export default {
     // Start3 Up4 Down5 Left6 Right7 A8 X9 L10 R11.
     const RAWPAD = { 0: 8, 1: 0, 3: 9, 4: 1, 6: 10, 7: 11, 10: 2, 11: 3 }; // SN30 idx → RetroPad
     const DIRPAD = { u: 4, d: 5, l: 6, r: 7 };
-    const axisDown = { x: null, y: null };
+    const axisDown = [{ x: null, y: null }, { x: null, y: null }]; // per player
     const sysHeld = new Set();
-    function pad(id, v) {
-      try { emuFrame?.contentWindow?.EJS_emulator?.gameManager?.simulateInput(0, id, v); } catch { /* core not ready */ }
+    function pad(id, v, player = 0) {
+      try { emuFrame?.contentWindow?.EJS_emulator?.gameManager?.simulateInput(player, id, v); } catch { /* core not ready */ }
     }
+    // 'jb…' / 'jx…' / 'jy…' = player 1 (the SN30 Pro); 'qb…' … = player 2 (an Xbox
+    // controller, already mapped by position onto the same numbering by pad.mjs)
     function rawInput(a) {
       if (mode !== 'game') return;
       if (portCtl) { portCtl.raw(a); return; } // the native port maps the pad itself (Select+Start included)
       if (tele) tele.inputs++;
+      const pl = a[0] === 'q' ? 1 : 0;
       if (a[1] === 'b') {                       // jb<idx><d|u> — true press / release
         const bi = a.charCodeAt(2) - 97;
-        if (bi === 10 || bi === 11) { if (a[3] === 'd') sysHeld.add(bi); else sysHeld.delete(bi);
-          if (sysHeld.has(10) && sysHeld.has(11)) { sysHeld.clear(); showPicker(); return; } } // Select+Start → games
+        if (pl === 0 && (bi === 10 || bi === 11)) { if (a[3] === 'd') sysHeld.add(bi); else sysHeld.delete(bi);
+          if (sysHeld.has(10) && sysHeld.has(11)) { sysHeld.clear(); showPicker(); return; } } // Select+Start → games (player 1)
         // PS1 games also get L2/R2 (RetroPad 12/13); on other consoles those stay free
         const id = RAWPAD[bi] ?? (curRom && curRom.system === 'psx' ? { 8: 12, 9: 13 }[bi] : undefined);
-        if (id != null) pad(id, a[3] === 'd' ? 1 : 0);
+        if (id != null) pad(id, a[3] === 'd' ? 1 : 0, pl);
         return;
       }
-      const ax = a[1], st = a[2];                // jx<l|c|r> / jy<u|c|d>
-      if (axisDown[ax]) { pad(DIRPAD[axisDown[ax]], 0); axisDown[ax] = null; }
-      if (st !== 'c') { pad(DIRPAD[st], 1); axisDown[ax] = st; }
+      const ax = a[1], st = a[2], ad = axisDown[pl]; // jx<l|c|r> / jy<u|c|d>
+      if (ad[ax]) { pad(DIRPAD[ad[ax]], 0, pl); ad[ax] = null; }
+      if (st !== 'c') { pad(DIRPAD[st], 1, pl); ad[ax] = st; }
     }
 
     window.__GARDEN_GAME = {

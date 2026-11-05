@@ -7,7 +7,7 @@
 import { createReadStream, appendFileSync } from 'node:fs';
 import { config, paths } from './config.mjs';
 
-const DEV = process.env.GARDENER_PAD_DEV || '/dev/input/js0';
+// (player 1's device is found by name — see p1Dev(); GARDENER_PAD_DEV overrides)
 const API = `http://${config.host}:${config.port}/api/pad/action`;
 
 function log(msg) {
@@ -162,8 +162,25 @@ function onEvent(value, type, number) {
   }
 }
 
+// Which /dev/input/js* is which pad, by name (the numbers shuffle as pads come and go):
+// the SN30 Pro is player 1 (the wall + games); an Xbox controller is player 2 (games only).
+import { readdirSync as lsDir, readFileSync as readF } from 'node:fs';
+function jsByName(re) {
+  try {
+    for (const n of lsDir('/sys/class/input').filter((x) => /^js\d+$/.test(x)).sort()) {
+      const name = readF(`/sys/class/input/${n}/device/name`, 'utf8').trim();
+      if (re.test(name)) return `/dev/input/${n}`;
+    }
+  } catch { /* none */ }
+  return null;
+}
+const P2_RE = /xbox|x-box|microsoft/i;
+const p1Dev = () => process.env.GARDENER_PAD_DEV || jsByName(/8bitdo|sn30|sf30/i) || (() => { const d = jsByName(/./); return d && d !== jsByName(P2_RE) ? d : null; })();
+
 let padAway = false;
 function attach() {
+  const DEV = p1Dev();
+  if (!DEV) { if (!padAway) log('controller away — retrying every 3s quietly until it\'s back'); padAway = true; setTimeout(attach, 3000); return; }
   const s = createReadStream(DEV, { highWaterMark: 512 });
   let buf = Buffer.alloc(0);
   s.on('data', (chunk) => {
@@ -244,6 +261,40 @@ import('./hidpp.mjs').then(({ divertButton }) => {
   start();
 }).catch((e) => log(`hid++: ${e.message}`));
 
+// ---- player 2: an Xbox controller → games only ----------------------------------------
+// Its edges go out as 'qb<idx><d|u>' / 'qx…' / 'qy…' (P1's are 'jb…'), with the face
+// buttons mapped by POSITION onto the SN30 numbering the games already use (Xbox A, the
+// bottom button = SNES B …). 'ptwoon' / 'ptwooff' tell the wall when it comes and goes.
+const P2_FACE = { 0: 1, 1: 0, 3: 4, 4: 3 }; // Xbox bottom/right/left/top → SN30 B/A/Y/X
+let p2Logged = 0, p2On = false;
+const p2Axis = {};
+function onEventP2(value, type, number) {
+  const t = type & 0x7f; if (type & 0x80) return;
+  if (p2Logged < 120) { p2Logged++; log(`p2 raw ${t === 1 ? 'button' : 'axis'} #${number} = ${value}`); }
+  if (t === 1 && number < 16) { const i = P2_FACE[number] ?? number; send(`qb${String.fromCharCode(97 + i)}${value === 1 ? 'd' : 'u'}`); return; }
+  if (t === 2 && (MAP.vert.includes(number) || MAP.horiz.includes(number))) {
+    const isY = MAP.vert.includes(number);
+    const st = value <= -THRESH ? (isY ? 'u' : 'l') : value >= THRESH ? (isY ? 'd' : 'r') : 'c';
+    const key = `${isY ? 'y' : 'x'}${number}`;
+    if (p2Axis[key] !== st) { p2Axis[key] = st; send(`q${isY ? 'y' : 'x'}${st}`); }
+  }
+}
+function attachP2() {
+  const dev = jsByName(P2_RE);
+  if (!dev) { if (p2On) { p2On = false; send('ptwooff'); log('player 2 controller gone'); } setTimeout(attachP2, 3000); return; }
+  const s = createReadStream(dev, { highWaterMark: 512 });
+  let buf = Buffer.alloc(0);
+  s.on('open', () => { p2On = true; send('ptwoon'); log(`player 2 (Xbox) on ${dev}`); });
+  s.on('data', (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    while (buf.length >= 8) { onEventP2(buf.readInt16LE(4), buf.readUInt8(6), buf.readUInt8(7)); buf = buf.subarray(8); }
+  });
+  const again = () => { if (p2On) { p2On = false; send('ptwooff'); log('player 2 controller gone'); } setTimeout(attachP2, 3000); };
+  s.on('error', again); s.on('end', again);
+}
+setInterval(() => { if (p2On) send('ptwoon'); }, 30000); // (a reloaded wall learns it again)
+
 log('SN30 Pro bridge starting');
 attach();
+attachP2();
 attachMouse();

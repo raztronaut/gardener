@@ -11,7 +11,7 @@
 // Binaries (gitignored, data/tools/retroarch/): the libretro buildbot's linux/aarch64
 // RetroArch + pcsx_rearmed core (see tools/arcade/README.md).
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { paths } from './config.mjs';
 
@@ -25,7 +25,17 @@ export const nativeSystems = () => Object.keys(CORES).filter((s) => existsSync(R
 let proc = null, current = null;
 export const nativeStatus = () => ({ running: !!proc, rom: current, systems: nativeSystems() });
 
+// /dev/input/jsN number of the first pad whose name matches (linuxraw's port N = jsN)
+function jsIndex(re) {
+  try {
+    for (const n of readdirSync('/sys/class/input').filter((x) => /^js\d+$/.test(x)).sort()) {
+      if (re.test(readFileSync(`/sys/class/input/${n}/device/name`, 'utf8'))) return n.slice(2);
+    }
+  } catch { /* none */ }
+  return null;
+}
 function writeConfig() {
+  const p1 = jsIndex(/8bitdo|sn30|sf30/i) ?? '0', p2 = jsIndex(/xbox|x-box|microsoft/i);
   for (const d of ['saves', 'states', 'system', 'screenshots']) mkdirSync(join(HOME, d), { recursive: true });
   const cfg = {
     // video: fullscreen on the wall, GL (GLX) on the Tegra, vsync'd to the 60 Hz panel
@@ -35,7 +45,7 @@ function writeConfig() {
     // audio: PulseAudio (the system volume / the Arcade's 42 % apply)
     audio_driver: 'pulse', audio_latency: '64', audio_sync: 'true',
     // input: the SN30 Pro through /dev/input/js0, bound explicitly (pad.mjs's numbering)
-    input_joypad_driver: 'linuxraw', input_autodetect_enable: 'false', input_player1_joypad_index: '0',
+    input_joypad_driver: 'linuxraw', input_autodetect_enable: 'false', input_player1_joypad_index: p1,
     input_player1_a_btn: '0', input_player1_b_btn: '1', input_player1_x_btn: '3', input_player1_y_btn: '4',
     input_player1_l_btn: '6', input_player1_r_btn: '7', input_player1_l2_btn: '8', input_player1_r2_btn: '9',
     input_player1_select_btn: '10', input_player1_start_btn: '11', input_player1_l3_btn: '13', input_player1_r3_btn: '14',
@@ -45,6 +55,18 @@ function writeConfig() {
     input_player1_analog_dpad_mode: '1',          // the left stick drives the d-pad too
     // the d-pad is the hat (axes 6/7 on this pad), not buttons
     input_player1_up_btn: 'nul', input_player1_down_btn: 'nul', input_player1_left_btn: 'nul', input_player1_right_btn: 'nul',
+    // player 2: an Xbox controller, by position (bottom A → PS cross / RetroPad B …)
+    ...(p2 != null ? {
+      input_player2_joypad_index: p2,
+      input_player2_b_btn: '0', input_player2_a_btn: '1', input_player2_y_btn: '3', input_player2_x_btn: '4',
+      input_player2_l_btn: '6', input_player2_r_btn: '7', input_player2_select_btn: '10', input_player2_start_btn: '11',
+      input_player2_l2_axis: '+5', input_player2_r2_axis: '+4', input_player2_l3_btn: '13', input_player2_r3_btn: '14',
+      input_player2_up_axis: '-7', input_player2_down_axis: '+7', input_player2_left_axis: '-6', input_player2_right_axis: '+6',
+      input_player2_l_x_plus_axis: '+0', input_player2_l_x_minus_axis: '-0', input_player2_l_y_plus_axis: '+1', input_player2_l_y_minus_axis: '-1',
+      input_player2_r_x_plus_axis: '+2', input_player2_r_x_minus_axis: '-2', input_player2_r_y_plus_axis: '+3', input_player2_r_y_minus_axis: '-3',
+      input_player2_analog_dpad_mode: '1',
+      input_player2_up_btn: 'nul', input_player2_down_btn: 'nul', input_player2_left_btn: 'nul', input_player2_right_btn: 'nul',
+    } : {}),
     input_quit_gamepad_combo: '4',                 // Select + Start leaves (as in the Arcade)
     input_menu_toggle_gamepad_combo: '0', input_menu_toggle_btn: 'nul', input_menu_toggle: 'nul',
     input_exit_emulator: 'escape', input_enable_hotkey_btn: 'nul',

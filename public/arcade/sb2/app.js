@@ -133,8 +133,18 @@ export async function bootSB2(host, { onExit } = {}) {
     }
   }
   function up(bit) { held &= ~bit; }
+  // player 2 (an Xbox controller: 'qb…' / 'qx…' / 'qy…' from pad.mjs) — its own held bits,
+  // only for the match (the menus stay player 1's)
+  let held2 = 0, latched2 = 0;
+  function raw2(a) {
+    const dn = (b) => { held2 |= b; latched2 |= b; }, upb = (b) => { held2 &= ~b; };
+    if (a[1] === 'b') { const bit = PADMAP[a.charCodeAt(2) - 97]; if (bit && bit !== BT.SELECT) { if (a[3] === 'd') dn(bit); else upb(bit); } return; }
+    if (a[1] === 'x') { upb(BT.LEFT); upb(BT.RIGHT); if (a[2] === 'l') dn(BT.LEFT); else if (a[2] === 'r') dn(BT.RIGHT); return; }
+    if (a[1] === 'y') { upb(BT.UP); upb(BT.DOWN); if (a[2] === 'u') dn(BT.UP); else if (a[2] === 'd') dn(BT.DOWN); }
+  }
   function raw(a) {
     if (stopped || typeof a !== 'string') return;
+    if (a[0] === 'q') { raw2(a); return; }
     if (a[1] === 'b') {
       const bit = PADMAP[a.charCodeAt(2) - 97];
       if (bit) { if (a[3] === 'd') down(bit); else up(bit); }
@@ -225,12 +235,15 @@ export async function bootSB2(host, { onExit } = {}) {
     const layout = set.layout === 'tall' ? 'tall' : 'original', stage = set.stage;
     game = createGame({
       stage, layout, seed: (Math.random() * 65536) | 0,
-      players: set.players.map((t) => (t === 'human' ? { type: 'human' } : t === 'off' ? { type: 'off' } : { type: 'cpu', level: set.level })),
+      // a connected player-2 controller takes the 2nd bomber (unless it's switched off)
+      players: set.players.map((t, i) => (t === 'human' || (i === 1 && t !== 'off' && window.__GARDEN_P2) ? { type: 'human' } : t === 'off' ? { type: 'off' } : { type: 'cpu', level: set.level })),
       rules: { wins: set.wins, time: set.time, gbomber: !!set.gbomber, comLevel: set.level,
         champion: set.gbomber ? champion : null, bonus: set.gbomber ? bonus : 0 },
     });
     // P1's pad; a second MAN (2P) has no controller on the wall: it stands still
     for (let i = 0; i < 4; i++) pads[i] = i === 0 && set.players[0] === 'human' ? 0 : null;
+    if (window.__GARDEN_P2 && set.players[1] !== 'off') pads[1] = 0; // player 2's pad (raw2)
+    held2 = 0; latched2 = 0;
     T.push(performance.now());
     // one display per layout for the session: no per-match allocation, and the JIT keeps
     // its optimised render path (a fresh display per match measured 2.5x slower)
@@ -305,7 +318,8 @@ export async function bootSB2(host, { onExit } = {}) {
   function tick() {
     const t0 = performance.now();
     if (pads[0] !== null) pads[0] = held | latched;
-    latched = 0;
+    if (pads[1] !== null && window.__GARDEN_P2) pads[1] = held2 | latched2;
+    latched = 0; latched2 = 0;
     game.tick(pads);
     const ev = game.events;
     disp.frame(game, ev);

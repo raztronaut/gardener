@@ -2199,7 +2199,9 @@ function wirePad() {
       return;
     }
     // Raw controller edges (jb…/jx…/jy…) only matter to a running game.
-    if (/^j[bxy]/.test(action)) { try { window.__GARDEN_GAME?.raw?.(action); } catch { /* ignore */ } return; }
+    if (/^[jq][bxy]/.test(action)) { try { window.__GARDEN_GAME?.raw?.(action); } catch { /* ignore */ } return; } // j = player 1, q = player 2
+    // player 2 (an Xbox controller, pad.mjs) came or went: games give it the second seat
+    if (action === 'ptwoon' || action === 'ptwooff') { const on = action === 'ptwoon'; if (on !== !!window.__GARDEN_P2) toast(on ? 'Player 2 controller connected' : 'Player 2 controller disconnected'); window.__GARDEN_P2 = on; return; }
     // A running game OVERWRITES all control mappings. Leaving: hold all four
     // shoulder buttons (L1+R1+L2+R2 → 'arcade'); in the game list L2 still works.
     if (window.__GARDEN_GAME) {
