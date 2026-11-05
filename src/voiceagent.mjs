@@ -10,6 +10,7 @@
 // happens when a tool fails or returns something the reply depends on.
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.mjs';
+import { botanist } from './botanist.mjs';
 
 const MODEL = process.env.GARDENER_VOICE_MODEL || 'claude-haiku-5-5';
 const MAX_ROUNDS = 4;
@@ -34,6 +35,7 @@ Act through your tools: they do exactly what tapping, clicking or the game contr
 - "Close", "go back", "never mind", "stop": close what's open. "Scroll"/"next"/"down": press. "Open the third story" / "the pub crawl": select by its text or number.
 - Volume: "louder"/"quieter" = change by ±10 unless they say how much; "mute" = set 0.
 - Only plant a seed note when they ask to tell/ask the gardener something or to change/improve the wall — the note is their words, cleaned up.
+- The Botanist is a separate AI agent (Claude Code, running in Paseo on this machine) that can change the computer itself: edit code and files, run commands, fix and build things, change GardenOS's own code. Use the botanist tool when they address it ("botanist, ...", "tell the botanist ...", "ask the botanist ...", misheard as "bottom list", "but honest", "the botanist") or ask for something only it can do (change/fix/build code or the system, run something on the computer). Pass their request as the task, in their words, cleaned up — don't solve it yourself. Its answer appears on the wall later by itself; your caption is a few words ("Sent to the Botanist."). "What is the botanist doing?" = status. "Allow it" / "yes, do it" / "approve" right after the Botanist asked for permission = allow; "deny it" / "no" = deny; "stop the botanist" = stop. Wall controls (open, close, volume...) stay with your own tools.
 - If something isn't possible, say so kindly in a few words. Never invent widgets, commands or facts that aren't in the snapshot or your sources.`;
 
 const TOOLS = [
@@ -71,6 +73,8 @@ const TOOLS = [
         caption: { type: 'string', description: 'image: a short caption' },
       } } },
     } } },
+  { name: 'botanist', description: 'Talk to the Botanist (the Claude Code agent that can change the computer and GardenOS itself). ask = hand it a task (async: its answer shows on the wall when done); status = what it is doing; allow / deny = answer the permission it is waiting for; stop = cancel its current task.',
+    input_schema: { type: 'object', properties: { action: { type: 'string', enum: ['ask', 'status', 'allow', 'deny', 'stop'] }, task: { type: 'string', description: 'ask: the request, in the person\'s words' } }, required: ['action'] } },
   // run by the API (results come back inside the same response)
   { type: 'web_search_20250305', name: 'web_search', max_uses: 3, user_location: { type: 'approximate', city: 'San Francisco', region: 'California', country: 'US', timezone: 'America/Los_Angeles' } },
   { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: 2 },
@@ -81,7 +85,7 @@ const clip = (s, n) => (String(s || '').length > n ? String(s).slice(0, n - 1) +
 const HISTORY_MS = 3 * 60 * 1000;
 let history = [];
 
-export async function runAgent(text, { context, call, log = () => {} }) {
+export async function runAgent(text, { context, call, notify = () => {}, log = () => {} }) {
   if (!config.apiKey) return { ok: false, reply: 'I need an API key to do that.' };
   client ||= new Anthropic({ apiKey: config.apiKey });
   const t0 = Date.now();
@@ -107,8 +111,12 @@ export async function runAgent(text, { context, call, log = () => {} }) {
     // opening something replaces what's open — a close in the same turn would undo it
     if (uses.some((u) => u.name === 'open' || u.name === 'dashboard')) uses = uses.filter((u) => u.name !== 'close');
     if (!uses.length) break;                     // answered (or explained a failure)
-    const got = await call(uses.map((u) => ({ name: u.name, input: u.input })));
-    const list = Array.isArray(got) ? got : uses.map(() => got);
+    // the botanist runs here (the Paseo bridge); everything else is the wall's
+    const wallUses = uses.filter((u) => u.name !== 'botanist');
+    const got = wallUses.length ? await call(wallUses.map((u) => ({ name: u.name, input: u.input }))) : [];
+    const wallList = Array.isArray(got) ? got : wallUses.map(() => got);
+    const list = [];
+    for (const u of uses) list.push(u.name === 'botanist' ? await botanist(u.input || {}, { notify, log }) : wallList[wallUses.indexOf(u)]);
     // tool names + ok/failed only; the inputs (which can carry the person's words) only with
     // GARDENER_VOICE_DEBUG=1 (QA) — never in normal running
     log(`tools: ${uses.map((u, i) => `${u.name}${process.env.GARDENER_VOICE_DEBUG === '1' ? JSON.stringify(u.input) + '→' + JSON.stringify(list[i]) : list[i]?.ok === false ? ' (failed)' : ''}`).join(', ')}`);

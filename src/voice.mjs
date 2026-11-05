@@ -232,6 +232,7 @@ async function finish(why) {
     out = await Promise.race([new Promise((r) => setTimeout(() => r({ ok: false, reply: 'That took too long — try again?' }), 20000)), runAgent(text, {
       context: () => askWall('context', {}, 2500),
       call: (calls) => askWall('act', { calls }, 8000),
+      notify: (ev) => send({ t: 'botanist', ...ev }), // the Botanist reports back later, on its own
       log,
     })]);
   } catch (e) { log(`agent: ${e.message || e}`); out = { ok: false, reply: 'Sorry — I couldn’t do that.' }; }
@@ -335,7 +336,7 @@ http.createServer(async (req, res) => {
     }
     else if (url.pathname === '/control') { if ('enabled' in body) setEnabled(body.enabled); if (body.calibrate) startCalibration(+body.seconds || 60); }
     else if (url.pathname === '/say' && !origin) { // QA only (curl, no browser origin): run a typed request
-      if (state === 'idle' && typeof body.text === 'string') { tWake = Date.now(); setState('listening'); setTimeout(() => { const t = body.text; utterLen = 0; (async () => { setState('thinking', { text: t }); const out = await runAgent(t, { context: () => askWall('context', {}, 2500), call: (calls) => askWall('act', { calls }, 8000), log }).catch(() => ({ ok: false, reply: 'Sorry — I couldn’t do that.' })); setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' }); })(); }, 600); }
+      if (state === 'idle' && typeof body.text === 'string') { tWake = Date.now(); setState('listening'); setTimeout(() => { const t = body.text; utterLen = 0; (async () => { setState('thinking', { text: t }); const out = await runAgent(t, { context: () => askWall('context', {}, 2500), call: (calls) => askWall('act', { calls }, 8000), notify: (ev) => send({ t: 'botanist', ...ev }), log }).catch(() => ({ ok: false, reply: 'Sorry — I couldn’t do that.' })); setState('idle', { end: out.ok ? 'done' : 'fail', reply: out.reply || '' }); })(); }, 600); }
     }
     res.writeHead(200, { ...cors, 'Content-Type': 'application/json' }); return res.end('{"ok":true}');
   }

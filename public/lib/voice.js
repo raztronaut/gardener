@@ -115,6 +115,32 @@ function makeCaption(api) {
   };
 }
 
+// The Botanist's card: what the Claude Code agent (src/botanist.mjs) reports back, minutes
+// after the voice request — its answer, a permission it waits for, or an error. Its own
+// element (never the voice caption, which may be mid-request). Two tones for contrast over
+// any widget: a darker glass body with light ink, under a lighter header strip.
+function makeBotanistCard(api) {
+  const el = document.createElement('div');
+  el.id = 'botanistCard';
+  el.innerHTML = '<div class="bc-head"><i class="bc-dot"></i><span class="bc-who">The Botanist</span><span class="bc-kind"></span></div><div class="bc-tx"></div>';
+  (document.getElementById('zoomroot') || document.body).appendChild(el);
+  const kindEl = el.querySelector('.bc-kind'), tx = el.querySelector('.bc-tx');
+  const LABEL = { done: 'done', permission: 'needs your ok', error: 'stopped' };
+  let hideT = 0;
+  return {
+    show(kind, text) {
+      clearTimeout(hideT);
+      // too long to read in a card: the whole answer as a sheet in the panel
+      if (kind === 'done' && text.length > 420 && api.showText) { el.className = ''; api.showText(text); return; }
+      el.className = `on ${kind}${text.length > 160 ? ' long' : ''}`;
+      kindEl.textContent = LABEL[kind] || '';
+      tx.textContent = text;
+      // a permission stays until it's answered (the next event) or 3 minutes pass
+      hideT = setTimeout(() => { el.className = ''; }, kind === 'permission' ? 180000 : Math.min(30000, 8000 + text.length * 70));
+    },
+  };
+}
+
 // calibration card: a countdown ring, the takes heard so far, then the tuning and the result
 function makeCalib() {
   const el = document.createElement('div');
@@ -162,6 +188,7 @@ function makeCalib() {
 export function startVoice(api) {
   const glow = makeGlow();
   const cap = makeCaption(api);
+  const bcard = makeBotanistCard(api);
   const calib = makeCalib();
   let es = null, backoff = 2000, enabled = true, busy = false, lastEv = 0, watchdog = 0;
   // never stuck: back to rest if a listening / thinking moment hears nothing for 12 s, or
@@ -191,6 +218,11 @@ export function startVoice(api) {
         await new Promise((r) => setTimeout(r, 90)); // let each step paint before the next
       }
       post('/reply', { id: ev.id, data: out });
+      return;
+    }
+    if (ev.t === 'botanist') { // the Botanist reports back (any time, independent of a request)
+      api.sound(ev.kind === 'error' ? 'fail' : ev.kind === 'permission' ? 'heard' : 'done');
+      bcard.show(ev.kind, String(ev.text || ''));
       return;
     }
     if (ev.t !== 'state') return;
