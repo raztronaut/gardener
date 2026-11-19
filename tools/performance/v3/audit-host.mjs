@@ -1,0 +1,11 @@
+import{readFileSync,readdirSync,writeFileSync}from'node:fs';import{execFileSync}from'node:child_process';
+const read=p=>{try{return readFileSync(p,'utf8').trim();}catch{return '';}};
+const vm=()=>Object.fromEntries(read('/proc/vmstat').split('\n').map(l=>{const[k,v]=l.split(' ');return[k,+v];}));
+const processes=()=>{const out={};for(const pid of readdirSync('/proc').filter(x=>/^\d+$/.test(x))){try{const s=read(`/proc/${pid}/stat`),i=s.lastIndexOf(')'),f=s.slice(i+2).split(' ');out[pid]={name:s.slice(s.indexOf('(')+1,i),ticks:+f[11]+ +f[12],rssMiB:+f[21]*4096/1048576};}catch{}}return out;};
+const cpu=()=>read('/proc/stat').split('\n')[0].split(/\s+/).slice(1).map(Number);
+const before=processes(),v0=vm(),c0=cpu(),start=performance.now();await new Promise(r=>setTimeout(r,10000));const ms=performance.now()-start,after=processes(),v1=vm(),c1=cpu();
+const ticks=Number(execFileSync('getconf',['CLK_TCK']).toString()),delta=c1.map((n,i)=>n-c0[i]),total=delta.reduce((a,b)=>a+b,0);
+const top=Object.entries(after).map(([pid,p])=>({pid:+pid,name:p.name,rssMiB:Math.round(p.rssMiB),cpuPercentOfOneCore:Math.round((p.ticks-(before[pid]?.ticks??p.ticks))/ticks/(ms/1000)*1000)/10})).sort((a,b)=>b.cpuPercentOfOneCore-a.cpuPercentOfOneCore).slice(0,18);
+const temperatures=readdirSync('/sys/class/thermal').filter(x=>x.startsWith('thermal_zone')).map(x=>({type:read(`/sys/class/thermal/${x}/type`),c:Number(read(`/sys/class/thermal/${x}/temp`))/1000}));
+const report={at:new Date().toISOString(),method:'Ten-second active workstation sample; no process arguments, environment or household contents. CPU percentage uses one core=100%.',sampleMs:Math.round(ms),top,temperatures,memory:read('/proc/meminfo').split('\n').filter(l=>/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/.test(l)),paging:Object.fromEntries(['pswpin','pswpout','pgmajfault'].map(k=>[k,v1[k]-v0[k]])),cpu:{idlePercent:100*delta[3]/total,ioWaitPercent:100*delta[4]/total},powerMode:execFileSync('nvpmodel',['-q']).toString().trim(),storage:execFileSync('df',['-h','/']).toString().trim()};
+writeFileSync('docs/performance/v4/host.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

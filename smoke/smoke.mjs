@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { checkCommandPalette } from './command-palette.mjs';
 
 const pExecFile = promisify(execFile);
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,6 +39,8 @@ async function main() {
       try { await pExecFile(process.execPath, ['--check', join(ROOT, f)]); ok(`syntax ${f}`); }
       catch (e) { bad(`syntax ${f}`, (e.stderr || e.message).toString().split('\n')[0]); }
     }
+
+    try { await pExecFile(process.execPath, [join(ROOT, 'tools/widget-layout/check-contract.mjs')]); ok('widget size design contracts'); } catch(e) { bad('widget size design contracts', String(e.stderr||e.message)); }
 
     // 2) Manifest integrity + widget files present and plausibly ESM.
     console.log('\n[2] widget manifest');
@@ -597,26 +600,46 @@ async function main() {
 }
 
 async function dumpDom(url) {
-  const args = [
-    '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-    `--user-data-dir=${join(ROOT, 'data', '.chrome-profile')}`,
-    '--virtual-time-budget=8000', '--dump-dom', url,
-  ];
-  // The dump snapshots the DOM when the virtual-time budget elapses. app.js publishes
-  // its readiness markers (data-gardener-ready) synchronously, right after the local
-  // state/manifest/import fetches and BEFORE awaiting any widget's external data — but
-  // on a cold/slow boot the snapshot can very occasionally land in the sliver before
-  // those markers appear. That's a race in the CAPTURE, not a real boot failure, so
-  // re-dump a few times until the markers show up. If boot genuinely never readies,
-  // the last attempt still lacks the marker and the real assertions fail honestly —
-  // this only heals the transient early-snapshot, it does not mask a broken boot.
-  let stdout = '';
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    ({ stdout } = await pExecFile(CHROMIUM, args, { timeout: 45000, maxBuffer: 16 * 1024 * 1024 }));
-    if (/data-gardener-ready="true"/.test(stdout)) break;
-    if (attempt < 3) await sleep(500);
+  // Virtual-time --dump-dom can finish before network ES modules have booted.
+  // Wait for the app's real ready marker using CDP, in a disposable profile.
+  const profile=mkdtempSync(join(tmpdir(),'garden-smoke-browser-'));
+  const child=spawn(CHROMIUM,[
+    '--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+    '--no-first-run','--window-size=900,1600','--remote-debugging-port=0',
+    `--user-data-dir=${profile}`,url,
+  ],{detached:true,stdio:'ignore'});
+  let ws,spawnError,nextId=0;const pending=new Map();
+  child.on('error',e=>spawnError=e);
+  try {
+    const deadline=Date.now()+45000;let port;
+    while(Date.now()<deadline){
+      if(spawnError)throw spawnError;
+      try{port=Number(readFileSync(join(profile,'DevToolsActivePort'),'utf8').split('\n')[0]);if(port)break;}catch{}
+      await sleep(100);
+    }
+    if(!port)throw Error('Smoke browser did not start');
+    const tabs=await(await fetch(`http://127.0.0.1:${port}/json/list`,{signal:AbortSignal.timeout(3000)})).json();
+    const tab=tabs.find(t=>t.type==='page');if(!tab)throw Error('Smoke browser has no page');
+    ws=new WebSocket(tab.webSocketDebuggerUrl);
+    await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('CDP connect timeout')),3000);ws.onopen=()=>{clearTimeout(timer);resolve();};ws.onerror=()=>{clearTimeout(timer);reject(Error('CDP connect failed'));};});
+    ws.onmessage=e=>{const r=JSON.parse(e.data),task=pending.get(r.id);if(task){pending.delete(r.id);clearTimeout(task.timer);r.error?task.reject(Error(r.error.message)):task.resolve(r.result);}};
+    const evaluate=expression=>new Promise((resolve,reject)=>{const id=++nextId,timer=setTimeout(()=>{pending.delete(id);reject(Error('CDP evaluation timeout'));},3000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method:'Runtime.evaluate',params:{expression,returnByValue:true}}));});
+    let ready=false;
+    while(Date.now()<deadline){const r=await evaluate('document.documentElement.dataset.gardenerReady');if(r.result?.value==='true'){ready=true;break;}await sleep(150);}
+    if(!ready)throw Error('App never reached ready within 45 seconds');
+    await sleep(1500); // allow layout diagnostics and immediate mount failures to settle
+    const dom = (await evaluate('document.documentElement.outerHTML')).result.value;
+    const palette = await evaluate(`(${checkCommandPalette.toString()})()`);
+    if (palette.exceptionDetails) throw Error('Command palette regression: ' + (palette.exceptionDetails.exception?.description || palette.exceptionDetails.text));
+    check('command palette: slash, every command, aliases, options and keyboard controls', palette.result?.value?.commands > 0);
+    return dom;
+  } finally {
+    for(const task of pending.values()){clearTimeout(task.timer);task.reject(Error('Browser closed'));}
+    try{ws?.close();}catch{}
+    try{process.kill(-child.pid,'SIGKILL');}catch{try{child.kill('SIGKILL');}catch{}}
+    await sleep(100);
+    rmSync(profile,{recursive:true,force:true});
   }
-  return stdout;
 }
 
 main().catch((e) => { console.error('smoke crashed:', e); process.exit(1); });

@@ -1,12 +1,12 @@
 // Crash recovery — run on every boot (by the main server) and before each
-// iteration. Guarantees the served UI is a consistent, committed, known-good state.
+// iteration. Preserves shared work and reconciles iteration bookkeeping.
 //
 // Safety rules (hardened after adversarial review):
 //   - NEVER touch an iteration whose owning process is still alive (e.g. the
 //     review render-harness, or a genuinely-running iteration). Only dead ones.
 //   - If a dead iteration's deploy commit already landed (HEAD == result_commit),
 //     finalize it as committed rather than reverting shipped, tested work.
-//   - Otherwise revert the working tree to the iteration's base commit.
+//   - Otherwise mark interrupted; never reset, clean, or rewind the shared checkout.
 import { unfinishedIterations, finishIteration, clearStaleLock, pidAlive } from './db.mjs';
 import * as git from './gitlib.mjs';
 import { appendFileSync } from 'node:fs';
@@ -41,12 +41,9 @@ export function recover() {
       finishIteration(it.id, 'committed', { error: 'finalized on recovery (commit had landed)' });
       continue;
     }
-    // Genuine mid-iteration crash → revert the tree to the known-good base.
-    const target = it.base_commit || git.head();
-    log(`iteration #${it.id} (${it.status}, pid ${it.pid}) died mid-flight — reverting tree to ${target?.slice(0, 8)}`);
-    try { git.resetHard(target || 'HEAD'); }
-    catch (e) { log(`reset failed: ${e.message}`); }
-    finishIteration(it.id, 'crashed', { error: 'process died mid-iteration; tree reverted on recovery' });
+    // Neither dirty work nor a clean, newer HEAD belongs to this dead process.
+    log(`iteration #${it.id} interrupted; preserving working files and current HEAD`);
+    finishIteration(it.id, 'crashed', {error:'Interrupted; working files and HEAD preserved for review.'});
   }
   log(`recovery complete (${stuck.length} stuck iteration(s) examined)`);
 }

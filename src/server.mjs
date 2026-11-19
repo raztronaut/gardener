@@ -2,6 +2,9 @@
 // Serves the live frontend (public/) and a small JSON API. Binds to localhost
 // only. Includes an SSRF-hardened, allowlisted proxy so widgets can reach
 // keyless public APIs without CORS headaches.
+import { fetchFeedURL } from './feed-fetch.mjs';
+import { themeById } from '../public/lib/theme-registry.js';
+import { compileDesign } from '../public/lib/design-system.js';
 import http from 'node:http';
 import { promises as fs, readFileSync, appendFileSync, existsSync } from 'node:fs';
 import { spawn, execFileSync } from 'node:child_process';
@@ -23,13 +26,20 @@ import { tendPoem, currentPoem } from './poem.mjs';
 import { nativeStatus, startNative, stopNative } from './native.mjs';
 import { eventImage } from './eventimages.mjs';
 import { extractReadable, readerResolve } from './reader.mjs';
-import { changelogPhrase } from './changelog.mjs';
+import { changelogPhrase, changelogDetails, numberChangelog } from './changelog.mjs';
+import { manualEntries } from './manual-changelog.mjs';
+import { readingState, readingEditions } from './editorial.mjs';
 import { handleHouseApi } from './house-api.mjs';
+import { messenger, serveSharedItem } from './messages.mjs';
+import { residentManager } from './residents.mjs';
+import { SIGN_PROMPTS } from './sign-speech.mjs';
+import { signs, signCatalog, signPrinterStatus, speakSignPrompt } from './signs.mjs';
 import { agentModel } from './models.mjs';
 import { ensureFractal, SLOT_MS, sceneParams } from './fractal.mjs';
 
-import { nearbyTransit } from './transit.mjs';
-import { readFeed } from './feeds.mjs';
+import { nearbyTransit, transitRoutes, bartTransit, withBoardingPredictions } from './transit.mjs';
+import {transitCatalog,searchPlaces,planTransit,origin as transitOrigin} from './transit-planner.mjs';
+import { readFeed, feedLibrary, feedDigest, changeFeeds, feedArticle } from './feeds.mjs';
 import { gardenMood } from './mood.mjs';
 import { openSetupChat } from './task-explainer.mjs';
 
@@ -185,7 +195,14 @@ function htmlEsc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;
 function readerExtractText(html) { return extractReadable(html); } // src/reader.mjs: richest <article>/<main>, else the whole page
 // A self-contained, on-brand dark "reader text" page (the fallback when the
 // original would render blank). Includes the same postMessage scroll bridge.
-function readerTextPage(title, text, url, { source = null, desc = '' } = {}) {
+let readerFonts = null;
+function readerFontCSS() {
+  if(readerFonts !== null)return readerFonts;
+  const sheet=readFileSync(new URL('../public/styles.css',import.meta.url),'utf8');
+  readerFonts=[...sheet.matchAll(/@font-face\s*\{[^}]+\}/g)].map(m=>m[0]).join('\n').replace(/url\(['"]?(\/assets\/fonts\/[^)'" ]+)['"]?\)/g,(_m,path)=>`url(data:font/woff2;base64,${readFileSync(new URL('../public'+path,import.meta.url)).toString('base64')})`);
+  return readerFonts;
+}
+function readerTextPage(title, text, url, { source = null, desc = '', richHtml = '', richCSS = '', theme = 'classic' } = {}) {
   let host = ''; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
   // Treat near-empty results (SPAs, Cloudflare "Just a moment…" walls, paywalls)
   // as "no content" → show the open-on-phone message rather than a useless stub.
@@ -193,8 +210,8 @@ function readerTextPage(title, text, url, { source = null, desc = '' } = {}) {
   const paras = usable.length >= 40 ? String(text).split(/\n+/).filter((s) => s.trim())
     .map((s) => (s.startsWith('## ') ? `<h2>${htmlEsc(s.slice(3))}</h2>` : `<p>${htmlEsc(s)}</p>`)).join('') : '';
   const qr = `/api/proxy?url=${encodeURIComponent(`https://quickchart.io/qr?text=${encodeURIComponent(url)}&dark=eafff4&light=00000000&ecLevel=M&margin=1&size=220&format=png`)}`;
-  const bodyHtml = paras || `${desc ? `<p>${htmlEsc(desc)}</p>` : ''}<p class="empty">This site blocks automated readers and has no archived copy yet, so the wall can’t show the article. Scan to read it on your phone:</p><img class="qr" src="${qr}" alt="article link" width="220" height="220">`;
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  const bodyHtml = richHtml || paras || `${desc ? `<p>${htmlEsc(desc)}</p>` : ''}<p class="empty">This site blocks automated readers and has no archived copy yet, so the wall can’t show the article. Scan to read it on your phone:</p><img class="qr" src="${qr}" alt="article link" width="220" height="220">`;
+  return `<!doctype html><html${richCSS ? ` data-theme="${htmlEsc(theme)}"` : ''}><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><style>
     html{scrollbar-width:thin;scrollbar-color:#43e6c6 transparent}
     ::-webkit-scrollbar{width:12px}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#74f7b0,#43e6c6);border-radius:999px;border:3px solid transparent;background-clip:padding-box;min-height:48px}
     body{margin:0;background:#04110d;color:#cfeede;font:17px/1.62 Inter,system-ui,-apple-system,sans-serif;padding:26px 30px 70px}
@@ -203,9 +220,9 @@ function readerTextPage(title, text, url, { source = null, desc = '' } = {}) {
     p{margin:0 0 14px;max-width:62ch}.empty{color:#6f9388}
     .qr{display:block;margin:18px 0 0;width:220px;height:220px}
     .src{font:600 11px/1 ui-monospace,monospace;letter-spacing:.2em;text-transform:uppercase;color:#6f9388;margin:0 0 16px}
-  </style></head><body>
+  ${richCSS}</style></head><body class="article-reader">
     <div class="src">reader${host ? ' · ' + htmlEsc(host) : ''}${source && source !== 'rendered' ? ' · via ' + htmlEsc(source) : ''}</div>
-    <h1>${htmlEsc(title)}</h1>${bodyHtml}
+    <h1>${htmlEsc(title)}</h1><main class="article-rich">${bodyHtml}</main>
     <script>addEventListener('message',function(e){var d=e&&e.data;if(d&&typeof d.__readerScroll==='number'){try{scrollBy({top:d.__readerScroll,behavior:'smooth'})}catch(_){scrollBy(0,d.__readerScroll)}}});<\/script>
   </body></html>`;
 }
@@ -505,6 +522,41 @@ const server = http.createServer(async (req, res) => {
       if (!hostOk || req.headers.origin !== `http://${host}`) { log(`refused ${req.method} ${p} from origin ${String(req.headers.origin).slice(0, 80)}`); return json(res, 403, { error: 'cross-origin request refused' }); }
     }
 
+    if (p.startsWith('/api/signs')) {
+      try {
+        const speech=/^\/api\/signs\/speech\/([a-z-]+)\.wav$/.exec(p);
+        if(req.method==='GET'&&speech&&Object.hasOwn(SIGN_PROMPTS,speech[1])){const audio=await fs.readFile(join(paths.DATA,'signs/speech',speech[1]+'.wav'));res.writeHead(200,{'Content-Type':'audio/wav','Cache-Control':'no-cache'});return res.end(audio);}
+        if(req.method==='GET'&&p==='/api/signs/catalog')return json(res,200,await signCatalog());
+        if(req.method==='GET'&&p==='/api/signs/printer')return json(res,200,await signPrinterStatus());
+        const artifact=/^\/api\/signs\/([a-f0-9-]{36})\/(\d+)\/(preview\.png|print\.jpg|sign\.pdf)$/.exec(p);
+        if(req.method==='GET'&&artifact){const bytes=await signs.artifact(artifact[1],Number(artifact[2]),artifact[3]);res.writeHead(200,{'Content-Type':artifact[3].endsWith('.pdf')?'application/pdf':artifact[3].endsWith('.png')?'image/png':'image/jpeg','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(bytes);}
+        const state=/^\/api\/signs\/([a-f0-9-]{36})$/.exec(p);
+        if(req.method==='GET'&&state)return json(res,200,await signs.get(state[1]));
+        const action=p.slice('/api/signs/'.length);
+        if(req.method==='POST'&&['create','revise','present','invalidate','cancel','approve','reconcile','speak'].includes(action)){
+          const input=JSON.parse(await readBody(req,16384));
+          return json(res,200,action==='speak'?await speakSignPrompt(input):await signs[action](input));
+        }
+        return json(res,404,{error:'Unknown sign operation.'});
+      }catch(e){return json(res,e.code==='ENOENT'?404:400,{error:e.code==='ENOENT'?'Sign assets or setup are missing.':e.message});}
+    }
+    if (await serveSharedItem(req,res,p)) return;
+    if (req.method === 'GET' && p === '/api/messages/residents') return json(res,200,await residentManager.list());
+    if (req.method === 'POST' && ['/api/messages/residents/save','/api/messages/residents/remove'].includes(p)) {
+      try {
+        const input=JSON.parse(await readBody(req,4096));
+        return json(res,200,p.endsWith('/save')?await residentManager.save(input):await residentManager.remove(input.id));
+      } catch(e) { return json(res,400,{error:e.code==='ENOENT'?'Messaging is not configured on this wall.':e.message}); }
+    }
+    if (req.method === 'GET' && p === '/api/messages/recipients') return json(res,200,await messenger.recipients());
+    if (req.method === 'GET' && p.startsWith('/api/messages/status/')) {
+      const job=await messenger.status(p.slice('/api/messages/status/'.length));
+      return json(res,job?200:404,job||{error:'Send not found.'});
+    }
+    if (req.method === 'POST' && p === '/api/messages/send') {
+      try { const input=JSON.parse(await readBody(req,256*1024)); return json(res,202,await messenger.enqueue(input)); }
+      catch(e) { return json(res,400,{error:e.code==='ENOENT'?'Messaging is not configured on this wall.':e.message}); }
+    }
     if (req.method === 'GET' && p === '/api/health') return json(res, 200, { ok: true, version: getUiVersion(), night: getNight(), uptime: Math.round((Date.now() - START) / 1000) });
     if (req.method === 'GET' && p === '/api/version') return json(res, 200, { version: getUiVersion() });
     if (req.method === 'POST' && p === '/api/todos/paseo') {
@@ -519,20 +571,40 @@ const server = http.createServer(async (req, res) => {
       let body; try { body = JSON.parse(await readBody(req, 4096)); } catch { return json(res, 400, { error: 'bad json' }); }
       return json(res, 200, await gardenMood(typeof body?.context === 'string' ? body.context : ''));
     }
+    if (req.method === 'GET' && p === '/api/transit/routes') return json(res, 200, await transitRoutes());
+    if (req.method === 'GET' && p === '/api/transit/catalog') {try{const c=await transitCatalog();return json(res,200,{origin:transitOrigin(),routes:c.routes,shapes:c.shapes,stations:c.stops.filter(s=>s.agency==='BA'&&s.station),at:c.version});}catch{return json(res,503,{error:'Transit schedules are temporarily unavailable.'});}}
+    if (req.method === 'GET' && p === '/api/transit/bart') return json(res,200,await bartTransit());
+    if (req.method === 'GET' && p === '/api/transit/places') {try{return json(res,200,await searchPlaces(u.searchParams.get('q')));}catch(e){return json(res,400,{error:e.message});}}
+    if (req.method === 'POST' && p === '/api/transit/plan') {try{return json(res,200,withBoardingPredictions(await planTransit(JSON.parse(await readBody(req,2048)))));}catch(e){return json(res,400,{error:e.message});}}
     if (req.method === 'GET' && p === '/api/transit') return json(res, 200, await nearbyTransit());
+    if (req.method === 'GET' && p === '/api/reading-summary') {
+      const state = readingState();
+      const editionId = u.searchParams.get('edition');
+      if (editionId) state.edition = readingEditions().find(e => e.id === editionId) || null;
+      return json(res, 200, state);
+    }
+    if (req.method === 'GET' && p === '/api/feeds/article') {
+      try { return json(res, 200, await feedArticle(u.searchParams.get('id'), u.searchParams.get('url'))); }
+      catch(e) { return json(res, 502, {error:e.message}); }
+    }
+    if (req.method === 'GET' && p === '/api/feeds/library') return json(res, 200, await feedLibrary());
+    if (req.method === 'GET' && p === '/api/feeds/digest') return json(res, 200, await feedDigest());
+    if (req.method === 'POST' && p === '/api/feeds/library') {
+      try { return json(res, 200, await changeFeeds(JSON.parse(await readBody(req, 4096)))); }
+      catch(e) { return json(res, 400, {error:e.message}); }
+    }
     if (req.method === 'GET' && p === '/api/feeds') {
-      const feed = await readFeed(u.searchParams.get('id') || 'hn');
+      const feed = await readFeed(u.searchParams.get('id') || 'guardian');
       return json(res, feed ? 200 : 404, feed || { error: 'Unknown feed' });
     }
     if (req.method === 'GET' && p === '/api/state') return json(res, 200, stateObject());
     if (req.method === 'GET' && p === '/api/iterations') {
-      // One concise "what changed" phrase per committed tending — powers the
-      // /iterations changelog. changelogPhrase() prefers the agent's CHANGELOG:
-      // line and skips test-status boilerplate ("all checks green") otherwise.
+      // Keep the headline and authored detail separately. Merge dated manual
+      // digests without counting them as autonomous tendings.
       const iterations = recentIterations(80)
         .filter((x) => x.status === 'committed')
-        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, phrase: changelogPhrase(x.summary, Infinity) || 'self-directed improvement' }));
-      return json(res, 200, { iterations });
+        .map((x) => ({ id: x.id, at: x.finished_at, feedback: x.feedback_count, kind: 'tending', details: changelogDetails(x.summary), phrase: changelogPhrase(x.summary, Infinity) || 'self-directed improvement' }));
+      return json(res, 200, { iterations: numberChangelog([...iterations, ...manualEntries().filter(e => e.hasChanges).map(({ fingerprint, hasChanges, ...entry }) => entry)]) });
     }
     if (req.method === 'GET' && p === '/api/feedback') {
       const limit = Math.min(parseInt(u.searchParams.get('limit') || '25', 10) || 25, 200);
@@ -657,7 +729,8 @@ const server = http.createServer(async (req, res) => {
         const timer = setTimeout(() => ac.abort(), 12000);
         let r;
         try {
-          r = await fetch(t.toString(), {
+          if(u.searchParams.get('rich')==='1' && t.protocol==='https:'){const page=await fetchFeedURL(t.href);r={status:page.status,url:page.url,text:async()=>page.body.toString()};}
+          else r = await fetch(t.toString(), {
             signal: ac.signal, redirect: 'follow',
             headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux aarch64) TheGardenerReader/1.0', Accept: 'text/html,*/*;q=0.5' },
           });
@@ -683,10 +756,11 @@ const server = http.createServer(async (req, res) => {
         const wantRead = u.searchParams.get('read') === '1', wantRaw = u.searchParams.get('raw') === '1';
         const hnTitle = (u.searchParams.get('title') || '').slice(0, 300);
         const resolved = (wantRead || wantRaw) ? await readerResolve({ target, status: r.status, html, finalUrl: r.url || target, title }) : null;
+        const readerTheme=themeById(u.searchParams.get('theme'))?.id || 'classic';
         const textPage = () => {
           const tt = (resolved.title || '').replace(/\s*[\\|–—-]\s*[^\\|–—-]*$/, '') || resolved.title;
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-          return res.end(readerTextPage(hnTitle || tt || t.hostname, resolved.text, resolved.url || target, { source: resolved.source, desc: resolved.desc }));
+          return res.end(readerTextPage(hnTitle || tt || t.hostname, resolved.text, resolved.url || target, { source: resolved.source, desc: resolved.desc, ...(u.searchParams.get('rich') === '1' ? { theme:readerTheme, richHtml: resolved.html, richCSS: readerFontCSS() + compileDesign(JSON.parse(readFileSync(new URL(`../public/themes/${readerTheme}.json`,import.meta.url),'utf8')), readerTheme) } : {}) }));
         };
         if (wantRead && !resolved.app) return textPage();
         if (wantRaw || (wantRead && resolved.app)) {
@@ -878,6 +952,23 @@ const server = http.createServer(async (req, res) => {
       try {
         const data = await fs.readFile(full);
         res.writeHead(200, { 'Content-Type': SB2_TYPES[extname(full).toLowerCase()], 'Content-Length': data.length,
+          'Cache-Control': 'no-cache' });
+        return res.end(req.method === 'HEAD' ? undefined : data);
+      } catch { return send(res, 404, 'text/plain', 'not found'); }
+    }
+    // World portrait battle: exact allowlist of private, locally extracted runtime assets.
+    if ((req.method === 'GET' || req.method === 'HEAD') && p.startsWith('/api/bw/asset/')) {
+      const name = p.slice('/api/bw/asset/'.length);
+      const types = { 'pack.json': 'application/json', 'audio.json': 'application/json',
+        'battle.ram': 'application/octet-stream', 'battle.vram': 'application/octet-stream',
+        'cover.png': 'image/png', 'music.ogg': 'audio/ogg', 'sfx-7.ogg': 'audio/ogg',
+        'sfx-8.ogg': 'audio/ogg', 'sfx-46.ogg': 'audio/ogg', 'sfx-112.ogg': 'audio/ogg' };
+      for (const id of [4,10,14,17,22,31,34,37,38,39,44,54,86,114,115]) types[`sfx-${id}.ogg`] = 'audio/ogg';
+      for (let id=1; id<=9; id++) for (const ext of ['ram','vram','json']) types[`stage-${id}.${ext}`] = ext==='json'?'application/json':'application/octet-stream';
+      if (!Object.hasOwn(types, name)) return send(res, 404, 'text/plain', 'not found');
+      try {
+        const data = await fs.readFile(join(paths.DATA, 'bw', 'pack', name));
+        res.writeHead(200, { 'Content-Type': types[name], 'Content-Length': data.length,
           'Cache-Control': 'no-cache' });
         return res.end(req.method === 'HEAD' ? undefined : data);
       } catch { return send(res, 404, 'text/plain', 'not found'); }

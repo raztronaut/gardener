@@ -26,8 +26,9 @@ New widget requests still use the widget contract and real data.
 - `smoke/smoke.mjs` — the safety net (must stay green). `data/` — runtime state (gitignored).
 
 ## Invariants
-- **git HEAD is always known-good.** Deploy = commit-on-green; failure = `git reset --hard` base.
+- **git HEAD is always known-good.** Deploy = commit-on-green; failures preserve working files for review. Never reset/clean the shared checkout.
 - **No build step, no npm deps in widgets, no frameworks.** Widgets are browser ES modules.
+  Human-approved exception (2026-11-05): rich generated surfaces use pinned official A2UI core/Lit dependencies, bundled with `npm run build:genui` into a lazy local module. Ordinary widgets remain browser ES modules. Read `docs/genui/AGENT_API.md`; do not remove the renderer under the older framework rule.
 - **The 9:16 canvas is locked at 900×1600.** Design for legibility from across a room.
 - Secrets live only in `.env` (chmod 600, gitignored). Never commit or echo the API key.
 - **`GARDEN_RULES.md` is the garden's long-term memory** — durable standing orders from
@@ -46,6 +47,11 @@ New widget requests still use the widget contract and real data.
 - `app.js switchDashboard(id)`: unmounts every card except the pinned clock (the
   GardenOS header stays too), mounts the dashboard's widgets; the SAME combo again
   returns to main. `?dash=<id>` opens one directly (QA / review screenshots).
+  Dashboard remounts pause home packing/persistence through `widgetPages.beginRemount()`
+  until all card shells exist. Returning cards retain their saved placement priority;
+  only genuinely new widgets count as additions. Layout snapshots are unavailable
+  outside home so Arcade cards cannot enter home storage. Regression check:
+  `tools/widget-layout/dashboard-check.cjs` (external Playwright, isolated storage).
 - Current: **arcade** (L1+R1+L2+R2 — the game library screen; in a game Select+Start
   returns to the library) and **gui** (L1+R1+L2 — Gui Dávid's love notes for Louise;
   all text in `public/dashboards/gui/love.js`).
@@ -54,7 +60,7 @@ New widget requests still use the widget contract and real data.
 - Seeds planted while a dashboard is open are stored with that `dashboard`
   (feedback column). `iterate.mjs` tends main (always) and then each dashboard that
   has seeds, each as its OWN agent run (own context, prompt, iteration, commit),
-  scoped to `public/dashboards/<id>/` — out-of-scope edits are reverted.
+  scoped to `public/dashboards/<id>/` — out-of-scope edits stop the run and are preserved for review.
 
 ## Liquid glass (baked)
 `public/lib/glassbake.js` reproduces liquid-glass-react's look (MIT; backdrop blur 6px
@@ -89,6 +95,35 @@ SMIL animation kept the kiosk's GPU process at ~100% CPU; weather uses
 opacity/filter — that makes it a backdrop root and the glass would only see the veil.
 
 ## Widget contract
+Garden Directive sign workflow: `/sign` (`/signs`, `/directive`) or natural voice
+“make a sign for the Garden Directive…”. `src/signs.mjs` reuses the configured
+Anthropic voice model for semantic XML-category selection and structured copy.
+On-demand OpenAI artwork runs through the authenticated Codex/Paseo image worker
+when no OpenAI API key is configured; no hardcoded illustration fallback remains.
+The panel is voice-first, with cached local neural Kokoro prompts and optional
+manual controls. Every preview/artifact and print job is monochrome. `src/sign-workflow.mjs` owns versioned approval and print state;
+`public/lib/signs.js` uses the existing panel and voice follow-up capture. The
+renderer is `tools/signs/render.py`; private templates, original PSDs/logo and
+artifacts are under `data/signs/`. Printing uses the discovered HP IPP endpoint
+and retained JPEG, not browser print dialogs. Never send a test job to the real
+printer: tests inject a fake transport. Setup, voice examples, artifacts and
+verification limits: `docs/signs/README.md`.
+
+Widget contexts own their requests and timers through `public/lib/widget-scope.js`.
+`ctx.signal` aborts on unmount; `ctx._stop()` permanently stops that context.
+Return the Promise from asynchronous `ctx.interval` callbacks so refreshes cannot
+overlap. After an explicit initial refresh, use `{ immediate: false }` as the third
+interval argument. Return cleanup functions for event listeners or custom work;
+do not retain closed widgets in global cleanup lists. Input recovery diagnostics
+and service limits are documented in `docs/performance/input-health/README.md`.
+
+**Failed asset startup:** `public/index.html` contains an inline recovery timer so
+it still runs when external CSS/JS requests fail. After 30 seconds it retries only
+if boot is still loading and `gardenWall` never initialized. Session storage caps
+this at two reloads per five minutes; unavailable storage disables retries. It
+does not reload a running app or clear saved layout. Check with
+`node --test tools/boot-recovery.test.mjs`.
+
 **Layout stability:** a loading card must already have its loaded size (app.js
 reserves each card's settled height; no collapsed loading states; no size/position
 animation — content only fades in). See GARDEN_RULES.md.
@@ -125,10 +160,10 @@ stage select) = original pixel art in `public/arcade/sb2/garden/` built by `tool
 (sources in `tools/sb2/garden/src/`, tools/sb2/NOTES-garden.md).
 
 ## "Hey Garden" — voice control (hand-maintained; the tending must not modify it)
-`src/voice.mjs` (gardener-voice.service, MemoryMax 900M) listens on the USB mic through
+`src/voice.mjs` (gardener-voice.service; live ASR/memory override in `gardener-voice.service.d/asr.conf`, see `docs/performance/tv-voice/README.md`) listens on the USB mic through
 PulseAudio, 16 kHz, **audio only in RAM** (a 2.5 s ring + a ≤12 s request buffer, zeroed after
 use; never written, never sent). Wake word = sherpa-onnx keyword spotter ("HEY GARDEN") then a
-second check by the speech model (Parakeet TDT 110M, worker thread `src/voice-asr-worker.mjs`) on
+second check by the speech model (Parakeet TDT, live local v2 0.6B override / source 110M default, worker thread `src/voice-asr-worker.mjs`) on
 the last 2 s; the request ends on silence (silero VAD). Only the TEXT goes to
 `src/voiceagent.mjs` (Claude Haiku 5.5, tools: open / close / select / press / volume / command /
 dashboard / zoom / plant) — one model call in the common case (the wall supplies the reply when
@@ -154,9 +189,10 @@ screen is this wall (900×1600). The wall explains all of it in **`/botanist`** 
 fails open) does the quick decisions: routes each request wall / answer / botanist in parallel with
 Haiku (sure → straight to the Botanist; no keyword needed); the **gatekeeper** (`riskOf`: harmless →
 go, ask → held for "allow it", block → refused; fails CLOSED = ask); the **false-wake filter** in
-voice.mjs (`meantForWall` < 0.3 → dropped; push-to-talk exempt); **caption or sheet** for answers
-140–900 chars; `desk find` / `desk click-on` (box on a screenshot, ≤800 px — bigger images 400);
+voice.mjs (`meantForWall` < 0.3 → dropped; push-to-talk exempt);
+`desk find` / `desk click-on` (box on a screenshot, ≤800 px — bigger images 400);
 and a pre-check in `visualReview.mjs` that tells the reviewer where to look (adds scrutiny only).
+Completed voice answers choose caption versus sheet locally; do not add another decision-model wait after the answer is ready.
 
 ## Arcade — retro-console emulator widget
 **PS1 runs natively** (2026-11-03): `src/native.mjs` launches RetroArch + PCSX-ReARMed
@@ -428,3 +464,131 @@ needs: `/app.js`, `/styles.css`, `/widgets/*` (.js + manifest.json), `/lib/*.js`
 forwarded and nothing else (no `/api/feedback` GET, `/api/night`,
 `/api/pad/action`) is exposed. The Roots Wall tab embeds it in a scaled iframe
 that exists only while the tab is open.
+
+
+- **Shared checkout preservation (2026-11-05):** the scheduled tending once erased active work with reset/clean. Skip tending when any tracked, staged, or untracked edits exist. Fail closed when Git status cannot be read. Crash recovery and failed/scope-invalid runs must preserve working files and newer commits; never run automatic reset, clean, checkout-overwrite, or delete out-of-scope files. Keep recovery archives outside the checkout. Use an isolated worktree for future unattended code editing; review its integration before changing the shared wall.
+
+## Explicit resident messages (2026-11-05)
+`src/messages.mjs` sends notes and saved content through Photon's **free shared iMessage** project. Private credentials and recipient names/phone numbers live in gitignored `data/messages/config.json` (0600); never publish them. Pinned backend-only `@photon-ai/advanced-imessage` + gRPC dependencies are loaded only on an explicit send, and the client is closed afterwards. No persistent connection, reminder scheduler, model generation or paid fallback.
+
+- Wall-only APIs: `GET /api/messages/recipients`, `POST /api/messages/send`, `GET /api/messages/status/<id>`. The public plant server must never expose sending or recipient APIs.
+- `public/lib/messenger.js` shares one action between the Classic panel's Send to control and voice `send`. `message-intent.js` preserves dictated note text; exact sends take the native voice fast path. The model also has a send tool for natural variations. Recipient IDs are exact/explicit configured aliases, never fuzzy-routed to arbitrary phone numbers.
+- All new sends carry the complete content directly in Messages, not a preview plus a house-tunnel link (human request 2026-11-05: no ngrok warning screens). Daily sends preserve a specific cached edition; marked article/itinerary DOM roots supply the selected item for “send this.” Original publisher/directions URLs may accompany the text. A normal readable panel falls back to a text snapshot; a wall with no open item refuses. Notes send their text directly.
+- Previously sent read-only `/s/<48 hex chars>` links on both servers continue to serve escaped phone-friendly snapshots for 30 days; new messages do not include these links. Treat the random URL as read access to that item; no household account is exposed. Notes have no public page. Records and idempotency IDs persist in `data/messages/` with owner-only permissions. Uncertain/interrupted sends never auto-retry.
+- Before each send, verify `tier=free`, no subscription/customer and an opted-in shared recipient. A resident must first text their assigned line. Never upgrade, add billing, auto-scale, or switch to a paid channel. Photon currently rejects ordinary MessageService sends even after opt-in: use `chats.create([phone], {message,clientMessageId})`, including for existing chats, and inspect `initialMessage` / delivery status. Do not interpret an accepted message as confirmed delivery.
+- Tests: `node --test tools/messages.test.mjs`; `tools/messages-browser.cjs` uses external Playwright and intercepts **all** outbound sends. Run smoke with the installed non-snap Chromium. Do not send test messages to residents without task authorization.
+
+### Resident management
+`/residents` (aliases `/users`, `/people`, `/recipients`) opens the local wall's messaging address book; “manage residents” is a native voice opener. `src/residents.mjs` validates unique names/nicknames and normalized phones, checks the free project, provisions shared recipients, and atomically updates the private messaging config. Removal targets only the configured phone's shared registration, requires an explicit in-panel confirmation, and leaves saved residents intact if provider removal fails. Adding and editing send no invitations. Activation is checked on open/Refresh, not by an idle timer. Roster changes update voice discovery and send choices without a reload. Do not publish management APIs through Roots. Setup and use: `docs/messaging/README.md`; secure owner bootstrap: `tools/setup-messaging.mjs --project PROJECT_ID`.
+
+## Bomberman World portrait battle
+Playable in Arcade as **Bomberman World: The Garden Edition** (`public/arcade/bw/`).
+A continuous 11×27 rectangular arena, 1–2 human players plus original CPU opponents, original sprites and
+sound, rounds and scores. A bounded JS R3000 runner executes the private original
+battle routines. The portrait renderer uses a shallower 1/10 depth shear and
+reprojects ground and all solid faces together; characters stay upright. All four edges use raised wall blocks of matching height/depth. Every spawn has
+a bounded three-cell pocket; corner crate layouts mirror each other and permanent
+pillars are never cleared for spawns.
+Original title/parchment menu layers fill the 9:16 display, with proportional
+lettering and artwork, and support player count, time and target wins.
+The unmodified original camera helper has a separate 6,240-position comparison in `tools/bw/projection-test.mjs`. This is the
+battle adaptation: one starting bomb, original crate drops/pickups, and all ten battle stages. The nine additional stages preserve their original 13×11 sector and both floors within a 13×27 northern extension; Standard remains 11×27. Adventure/Challenge and the full OST are not included. Read
+`tools/bw/README.md` for controls, scope, setup and verification. Runtime assets
+remain ignored in `data/bw/pack/`, served only by `/api/bw/asset/`'s allowlist.
+The original PS1 library entry and SB2 Garden Edition remain separate. Hand-maintain
+this port: preserve `mips-test.mjs` (7,930), `tick-conformance.mjs` (360 full ticks),
+and gameplay/control/exit checks under `tools/bw/`. No background game service.
+
+
+## Garden TV integration (2026-11-07)
+
+Insignia NS-70DF710NA21 at `192.168.4.32`, internal model AFTDCT31/duckie,
+Fire OS 7.7.1.7 / Android 9, 32-bit ARM apps. TV tooling and private backups live
+under `/home/talbot/.local/share/garden-tv/` (never publish keys, credentials,
+screenshots, installed APK backups, or household runtime state).
+
+- Current native companion source: `companion/`, package `house.garden.tvhome`.
+  It has Garden glass styling, shared weather/to-dos, a streaming allowlist and
+  offline screensaver controls. **Native Fire TV Home restored on 2026-11-11.**
+  Home on Fire (`io.github.toolicious.homeonfire`) is disabled-user and its
+  HijackService removed from enabled accessibility services. Per the follow-up
+  request, Garden opens once on TV power-on/wake via the companion's
+  `PowerOnReceiver`/`PowerOnService`, not via a Home redirect. The service observes
+  screen power broadcasts in a separate process, with no polling, wake lock, or
+  delayed launch retries. Ordinary process restart/package update does not launch
+  Garden over an already active input. Home and subsequent HDMI/app choices remain
+  native; never repeatedly reclaim them.
+  Preserve unrelated accessibility services. Old `setup/launcher` fork is retired.
+- Direct Garden shortcut: `direct-shortcut/`, package `house.garden.tv`, invokes
+  official Moonlight ShortcutTrampoline (Name=Garden, AppName=Garden desktop).
+  Home now opens native Fire TV. The former Home on Fire Channel Up mapping is inactive.
+  Screensaver: `house.garden.tvhome/.GardenDream`; SF sunsets default, separate
+  Fun collection with six original supplied images. Menu on TV home opens controls.
+- `garden-tv-bridge.service` provides certificate-pinned HTTPS port8790, restricted
+  to paired TV/local IP + bearer token. Only GET /summary and validated POST /todo.
+  Reads canonical wall todo-store and cached SF weather over loopback CDP; no
+  general desktop-control endpoint. Private config/cert/key in `bridge/`, per-TV
+  pairing assets embedded in private APK. Never publish that APK or pairing assets.
+  TV preferences/cache persist in private app data; source remains outside live
+  checkout and does not redesign the portrait wall. See private README for build.
+- TV changes are journaled in `backups/changes.jsonl`; the original package/settings
+  baseline is in `backups/baseline-2026-11-07.txt`. `restore-tv.sh` reverses package
+  disabling and the changed TV settings. It does not delete installed streaming apps.
+- User explicitly authorized a persistent Sunshine streaming host after its desktop
+  capture/LAN access was explained. Unit: `garden-tv-stream.service`; config and
+  private pairing/auth state: `sunshine-config/`. UPnP is disabled and web management
+  is restricted to local access. Credentials are generated locally; never print them.
+  The TV is paired through Moonlight (`com.limelight`). Host uses X11 capture and
+  software H.264 because this Orin Nano has no NVENC. Normal Garden services remain
+  separate; restart only the TV streaming service for streaming configuration changes.
+- Wireless portrait desktop mirroring was verified on the TV. An independent landscape
+  workspace, gaming latency, remote voice, and listening to streamed audio are still
+  pending validation. Do not claim mirroring is an extended desktop.
+- Keep keyboard, mouse, SN30 Pro and Xbox paired to Garden. Existing player mapping
+  remains SN30 Pro player one / Xbox player two. The Insignia remote controls TV apps.
+
+### GardenTV landscape game sessions (2026-11-07)
+Original SNES/PS1 TV library launches now use private native RetroArch on Xvfb
+:99 (1280×720), via `~/.local/share/garden-tv/games-session/manager.py`. Services
+`garden-tv-game` / `garden-tv-game-display` run only for a TV game. Sunshine's
+private display override switches capture for that session and restores the
+portrait mirror on exit. Physical wall resolution remains unchanged. TV game
+input goes directly from the existing SN30 Pro/Xbox; only the wall pad action
+bridge pauses during gameplay and resumes on cleanup. Voice/backend/kiosk stay
+running. Private game audio bus isolates emulator audio. Select+Start, TV Home or
+Stop game cleans up. Do not restart/reconfigure the wall to implement TV games.
+The custom Garden Edition remains portrait; original console games use their
+native aspect ratio. See the private TV README for validation limits and rollback.
+
+### GardenTV joypad routing (2026-11-09)
+`garden-tv-pad.service` defaults to Garden. Select+Start no longer switches screens;
+it remains the game exit/snooze chord. The routing owner wakes/reconnects the TV
+before acknowledging TV mode, cancels stale wake requests, drops stale key repeats,
+and falls back to Garden on failure/disconnect. `gardentv-pad-target-tv` suppresses
+wall inputs during wake and TV ownership. BW/SB2 suspend on routing away; Start
+resumes after returning. Native games retain ownership until their normal exit.
+The SN30's left star is internal Turbo in D-input and sends no event. It requires
+Switch mode (Y+Start) and a physically verified `controller/profile.json` mapping.
+Do not claim the star binding works until that verification; no profile is installed
+yet. The wake/control path is verified from TV Asleep/OFF to Awake/ON. Private
+`controller/route.py tv|garden|toggle` controls its owner-only Unix socket. Preserve
+Home/heart, Select/Start, SN30 P1 and Xbox P2 mappings. Setup/status are documented
+in `/home/talbot/.local/share/garden-tv/controller/README.md`.
+
+### Canonical GardenTV widget host (2026-11-08)
+The human rejected native copies of Garden widgets. `house.garden.tvhome` now
+uses a native WebView shell for the **same** public widget modules, Classic CSS/
+theme, fonts and glassbake.js as the wall. Private host files are
+`~/.local/share/garden-tv/bridge/ui/`; HomeActivity only owns app/game/settings
+actions, paired/pinned resource delivery and lifecycle. The TV has Chromium138.
+The private HTTPS bridge serves an allowlist of public widget resources, GET-only
+fractal/poem/proxy data, shared task reads and validated task deltas. It exposes
+no general file or command API. Static source copies in the private APK are
+offline fallbacks; live canonical files take priority. Source fingerprints poll
+while the home is idle, defer reload during reading/typing, and refresh on resume.
+Do not recreate Garden widgets or restore the old status/connection bars.
+Fractal WebGL rotation is verified on TV; it pauses under a panel and while
+native Games is foreground, then resumes. Screensaver system enabled=0 and
+private idle=0 (human requested none). Supplied photos remain saved.
+TV voice setup remains deferred: do not create voice-routing-ready merely
+because the TV is on. Channel Down has not been learned/verified.

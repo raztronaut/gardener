@@ -27,17 +27,19 @@ let activeTeardown = null;
 // garden title (original art, committed).
 const SB2 = { name: 'Super Bomberman: The Garden Edition', file: '__sb2-tall', system: 'sb2', special: 'sb2' };
 const SB2_COVER = '/arcade/sb2/garden/cover.png';
+const BW = { name: 'Bomberman World: The Garden Edition', file: '__bw-tall', system: 'bw', special: 'bw' };
 
 const CORE = {
   nes: 'nes', snes: 'snes', gb: 'gb', gbc: 'gb', gba: 'gba',
   n64: 'n64', segaMD: 'segaMD', segaMS: 'segaMS', pce: 'pce', psx: 'psx',
 };
 const SYS_LABEL = {
-  sb2: 'SNES · 9:16', nes: 'NES', snes: 'SNES', gb: 'GAME BOY', gbc: 'GBC', gba: 'GBA',
+  bw: 'PLAYSTATION · 9:16', sb2: 'SNES · 9:16', nes: 'NES', snes: 'SNES', gb: 'GAME BOY', gbc: 'GBC', gba: 'GBA',
   n64: 'N64', segaMD: 'GENESIS', segaMS: 'SMS', pce: 'PC ENGINE', psx: 'PLAYSTATION',
 };
 // Full console names for the detail panel ("metadata and shit").
 const SYS_NAME = {
+  bw: 'Bomberman World · portrait battle · 1–2 players + CPU',
   sb2: 'Super Bomberman: The Garden Edition · by Gui Dávid · native 9:16 port', nes: 'Nintendo Entertainment System', snes: 'Super Nintendo', gb: 'Game Boy',
   gbc: 'Game Boy Color', gba: 'Game Boy Advance', n64: 'Nintendo 64',
   segaMD: 'Sega Genesis / Mega Drive', segaMS: 'Sega Master System', pce: 'PC Engine / TurboGrafx-16',
@@ -482,6 +484,14 @@ export default {
 
     window.__GARDEN_GAME = {
       raw: rawInput,
+      suspend() {
+        for (const player of ['j','q']) {
+          for(let i=0;i<16;i++)rawInput(`${player}b${String.fromCharCode(97+i)}u`);
+          rawInput(`${player}xc`); rawInput(`${player}yc`);
+        }
+        sysHeld.clear();
+        portCtl?.suspend?.();
+      },
       inGame: () => mode === 'game',
       toLibrary: () => showPicker(), // leave the game, as Select + Start does (used by Hey Garden)
       input(action) {
@@ -565,7 +575,7 @@ export default {
     // Cover art: real box art from /api/rom-cover (libretro-thumbnails, cached on
     // the server); a generated cover (gradient + pixel motif + title) underneath
     // shows if there's none.
-    const coverURL = (rom) => (rom.special === 'sb2' ? SB2_COVER : `/api/rom-cover?file=${encodeURIComponent(rom.file)}`);
+    const coverURL = (rom) => (rom.special === 'bw' ? '/api/bw/asset/cover.png' : rom.special === 'sb2' ? SB2_COVER : `/api/rom-cover?file=${encodeURIComponent(rom.file)}`);
     function coverEl(rom, cls) {
       const box = h('div', { class: `ax-cover ${cls || ''}` },
         h('div', { class: 'eg-cover', style: `background:${coverGradient(rom.name)}` }, ...coverInner(rom)));
@@ -608,6 +618,8 @@ export default {
       // the native port sits first on the shelf when its assets are installed
       try { if ((await fetch('/api/sb2/asset/pack/pack.json', { method: 'HEAD', cache: 'no-store' })).ok) roms.unshift(SB2); } catch { /* not installed */ }
 
+      try { if ((await fetch('/api/bw/asset/pack.json', { method: 'HEAD', cache: 'no-store' })).ok) roms.unshift(BW); } catch { /* not installed */ }
+
       if (!roms.length) {
         body.replaceChildren(h('div', { class: 'ax' },
           h('div', { class: 'eg-empty' },
@@ -644,13 +656,13 @@ export default {
       const stage = h('div', { class: 'eg-stage' });
       body.replaceChildren(stage);
       try {
-        const { bootSB2 } = await import('/arcade/sb2/app.js');
+        const bootGame = rom.special === 'bw' ? (await import('/arcade/bw/app.js')).bootBW : (await import('/arcade/sb2/app.js')).bootSB2;
         if (mode !== 'game' || !stage.isConnected) return;   // left while it loaded
-        const ctl = await bootSB2(stage, { onExit: () => showPicker() });
+        const ctl = await bootGame(stage, { onExit: () => showPicker() });
         if (mode !== 'game' || !stage.isConnected) { ctl?.stop(); return; }
         portCtl = ctl;
       } catch (e) {
-        stage.replaceChildren(h('div', { class: 'eg-empty' }, h('div', {}, 'Super Bomberman 2 could not start.'), h('div', {}, String(e && e.message || e))));
+        stage.replaceChildren(h('div', { class: 'eg-empty' }, h('div', {}, `${rom.name} could not start.`), h('div', {}, String(e && e.message || e))));
       }
     }
 
@@ -679,7 +691,7 @@ export default {
       if (mode === 'game') return; // one game at a time — a second start would orphan the first (its sound kept playing)
       if (!rom) return;
       curRom = rom;
-      if (rom.special === 'sb2') { bootPort(rom); return; }
+      if (rom.special === 'sb2' || rom.special === 'bw') { bootPort(rom); return; }
       if (nativeOK.has(rom.system)) { bootNative(rom); return; }
       const core = CORE[rom.system];
       if (!core) return;

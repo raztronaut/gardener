@@ -1,0 +1,20 @@
+// Explicit opt-in: one paid cloud call, synthetic prompt, isolated browser profile.
+import {createRequire} from 'node:module';import {writeFileSync} from 'node:fs';import Anthropic from '@anthropic-ai/sdk';import {config} from '../../src/config.mjs';import {createA2uiToolStream} from '../../src/voiceagent.mjs';
+if(!process.argv.includes('--run'))throw Error('Pass --run to execute one live provider call.');
+const require=createRequire(import.meta.url),{chromium}=require('/tmp/garden-browser-qa/node_modules/playwright');
+const b=await chromium.launch({executablePath:'/home/talbot/.local/share/gardener-chrome/chrome-linux-arm64/chrome',args:['--no-sandbox','--disable-gpu','--disable-webgl']});
+try{
+const p=await b.newPage({viewport:{width:900,height:1600}});await p.goto('http://127.0.0.1:8787/?theme=classic&screenshot=1&bar=1');await p.waitForFunction(()=>window.gardenWall?.context().layout);await p.evaluate(()=>document.body.classList.add('qa-open'));
+const calls=[],start=performance.now();let firstUseful=null,providerFinished=null;const signal=AbortSignal.timeout(60000);
+const progressive=createA2uiToolStream({signal,call:async requests=>{
+ const result=await p.evaluate(async requests=>{const out=[];for(const request of requests)out.push(await window.gardenWall.act(request));return out;},requests);
+ calls.push({atMs:performance.now()-start,kinds:requests.flatMap(r=>r.input.messages.map(m=>Object.keys(m).find(k=>k!=='version'))),ok:result.every(r=>r.ok)});
+ if(firstUseful===null&&await p.locator('.ga-metric').count())firstUseful=performance.now()-start;
+ return result;
+}});progressive.release();
+const model=process.env.GARDENER_VOICE_MODEL||'claude-haiku-5-5',client=new Anthropic({apiKey:config.apiKey});
+const stream=client.messages.stream({model,max_tokens:1800,tools:[{name:'a2ui',eager_input_streaming:true,description:'Create a declarative A2UI v0.9 surface. Emit shell early then data.',input_schema:{type:'object',required:['title','messages'],properties:{title:{type:'string'},messages:{type:'array',items:{type:'object'}}}}}],tool_choice:{type:'tool',name:'a2ui'},messages:[{role:'user',content:'This is a synthetic rendering QA, no real weather or house actions. Return title "A little possibility" and messages in this order: {version:"v0.9",createSurface:{surfaceId:"live-model-qa",catalogId:"https://garden.local/catalogs/house-v1.json"}}; then updateComponents with surfaceId and components [{id:"root",component:"Column",children:["metric"]},{id:"metric",component:"GardenMetric",label:"Illustrative example",value:{path:"/value"},detail:"Synthetic QA; not a house measurement"}]; then updateDataModel surfaceId path /value value "Ready". Then add a second GardenNotice component id note with title "It is taking shape" and text explaining in 80 words how a checklist can be kept as a widget; update root children to ["metric","note"]. No function calls. Each envelope has version v0.9.'}]},{signal});
+stream.on('streamEvent',progressive.handle);const response=await stream.finalMessage();providerFinished=performance.now()-start;const results=await progressive.finish(response);
+const report={measuredAt:new Date().toISOString(),model,samples:1,method:'One live provider tool response into the production stream bridge and actual A2UI browser renderer; synthetic prompt, isolated profile, no microphone.',firstUsefulMs:firstUseful,providerCompleteMs:providerFinished,renderedBeforeProviderComplete:firstUseful!==null&&firstUseful<providerFinished,calls,usage:response.usage,passed:[...results.values()].every(r=>r.ok)&&firstUseful!==null&&firstUseful<providerFinished,limits:'Single observation, not a latency distribution or comparison of models. Excludes speech capture, ASR, wake word and physical display. Forced tool choice; not an intent-routing evaluation.'};
+writeFileSync('docs/performance/v6/live-model.json',JSON.stringify(report,null,2)+'\n');await p.screenshot({path:'docs/performance/v6/live-model.png'});console.log(JSON.stringify(report,null,2));if(!report.passed)process.exitCode=1;
+}finally{await b.close();}

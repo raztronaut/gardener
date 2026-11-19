@@ -1,3 +1,8 @@
+import { createSendControls, currentShare } from './lib/messenger.js';
+import { signAction, signContext, disposeSign } from './lib/signs.js';
+import { createWidgetScope } from './lib/widget-scope.js';
+import {savedEntries,saveSurface} from './lib/saved-surfaces.js';
+import { initReadingNotifications } from './lib/reading-summary.js';
 import { designValue, designColor } from './lib/design-values.js';
 import { THEMES, currentTheme, setTheme, initThemes, designContext } from './lib/themes.js';
 import { tokenizeStyleSheet } from './lib/design-system.js';
@@ -19,6 +24,7 @@ import { initWidgetPages } from './lib/widget-pages.js';
 
 const qs = new URLSearchParams(location.search);
 const SCREENSHOT = qs.has('screenshot');
+let messageControls=null, messageRecipients=[];
 let UI_SOUND = () => {}; // interface sounds — set once lib/uisound.js loads (see below)
 
 // ---- global error markers (read by smoke test via --dump-dom) --------------
@@ -53,44 +59,20 @@ function h(tag, attrs = {}, ...kids) {
   return el;
 }
 
-const cleanups = [];
 function makeCtx(widgetId) {
-  const intervals = [];
+  const scope = createWidgetScope(e => markError('mount', `[${widgetId}] ${e.message}`));
   const ctx = {
     config: window.__GARDEN_STATE || {},
+    act: request=>voiceAct(request),
     h,
-    openArticle: (url, title) => openReader(url, title),
+    openArticle: (url, title, options) => openReader(url, title, options),
     design: { value: designValue, color: designColor },
     proxyUrl: (url) => `/api/proxy?url=${encodeURIComponent(url)}`,
-    // Fetch JSON through the SSRF-safe backend proxy by default.
-    async fetchJSON(url, { viaProxy = true, timeout = 24000 } = {}) {
-      const target = viaProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
-      const ac = new AbortController();
-      const t = setTimeout(() => ac.abort(), timeout);
-      try {
-        const r = await fetch(target, { signal: ac.signal });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return await r.json();
-      } finally { clearTimeout(t); }
-    },
-    async fetchText(url, { viaProxy = true, timeout = 24000 } = {}) {
-      const target = viaProxy ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
-      const ac = new AbortController();
-      const t = setTimeout(() => ac.abort(), timeout);
-      try {
-        const r = await fetch(target, { signal: ac.signal });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return await r.text();
-      } finally { clearTimeout(t); }
-    },
-    // Repeating timer that fires immediately and is auto-cleared on reload.
-    interval(fn, ms) {
-      const run = () => { try { fn(); } catch (e) { markError('mount', `[${widgetId}] ${e.message}`); } };
-      run();
-      const id = setInterval(run, ms);
-      intervals.push(id);
-      return id;
-    },
+    // Requests and timers share this mount's lifetime.
+    signal: scope.signal,
+    fetchJSON: scope.fetchJSON,
+    fetchText: scope.fetchText,
+    interval: scope.interval,
     // Scoped style injection (deduped per widget).
     style(cssText) {
       const sid = `style-${widgetId}`;
@@ -111,10 +93,7 @@ function makeCtx(widgetId) {
     loading: (msg = 'growing…') => h('div', { class: 'widget-loading' }, h('span', { class: 'spinner' }), msg),
     error: (msg = 'unavailable') => h('div', { class: 'widget-error' }, '⚠', msg),
   };
-  cleanups.push(() => intervals.forEach(clearInterval));
-  // Stop handle for short-lived mounts (the fullscreen widget panel): clears
-  // this ctx's timers without waiting for a page reload.
-  ctx._stop = () => intervals.forEach(clearInterval);
+  ctx._stop = scope.stop;
   return ctx;
 }
 
@@ -160,7 +139,7 @@ function renderPrank(body) {
 // then every mount() (the data-fetching part) runs in parallel. Sequential
 // awaiting made the remote Wall mirror serialize ~21 tunnel round-trips
 // (~10s boot); parallel collapses that to roughly the slowest single widget.
-async function loadWidgets(enabled, mountPoint, { before = null } = {}) {
+async function loadWidgets(enabled, mountPoint, { before = null, onStructure = null } = {}) {
   const mods = await Promise.all(enabled.map((entry) =>
     import(`${entry.file.startsWith('/') ? entry.file : `/widgets/${entry.file}`}?v=${window.__GARDEN_VERSION}`).catch((e) => ({ __importError: e }))));
   const mounts = [];
@@ -172,7 +151,7 @@ async function loadWidgets(enabled, mountPoint, { before = null } = {}) {
         h('div', { class: 'widget-error' }, '⚠', `widget "${entry.id}" failed to load`)));
       return;
     }
-    const w = mod.default || mod.widget || mod;
+    const w = mod.createWidget ? mod.createWidget(entry) : mod.default || mod.widget || mod;
     if (!w || typeof w.mount !== 'function') {
       markError('import', `${entry.file}: no default export with mount()`);
       return;
@@ -220,7 +199,7 @@ async function loadWidgets(enabled, mountPoint, { before = null } = {}) {
         reserveCardSize(card, entry.id);
         // Glass + content appear TOGETHER: a framed card stays invisible until its
         // baked glass is decoded AND its widget has its data (or 3 s pass).
-        if (!SCREENSHOT && !card.classList.contains('bare') && !card.classList.contains('unframed') && !card._gate) {
+        if (!SCREENSHOT && !entry.id.startsWith('surface-') && !card.classList.contains('bare') && !card.classList.contains('unframed') && !card._gate) {
           card._gate = { glass: false, content: false };
           card.classList.add('awaiting-glass');
           const reveal = () => { if (card._gate.glass && card._gate.content) card.classList.remove('awaiting-glass'); };
@@ -229,14 +208,14 @@ async function loadWidgets(enabled, mountPoint, { before = null } = {}) {
           setTimeout(() => { card._gate.glass = card._gate.content = true; reveal(); }, 3000);
           GB_READY.then((gb) => gb && gb.bakeCards([card]));
         }
+        if(entry.id.startsWith('surface-'))GB_READY.then(gb=>requestAnimationFrame(()=>gb?.bakeCards([card])));
         const fail = setTimeout(() => body.classList.add('ready'), 4000);
         const wctx = makeCtx(w.id);
         card._unmount = () => { try { wctx._stop(); } catch { /* ignore */ } };
         const cleanup = await w.mount(body, wctx);
-        if (typeof cleanup === 'function') { const s = card._unmount; card._unmount = () => { s(); try { cleanup(); } catch { /* ignore */ } }; }
+        if (typeof cleanup === 'function') { if (wctx.signal.aborted) cleanup(); else { const s = card._unmount; card._unmount = () => { s(); try { cleanup(); } catch { /* ignore */ } }; } }
         clearTimeout(fail); body.classList.add('ready'); card._reveal?.();
         settleCardSize(card, entry.id);
-        if (typeof cleanup === 'function') cleanups.push(cleanup);
       } catch (e) {
         body.classList.add('ready'); card._reveal?.();
         markError('mount', `${entry.id}: ${e.stack || e.message}`);
@@ -250,10 +229,11 @@ async function loadWidgets(enabled, mountPoint, { before = null } = {}) {
   // fetch can't push readiness past the headless render budget. The fetches keep
   // resolving in the background; boot()'s finally re-affirms these same markers.
   if (!before) {
-    document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
+    document.documentElement.dataset.gardenerWidgetCount = String(document.querySelectorAll('#garden > .card[data-wid]').length);
     document.documentElement.dataset.gardenerReady = 'true';
     document.documentElement.dataset.gardenerBoot = 'ready';
   }
+  onStructure?.();
   await Promise.all(mounts);
 }
 
@@ -289,12 +269,11 @@ async function boot() {
 
   // Concurrent load (order preserved inside loadWidgets) — see its comment.
   try {
-    await loadWidgets(enabled, garden);
-    widgetPages = initWidgetPages({ garden, h, definition: id => WIDGET_MODS[id], blocked: () => panelOpen() || paletteOpen() || !!window.__GARDEN_GAME || !!document.querySelector('.osalarm[aria-hidden="false"]'), changed: () => requestAnimationFrame(checkOverflow) });
+    await loadWidgets(enabled, garden, {onStructure:()=>{widgetPages = initWidgetPages({ garden, h, definition: id => WIDGET_MODS[id], blocked: () => panelOpen() || paletteOpen() || !!window.__GARDEN_GAME || !!document.querySelector('.osalarm[aria-hidden="false"]'), changed: () => requestAnimationFrame(checkOverflow) });}});
   } finally {
     // Always publish the contract markers smoke depends on, even on partial failure.
     document.documentElement.dataset.gardenerReady = 'true';
-    document.documentElement.dataset.gardenerWidgetCount = String(enabled.length);
+    document.documentElement.dataset.gardenerWidgetCount = String(document.querySelectorAll('#garden > .card[data-wid]').length);
     document.documentElement.dataset.gardenerBoot = 'ready';
     checkOverflow();
     // Re-check after async widget content settles (lists/quotes can grow).
@@ -345,6 +324,7 @@ async function dashboardWidgets(id) {
   catch (e) { markError('core', `manifest(${id}): ${e.message}`); }
   let list = applyReplacements((manifest.widgets || []).filter((w) => w.enabled !== false)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
   if (id === 'main') REPLACEMENTS = (manifest.widgets || []).filter((w) => w.enabled !== false && w.replaces);
+  if (id === 'main') list.push(...savedEntries());
   if (id !== 'main') list = [{ id: 'clock', file: 'clock.js', order: 0 }, ...list.filter((w) => !PINNED.includes(w.id))];
   return list;
 }
@@ -404,14 +384,19 @@ async function doSwitchDashboard(id) {
   window.__GARDEN_GAME = null;
   document.body.classList.remove('arcade-full');
   const garden = document.getElementById('garden');
-  for (const card of [...garden.querySelectorAll(':scope > .card')]) {
-    if (PINNED.includes(card.dataset.wid)) continue;
-    try { card._unmount?.(); } catch { /* ignore */ }
-    card.remove();
+  const finishRemount = widgetPages?.beginRemount();
+  try {
+    for (const card of [...garden.querySelectorAll(':scope > .card')]) {
+      if (PINNED.includes(card.dataset.wid)) continue;
+      try { card._unmount?.(); } catch { /* ignore */ }
+      card.remove();
+    }
+    const list = (await dashboardWidgets(id)).filter((w) => !PINNED.includes(w.id));
+    setDashAttr(id);
+    await loadWidgets(list, garden, { onStructure: finishRemount });
+  } finally {
+    finishRemount?.();
   }
-  const list = (await dashboardWidgets(id)).filter((w) => !PINNED.includes(w.id));
-  setDashAttr(id);
-  await loadWidgets(list, garden);
   setTimeout(checkOverflow, 1500);
   const d = DASHBOARDS.find((x) => x.id === id);
   toast(id === 'main' ? 'GardenOS' : d.name);
@@ -819,7 +804,9 @@ if (!SCREENSHOT) {
 // Interface sounds (lib/uisound.js): loaded once, then fire-and-forget.
 if (!SCREENSHOT) import(`/lib/uisound.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => { UI_SOUND = m.uiSound; m.wireClickSounds(); }).catch(() => {});
 const GB_READY = import(`/lib/glassbake.js?v=${window.__GARDEN_VERSION || ''}`).then((m) => (GB = m)).catch(() => null);
-function openPanel(title, bodyEl, { keepStack = false } = {}) {
+function openPanel(title, bodyEl, { keepStack = false, immediate = false } = {}) {
+  messageControls?.close();
+  messageControls?.setShareEnabled(!bodyEl?.classList.contains('garden-residents'));
   const p = document.getElementById('panel'); if (!p) return;
   UI_SOUND(keepStack || panelOpen() ? 'tick' : 'open');
   if (!keepStack) reservePanelSize(title);
@@ -846,7 +833,8 @@ function openPanel(title, bodyEl, { keepStack = false } = {}) {
     // is decoded, then both fade in over the same .15 s (capped — never held > 500 ms).
     // Stacked views (keepStack) keep the visible glass until the new bake swaps in.
     const reveal = () => { clearTimeout(openPanel.gbMax); p.classList.remove('gb-wait'); };
-    if (!keepStack) { p.classList.add('gb-wait'); openPanel.gbMax = setTimeout(reveal, 500); }
+    if (!keepStack && !(immediate && document.documentElement.dataset.theme==='classic')) { p.classList.add('gb-wait'); openPanel.gbMax = setTimeout(reveal, 500); }
+    else if(immediate)reveal();
     openPanel.gbT = setTimeout(() => GB.bakePanel(pc).then((ok) => { pc.classList.toggle('nosnap', !ok); requestAnimationFrame(reveal); }, reveal), 30);
   }
   // Move keyboard focus onto a REAL focusable control (the close button) so Esc
@@ -891,11 +879,13 @@ function openSubPanel(title, bodyEl) {
   openPanel(title, bodyEl, { keepStack: true });
 }
 function closePanel() {
+  messageControls?.close();
   const p = document.getElementById('panel'); if (!p) return;
   if (panelOpen()) UI_SOUND(panelStack.length ? 'tick' : 'close');
   stopPanelWidget();
   const prev = panelStack.pop();
   if (prev) { // restore the underlying list view
+    messageControls?.setShareEnabled(!prev.nodes.some(n=>n.querySelector?.('.garden-residents')));
     document.getElementById('panelTitle').textContent = prev.title;
     const pb = document.getElementById('panelBody');
     pb.classList.remove('reading'); // reader set this; the restored list must scroll again
@@ -919,13 +909,35 @@ function fmtWhen(ms) { try { return ms ? new Date(ms).toLocaleDateString('en-US'
 async function showIterations() {
   let data = { iterations: [] };
   try { data = await (await fetch('/api/iterations', { cache: 'no-store' })).json(); } catch { /* offline */ }
-  const list = (data.iterations || []).slice(); // API is already newest-first (ORDER BY id DESC)
+  const list = (data.iterations || []).slice(); // API merges daily manual work and tendings newest-first
+  const inline = (text) => text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map(part =>
+    part.startsWith('**') ? h('strong', {}, part.slice(2, -2)) : part.startsWith('`') ? h('code', {}, part.slice(1, -1)) : part);
   const rows = list.length
-    ? list.map((it) => h('div', { class: 'cl-row' },
-        h('div', { class: 'cl-id' }, `#${it.id}`),
-        h('div', { class: 'cl-main' },
-          h('div', { class: 'cl-phrase' }, it.phrase || 'self-directed improvement'),
-          h('div', { class: 'cl-meta' }, `${fmtWhen(it.at)}${it.feedback ? ` · ${it.feedback} feedback` : ' · self-directed'}`))))
+    ? list.map((it) => {
+        const number = it.number || it.id;
+        const details = h('div', { id: `changelog-${it.id}`, class: 'cl-details', hidden: true });
+        const text = it.details || 'No additional detail was saved for this entry.';
+        // Render authored paragraphs and bullets as text, never executable HTML.
+        for (const block of text.split(/\n\s*\n/)) {
+          const lines = block.split('\n').filter(Boolean);
+          if (lines.every((line) => /^\s*[-*]\s/.test(line))) {
+            details.append(h('ul', {}, ...lines.map((line) => h('li', {}, ...inline(line.replace(/^\s*[-*]\s+/, ''))))));
+          } else details.append(h('p', {}, ...inline(block.replace(/^#{1,6}\s+/gm, ''))));
+        }
+        const toggle = h('button', { type: 'button', class: 'cl-id cl-toggle', 'data-psel': '',
+          'aria-controls': details.id, 'aria-expanded': 'false',
+          'aria-label': `Expand changelog #${number}`,
+          onclick: () => {
+            details.hidden = !details.hidden;
+            toggle.setAttribute('aria-expanded', String(!details.hidden));
+            toggle.setAttribute('aria-label', `${details.hidden ? 'Expand' : 'Collapse'} changelog #${number}`);
+          } }, `#${number}`);
+        return h('div', { class: 'cl-row' }, toggle,
+          h('div', { class: 'cl-main' },
+            h('div', { class: 'cl-phrase' }, it.phrase || 'self-directed improvement'),
+            h('div', { class: 'cl-meta' }, `${fmtWhen(it.at)} · ${it.kind === 'manual' ? 'manual work · daily summary' : (it.feedback ? `${it.feedback} feedback` : 'self-directed tending')}`),
+            details));
+      })
     : [h('div', { class: 'cl-empty' }, 'No tendings yet — the garden grows each morning.')];
   openPanel('Changelog — how the garden has grown', h('div', { class: 'cl changelog' }, ...rows));
 }
@@ -1344,9 +1356,16 @@ function hnRows(stories, lib) {
         cues.length ? h('div', { class: 'cl-meta hn-cue' }, cues.join('   ')) : null));
   });
 }
+async function showHeadlineGame() {
+  try {
+    const game = await import('/lib/headline-game.js');
+    await game.openGame({ h, openPanel, fetchStories: () => HN_CACHE?.stories || fetchHN() });
+  } catch { toast('The game could not load'); }
+}
 async function showHackerNews() {
   const list = h('div', { class: 'cl' }, ...(HN_CACHE ? hnRows(HN_CACHE.stories, HN_CACHE.lib) : []));
-  openPanel('Hacker News', list);
+  const play = h('button', { type: 'button', class: 'cl-row clickable hn-play', 'data-psel': '', onclick: showHeadlineGame }, 'Play Fake News or Not →');
+  openPanel('Hacker News', h('div', {}, play, list));
   try {
     const fresh = await fetchHN();
     if (list.isConnected && fresh.length) list.replaceChildren(...hnRows(fresh, HN_CACHE.lib));
@@ -1641,6 +1660,8 @@ function showThemes(arg = '') {
 }
 initThemes(() => showThemes());
 const COMMANDS = [
+  {cmd:'sign',aliases:['signs','directive'],desc:'make, revise and approve a Garden Directive sign',run:(arg='')=>runSignAction(arg?{action:'create',intent:arg}:{action:'open'})},
+  {cmd:'residents',aliases:['users','people','recipients'],desc:'add, edit and remove message recipients; check phone activation',run:()=>import('/lib/residents.js').then(m=>m.openResidents({h,openPanel,toast})).catch(()=>toast('Residents could not load'))},
   { cmd: 'widgets', aliases: ['edit-widgets'], icon: '⊞', desc: 'arrange widgets on the wall; add, remove, resize and move between pages', run: () => widgetPages?.edit() },
   { cmd: 'theme', aliases: ['themes', 'appearance'], icon: '◐', desc: 'switch the whole design; classic restores the original, moonstone is matte slate and lavender', run: showThemes,
     options: () => THEMES.map(t => ({ arg: t.id, icon: '◐', label: t.label, desc: t.description })) },
@@ -1657,8 +1678,13 @@ const COMMANDS = [
     } },
   { cmd: 'touch', aliases: ['calibrate'], icon: '👆', desc: 'calibrate camera touch (9 targets)', run: () => { if (panelOpen()) closePanel(); import(`/lib/touch.js?v=${window.__GARDEN_VERSION}`).then((m) => m.runSession()); } },
   { cmd: 'camera', aliases: ['cam', 'live'], icon: '📷', desc: 'live camera feed', run: () => showCamera() },
-  { cmd: 'rss', aliases: ['feeds'], icon: '📰', desc: 'feed reader — Hacker News and NASA', run: () => { if (!document.getElementById('feed-css')) document.head.appendChild(h('link', { id:'feed-css',rel:'stylesheet',href:'/lib/feed-reader.css' })); import('/lib/feed-reader.js').then((m) => m.openFeeds({h,openPanel,openReader})).catch(()=>toast('Feed reader could not load')); } },
-  { cmd: 'headlines', aliases: ['fake', 'realorfake'], icon: '📰', desc: 'real or fake Hacker News? — /headlines real, fake or next to play', run: (arg) => import('/lib/headline-game.js').then((m) => /^(real|fake|next)$/.test(arg) ? m.guess(arg) : m.openGame({ h, openPanel, fetchStories: () => HN_CACHE?.stories || fetchHN() })).catch(() => toast('The game could not load')) },
+  { cmd:'benchmarks',aliases:['performance','performance-lab','performance lab'],desc:'the performance lab — measured timings, checks and explanations',run:()=>openWidgetPanel('benchmarks') },
+  { cmd:'briefing',icon:'🌿',desc:'a live house briefing — weather, departures and reading',run:(arg='')=>import('/lib/house-briefing.js').then(m=>m.showBriefing(voiceContext,voiceAct,arg)).catch(()=>toast('Briefing could not load')) },
+  {cmd:'pin',aliases:['save-widget'],desc:'make the open generated surface a saved widget',run:pinCurrentSurface},
+  {cmd:'genui',desc:'try the living-interface demo',run:(arg='')=>showGenuiDemo(arg)},
+  { cmd:'transit', aliases:['directions'],icon:'🚋',desc:'Muni & BART — /transit destination to plan a trip',run:(arg='')=>openWidgetPanel('transit',{destination:arg}) },
+  { cmd: 'rss', aliases: ['feeds'], icon: '📰', desc: 'reading room — discover and connect feeds', run: (arg = '') => { if (!document.getElementById('feed-css')) document.head.appendChild(h('link', { id:'feed-css',rel:'stylesheet',href:'/lib/feed-reader.css' })); import('/lib/feed-reader.js').then((m) => {const root=m.openFeeds({h,openPanel,openReader,query:arg==='manage'?'':arg.replace(/^(?:add|connect)\s+/i,''),manage:arg==='manage'});panelWidgetStop=()=>root?.dispose?.();}).catch(()=>toast('Feed reader could not load')); } },
+  { cmd: 'headlines', aliases: ['fake', 'realorfake'], icon: '📰', desc: 'real or fake Hacker News? — /headlines real, fake or next to play', run: (arg) => import('/lib/headline-game.js').then((m) => /^(real|fake|next)$/.test(arg) ? m.guess(arg) : showHeadlineGame()).catch(() => toast('The game could not load')) },
   { cmd: 'mood', aliases: [], icon: '🌿', desc: 'ambient mood — fractal, idle glow and forest; /mood off to disable', run: (arg) => loadMood().then((m) => m.command(arg)),
     options: () => [{ arg: 'on', icon: '🌿', label: 'On', desc: 'follow the moment' }, { arg: 'off', icon: '⏹', label: 'Off', desc: 'restore the original palette' }] },
   { cmd: 'hn', aliases: ['hackernews'], icon: '📰', desc: 'Hacker News front page', run: () => showHackerNews() },
@@ -1671,10 +1697,10 @@ const COMMANDS = [
   { cmd: 'botanist', aliases: ['desk', 'agent'], icon: '🌿', desc: 'the Botanist — what to say, and how it uses the screen (desk)', run: () => showBotanist() },
   { cmd: 'night', aliases: ['sleep', 'dim'], icon: '🌙', desc: 'toggle the night veil', run: () => toggleNight() },
   { cmd: 'voice', aliases: ['mic', 'listen', 'heygarden'], icon: '🎙', desc: '"Hey Garden" voice control on / off (off = the mic is closed)',
-    run: (arg) => { if (!VOICE) { toast('Voice is not running on this screen'); return; } if (/^cal/.test(arg || '')) { VOICE.calibrate(60); return; } VOICE.setEnabled(!VOICE.enabled()); },
-    options: () => [{ arg: 'calibrate', icon: '🎚', label: 'Calibrate', desc: 'one minute: say “Hey Garden” around the house, it tunes itself to your voice' }, { arg: 'toggle', icon: '🎙', label: 'On / off', desc: 'turn listening on or off (off = the mic is closed)' }] },
+    run: (arg) => { if (!VOICE) { toast('Voice is not running on this screen'); return; } if (/^cal/.test(arg || '')) { return VOICE.calibrate(); } VOICE.setEnabled(!VOICE.enabled()); },
+    options: () => [{ arg: 'calibrate', icon: '🎚', label: 'Calibrate', desc: 'guided room calibration — four positions, noise tests and reserved trials' }, { arg: 'toggle', icon: '🎙', label: 'On / off', desc: 'turn listening on or off (off = the mic is closed)' }] },
   { cmd: 'refresh', aliases: ['reload'], icon: '🔃', desc: 'reload the garden', run: () => { toast('Refreshing the garden…'); setTimeout(() => location.reload(), 250); } },
-];
+].map((command) => ({ aliases: [], ...command })); // Aliases are optional in registry entries.
 
 // Left-aligned above the note bar, as wide as the commands (humans, 2026-10-30): the
 // command list on baked liquid glass, and under it a glass bar of the same width with
@@ -1806,7 +1832,7 @@ function applyZoom(dir) {
 // scrollBy: the chromium kiosk composites scrolling off the main thread (60fps).
 const panelScroll = { cur: 0, target: 0 }; // retained for openPanel reset compat
 function panelScrollBy(px) {
-  const body = document.getElementById('panelBody');
+  const body = document.querySelector('#panelBody [data-panel-scroll]:not([hidden])') || document.getElementById('panelBody');
   if (body) body.scrollBy({ top: px, behavior: 'smooth' });
 }
 // Mouse wheel already scrolls a native overflow container; nothing to intercept.
@@ -2013,13 +2039,20 @@ function moveFocusDir(dir) {
   if (panelOpen() || paletteOpen()) return;
   const cards = focusCards();
   if (!cards.length) return;
+  // Page changes replace the visible card list. Resolve the highlighted node
+  // again instead of carrying an index into a different page.
+  focusIdx = cards.findIndex(c => c.classList.contains('focused'));
   if (focusIdx < 0) { setFocus(0); return; }
-  const cur = cards[focusIdx].getBoundingClientRect();
+  const current = cards[focusIdx], horizontal = dir === 'left' || dir === 'right';
+  const cur = current.getBoundingClientRect();
   const cx = cur.left + cur.width / 2, cy = cur.top + cur.height / 2;
   let best = -1, bestScore = Infinity;
   cards.forEach((c, i) => {
     if (i === focusIdx) return;
     const r = c.getBoundingClientRect();
+    // Sideways travel stays in the same visual row. A distant toolbar button
+    // or card on another row must not swallow an edge-of-page press.
+    if (horizontal && current.dataset.wid && (!c.dataset.wid || r.bottom <= cur.top + 4 || r.top >= cur.bottom - 4)) return;
     const dx = (r.left + r.width / 2) - cx, dy = (r.top + r.height / 2) - cy;
     let along, across;
     if (dir === 'down') { if (dy <= 4) return; along = dy; across = Math.abs(dx); }
@@ -2029,7 +2062,23 @@ function moveFocusDir(dir) {
     const score = along + across * 2; // prefer nearest along travel, penalise lateral drift
     if (score < bestScore) { bestScore = score; best = i; }
   });
-  if (best >= 0) setFocus(best);
+  if (best >= 0) { setFocus(best); return; }
+  if (!horizontal || !current.dataset.wid || CURRENT_DASH !== 'main' || widgetPages?.editing) return;
+  const before = widgetPages?.snapshot()?.page;
+  widgetPages?.step(dir === 'right' ? 1 : -1);
+  if (!before || widgetPages?.snapshot()?.page === before) return;
+  const next = focusCards();
+  const candidates = next.map((el,i)=>({el,i,r:el.getBoundingClientRect()})).filter(v=>v.el.dataset.wid && v.el.dataset.wid !== 'clock');
+  // Arrive from the opposite edge near the row we left. The pinned clock is
+  // shared by every page; prefer that page's own content when it has any.
+  let selected = -1, score = Infinity;
+  const edge = dir === 'right' ? Math.min(...candidates.map(v=>v.r.left)) : Math.max(...candidates.map(v=>v.r.right));
+  for (const v of candidates) {
+    if (Math.abs((dir==='right'?v.r.left:v.r.right)-edge) > 4) continue;
+    const distance = Math.abs((v.r.top+v.r.bottom)/2-cy);
+    if(distance < score){score=distance;selected=v.i;}
+  }
+  setFocus(selected >= 0 ? selected : 0);
 }
 // ---- keyboard selection mode (Esc at the top level toggles it) ---------------
 // The wall is normally in "writing mode": type anywhere and it lands in the note
@@ -2211,7 +2260,8 @@ function showEventDetail(e) {
 // scripts-disabled iframe served same-origin through /api/readable?raw=1 — so
 // it looks like the real site, is read-only (no scripts, links inert), and you
 // just scroll. The iframe is the full panel; on load failure, a QR to the phone.
-function openReader(url, title) {
+function openReader(url, title, options = {}) {
+  let raw = !!options.original;
   const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
   const frame = h('iframe', {
     class: 'rd-frame', tabindex: '-1', // don't grab keyboard focus (so Esc/Back works on the FIRST press)
@@ -2219,7 +2269,7 @@ function openReader(url, title) {
     // page runs in an opaque/null origin and can't touch our origin, cookies,
     // localStorage or APIs. (No top-navigation/popups either — read-only.)
     sandbox: 'allow-scripts',
-    src: `/api/readable?read=1&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`, // clean reader by default
+    src: `/api/readable?${raw ? 'raw' : 'read'}=1&rich=1&theme=${encodeURIComponent(document.documentElement.dataset.theme || 'classic')}&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`, // clean reader by default
     referrerpolicy: 'no-referrer', loading: 'eager', title: title || 'article',
   });
   frame.addEventListener('load', () => { document.getElementById('panelClose')?.focus(); });
@@ -2230,15 +2280,15 @@ function openReader(url, title) {
   });
   // Reader ↔ original page toggle (the original runs the site's own scripts in the
   // sandbox — sometimes richer, sometimes blank; the reader always works).
-  let raw = false;
-  const toggle = h('button', { class: 'gbtn quiet rd-toggle', type: 'button' }, 'Original page');
+  const toggle = h('button', { class: 'gbtn quiet rd-toggle', type: 'button' }, raw ? 'Reader view' : 'Original page');
   toggle.addEventListener('click', () => {
     raw = !raw;
-    frame.src = `/api/readable?${raw ? 'raw' : 'read'}=1&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`;
+    frame.src = `/api/readable?${raw ? 'raw' : 'read'}=1&rich=1&theme=${encodeURIComponent(document.documentElement.dataset.theme || 'classic')}&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title || '')}`;
     toggle.textContent = raw ? 'Reader view' : 'Original page';
   });
-  const box = h('div', { class: 'reader-frame-wrap' },
+  const box = h('div', { class: `reader-frame-wrap${options.fullscreen ? ' reader-fullscreen' : ''}` },
     h('div', { class: 'rd-src' }, h('span', {}, host || 'reading'), toggle), frame);
+  box.dataset.gardenShare='';box.gardenShare={kind:'snapshot',title:title||host,text:title||host,url};
   openSubPanel(title || 'Reading…', box);
   document.getElementById('panelBody')?.classList.add('reading'); // panel stops scrolling; iframe scrolls
   // Set readerFrame AFTER openSubPanel — openPanel() nulls it, so assigning
@@ -2309,6 +2359,12 @@ function wirePad() {
   let padMapPeek = false; // true while the controller map is held open by R2
   window.__gardenPadApply = (action) => apply(action); // "Hey Garden" presses buttons the same way
   const apply = (action) => {
+    if (['padwaking','padtv','padgarden','paderror','padbusy'].includes(action)) {
+      pageChord = false; padMapPeek = false;
+      if (action === 'padwaking') window.__GARDEN_GAME?.suspend?.();
+      toast(({padwaking:'Waking TV…',padtv:'Controller → TV',padgarden:'Controller → Garden',paderror:'TV unreachable · controller stays on Garden',padbusy:'Exit the native game with Select + Start before switching screens'})[action]);
+      return;
+    }
     if (action === 'volup' || action === 'voldown' || action === 'volshow') { showVolume(); return; } // MX thumb wheel / R2+L1 + right stick (pad.mjs set it)
     // the heart (Home) button: open the Arcade from anywhere, or close it (and any game)
     if (action === 'arcadetoggle') { if (paletteOpen()) { hidePalette(); if (input) input.value = ''; } closeRfMenu(); padMapPeek = false; switchDashboard('arcade'); return; }
@@ -2536,6 +2592,16 @@ function wireFeedback() {
   const input = document.getElementById('feedbackInput');
   if (!form || !input) return;
   focusInput();
+  const sendButton=document.getElementById('feedbackSend'), micButton=document.getElementById('feedbackMic');
+  const syncComposer=()=>{if(sendButton)sendButton.hidden=!input.value.trim();};
+  input.addEventListener('input',syncComposer);
+  form.addEventListener('submit',()=>setTimeout(syncComposer,0));
+  micButton?.addEventListener('click',async()=>{
+    if(!VOICE){toast('Voice is still connecting. Try again in a moment.');return;}
+    try{if(micButton.getAttribute('aria-pressed')==='true')await VOICE.finishListening();else await VOICE.listen();}
+    catch{toast('Could not reach the microphone. Try again.');}
+  });
+  syncComposer();
 
   // Type anywhere → the note field (no clicking needed); Esc closes a panel.
   // Capture phase so Esc is caught even when focus is on a button or the panel.
@@ -2628,6 +2694,7 @@ function wireFeedback() {
     if (!panelOpen() && !mdEl && !selectMode && !(document.activeElement && (document.activeElement.isContentEditable || document.activeElement.closest?.('button, select, textarea, .theme-editor')))) focusInput();
   }, 0));
   document.getElementById('iterBadge')?.addEventListener('click', showIterations);
+  initReadingNotifications({h,openPanel,openSummary:(editionId)=>openWidgetPanel('rss',{daily:true,editionId})});
   document.getElementById('panelClose')?.addEventListener('click', closePanel);
   document.getElementById('panel')?.addEventListener('click', (e) => { if (e.target.id === 'panel') closePanel(); });
   // Belt-and-suspenders: also catch Esc on the panel itself (in case the window
@@ -2778,11 +2845,24 @@ function runTimer(arg) {
 }
 if (!SCREENSHOT) { try { if (localStorage.getItem('garden.countdown')) loadCountdown(); } catch { /* ignore */ } }
 
+async function pinCurrentSurface(){
+ try{
+  const {currentSurface}=await import('/lib/live-surface.js');const value=currentSurface();
+  if(CURRENT_DASH!=='main')return {ok:false,error:'Return to the main Garden wall before saving a widget.'};
+  const record=saveSurface(value),garden=document.getElementById('garden');
+  if(!garden.querySelector(`[data-wid="${record.id}"]`))await loadWidgets([{id:record.id,file:'/widgets/saved-surface.js'}],garden);
+  closePanel();const result=widgetPages.execute({action:'add',widget:record.id});
+  if(result.ok){const card=widgetPages.snapshot().widgets.find(w=>w.id===record.id);if(card)widgetPages.execute({action:'page',page:card.page});toast(value.recipe?.kind==='briefing'?'Saved to your Garden · updates with its sources':'Saved to your Garden · open to interact');}
+  return result.ok?{ok:true,say:'Saved as a widget.'}:result;
+ }catch(e){toast(e.message);return {ok:false,error:e.message};}
+}
+async function showGenuiDemo(arg=''){return (await import('/lib/genui-studio.js')).showStudio(voiceAct,arg);}
+
 // ---- "Hey Garden" (lib/voice.js on the wall, src/voice.mjs + src/voiceagent.mjs behind it) ----
 // The agent sees a snapshot of the wall (voiceContext) and acts through voiceAct, which
 // only calls the same functions a tap, click or controller press would.
 let VOICE = null, VOICE_GAMES = [];
-window.gardenWall = { context: () => voiceContext(), act: request => voiceAct(request) };
+window.gardenWall = { context: () => voiceContext(), act: request => voiceAct(request), auditLayout:async()=>(await import('/lib/layout-audit.js')).auditLayout(), capabilities:()=>({version:1,actions:['open','close','command','layout','surface','a2ui','send','sign'],a2ui:{protocol:'v0.9',catalog:'/genui/catalog.json'},surface:{types:['text','metric','list','actions'],operations:['create','update'],maxBlocks:12}}) };
 const vClip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const vNorm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 function voiceContext() {
@@ -2793,11 +2873,14 @@ function voiceContext() {
   const open = panelOpen();
   const game = window.__GARDEN_GAME;
   return {
+    recipients: messageRecipients,
+    sign: signContext(),
+    share: (()=>{try{const c=currentShare();return {kind:c.kind,title:c.title||'Daily news summary'};}catch{return null;}})(),
     dashboard: CURRENT_DASH,
     dashboards: DASHBOARDS.map((d) => ({ id: d.id, name: d.name })),
     layout: widgetPages?.snapshot(),
     widgets: cards,
-    open: open ? { title: document.getElementById('panelTitle')?.textContent || '', items: panelRows().slice(0, 16).map((r, i) => `${i + 1}. ${vClip(r.dataset.name || r.getAttribute('aria-label') || r.innerText, 90)}`), text: vClip(document.getElementById('panelBody')?.innerText, 700) } : null,
+    open: open ? { title: document.getElementById('panelTitle')?.textContent || '', items: panelRows().slice(0, 16).map((r, i) => `${i + 1}. ${vClip(r.dataset.name || r.getAttribute('aria-label') || r.innerText, 90)}`), text: document.querySelector('#panelBody .garden-residents')?'Resident message management. Phone details stay in the local panel.':vClip(document.getElementById('panelBody')?.innerText, 700) } : null,
     game: game ? { playing: !!game.inGame?.() } : null,
     arcadeGames: VOICE_GAMES, // open('arcade') + select(text: a game) starts one
     palette: paletteOpen(),
@@ -2828,9 +2911,19 @@ const VOICE_PANELS = { events: () => showEvents(), hn: () => showHackerNews(), '
   tendings: () => showIterations(), changelog: () => showIterations(), notes: () => showNotes(), controls: () => showPadMap(),
   credits: () => showCredits(), architecture: () => showArchitecture(), camera: () => showCamera() };
 const vWait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function runSignAction(input){const result=await signAction(input,{h,openPanel,toast});if(document.querySelector('#panelBody .garden-signs'))panelWidgetStop=disposeSign;return result;}
 async function voiceAct({ name, input = {} }) {
   const game = window.__GARDEN_GAME;
   switch (name) {
+    case 'sign': return runSignAction(input);
+    case 'send': return messageControls ? messageControls.send(input) : {ok:false,error:'Sending is only available on the house wall.'};
+    case 'a2ui': {
+      const {updateA2ui}=await import('/lib/a2ui-surface.js');return updateA2ui(input,{h,openPanel,act:voiceAct,isOpen:panelOpen});
+    }
+    case 'surface': {
+      const {updateSurface}=await import('/lib/live-surface.js');
+      return updateSurface(input,{h,openPanel,act:voiceAct,isOpen:panelOpen});
+    }
     case 'layout': {
       if (!widgetPages) return { ok:false, error:'The wall is still loading.' };
       if (CURRENT_DASH !== 'main') await switchDashboard(CURRENT_DASH);
@@ -2873,6 +2966,7 @@ async function voiceAct({ name, input = {} }) {
       if (Number.isInteger(input.index)) el = rows[input.index - 1] || null;
       if (!el && input.text) el = vBest(rows, (r) => `${r.dataset.name || ''} ${r.getAttribute('aria-label') || ''} ${r.dataset.wid ? (WIDGET_MODS[r.dataset.wid]?.title || r.dataset.wid) : ''} ${r.innerText || ''}`, input.text);
       if (!el) return { ok: false, error: `couldn't find "${input.text ?? input.index}" — the items are: ${rows.slice(0, 12).map((r) => vClip(r.dataset.name || r.innerText, 40)).join(' | ')}` };
+      if(el.closest?.('[data-sign-print]'))return {ok:false,error:'Printing requires an explicit yes to the current sign preview.'};
       if (el.dataset.wid && !panelOpen()) { openWidgetPanel(el.dataset.wid); return { ok: true }; }
       if (el.classList.contains('ax-tile')) { // a tile starts on its second tap (the first selects it)
         if (!el.classList.contains('row-sel')) { el.click(); await vWait(120); }
@@ -2883,6 +2977,7 @@ async function voiceAct({ name, input = {} }) {
       return { ok: true, say: 'Done.' };
     }
     case 'press': {
+      if(signContext()&&input.button==='ok')return {ok:false,error:'Use explicit sign approval to print the current preview.'};
       const map = { page_up: 'pageup', page_down: 'pagedown' };
       const n = Math.max(1, Math.min(10, input.times || 1));
       for (let i = 0; i < n; i++) { window.__gardenPadApply?.(map[input.button] || input.button); await vWait(110); }
@@ -2897,10 +2992,10 @@ async function voiceAct({ name, input = {} }) {
       return { ok: true, say: `Volume ${Math.max(0, Math.min(100, Math.round(v)))}%.` };
     }
     case 'command': {
-      const c = COMMANDS.find((x) => x.cmd === vNorm(input.name) || x.aliases.includes(vNorm(input.name)));
+      const c = COMMANDS.find((x) => x.cmd === vNorm(input.name) || x.aliases?.includes(vNorm(input.name)));
       if (!c) return { ok: false, error: `no command "${input.name}"` };
-      c.run(String(input.arg || '').toLowerCase());
-      return { ok: true, say: 'Done.' };
+      const result=await c.run(String(input.arg || '').toLowerCase());
+      return result?.ok!==undefined?result:{ ok: true, say: 'Done.' };
     }
     case 'dashboard': {
       if (!DASHBOARDS.find((d) => d.id === input.id)) return { ok: false, error: `no dashboard "${input.id}"` };
@@ -2998,3 +3093,11 @@ function loadMood() {
   });
 }
 if (!SCREENSHOT) loadMood().catch(() => {});
+
+// Optional, explicit household messages. No polling or SDK connection while idle.
+if (!SCREENSHOT) {
+  window.addEventListener('garden:recipients-changed',e=>{messageRecipients=e.detail;});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetch('/api/messages/recipients').then(r=>r.ok?r.json():null).then(d=>{if(d)messageRecipients=d.recipients||[];}).catch(()=>{});});
+  messageControls=createSendControls({h,toast});
+  fetch('/api/messages/recipients').then(r=>r.ok?r.json():null).then(d=>{messageRecipients=d?.recipients||[];}).catch(()=>{});
+}

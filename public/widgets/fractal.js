@@ -109,7 +109,7 @@ export default {
           slot = meta.slot;
           if (gl) gl.stop();
           img.src = `/api/fractal.png?s=${slot}`;
-          gl = scene ? live(art, img, scene, () => wallCanSee() && !panelOpen()) : null; // the card hides under any panel
+          gl = scene ? live(art, img, scene, () => wallCanSee() && !panelOpen() && !body.closest('.widget-page-hidden')) : null; // the card hides under any panel
         }
         nm.textContent = meta.name;
         nx.textContent = `new in ${fmtLeft(nextAt - Date.now())}`;
@@ -119,7 +119,8 @@ export default {
     await refresh();
     ctx.interval(refresh, 60 * 1000);
     // live seconds in the hover text (a browser only redraws an OPEN tooltip on re-hover)
-    ctx.interval(() => { if (nm.textContent) box.title = `${nm.textContent} · new in ${fmtLeft(nextAt - Date.now())}`; }, 1000);
+    ctx.interval(() => { if (nm.textContent && !body.closest('.widget-page-hidden')) box.title = `${nm.textContent} · new in ${fmtLeft(nextAt - Date.now())}`; }, 1000);
+    return () => gl?.stop();
   },
 
   async openFull(body, ctx) {

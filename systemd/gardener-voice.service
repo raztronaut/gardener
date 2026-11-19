@@ -9,6 +9,12 @@ Type=simple
 ExecStart=/home/talbot/gardener/scripts/gardener.sh voice
 Restart=always
 RestartSec=5
+# glibc otherwise keeps one 64 MB malloc arena per busy thread and never returns freed memory:
+# the live process reached ~1.09 GB (428 MB RAM + 660 MB swap). Two arenas + eager trimming
+# measured 255 MB after load / 421 MB after 30 turns vs 355 / 515 MB, same decode speed
+# (docs/performance/v7). jemalloc was tested and lost (493 MB).
+Environment=MALLOC_ARENA_MAX=2
+Environment=MALLOC_TRIM_THRESHOLD_=131072
 # models ~350 MB resident; hard cap so it can never take the machine down
 MemoryHigh=700M
 MemoryMax=900M

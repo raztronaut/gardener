@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "widget": "benchmarks",
+  "title": "Performance lab",
+  "report": "/genui/benchmarks.json",
+  "command": "/benchmarks",
+  "purpose": "Explain completed measurements and correctness results to people using the house display.",
+  "views": {
+    "medium": "One typical update latency and an overall correctness summary.",
+    "wide": "Typical latency beside correctness, suite count and sample context.",
+    "fullscreen": "Suite selection, median/p95 comparisons, individual sample traces, method and limits."
+  },
+  "terms": {
+    "median": "The middle recorded run; a description of the typical sampled experience.",
+    "p95": "95% of the recorded runs finished within this value, using the benchmark's documented percentile method.",
+    "cold": "Initial loading or cache-miss work may be included; consult the specific method.",
+    "warm": "Relevant code or data was already available; consult the specific method.",
+    "correctness": "Whether the expected behavior passed its checks; a quick result is useful only when it is correct."
+  },
+  "limits": [
+    "Completed benchmark artifacts are not a continuous live performance score.",
+    "Compare models and pipelines only when workload and conditions match.",
+    "DOM dispatch, browser paint, physical display presentation and microphone-to-screen time are distinct measurements.",
+    "Missing measurements stay missing; synthetic UI fixtures are never published as benchmark results."
+  ]
+}

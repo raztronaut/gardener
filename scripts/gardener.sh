@@ -35,6 +35,7 @@ case "$cmd" in
   sync)    exec node src/display.mjs sync ;;
   plant)   exec node src/plant-server.mjs ;;   # locked-down PUBLIC surface (note page + feedback only)
   pad)     exec node src/pad.mjs ;;            # SN30 Pro controller → dashboard bridge
+  input-health) exec node src/input-health.mjs ;;
   voice)   exec nice -n 5 node src/voice.mjs ;; # "Hey Garden": on-device wake word + speech → agent
   tunnel)
     # Expose the PLANT server publicly. Prefer a PERMANENT ngrok static domain if

@@ -4,8 +4,9 @@
 // kiosk page over SSE (/api/pad/stream). Survives the controller sleeping:
 // retries the device every few seconds and logs raw events to data/pad.log so
 // the button mapping can be corrected empirically.
-import { createReadStream, appendFileSync } from 'node:fs';
+import { createReadStream, appendFileSync, existsSync } from 'node:fs';
 import { config, paths } from './config.mjs';
+import { mouseDictation } from './mouse-dictation.mjs';
 
 // (player 1's device is found by name — see p1Dev(); GARDENER_PAD_DEV overrides)
 const API = `http://${config.host}:${config.port}/api/pad/action`;
@@ -55,6 +56,8 @@ const THRESH = 18000; // stick deflection that counts as a press
 const REPEAT_MS = 190; // held-stick repeat for scrolling
 
 async function send(action) {
+  // TV native games read pads directly. Keep HID++ voice active, suppress only wall actions.
+  if(existsSync(`/run/user/${process.getuid()}/gardentv-game-input`)||existsSync(`/run/user/${process.getuid()}/gardentv-pad-target-tv`))return;
   try {
     await fetch(API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -127,6 +130,7 @@ function setVolHold(dir) {
   volHold = { dir, t: setInterval(() => volumeStep(dir), VOL_REPEAT_MS) };
 }
 function onEvent(value, type, number) {
+  if (controllerAway()) return;
   const t = type & 0x7f, init = !!(type & 0x80);
   if (init) return; // synthetic state dump on connect
   if (rawLogged < 300) { rawLogged++; log(`raw ${t === 1 ? 'button' : 'axis'} #${number} = ${value}`); }
@@ -204,15 +208,32 @@ const P2_RE = /xbox|x-box|microsoft/i;
 const p1Dev = () => process.env.GARDENER_PAD_DEV || jsByName(/8bitdo|sn30|sf30/i) || (() => { const d = jsByName(/./); return d && d !== jsByName(P2_RE) ? d : null; })();
 
 let padAway = false;
+const controllerAway = () => existsSync(`/run/user/${process.getuid()}/gardentv-pad-target-tv`) || existsSync(`/run/user/${process.getuid()}/gardentv-game-input`);
+let lastControllerAway = controllerAway();
+setInterval(() => {
+  const away=controllerAway();if(away===lastControllerAway)return;lastControllerAway=away;
+  clearTimeout(sleepHold);sleepHold=null;sleepButtons.clear();sleepClaimed=false;
+  for(const v of held.values())clearInterval(v.t);held.clear();
+  for(const key of Object.keys(rawAxis))delete rawAxis[key];
+  shoulders.clear();comboMax.clear();zoomDown.clear();setVolHold(null);
+},100);
 function attach() {
   const DEV = p1Dev();
   if (!DEV) { if (!padAway) log('controller away — retrying every 3s quietly until it\'s back'); padAway = true; setTimeout(attach, 3000); return; }
   const s = createReadStream(DEV, { highWaterMark: 512 });
+  let profile={};
+  try {
+    const candidate=JSON.parse(readF('/home/talbot/.local/share/garden-tv/controller/profile.json','utf8'));
+    if(candidate.product===readF(`/sys/class/input/${DEV.split('/').pop()}/device/id/product`,'utf8').trim())profile=candidate;
+  } catch { /* D-input keeps its measured native mapping */ }
   let buf = Buffer.alloc(0);
   s.on('data', (chunk) => {
     buf = Buffer.concat([buf, chunk]);
     while (buf.length >= 8) { // struct js_event: u32 time, s16 value, u8 type, u8 number
-      onEvent(buf.readInt16LE(4), buf.readUInt8(6), buf.readUInt8(7));
+      const type=buf.readUInt8(6),number=buf.readUInt8(7),value=buf.readInt16LE(4);
+      const mapping=(type&127)===1?profile.buttons:profile.axes;
+      const mapped=mapping?.[number]===undefined?number:mapping[number];
+      if(!((type&127)===1&&number===profile.star)&&mapped!==null)onEvent(value,type,mapped);
       buf = buf.subarray(8);
     }
   });
@@ -279,14 +300,15 @@ function volumeStep(dir) {
   }, 60);
 }
 
-// MX Master 3 square button (under the wheel) = push-to-talk for "Hey Garden": hold to talk,
-// release to send (src/hidpp.mjs diverts it from the mouse; src/voice.mjs /ptt)
+// MX Master 3 square button: native dictation toggle in foreground Paseo;
+// otherwise Garden hold-to-talk. Releases stay paired with their original target.
 const VOICE_URL = `http://127.0.0.1:${process.env.GARDENER_VOICE_PORT || 8797}/ptt`;
 const ptt = (down) => fetch(VOICE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ down }), signal: AbortSignal.timeout(1500) }).catch(() => {});
+const mouseVoice = mouseDictation({ garden: ptt, log });
 import('./hidpp.mjs').then(({ divertButton }) => {
   let gestureX = 0, gestureY = 0, firstMotion = true;
   const start = () => { if (!divertButton({ controls: [
-    { cid: 0x00c4, onDown: () => ptt(true), onUp: () => ptt(false) },
+    { cid: 0x00c4, onDown: () => mouseVoice(true), onUp: () => mouseVoice(false) },
     { cid: 0x00c3, // thumb-rest gesture button; keep SmartShift push-to-talk separate
       onDown: () => { gestureX = 0; gestureY = 0; firstMotion = true; },
       onMove: (dx, dy) => {

@@ -1,0 +1,1316 @@
+{
+  "source": "https://github.com/raztronaut/personal-rss",
+  "importedAt": "2026-11-05",
+  "feeds": [
+    {
+      "id": "razi-a44f75939f245a",
+      "title": "404 Media",
+      "url": "https://www.404media.co/rss/",
+      "website": "https://www.404media.co/",
+      "category": "Cybersecurity & Society",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Cybersecurity & Society"
+    },
+    {
+      "id": "razi-b7933f812ae616",
+      "title": "Allen Pike",
+      "url": "https://feeds.allenpike.com/feed/",
+      "website": "https://www.allenpike.com/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-86696659af5ae5",
+      "title": "BBC - Technology",
+      "url": "https://rssh-ub-seven-kappa.vercel.app/bbc/technology",
+      "website": "https://www.bbc.co.uk/news/technology",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-8ce1ddd511483f",
+      "title": "BBC - Top News",
+      "url": "https://rssh-ub-seven-kappa.vercel.app/bbc",
+      "website": "https://www.bbc.co.uk/news",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-e4ebe00d3586bb",
+      "title": "BBC - World News",
+      "url": "https://rssh-ub-seven-kappa.vercel.app/bbc/world",
+      "website": "https://www.bbc.co.uk/news/world",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-15726ece12307d",
+      "title": "Colossal",
+      "url": "https://www.thisiscolossal.com/feed/",
+      "website": "https://www.thisiscolossal.com/",
+      "category": "Art & Culture",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Art & Culture"
+    },
+    {
+      "id": "razi-39f09038d14c18",
+      "title": "Daring Fireball",
+      "url": "https://daringfireball.net/feeds/json",
+      "website": "https://daringfireball.net/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-e0e8f0b5535b09",
+      "title": "furbo.org",
+      "url": "https://furbo.org/feed/json",
+      "website": "https://furbo.org/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-b899ce86d8d75a",
+      "title": "Gwern.net - Newest",
+      "url": "https://rssh-ub-seven-kappa.vercel.app/gwern/newest",
+      "website": "https://gwern.net/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-2b4e9cec09e73e",
+      "title": "inessential",
+      "url": "https://inessential.com/feed.json",
+      "website": "https://inessential.com/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-249136e2212936",
+      "title": "Julia Evans",
+      "url": "https://jvns.ca/atom.xml",
+      "website": "https://jvns.ca/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-f05af6587db783",
+      "title": "kottke.org",
+      "url": "https://feeds.kottke.org/json",
+      "website": "https://kottke.org/",
+      "category": "Culture & Curiosity",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture & Curiosity"
+    },
+    {
+      "id": "razi-e651da450e2039",
+      "title": "Manton Reece",
+      "url": "https://www.manton.org/feed/json",
+      "website": "https://www.manton.org/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-8ef0a94bb98223",
+      "title": "Maurice Parker",
+      "url": "https://vincode.io/feed.xml",
+      "website": "https://vincode.io/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-633a0798eaf9fd",
+      "title": "Michael Tsai",
+      "url": "https://mjtsai.com/blog/feed/",
+      "website": "https://mjtsai.com/blog",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-e8878f1537dd35",
+      "title": "NetNewsWire",
+      "url": "https://netnewswire.blog/feed.json",
+      "website": "https://netnewswire.blog/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-ecd058e69ec64f",
+      "title": "One Foot Tsunami",
+      "url": "https://onefoottsunami.com/feed/json/",
+      "website": "https://onefoottsunami.com/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-7e6ef76cf18bb1",
+      "title": "Scripting News",
+      "url": "http://scripting.com/rss.xml",
+      "website": "http://scripting.com/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers",
+      "unavailable": "This saved source lists an HTTP-only feed; its HTTPS feed has not been verified."
+    },
+    {
+      "id": "razi-e49898e9fc8859",
+      "title": "Six Colors",
+      "url": "https://feedpress.me/sixcolors?type=xml",
+      "website": "https://sixcolors.com/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-f84187f7c52ef9",
+      "title": "TechCrunch",
+      "url": "https://techcrunch.com/feed/",
+      "website": "https://techcrunch.com/",
+      "category": "Technology",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Technology"
+    },
+    {
+      "id": "razi-826aa74c199699",
+      "title": "tonsky.me",
+      "url": "https://tonsky.me/atom.xml",
+      "website": "https://tonsky.me/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-c01c14fc345f63",
+      "title": "WIRED",
+      "url": "https://www.wired.com/feed/rss",
+      "website": "https://www.wired.com/",
+      "category": "Technology",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Technology"
+    },
+    {
+      "id": "razi-5596eec21152dc",
+      "title": "xyzeva's blog",
+      "url": "https://kibty.town/blog.rss",
+      "website": "https://kibty.town/",
+      "category": "Independent Writers",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Independent Writers"
+    },
+    {
+      "id": "razi-dd1a5f46b46cd2",
+      "title": "3blue1brown",
+      "url": "https://3blue1brown.substack.com/feed",
+      "website": "https://3blue1brown.substack.com/",
+      "category": "AI (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 AI (from Substack)"
+    },
+    {
+      "id": "razi-9c221856d37c01",
+      "title": "aicollective",
+      "url": "https://aicollective.substack.com/feed",
+      "website": "https://aicollective.substack.com/",
+      "category": "AI (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 AI (from Substack)"
+    },
+    {
+      "id": "razi-4886323455c0d5",
+      "title": "aivalley",
+      "url": "https://aivalley.substack.com/feed",
+      "website": "https://aivalley.substack.com/",
+      "category": "AI (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 AI (from Substack)"
+    },
+    {
+      "id": "razi-d6ddb24b48c65b",
+      "title": "aw3technology",
+      "url": "https://aw3technology.substack.com/feed",
+      "website": "https://aw3technology.substack.com/",
+      "category": "AI (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 AI (from Substack)"
+    },
+    {
+      "id": "razi-0f90c142536df2",
+      "title": "Import AI",
+      "url": "https://importai.substack.com/feed",
+      "website": "https://importai.substack.com/",
+      "category": "AI & Research",
+      "collection": "razi",
+      "description": "Jack Clark\u2019s newsletter on AI research, systems and society."
+    },
+    {
+      "id": "razi-601c8bca8be80b",
+      "title": "stevehsu",
+      "url": "https://stevehsu.substack.com/feed",
+      "website": "https://stevehsu.substack.com/",
+      "category": "AI (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 AI (from Substack)"
+    },
+    {
+      "id": "razi-3e82873628b62a",
+      "title": "theagihouse",
+      "url": "https://theagihouse.substack.com/feed",
+      "website": "https://theagihouse.substack.com/",
+      "category": "AI (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 AI (from Substack)"
+    },
+    {
+      "id": "razi-a47c11d2fe9cb1",
+      "title": "boardyai",
+      "url": "https://boardyai.substack.com/feed",
+      "website": "https://boardyai.substack.com/",
+      "category": "Companies (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Companies (from Substack)"
+    },
+    {
+      "id": "razi-49c7acfd2fb3ef",
+      "title": "browsercompany",
+      "url": "https://browsercompany.substack.com/feed",
+      "website": "https://browsercompany.substack.com/",
+      "category": "Companies (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Companies (from Substack)"
+    },
+    {
+      "id": "razi-7074bc12b25e24",
+      "title": "nathanieldrew",
+      "url": "https://nathanieldrew.substack.com/feed",
+      "website": "https://nathanieldrew.substack.com/",
+      "category": "Creativity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Creativity (from Substack)"
+    },
+    {
+      "id": "razi-54c43b21d6c2da",
+      "title": "theprompters",
+      "url": "https://theprompters.substack.com/feed",
+      "website": "https://theprompters.substack.com/",
+      "category": "Creativity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Creativity (from Substack)"
+    },
+    {
+      "id": "razi-1db05e11260439",
+      "title": "zoputer",
+      "url": "https://zoputer.substack.com/feed",
+      "website": "https://zoputer.substack.com/",
+      "category": "Creativity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Creativity (from Substack)"
+    },
+    {
+      "id": "razi-73dfe73f1a55c3",
+      "title": "535toronto",
+      "url": "https://535toronto.substack.com/feed",
+      "website": "https://535toronto.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-f7678119026ec3",
+      "title": "aella",
+      "url": "https://aella.substack.com/feed",
+      "website": "https://aella.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-4ff94b58d37cff",
+      "title": "arealsociety",
+      "url": "https://arealsociety.substack.com/feed",
+      "website": "https://arealsociety.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-15e8deb640f431",
+      "title": "betweenthecracks",
+      "url": "https://betweenthecracks.substack.com/feed",
+      "website": "https://betweenthecracks.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-bf9d1e37f21c2e",
+      "title": "culturaltutor",
+      "url": "https://culturaltutor.substack.com/feed",
+      "website": "https://culturaltutor.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-2bf33444efc23c",
+      "title": "curatedrabbitholes",
+      "url": "https://curatedrabbitholes.substack.com/feed",
+      "website": "https://curatedrabbitholes.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-67bbfba52f9274",
+      "title": "inthekitchen",
+      "url": "https://inthekitchen.substack.com/feed",
+      "website": "https://inthekitchen.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-a8f9235d8a7840",
+      "title": "latecheckout",
+      "url": "https://latecheckout.substack.com/feed",
+      "website": "https://latecheckout.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-4200848e7adb17",
+      "title": "lg",
+      "url": "https://lg.substack.com/feed",
+      "website": "https://lg.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-f6830719193f8a",
+      "title": "linksiwouldgchatyou",
+      "url": "https://linksiwouldgchatyou.substack.com/feed",
+      "website": "https://linksiwouldgchatyou.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-c907bbf73962ce",
+      "title": "lydiaroos",
+      "url": "https://lydiaroos.substack.com/feed",
+      "website": "https://lydiaroos.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-dac74f9ab9867a",
+      "title": "mediaempires",
+      "url": "https://mediaempires.substack.com/feed",
+      "website": "https://mediaempires.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-d6d8c48f8c58ad",
+      "title": "momentofzen",
+      "url": "https://momentofzen.substack.com/feed",
+      "website": "https://momentofzen.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-fd04d42470e69b",
+      "title": "puptheband",
+      "url": "https://puptheband.substack.com/feed",
+      "website": "https://puptheband.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-72f4c7f2895d44",
+      "title": "razkia",
+      "url": "https://razkia.substack.com/feed",
+      "website": "https://razkia.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-1dbb042ac45910",
+      "title": "rivetingstuff",
+      "url": "https://rivetingstuff.substack.com/feed",
+      "website": "https://rivetingstuff.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-e0ba083018a69d",
+      "title": "sashachapin",
+      "url": "https://sashachapin.substack.com/feed",
+      "website": "https://sashachapin.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-f4a866c2ab36b7",
+      "title": "scholarstage",
+      "url": "https://scholarstage.substack.com/feed",
+      "website": "https://scholarstage.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-db52ecf9fa9f5a",
+      "title": "tanzealous",
+      "url": "https://tanzealous.substack.com/feed",
+      "website": "https://tanzealous.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-853d2ff671f073",
+      "title": "thedaily5",
+      "url": "https://thedaily5.substack.com/feed",
+      "website": "https://thedaily5.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-bccf4bf0008b81",
+      "title": "twerkvonnegut",
+      "url": "https://twerkvonnegut.substack.com/feed",
+      "website": "https://twerkvonnegut.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-37bc882ec46247",
+      "title": "wellnesswisdom",
+      "url": "https://wellnesswisdom.substack.com/feed",
+      "website": "https://wellnesswisdom.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-d5ff24355f0ec8",
+      "title": "whyisthisinteresting",
+      "url": "https://whyisthisinteresting.substack.com/feed",
+      "website": "https://whyisthisinteresting.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-cf2d96ecfc1076",
+      "title": "yarnsofyouth",
+      "url": "https://yarnsofyouth.substack.com/feed",
+      "website": "https://yarnsofyouth.substack.com/",
+      "category": "Culture (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Culture (from Substack)"
+    },
+    {
+      "id": "razi-c0a704d5cc3fed",
+      "title": "fieldnotesbymitul",
+      "url": "https://fieldnotesbymitul.substack.com/feed",
+      "website": "https://fieldnotesbymitul.substack.com/",
+      "category": "Friends (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Friends (from Substack)"
+    },
+    {
+      "id": "razi-d32caf6264f8f4",
+      "title": "mohams2001",
+      "url": "https://mohams2001.substack.com/feed",
+      "website": "https://mohams2001.substack.com/",
+      "category": "Friends (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Friends (from Substack)"
+    },
+    {
+      "id": "razi-0ab02c4fe4a529",
+      "title": "rabiasohail",
+      "url": "https://rabiasohail.substack.com/feed",
+      "website": "https://rabiasohail.substack.com/",
+      "category": "Friends (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Friends (from Substack)"
+    },
+    {
+      "id": "razi-43eca23fda2515",
+      "title": "a16zbiohealth",
+      "url": "https://a16zbiohealth.substack.com/feed",
+      "website": "https://a16zbiohealth.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-3a021350b332e8",
+      "title": "amateurgods",
+      "url": "https://amateurgods.substack.com/feed",
+      "website": "https://amateurgods.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-921e248af83028",
+      "title": "axial",
+      "url": "https://axial.substack.com/feed",
+      "website": "https://axial.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-d69fa38b379b40",
+      "title": "behavioralhealthpm",
+      "url": "https://behavioralhealthpm.substack.com/feed",
+      "website": "https://behavioralhealthpm.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-a3b5e65baa3a02",
+      "title": "brooksleitner",
+      "url": "https://brooksleitner.substack.com/feed",
+      "website": "https://brooksleitner.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-46bbdcbcd54446",
+      "title": "careops",
+      "url": "https://careops.substack.com/feed",
+      "website": "https://careops.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-52ea4294209126",
+      "title": "disruptivehealthcare",
+      "url": "https://disruptivehealthcare.substack.com/feed",
+      "website": "https://disruptivehealthcare.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-30973f5c412370",
+      "title": "Ground Truths \u2014 Eric Topol",
+      "url": "https://erictopol.substack.com/feed",
+      "website": "https://erictopol.substack.com/",
+      "category": "Health & Biology",
+      "collection": "razi",
+      "description": "Medicine, biology and the evidence behind the headlines."
+    },
+    {
+      "id": "razi-9450d9886970af",
+      "title": "gimbhi",
+      "url": "https://gimbhi.substack.com/feed",
+      "website": "https://gimbhi.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-03b001ee5cdd25",
+      "title": "healthapiguy",
+      "url": "https://healthapiguy.substack.com/feed",
+      "website": "https://healthapiguy.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-5fc5a7a4cd2b24",
+      "title": "healthpolicynerd",
+      "url": "https://healthpolicynerd.substack.com/feed",
+      "website": "https://healthpolicynerd.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-e97b3f73f5393b",
+      "title": "justinmares",
+      "url": "https://justinmares.substack.com/feed",
+      "website": "https://justinmares.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-cbcf1e79460260",
+      "title": "marcoaltini",
+      "url": "https://marcoaltini.substack.com/feed",
+      "website": "https://marcoaltini.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-37989634b20326",
+      "title": "maxmarchione",
+      "url": "https://maxmarchione.substack.com/feed",
+      "website": "https://maxmarchione.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-8024200b080a13",
+      "title": "morgancheatham",
+      "url": "https://morgancheatham.substack.com/feed",
+      "website": "https://morgancheatham.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-275756b25fc725",
+      "title": "neurotechnology",
+      "url": "https://neurotechnology.substack.com/feed",
+      "website": "https://neurotechnology.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-9759e8353f0111",
+      "title": "nolanshah",
+      "url": "https://nolanshah.substack.com/feed",
+      "website": "https://nolanshah.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-fc1b5d036679b5",
+      "title": "optimistdigest",
+      "url": "https://optimistdigest.substack.com/feed",
+      "website": "https://optimistdigest.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-214f60f678ed1f",
+      "title": "outofpocket",
+      "url": "https://outofpocket.substack.com/feed",
+      "website": "https://outofpocket.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-039402b65e7181",
+      "title": "pearhealthcareplaybook",
+      "url": "https://pearhealthcareplaybook.substack.com/feed",
+      "website": "https://pearhealthcareplaybook.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-cbddc6e909a828",
+      "title": "psymedventuresarchive",
+      "url": "https://psymedventuresarchive.substack.com/feed",
+      "website": "https://psymedventuresarchive.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-0e1447798c8637",
+      "title": "subaita",
+      "url": "https://subaita.substack.com/feed",
+      "website": "https://subaita.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-aa6f622efecea6",
+      "title": "tejasinamdar",
+      "url": "https://tejasinamdar.substack.com/feed",
+      "website": "https://tejasinamdar.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-1030029d0f3c18",
+      "title": "themicrodose",
+      "url": "https://themicrodose.substack.com/feed",
+      "website": "https://themicrodose.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-6193fbc07303e1",
+      "title": "vitalsignshealth",
+      "url": "https://vitalsignshealth.substack.com/feed",
+      "website": "https://vitalsignshealth.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-fb851943e0b55d",
+      "title": "waitingroom",
+      "url": "https://waitingroom.substack.com/feed",
+      "website": "https://waitingroom.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-77f6847c308c82",
+      "title": "wareable",
+      "url": "https://wareable.substack.com/feed",
+      "website": "https://wareable.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-49fb3e3fa37c10",
+      "title": "zainsyed",
+      "url": "https://zainsyed.substack.com/feed",
+      "website": "https://zainsyed.substack.com/",
+      "category": "Health/Bio/Longevity (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Health/Bio/Longevity (from Substack)"
+    },
+    {
+      "id": "razi-dd83d8237c9413",
+      "title": "disruptnews",
+      "url": "https://disruptnews.substack.com/feed",
+      "website": "https://disruptnews.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-da234a5b5dfbc0",
+      "title": "electricsheep",
+      "url": "https://electricsheep.substack.com/feed",
+      "website": "https://electricsheep.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-258e148b6f96e8",
+      "title": "investmentbrewery",
+      "url": "https://investmentbrewery.substack.com/feed",
+      "website": "https://investmentbrewery.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-985d7198caf8d7",
+      "title": "kanikaxch",
+      "url": "https://kanikaxch.substack.com/feed",
+      "website": "https://kanikaxch.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-f6cdaf88a4a793",
+      "title": "mbideepdives",
+      "url": "https://mbideepdives.substack.com/feed",
+      "website": "https://mbideepdives.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-8332ca7f794166",
+      "title": "nextfinancial",
+      "url": "https://nextfinancial.substack.com/feed",
+      "website": "https://nextfinancial.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-c07434474a83ea",
+      "title": "qchu",
+      "url": "https://qchu.substack.com/feed",
+      "website": "https://qchu.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-52985a7eb95010",
+      "title": "scuttleblurb",
+      "url": "https://scuttleblurb.substack.com/feed",
+      "website": "https://scuttleblurb.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-bc23eddfa08e66",
+      "title": "thebearcave",
+      "url": "https://thebearcave.substack.com/feed",
+      "website": "https://thebearcave.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-b10e363942cb49",
+      "title": "theinnovationcodex",
+      "url": "https://theinnovationcodex.substack.com/feed",
+      "website": "https://theinnovationcodex.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-6ba514ae8495b6",
+      "title": "thesisdriven",
+      "url": "https://thesisdriven.substack.com/feed",
+      "website": "https://thesisdriven.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-d46900b0a9d24a",
+      "title": "valuepunks",
+      "url": "https://valuepunks.substack.com/feed",
+      "website": "https://valuepunks.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-6db2db102095cd",
+      "title": "verci",
+      "url": "https://verci.substack.com/feed",
+      "website": "https://verci.substack.com/",
+      "category": "News/Markets (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 News/Markets (from Substack)"
+    },
+    {
+      "id": "razi-9185623a1d6635",
+      "title": "adplist",
+      "url": "https://adplist.substack.com/feed",
+      "website": "https://adplist.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-4d197f9f3ed769",
+      "title": "amivora",
+      "url": "https://amivora.substack.com/feed",
+      "website": "https://amivora.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-92619bfde639bc",
+      "title": "dpereira",
+      "url": "https://dpereira.substack.com/feed",
+      "website": "https://dpereira.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-bbd0de59f8cb62",
+      "title": "japm",
+      "url": "https://japm.substack.com/feed",
+      "website": "https://japm.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-f456c01fa42f6d",
+      "title": "lane",
+      "url": "https://lane.substack.com/feed",
+      "website": "https://lane.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-152876bcbe9e4a",
+      "title": "post",
+      "url": "https://post.substack.com/feed",
+      "website": "https://post.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-0e889073e4df3d",
+      "title": "span",
+      "url": "https://span.substack.com/feed",
+      "website": "https://span.substack.com/",
+      "category": "Product (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Product (from Substack)"
+    },
+    {
+      "id": "razi-529ed805fb12a4",
+      "title": "avoidboringpeople",
+      "url": "https://avoidboringpeople.substack.com/feed",
+      "website": "https://avoidboringpeople.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-8b4667295a1203",
+      "title": "beff",
+      "url": "https://beff.substack.com/feed",
+      "website": "https://beff.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-f86d3446748843",
+      "title": "bestoftwitter",
+      "url": "https://bestoftwitter.substack.com/feed",
+      "website": "https://bestoftwitter.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-9a7b7c6daef824",
+      "title": "futuremindlabs",
+      "url": "https://futuremindlabs.substack.com/feed",
+      "website": "https://futuremindlabs.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-6d2d77a90d5151",
+      "title": "guzey",
+      "url": "https://guzey.substack.com/feed",
+      "website": "https://guzey.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-5fceae60a125f7",
+      "title": "gwern",
+      "url": "https://gwern.substack.com/feed",
+      "website": "https://gwern.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-82f544c321ab8d",
+      "title": "humaninvariant",
+      "url": "https://humaninvariant.substack.com/feed",
+      "website": "https://humaninvariant.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-75411ab14ed7f1",
+      "title": "mattsclancy",
+      "url": "https://mattsclancy.substack.com/feed",
+      "website": "https://mattsclancy.substack.com/",
+      "category": "Rationality/EA (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Rationality/EA (from Substack)"
+    },
+    {
+      "id": "razi-ad398d17a89e37",
+      "title": "benlangsnotes",
+      "url": "https://benlangsnotes.substack.com/feed",
+      "website": "https://benlangsnotes.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-ffa897b4b16454",
+      "title": "buildcanada",
+      "url": "https://buildcanada.substack.com/feed",
+      "website": "https://buildcanada.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-56cd8a05a5283f",
+      "title": "calacanis",
+      "url": "https://calacanis.substack.com/feed",
+      "website": "https://calacanis.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-29f6b86e2fecba",
+      "title": "jcalfromallin",
+      "url": "https://jcalfromallin.substack.com/feed",
+      "website": "https://jcalfromallin.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-d4145350b9e062",
+      "title": "johnrushx",
+      "url": "https://johnrushx.substack.com/feed",
+      "website": "https://johnrushx.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-62ec133fd048ab",
+      "title": "nextplayso",
+      "url": "https://nextplayso.substack.com/feed",
+      "website": "https://nextplayso.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-40a54090520d8c",
+      "title": "openscout",
+      "url": "https://openscout.substack.com/feed",
+      "website": "https://openscout.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-18bb0ba85fac88",
+      "title": "reclinerclub",
+      "url": "https://reclinerclub.substack.com/feed",
+      "website": "https://reclinerclub.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-0c7ea4cb2cdccd",
+      "title": "sacks",
+      "url": "https://sacks.substack.com/feed",
+      "website": "https://sacks.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-10dda0f95d453f",
+      "title": "sanijadhakal",
+      "url": "https://sanijadhakal.substack.com/feed",
+      "website": "https://sanijadhakal.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-b95735ad144dab",
+      "title": "textswithfounders",
+      "url": "https://textswithfounders.substack.com/feed",
+      "website": "https://textswithfounders.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-7f1896cc814d1e",
+      "title": "thecollectivecommunity",
+      "url": "https://thecollectivecommunity.substack.com/feed",
+      "website": "https://thecollectivecommunity.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-e88aff4fd3d54a",
+      "title": "theconsciousschool",
+      "url": "https://theconsciousschool.substack.com/feed",
+      "website": "https://theconsciousschool.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-e9a0153c2fa066",
+      "title": "thefoundingjourney",
+      "url": "https://thefoundingjourney.substack.com/feed",
+      "website": "https://thefoundingjourney.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-01fa63447f7a5a",
+      "title": "ventureradar",
+      "url": "https://ventureradar.substack.com/feed",
+      "website": "https://ventureradar.substack.com/",
+      "category": "Startups (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Startups (from Substack)"
+    },
+    {
+      "id": "razi-1e4c00467a27a1",
+      "title": "andrewchen",
+      "url": "https://andrewchen.substack.com/feed",
+      "website": "https://andrewchen.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-27a749653fbb6b",
+      "title": "designerfund",
+      "url": "https://designerfund.substack.com/feed",
+      "website": "https://designerfund.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-1a40ca06c9e491",
+      "title": "eriktorenberg",
+      "url": "https://eriktorenberg.substack.com/feed",
+      "website": "https://eriktorenberg.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-9c8d7838ef5d25",
+      "title": "pmarca",
+      "url": "https://pmarca.substack.com/feed",
+      "website": "https://pmarca.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-e316dffab3fed6",
+      "title": "psymedventures",
+      "url": "https://psymedventures.substack.com/feed",
+      "website": "https://psymedventures.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-6c9e07750e6392",
+      "title": "theventurecrew",
+      "url": "https://theventurecrew.substack.com/feed",
+      "website": "https://theventurecrew.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-a1545adb98bc0c",
+      "title": "unshackledvc",
+      "url": "https://unshackledvc.substack.com/feed",
+      "website": "https://unshackledvc.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "razi-e04b2060a26f85",
+      "title": "venturedailydigest",
+      "url": "https://venturedailydigest.substack.com/feed",
+      "website": "https://venturedailydigest.substack.com/",
+      "category": "Venture Capital (from Substack)",
+      "collection": "razi",
+      "description": "From Razi\u2019s personal RSS collection \u00b7 Venture Capital (from Substack)"
+    },
+    {
+      "id": "quanta",
+      "title": "Quanta Magazine",
+      "url": "https://www.quantamagazine.org/feed/",
+      "category": "Science & Discovery",
+      "description": "Mathematics, physics and life science, with room to wonder.",
+      "collection": "recommended"
+    },
+    {
+      "id": "atlas",
+      "title": "Atlas Obscura",
+      "url": "https://www.atlasobscura.com/feeds/latest",
+      "category": "Culture & Curiosity",
+      "description": "Unusual places, strange histories and delightful detours.",
+      "collection": "recommended"
+    },
+    {
+      "id": "knowable",
+      "title": "Knowable Magazine",
+      "url": "https://knowablemagazine.org/rss",
+      "category": "Science & Discovery",
+      "description": "Research explained through clear, substantial stories.",
+      "collection": "recommended"
+    },
+    {
+      "id": "krebs",
+      "title": "Krebs on Security",
+      "url": "https://krebsonsecurity.com/feed/",
+      "category": "Cybersecurity",
+      "description": "Independent reporting on breaches, scams and digital security.",
+      "collection": "recommended"
+    },
+    {
+      "id": "noema",
+      "title": "Noema Magazine",
+      "url": "https://www.noemamag.com/feed/",
+      "category": "Ideas & Culture",
+      "description": "Longer perspectives on technology, society and the future.",
+      "collection": "recommended"
+    }
+  ]
+}

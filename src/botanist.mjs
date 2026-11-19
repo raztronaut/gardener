@@ -1,3 +1,5 @@
+import {destinationPhrase} from './voice-destination.mjs';
+import {tvAppLaunch,tvDirectAction,tvRequest} from './voice-tv.mjs';
 // The Gardener™ — the Botanist bridge: "Hey Garden" → the Botanist, a Claude Code session
 // running in Paseo on this machine (the agent that can change the system itself).
 //
@@ -143,7 +145,7 @@ let held = null; // { task, at }
 const HOLD_MS = 3 * 60 * 1000;
 
 async function sendTask(id, task, notify, log, design = null, signal) {
-  const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDesign context: ${JSON.stringify(design)}. For any GardenOS design/layout/widget request, first read /home/talbot/gardener/DESIGN_SYSTEM.md. It describes the editable theme file, semantic tokens, generated widget token inventory, grid spans, validation and live preview. Interpret the natural language yourself; never ask the person for CSS values. Design requests target Garden Classic only by default, regardless of the displayed theme. A different named theme or an explicit multi-theme request overrides that default. For substantial changes, or changes worth extending to other themes, prepare isolated before/after screenshot previews for each proposed additional theme and ask the user which themes to update. Do not apply those additional-theme changes until approved; never edit a live auto-reloading theme file just to create an unapproved preview. Preserve the frozen original archive. New widgets use the widget contract and real data, not mocks.\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
+  const prompt = `Voice request via Hey Garden (spoken on the GardenOS wall; speech-to-text, so expect small recognition errors): "${clip(task, 1500)}"\n\nDesign context: ${JSON.stringify(design)}. For any GardenOS design/layout/widget request, first read /home/talbot/gardener/DESIGN_SYSTEM.md. It describes the editable theme file, semantic tokens, generated widget token inventory, grid spans, validation and live preview. Interpret the natural language yourself; never ask the person for CSS values. Design requests target Garden Classic only by default, regardless of the displayed theme. A different named theme or an explicit multi-theme request overrides that default. For substantial changes, or changes worth extending to other themes, prepare isolated before/after screenshot previews for each proposed additional theme and ask the user which themes to update. Do not apply those additional-theme changes until approved; never edit a live auto-reloading theme file just to create an unapproved preview. Preserve the frozen original archive. New widgets use the widget contract and real data, not mocks. For sizes or clipping read tools/widget-layout/SIZE_DESIGN.md; choose a deliberate default, only useful optional compositions, and run the content/packing checks. Existing controls and incremental UI can use node tools/wall-ui.mjs rather than screenshots or code edits; read docs/performance/v3/NATIVE_UI.md for the native surface contract.\n\nDo it. To see or control the screen (one 900x1600 portrait display — it IS the GardenOS wall; apps open over it), use the desk command: desk shot (screenshot to /tmp/desk.png, then look at it), desk click-on "the OK button" (finds it by description and clicks — fastest), desk find "...", desk click X Y, desk type "...", desk key ctrl+s, desk windows, desk focus / close <title> (desk --help). Look before you click, check after you act, and close windows you opened when done unless asked to keep them. Your last message is shown on the wall to someone across the room: end with a short plain-language summary (1-3 sentences, no markdown, no code).`;
   let baseline = '';
   try { baseline = await lastReply(id, '', 250); } catch { /* optional; no stale fast completion without baseline */ baseline = null; }
   signal?.throwIfAborted();
@@ -156,6 +158,16 @@ async function sendTask(id, task, notify, log, design = null, signal) {
 // action: ask | status | allow | deny | stop
 export async function botanist({ action = 'ask', task = '', design = null } = {}, { notify = () => {}, log = () => {}, signal } = {}) {
   signal?.throwIfAborted();
+  if(action==='ask'){
+    const phrase=destinationPhrase(task),explicit=phrase.destination==='tv'?tvDirectAction(phrase.text):null;
+    const launch=tvAppLaunch(task)||(explicit?{...phrase,action:explicit}:null);
+    if(launch){
+      notify({kind:'destination',destination:'tv',text:launch.text});
+      try{const [r]=await tvRequest('/voice/act',{calls:[launch.action],request:task},{signal});return r?.ok?{ok:true,say:r.say||'Opened on the TV.'}:{ok:false,error:r?.error||'The TV did not open that app.'};}
+      catch(e){signal?.throwIfAborted();return {ok:false,error:'The TV control is unavailable. No coding task was started.'};}
+    }
+    if(phrase.destination==='tv'&&/^(?:please )?(?:open|show|launch|start)\b/i.test(phrase.text))return {ok:false,error:'I could not match that TV control. Please name the app or widget. No coding task was started.'};
+  }
   const id = botanistId();
   if (!id) return { ok: false, error: 'The Botanist is not connected (no agent id set).' };
   try {
@@ -218,3 +230,6 @@ export async function botanist({ action = 'ask', task = '', design = null } = {}
     return { ok: false, error: 'I couldn’t reach the Botanist.' };
   }
 }
+
+// Shared local transport for the sign illustration worker.
+export { mcp as paseoCall };

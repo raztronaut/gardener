@@ -26,6 +26,7 @@ systemctl --user enable --now gardener-pad.service || true       # SN30 Pro cont
 systemctl --user enable --now gardener-tunnel.service || true    # cloudflared quick tunnel
 systemctl --user enable --now gardener-display-sync.service || true
 systemctl --user enable --now gardener-kiosk.service || true
+systemctl --user enable --now gardener-input-health.service || true
 
 # Schedulers (PT, system TZ = America/Los_Angeles)
 systemctl --user enable --now gardener-iterate.timer

@@ -1,3 +1,4 @@
+import { SIZE_PLANS } from './widget-size-plans.js';
 import { VARIANTS, sizeAvailable, unavailableReason, renderVariant } from './widget-variants.js';
 import { GRID, SIZES, sizeName, defaultSize, packPages, gridMetrics } from './widget-layout.js';
 
@@ -12,8 +13,14 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   let standard=gridEnabled();
   const storageKey=()=>standard?`garden.widget-pages.${document.documentElement.dataset.theme}.grid.v3`:legacyKey;
   let activeStorageKey=storageKey();
+  // Saved default layout for the Reset button; captured the first time edit mode is closed with Done.
+  const defaultKey=()=>`${storageKey()}.default`;
+  function savedDefault(){try{return localStorage.getItem(defaultKey());}catch{return null;}}
   function loadLayout(){
     let stored,migrating=false;try{const own=localStorage.getItem(storageKey());migrating=standard&&!own;stored=JSON.parse(own||localStorage.getItem(legacyKey));}catch{}
+    return normalizeLayout(stored,migrating);
+  }
+  function normalizeLayout(stored,migrating=false){
     const next={pages:2,items:{},...stored};
     if(!Number.isInteger(next.pages)||next.pages<2||next.pages>20)next.pages=2;
     if(!next.items||typeof next.items!=='object'||Array.isArray(next.items))next.items={};
@@ -23,7 +30,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   let state=loadLayout();
   let page=0,editing=false,drag=null,press=null,start=null,suppressUntil=0,layout,returnFocus;
   const variantState=new Map();
-  let pickerCard=null;
+  let pickerCard=null,pendingRemove=null,remounting=false; // pendingRemove: page index awaiting "Remove page" confirmation
   const cards=()=>[...garden.querySelectorAll(':scope > .card[data-wid]')];
   const main=()=>document.body.dataset.dash==='main';
   const available=()=>main()&&!blocked()&&!document.hidden;
@@ -42,15 +49,27 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   const status=h('span',{class:'widget-layout-status',role:'status'});
   const nav=h('nav',{class:'widget-pages home-page-dots','aria-label':'Widget pages'});
   document.querySelector('#feedbackbar').prepend(nav);
+  const resetButton=h('button',{type:'button',title:'Put every widget, size, page and edge back to the saved default',onclick:()=>askReset(true)},'Reset');
+  const resetConfirm=h('span',{class:'widget-reset-confirm',role:'alertdialog','aria-label':'Reset layout?',hidden:true},
+    h('span',{},'Reset to the saved layout?'),
+    h('button',{type:'button',onclick:()=>askReset(false)},'Cancel'),
+    h('button',{type:'button',class:'widget-page-confirm-remove',onclick:()=>{askReset(false);execute({action:'reset'});}},'Reset'));
   const toolbar=h('div',{class:'widget-edit-bar home-edit-bar',hidden:true},
     h('button',{type:'button',onclick:()=>openGallery()},'+ Add widgets'),h('span',{},'Drag any widget'),status,
+    resetButton,resetConfirm,
     h('button',{type:'button',onclick:()=>edit(false)},'Done'));
+  function askReset(on){
+    resetButton.hidden=on;resetConfirm.hidden=!on;toolbar.classList.toggle('confirming-reset',on);
+    resetButton.disabled=!savedDefault();
+    resetButton.title=resetButton.disabled?'Press Done once to keep this layout as the Reset default':'Put every widget, size, page and edge back to the saved default';
+    if(on)resetConfirm.querySelector('button')?.focus({preventScroll:true});
+  }
   const drawer=h('aside',{class:'widget-drawer',hidden:true,'aria-label':'Widget gallery'});
   const picker=h('aside',{class:'widget-size-picker',hidden:true,'aria-label':'Widget size'});
   document.body.append(toolbar,drawer,picker);
   const empty=h('div',{class:'widget-page-empty',hidden:true},h('p',{},'Room to grow'),h('button',{type:'button',onclick:()=>{edit(true);openGallery();}},'Add widgets'));
   garden.append(empty);
-  function save() {try{localStorage.setItem(storageKey(),JSON.stringify(state));status.textContent='Saved';}catch{status.textContent='Storage unavailable — changes last until reload';}}
+  function save() {if(remounting||!main())return;try{localStorage.setItem(storageKey(),JSON.stringify(state));status.textContent='Saved';}catch{status.textContent='Storage unavailable — changes last until reload';}}
   const frameSize=c=>sizeName(c.dataset.wid,item(c).size,definition(c.dataset.wid)?.homeSize);
   function entries(){return cards().map(c=>({id:c.dataset.wid,...item(c),page:standard?item(c).requestedPage:item(c).page,size:frameSize(c)}));}
   function metrics(){const s=getComputedStyle(garden);return gridMetrics({width:garden.clientWidth,height:garden.clientHeight,gap:parseFloat(s.gap)||9,padding:parseFloat(s.paddingTop)||2});}
@@ -66,6 +85,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
 
   function apply(priority) {
     nav.hidden=!main();
+    if(remounting)return;
     if(!main()){ if(editing)edit(false); return; }
     arrange(priority);
     garden.classList.add('home-paged');garden.dataset.layout=standard?'standard':'authored';
@@ -78,6 +98,9 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
       c.style.order=standard?'':String(cfg.order);
       if(standard)c.dataset.gridSize=frameSize(c);else{delete c.dataset.gridSize;c.style.removeProperty('--home-column');c.style.removeProperty('--home-row');}
       if(cfg.size==='original')delete c.dataset.wsize;else c.dataset.wsize=cfg.size;
+      // Per-card edge override: frame===false removes glass/border, true forces them back; absent keeps the authored frame.
+      c.dataset.authoredFrame??=c.classList.contains('unframed')?'off':'on';
+      c.classList.toggle('unframed',cfg.frame!=null?cfg.frame===false:c.dataset.authoredFrame==='off');
       syncVariant(c);
       if(p) {
         c.style.setProperty('--home-column',`${p.x+1} / span ${p.columns}`);
@@ -95,9 +118,11 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
             const args=e.ctrlKey?{action:'move',page:Math.max(1,Math.min(state.pages,cfg.page+1+delta))}:{action:'reorder',direction:delta<0?'earlier':'later'};
             execute({...args,widget:c.dataset.wid});
           }},'⠿'),
+          h('button',{type:'button',class:'widget-frame-toggle',onclick:()=>execute({action:'frame',widget:c.dataset.wid,frame:c.classList.contains('unframed')?'on':'off'})}),
           h('button',{type:'button','aria-label':`Resize ${title(c)}`,onclick:()=>openSizes(c)},'⤢'));
         controls.addEventListener('click',e=>e.stopPropagation()); c.append(controls);
       }else if(!editing)controls?.remove();
+      syncFrameToggle(c);
     }
     empty.style.gridRow=standard?`${(layout.clock?.rows||1)+1} / -1`:'auto';
     empty.hidden=cards().some(c=>c.dataset.wid!=='clock'&&!c.classList.contains('widget-page-hidden'));
@@ -106,12 +131,23 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
     changed();
   }
   function update(priority){apply(priority);save();}
+  function syncFrameToggle(c){
+    const b=c.querySelector(':scope > .widget-edit-controls > .widget-frame-toggle');if(!b)return;
+    const off=c.classList.contains('unframed');
+    // Write only on change: apply() runs often and needless DOM writes wake observers.
+    if(b.getAttribute('aria-pressed')===String(off))return;
+    b.textContent=off?'Edges back':'No edges';b.setAttribute('aria-pressed',String(off));
+    b.setAttribute('aria-label',`${off?'Give edges back to':'Remove edges from'} ${title(c)}`);
+    b.title=off?'Show this card’s glass and border again':'Hide this card’s glass and border';
+  }
   function go(n){if(!main())return;page=Math.max(0,Math.min(state.pages-1,n));cards().forEach(c=>c.classList.remove('focused'));apply();}
   function edit(on=true) {
     if(on&&!available())return;
     if(on&&!editing)returnFocus=document.activeElement;
-    editing=on; document.body.classList.toggle('editing-widgets',on);toolbar.hidden=!on;
-    if(!on){drawer.hidden=true;picker.hidden=true;cancelDrag();}
+    // First Done after this feature shipped: keep the layout as it is now as the Reset default.
+    if(!on&&editing&&!savedDefault()){try{localStorage.setItem(defaultKey(),JSON.stringify(state));}catch{}}
+    editing=on;askReset(false); document.body.classList.toggle('editing-widgets',on);toolbar.hidden=!on;
+    if(!on){pendingRemove=null;drawer.hidden=true;picker.hidden=true;cancelDrag();}
     apply();
     // A hold must leave the pointer exactly where it was; no focus scrolling.
     if(!on&&returnFocus?.isConnected)returnFocus.focus({preventScroll:true});
@@ -128,11 +164,17 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
     const gallery=h('div',{class:'widget-gallery'});
     for(const c of cards().filter(c=>c.dataset.wid!=='clock')){
       const cfg=item(c),here=!cfg.hidden&&cfg.page===page;
-      gallery.append(h('button',{type:'button',class:'widget-gallery-item',disabled:here,'aria-label':`${here?'On this page:':cfg.hidden?'Add':'Move here:'} ${title(c)}`,onclick:()=>{const r=execute({action:'add',widget:c.dataset.wid,page:page+1});if(r.ok)drawer.hidden=true;}},h('div',{class:'widget-preview','aria-hidden':'true'},renderPreview(c)),h('strong',{},title(c)),h('span',{},here?'On this page':cfg.hidden?'+ Add widget':`Move from page ${cfg.page+1}`)));
+      gallery.append(h('button',{type:'button',class:'widget-gallery-item',disabled:here,'aria-label':`${here?'On this page:':cfg.hidden?'Add':'Move here:'} ${title(c)}`,onclick:()=>{const r=execute({action:'add',widget:c.dataset.wid,page:page+1});if(r.ok){pendingRemove=null;drawer.hidden=true;}}},h('div',{class:'widget-preview','aria-hidden':'true'},document.documentElement.dataset.theme==='moonstone'?previewSize(c,'original'):renderPreview(c)),h('strong',{},title(c)),h('span',{},here?'On this page':cfg.hidden?'+ Add widget':`Move from page ${cfg.page+1}`)));
     }
-    drawer.replaceChildren(h('div',{class:'widget-drawer-head'},h('h2',{},'Add to your garden'),h('button',{type:'button','aria-label':'Close widget gallery',onclick:()=>{drawer.hidden=true;}},'×')),h('p',{},'Pages stay full-screen. Extra widgets get another page.'),gallery,
-      h('div',{class:'widget-page-tools'},h('button',{type:'button',onclick:()=>execute({action:'add_page'})},'+ Add page'),h('button',{type:'button',disabled:state.pages<=2,onclick:()=>execute({action:'remove_page',page:page+1})},'Remove this page')));
+    drawer.replaceChildren(h('div',{class:'widget-drawer-head'},h('h2',{},'Add to your garden'),h('button',{type:'button','aria-label':'Close widget gallery',onclick:()=>{pendingRemove=null;drawer.hidden=true;}},'×')),h('p',{},'Pages stay full-screen. Extra widgets get another page.'),gallery,
+      pendingRemove===page
+        ? h('div',{class:'widget-page-tools widget-page-confirm',role:'alertdialog','aria-label':`Remove page ${page+1}?`},
+            h('p',{},`Remove page ${page+1}? Its widgets move to other pages.`),
+            h('button',{type:'button',autofocus:true,onclick:()=>{pendingRemove=null;openGallery();}},'Cancel'),
+            h('button',{type:'button',class:'widget-page-confirm-remove',onclick:()=>{const n=page+1;pendingRemove=null;execute({action:'remove_page',page:n});openGallery();}},'Remove page'))
+        : h('div',{class:'widget-page-tools'},h('button',{type:'button',onclick:()=>execute({action:'add_page'})},'+ Add page'),h('button',{type:'button',disabled:state.pages<=2,onclick:()=>{pendingRemove=page;openGallery();}},'Remove this page')));
     drawer.hidden=false;
+    drawer.querySelector('.widget-page-confirm [autofocus]')?.focus({preventScroll:true});
   }
   function syncVariant(c){
     let record=variantState.get(c);
@@ -182,7 +224,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   function paintSizeChoices(c){
     const options=picker.querySelector('.widget-size-options');if(!options)return;
     options.replaceChildren(...Object.entries({original:{label:standard?`Default · ${SIZES[frameSizeForDefault(c)].label}`:'Original'},...SIZES}).map(([name,size])=>{
-      const available=sizeAvailable(c.dataset.wid,name),description=name==='original'?(standard?'Authored content in a standard footprint':'Your unchanged original card'):available?VARIANTS[c.dataset.wid][name]:unavailableReason(c.dataset.wid);
+      const available=sizeAvailable(c.dataset.wid,name),description=name==='original'?(standard?(SIZE_PLANS[c.dataset.wid]?.default.reason||'Authored content in a standard footprint'):'Your unchanged original card'):available?VARIANTS[c.dataset.wid][name]:unavailableReason(c.dataset.wid);
       return h('button',{type:'button',disabled:!available,'aria-disabled':String(!available),'aria-label':`${size.label} size`,'aria-pressed':String(item(c).size===name),onclick:()=>{const result=execute({action:'resize',widget:c.dataset.wid,size:name});if(result.ok){picker.hidden=true;pickerCard=null;}}},
         available?previewSize(c,name):h('div',{class:'widget-size-unavailable','aria-hidden':'true'},'Not available'),h('strong',{},size.label),h('span',{class:'widget-size-description'},description));
     }));
@@ -190,7 +232,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   function openSizes(c){
     drawer.hidden=true;pickerCard=c;
     picker.replaceChildren(h('div',{class:'widget-drawer-head'},h('h2',{},title(c)),h('button',{type:'button','aria-label':'Close size picker',onclick:()=>{picker.hidden=true;pickerCard=null;}},'×')),
-      h('p',{},standard?'Every choice uses the same page grid. Default keeps the card’s authored content.':'Choose a designed layout. Previews use the current widget content. Original stays unchanged.'),h('div',{class:'widget-size-options'}));
+      h('p',{},standard?'Choose what this card should do for you. Each size is its own composition.':'Choose a designed layout. Previews use the current widget content. Original stays unchanged.'),h('div',{class:'widget-size-options'}));
     paintSizeChoices(c);picker.hidden=false;
   }
 
@@ -233,7 +275,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
     save();
   }
   function execute(input={}){
-    if(!main())return {ok:false,error:'Return to the main wall to arrange widgets.'};
+    if(!main()||remounting)return {ok:false,error:'Return to the main wall to arrange widgets.'};
     const before=JSON.stringify(state),previousPage=page;
     try{
       if(Array.isArray(input.changes)) {
@@ -246,6 +288,12 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
       if(action==='inspect')return {ok:true,info:JSON.stringify(snapshot())};
       if(action==='edit'){edit(true);return {ok:true};}
       if(action==='done'){edit(false);return {ok:true};}
+      if(action==='reset'){
+        const raw=savedDefault();if(!raw)throw Error('No saved default yet. Press Done once to save the current layout as the default.');
+        state=normalizeLayout(JSON.parse(raw));page=0;cancelDrag();picker.hidden=true;pickerCard=null;pendingRemove=null;
+        if(!drawer.hidden)openGallery();
+        update();return {ok:true,say:'Layout reset to the saved default.',layout:snapshot()};
+      }
       if(action==='page'){
         const n=input.page==='next'?page+1:input.page==='previous'?page-1:Number(input.page)-1;
         if(!Number.isInteger(n)||n<0||n>=state.pages)throw Error(`Choose a page from 1 to ${state.pages}.`);
@@ -271,6 +319,13 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
         if(!standard&&size==='original'&&c.dataset.wid==='clock')for(const peer of cards()){const pc=item(peer);if(Number.isInteger(pc.clockReturnPage)){pc.page=pc.clockReturnPage;delete pc.clockReturnPage;}}
         if(!standard&&size==='original'&&Number.isInteger(cfg.variantReturnPage)){cfg.page=cfg.variantReturnPage;delete cfg.variantReturnPage;}
       }else if(action==='remove'){if(c.dataset.wid==='clock')throw Error('The clock stays on every page.');cfg.hidden=true;}
+      else if(action==='frame'){
+        if(!['off','on','default'].includes(input.frame))throw Error('Edges must be off, on or default.');
+        if(input.frame==='default')delete cfg.frame;else cfg.frame=input.frame==='on';
+        update();
+        if(input.frame==='default')return {ok:true,say:`${title(c)} has its original edges.`,layout:snapshot()};
+        return {ok:true,say:`${title(c)} ${cfg.frame?'has its edges back':'has no edges'}.`,layout:snapshot()};
+      }
       else if(action==='add'||action==='move'){if(c.dataset.wid==='clock')throw Error('The clock is on every page already.');cfg.hidden=false;delete cfg.variantReturnPage;delete cfg.clockReturnPage;if(input.page==null)cfg.page=page;if(standard)cfg.requestedPage=cfg.page;if(action==='add')cfg.order=Math.max(0,...cards().map(p=>item(p).order))+1;}
       else if(action==='reorder'){
         if(c.dataset.wid==='clock')throw Error('The clock stays anchored at the top.');
@@ -294,7 +349,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
       return {ok:true,say:`${title(c)} ${action==='resize'?`is ${cfg.size}`:action==='remove'?'removed':`on page ${cfg.page+1}`}.`,layout:snapshot()};
     }catch(e){state=JSON.parse(before);page=previousPage;apply();save();status.textContent=e.message;return {ok:false,error:e.message};}
   }
-  function snapshot(){return {page:page+1,pages:state.pages,grid:{...GRID,presentation:standard?'standard named footprints':'original authored grid',metrics:standard?{column:metrics().column,row:metrics().row,gap:metrics().gap}:null},sizes:{original:{label:standard?'Default (named footprint)':'Original'},...SIZES},editing,widgets:cards().map(c=>({id:c.dataset.wid,title:title(c),...item(c),page:c.dataset.wid==='clock'?'all':item(c).page+1,pinned:c.dataset.wid==='clock',footprint:standard?{name:frameSize(c),...SIZES[frameSize(c)],...metrics().footprint(frameSize(c))}:null,availableSizes:['original',...Object.keys(VARIANTS[c.dataset.wid]||{})]}))};}
+  function snapshot(){if(!main()||remounting)return null;return {page:page+1,pages:state.pages,grid:{...GRID,presentation:standard?'standard named footprints':'original authored grid',metrics:standard?{column:metrics().column,row:metrics().row,gap:metrics().gap}:null},sizes:{original:{label:standard?'Default (named footprint)':'Original'},...SIZES},editing,widgets:cards().map(c=>({id:c.dataset.wid,title:title(c),...item(c),page:c.dataset.wid==='clock'?'all':item(c).page+1,pinned:c.dataset.wid==='clock',footprint:standard?{name:frameSize(c),...SIZES[frameSize(c)],...metrics().footprint(frameSize(c))}:null,availableSizes:['original',...Object.keys(VARIANTS[c.dataset.wid]||{})]}))};}
   function clearPress(){clearTimeout(press);press=null;}
   function beginDrag(e,c){
     if(c.dataset.wid==='clock')return;
@@ -332,7 +387,7 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   listen(garden,'click',e=>{if(performance.now()<suppressUntil||(editing&&!e.target.closest('.widget-edit-controls'))){e.preventDefault();e.stopImmediatePropagation();}},{capture:true});
   listen(document,'keydown',e=>{
     if(e.ctrlKey&&e.shiftKey&&['ArrowLeft','ArrowRight'].includes(e.key)&&available()){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)go(page+(e.key==='ArrowRight'?1:-1));}
-    if(e.key==='Escape'&&editing){e.preventDefault();e.stopImmediatePropagation();if(!picker.hidden)picker.hidden=true;else if(!drawer.hidden)drawer.hidden=true;else edit(false);}
+    if(e.key==='Escape'&&editing){e.preventDefault();e.stopImmediatePropagation();if(!picker.hidden)picker.hidden=true;else if(!drawer.hidden){if(pendingRemove!=null){pendingRemove=null;openGallery();}else drawer.hidden=true;}else edit(false);}
   },{capture:true});
   const edges=[-1,1].map(n=>h('div',{class:`widget-edge ${n<0?'left':'right'}`,'aria-hidden':'true'}));
   document.body.append(...edges);
@@ -347,7 +402,17 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
   });
   listen(window,'blur',()=>{resetEdge();clearPress();cancelDrag();start=null;});
   listen(document,'pointerout',e=>{if(!e.relatedTarget)resetEdge();});
-  const cardObserver=new MutationObserver(records=>{for(const n of records.flatMap(r=>[...r.removedNodes])){const record=variantState.get(n);if(record){record.observer.disconnect();const i=observers.indexOf(record.observer);if(i>=0)observers.splice(i,1);variantState.delete(n);}}const added=records.flatMap(r=>[...r.addedNodes]).find(n=>n.matches?.('.card[data-wid]'));apply(added?{id:added.dataset.wid,last:true}:null);save();});cardObserver.observe(garden,{childList:true});observers.push(cardObserver);
+  const cardObserver=new MutationObserver(records=>{
+    for(const n of records.flatMap(r=>[...r.removedNodes])){
+      const record=variantState.get(n);
+      if(record){record.observer.disconnect();const i=observers.indexOf(record.observer);if(i>=0)observers.splice(i,1);variantState.delete(n);}
+    }
+    if(remounting||!main())return;
+    // A returning card is not an addition. Preserve the saved packing priority
+    // on remount/removal; only a genuinely new widget gets placed after peers.
+    const added=records.flatMap(r=>[...r.addedNodes]).find(n=>n.matches?.('.card[data-wid]')&&!state.items[slot(n)]);
+    apply(added?{id:added.dataset.wid,last:true}:undefined);save();
+  });cardObserver.observe(garden,{childList:true});observers.push(cardObserver);
   const dashObserver=new MutationObserver(()=>{resetEdge();if(main()){apply();save();}else{edit(false);garden.classList.remove('home-paged');cards().forEach(c=>{c.classList.remove('widget-page-hidden');delete c.dataset.wsize;delete c.dataset.gridSize;});delete garden.dataset.layout;nav.hidden=true;empty.hidden=true;}});dashObserver.observe(document.body,{attributes:true,attributeFilter:['data-dash']});observers.push(dashObserver);
   function designChanged(){
     const next=gridEnabled();
@@ -364,9 +429,20 @@ function initHome({ garden, h, changed, blocked = () => false, definition = () =
     state.defaultsRestored=true;
   }
   apply();save();
-  return { edit:()=>edit(true),done:()=>edit(false),step:n=>{if(available())go(page+n);},snapshot,execute,get editing(){return editing;},destroy:()=>{
+  function beginRemount(){
+    if(editing)edit(false);
+    remounting=true;
+    let released=false;
+    return ()=>{
+      if(released)return;released=true;
+      // Let removal/addition observers clean up while packing is still paused.
+      // Resume as soon as all card shells exist, without waiting for live data.
+      queueMicrotask(()=>{remounting=false;apply();save();});
+    };
+  }
+  return { beginRemount,edit:()=>edit(true),done:()=>edit(false),step:n=>{if(available())go(page+n);},snapshot,execute,get editing(){return editing;},destroy:()=>{
     events.abort();observers.forEach(o=>o.disconnect());clearPress();resetEdge();cancelDrag();document.body.classList.remove('editing-widgets');garden.classList.remove('home-paged');
     delete garden.dataset.layout;
-    cards().forEach(c=>{c.classList.remove('widget-page-hidden','widget-editing');c.style.removeProperty('--home-column');c.style.removeProperty('--home-row');delete c.dataset.wsize;delete c.dataset.gridSize;c.style.order='';c.querySelector('.widget-edit-controls')?.remove();});[nav,toolbar,drawer,picker,empty,...edges].forEach(n=>n.remove());
+    cards().forEach(c=>{c.classList.remove('widget-page-hidden','widget-editing');c.style.removeProperty('--home-column');c.style.removeProperty('--home-row');delete c.dataset.wsize;delete c.dataset.gridSize;c.style.order='';c.querySelector('.widget-edit-controls')?.remove();if(c.dataset.authoredFrame){c.classList.toggle('unframed',c.dataset.authoredFrame==='off');delete c.dataset.authoredFrame;}});[nav,toolbar,drawer,picker,empty,...edges].forEach(n=>n.remove());
   }};
 }

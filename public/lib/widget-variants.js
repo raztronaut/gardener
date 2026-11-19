@@ -1,9 +1,13 @@
+import {renderBenchmarkCard} from './benchmark-view.js';
+import {renderSurfaceCard} from './saved-surfaces.js';
 import {setTodoDone} from './todo-store.js';
 import {todoTaskText} from './todo-assignees.js';
+// The new two-task Small composition is authored for Classic; preserve other themes.
+const smallTodoLimit=()=>!globalThis.document||document.documentElement.dataset.theme==='classic'?2:1;
 // Opt-in compositions. Original tiles/fullscreens keep their own renderers.
 // A size is selectable only when it has an explicit, reviewed content design.
 export const VARIANTS = {
-  todos: {small:'The next task, with an open-task count',medium:'Three tasks with completion controls',wide:'Next task beside two upcoming tasks',tall:'Five tasks in a calm checklist'},
+  benchmarks: {medium:'One measured latency and a correctness summary',wide:'Latency beside correctness and sample context'},
   clock: {small:'Time, date and the daily poem',wide:'Time beside New York and London'},
   'air-quality': {small:'AQI and its category',wide:'AQI beside the next six hours'},
   weather: {small:'Current temperature and next sun event',medium:'Now and three upcoming hours',wide:'Now beside a six-hour forecast'},
@@ -12,7 +16,9 @@ export const VARIANTS = {
   gardyn: {small:'Day and growth stage',medium:'Ready crops, flowers and the next milestone',wide:'The growth timeline, with room for every row',large:'Every plant and its estimated stage'},
   fractal: {medium:'Floating art in a compact frame',tall:'A taller frame for the whole sculpture',large:'Room for the sculpture to breathe'},
   'sf-events': {small:'One upcoming plan',wide:'Three plans side by side',tall:'A five-event agenda'},
-  transit: {small:'The next two departures',wide:'Three departures with stop names',tall:'Five departures and provider freshness'},
+  todos: {get small(){return smallTodoLimit()===2?'Two tasks with completion controls and a remaining count':'The next task, with an open-task count';},medium:'Three tasks with completion controls',wide:'Next task beside two upcoming tasks',tall:'Five tasks in a calm checklist'},
+  rss: {small:'One headline and its source',medium:'A headline with a short excerpt',wide:'Two stories side by side',tall:'Three headlines and their sources',large:'Four stories from your sources'},
+  transit: {medium:'Three departures and stop names',large:'Six departures and provider freshness',small:'The next two departures',wide:'Three departures with stop names',tall:'Five departures and provider freshness'},
   // A temporary election card: its authored design is the only reviewed size.
   midterms: {},
 };
@@ -20,7 +26,7 @@ export const sizeAvailable = (id,size) => size==='original'||Object.hasOwn(VARIA
 export function unavailableReason(id) {
   return id==='midterms'?'This temporary card uses its original design.': 'Not designed for this card. Open fullscreen for more detail.';
 }
-const h=(tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(k==='class')e.className=v;else if(k==='style')Object.assign(e.style,v);else e.setAttribute(k,String(v));}for(const k of kids.flat(Infinity))if(k!=null&&k!==false)e.append(k instanceof Node?k:String(k));return e;};
+const h=(tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(v==null||v===false)continue;if(/^on/i.test(k)&&typeof v==='function')e.addEventListener(k.slice(2).toLowerCase(),v);else if(k==='class')e.className=v;else if(k==='style')Object.assign(e.style,v);else e.setAttribute(k,String(v));}for(const k of kids.flat(Infinity))if(k!=null&&k!==false)e.append(k instanceof Node?k:String(k));return e;};
 const text=(s,c='wv-note')=>h('div',{class:c},s);
 const stat=(value,label)=>h('div',{class:'wv-stat'},text(value,'wv-value'),text(label,'wv-muted'));
 const localHour=iso=>String(iso||'').match(/T(\d\d)/)?.[1];
@@ -31,13 +37,16 @@ function shortTime(iso){if(!iso)return '—';const m=String(iso).match(/T(\d\d):
 function paintImage(data,card){return card.querySelector('.dly-pic')?.src||data?.img||'';}
 function weatherRoot(size,data,card){
   const d=data,cur=d?.current;
-  const now=h('div',{class:'wv-weather-now'},text(card.querySelector('.wx-now .f')?.textContent||'—','wv-value'),text(card.querySelector('.wx-now .c')?.textContent||'','wv-muted'));
-  const icon=card.querySelector('.wx-now .ic img');if(icon)now.prepend(h('img',{src:icon.src,alt:'',class:'wv-weather-icon'}));
+  const now=h('div',{class:'wv-weather-now'},text(Number.isFinite(cur?.temperature_2m)?`${Math.round(cur.temperature_2m)}°F`:card.querySelector('.wx-now .f')?.textContent||'—','wv-value'),text(Number.isFinite(cur?.temperature_2m)?`${Math.round((cur.temperature_2m-32)*5/9)}°C`:card.querySelector('.wx-now .c')?.textContent||'','wv-muted'));
+  const icon=card.querySelector('.wx-now .ic img'),fallbackIcon=d?.variantIcons?.[currentIndex(d?.hourly?.time)];if(icon||fallbackIcon)now.prepend(h('img',{src:icon?.src||fallbackIcon.src,alt:fallbackIcon?.label||'',class:'wv-weather-icon'}));
   const sun=card.querySelector('.nx');if(sun)now.append(text([sun.querySelector('.k')?.textContent,sun.querySelector('.v')?.textContent].filter(Boolean).join(' '),'wv-note'));
+  if(!sun&&d?.daily){const local=new Date().toLocaleString('sv-SE',{timeZone:'America/Los_Angeles'}).replace(' ','T');const upcoming=['sunrise','sunset'].flatMap(key=>(d.daily[key]||[]).map(at=>({key,at}))).filter(e=>e.at>local).sort((a,b)=>a.at.localeCompare(b.at))[0];if(upcoming)now.append(text(`${upcoming.key==='sunrise'?'Sunrise':'Sunset'} ${shortTime(upcoming.at)}`,'wv-note'));}
+  if(!cur&&!card.querySelector('.wx-fallback'))return [text('Reading the sky…'),text('Connecting to the forecast','wv-muted')];
+  if(!cur&&card.querySelector('.wx-fallback'))return [text(card.querySelector('.wx-fallback .m')?.textContent||'Weather unavailable'),text('Reconnecting to the forecast…','wv-muted')];
   if(size==='small')return [now];
   if(!cur)return [now,text('Forecast is updating.')];
   const times=d.hourly?.time||[],start=currentIndex(times),count=size==='wide'?6:3;
-  const hours=Array.from({length:count},(_,n)=>{const i=start+n*(size==='wide'?2:1),f=d.hourly.temperature_2m?.[i],code=d.hourly.weather_code?.[i];if(!Number.isFinite(f))return null;
+  const hours=Array.from({length:count},(_,n)=>{const i=start+n*(size==='wide'?2:1),f=d.hourly?.temperature_2m?.[i],code=d.hourly?.weather_code?.[i];if(!Number.isFinite(f))return null;
     return h('div',{class:'wv-hour'},text(n===0?'Now':hourLabel(times[i]),'wv-muted'),text(`${Math.round(f)}°`,'wv-hour-temp'),d.variantIcons?.[i]?h('img',{src:d.variantIcons[i].src,alt:d.variantIcons[i].label,class:'wv-hour-icon'}):text('','wv-hour-condition'));
   });
   return [now,h('div',{class:'wv-hours'},...hours)];
@@ -86,18 +95,26 @@ function gardynRoot(size,d,card){
   return [head,list,text('Growth estimates from the sowing date','wv-footnote')];
 }
 function transitRoot(size,d,card){
-  const arrivals=(d?.arrivals||[]).filter(a=>a.time>Date.now()-30000).slice(0,({small:2,wide:3,tall:5})[size]);
+  const arrivals=(d?.arrivals||[]).filter(a=>a.time>Date.now()-30000).slice(0,({small:2,medium:3,wide:3,tall:5,large:6})[size]);
   if(!arrivals.length)return [text(d?.error||card.querySelector('.tr-empty')?.textContent||'No upcoming predictions.','wv-note')];
   const rows=arrivals.map(a=>{const mins=Math.round((a.time-Date.now())/60000);return h('div',{class:'wv-departure'},text(a.route,'wv-route'),h('div',{class:'wv-destination'},text(a.destination,'wv-destination-name'),size==='small'?null:text(a.stop,'wv-muted')),text(`${a.realtime?'':'~'}${mins<=0?'Due':`${mins} min`}`,'wv-departure-time'));});
   if(size!=='small')rows.push(text(`${d.stale?'Saved data · ':''}511 · updated ${d.sourceAt?new Date(d.sourceAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'time unavailable'}`,'wv-footnote'));
   return rows;
 }
 function todosRoot(size,data){
-  const pending=(data||[]).filter(t=>!t.done),limit=({small:1,medium:3,wide:3,tall:5})[size];
+  const pending=(data||[]).filter(t=>!t.done),limit=({small:smallTodoLimit(),medium:3,wide:3,tall:5})[size];
   const rows=pending.slice(0,limit).map((t,i)=>h('label',{class:'todo-glance-row',onClick:e=>e.stopPropagation()},h('input',{type:'checkbox','aria-label':`Mark ${t.title} complete`,onChange:e=>{try{setTodoDone(t.id,e.target.checked);}catch{e.target.checked=false;}}}),h('span',{class:'todo-glance-copy'},size==='wide'&&i===0?text('UP NEXT','rss-source'):null,todoTaskText(h,t))));
-  if(!rows.length)rows.push(text('All done.','todo-title'));
+  if(!rows.length)rows.push(document.documentElement.dataset.theme==='classic'&&size!=='small'?h('div',{class:'todo-empty'},h('div',{class:'todo-empty-mark','aria-hidden':'true'},'✓'),text('All done.','todo-title'),text('A little room for what’s next.','todo-empty-note')):text('All done.','todo-title'));
   rows.push(text(pending.length>limit?`+ ${pending.length-limit} more · open all ${pending.length}`:`${pending.length} open · tap for details`,'todo-more'));
   return rows;
+}
+function rssRoot(size,data){
+  const all=data||[],classicLarge=size==='large'&&document.documentElement.dataset.theme==='classic';
+  const distinct=classicLarge?all.filter((item,i)=>all.findIndex(p=>p.source===item.source)===i):[];
+  const items=(classicLarge?[...distinct,...all.filter(i=>!distinct.includes(i))]:all).slice(0,({small:1,medium:1,wide:2,tall:3,large:4})[size]);
+  if(!items.length)return [text('Your reading room is opening.','wv-note')];
+  const stories=items.map(i=>h('div',{class:'wv-rss-story'},text(i.source,'rss-source'),text(i.title,'rss-headline'),size==='small'?null:text(i.summary||'','rss-preview')));
+  if(classicLarge)stories.push(text(`${new Set(items.map(i=>i.source)).size} sources · Open your reading room ↗`,'rss-grid-foot'));return stories;
 }
 function eventsRoot(size,d,card){
   const events=(d||[]).filter(e=>!e.when||+e.when>Date.now()-3*60*60*1000).slice(0,({small:1,wide:3,tall:5})[size]);
@@ -106,6 +123,8 @@ function eventsRoot(size,d,card){
 }
 export function renderVariant(id,size,{data,card}){
   if(!sizeAvailable(id,size)||size==='original')return null;
-  const renderers={todos:()=>todosRoot(size,data),clock:()=>clockRoot(size,card),'air-quality':()=>airRoot(size,data,card),weather:()=>weatherRoot(size,data,card),daily:()=>paintingRoot(size,data,card),'hacker-news':()=>newsRoot(size,data,card),gardyn:()=>gardynRoot(size,data,card),transit:()=>transitRoot(size,data,card),'sf-events':()=>eventsRoot(size,data,card),fractal:()=>{const src=card.querySelector('.frc img')?.src;return [src?h('img',{class:'wv-fractal-art',src,alt:'Trihourly fractal sculpture'}):text('The sculpture is growing.')];}};
+  if(id==='benchmarks')return renderBenchmarkCard(size,data,h);
+  if(id.startsWith('surface-'))return renderSurfaceCard(size,data,h);
+  const renderers={todos:()=>todosRoot(size,data),rss:()=>rssRoot(size,data),clock:()=>clockRoot(size,card),'air-quality':()=>airRoot(size,data,card),weather:()=>weatherRoot(size,data,card),daily:()=>paintingRoot(size,data,card),'hacker-news':()=>newsRoot(size,data,card),gardyn:()=>gardynRoot(size,data,card),transit:()=>transitRoot(size,data,card),'sf-events':()=>eventsRoot(size,data,card),fractal:()=>{const src=card.querySelector('.frc img')?.src;return [src?h('img',{class:'wv-fractal-art',src,alt:'Trihourly fractal sculpture'}):text('The sculpture is growing.')];}};
   return h('div',{class:`wv wv-${id} wv-${size}`},...(renderers[id]?.()||[]));
 }

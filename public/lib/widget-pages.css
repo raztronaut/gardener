@@ -19,6 +19,19 @@
 .editing-widgets #garden > .card { min-height:var(--widget-edit-height) !important; }
 .editing-widgets #garden::after { content:""; grid-column:1 / -1; min-height:420px; order:10000; }
 .widget-edit-controls button[hidden] { display:none; }
+/* Edge toggle: a labelled pill grouped with resize at the card's right corner. */
+.widget-edit-controls .widget-frame-toggle { width:auto; padding:0 13px; border-radius:17px; font:600 13px var(--font); white-space:nowrap; margin-left:auto; margin-right:8px; }
+.widget-edit-controls .widget-frame-toggle[aria-pressed="true"] { border-color:var(--mint); color:var(--mint); }
+/* A card whose edges were removed hides its baked glass too, not just the border. */
+#garden > .card.unframed > .gb-img, #garden > .card.unframed > .lgr-tint, #garden > .card.unframed > .lgr-rim { display:none; }
+.widget-page-confirm { align-items:center; flex-wrap:wrap; }
+.widget-page-confirm p { flex:1 1 100%; margin:0 0 4px; color:var(--ink); }
+.widget-reset-confirm { display:flex; align-items:center; gap:10px; }
+.widget-reset-confirm[hidden], .widget-edit-bar button[hidden] { display:none; }
+.widget-edit-bar.confirming-reset > span:nth-child(2) { display:none; }
+.widget-edit-bar.confirming-reset .widget-reset-confirm { flex:1; justify-content:flex-end; }
+.widget-edit-bar button:disabled { opacity:.35; cursor:default; }
+.widget-edit-bar .widget-page-confirm-remove, .widget-drawer .widget-page-confirm-remove { border-color:var(--color-error, #ff8a7a); color:var(--color-error, #ffb4a8); }
 .widget-drawer { position:fixed; z-index:181; left:12px; right:12px; bottom:12px; max-height:44vh; overflow-y:auto; overscroll-behavior:contain; padding:18px 22px; border:1px solid var(--stroke-strong); border-radius:28px; background:var(--bg-1); color:var(--ink); box-shadow:0 -12px 50px #0005; }
 .widget-drawer-head { display:flex; justify-content:space-between; align-items:center; }
 .widget-drawer h2 { font:28px var(--font-display); margin:0; }

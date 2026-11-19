@@ -1,0 +1,17 @@
+[Unit]
+Description=Garden input health and guarded idle-page recovery
+After=gardener-kiosk.service gardener-voice.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+ExecStart=/home/talbot/gardener/scripts/gardener.sh input-health
+Restart=on-failure
+RestartSec=10
+MemoryHigh=96M
+MemoryMax=160M
+Nice=10
+
+[Install]
+WantedBy=graphical-session.target

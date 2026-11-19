@@ -1,3 +1,4 @@
+import {makeRoomCalibration} from './voice-room-ui.js';
 import { makeTranscript } from './voice-transcript.js';
 import { designColor } from './design-values.js';
 // The Gardener™ — "Hey Garden" on the wall: the Siri-style edge glow, the live words,
@@ -162,50 +163,6 @@ function makeBotanistCard(api) {
   };
 }
 
-// calibration card: a countdown ring, the takes heard so far, then the tuning and the result
-function makeCalib() {
-  const el = document.createElement('div');
-  el.id = 'voiceCalib';
-  el.innerHTML = `<div class="vk-card"><div class="vk-kicker">Hey Garden · calibration</div>
-    <div class="vk-ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg"/></svg><b class="vk-num"></b></div>
-    <div class="vk-title"></div><div class="vk-sub"></div><div class="vk-dots"></div></div>`;
-  (document.getElementById('zoomroot') || document.body).appendChild(el);
-  const $ = (q) => el.querySelector(q), fg = $('.fg'), C = 2 * Math.PI * 52;
-  fg.style.strokeDasharray = `${C}`;
-  let total = 60, hideT = 0;
-  const ring = (f) => { fg.style.strokeDashoffset = `${C * (1 - Math.max(0, Math.min(1, f)))}`; };
-  return {
-    record({ left, heard }) {
-      clearTimeout(hideT); el.className = 'on rec';
-      if (left > total) total = left;
-      $('.vk-num').textContent = `0:${String(left).padStart(2, '0')}`;
-      $('.vk-title').textContent = 'Say “Hey Garden” from around the house';
-      $('.vk-sub').textContent = 'Near and far, other rooms, your normal voice — a few seconds apart';
-      $('.vk-dots').innerHTML = `<span>${heard}</span> heard` + '<i></i>'.repeat(Math.min(heard, 16));
-      ring(left / total);
-    },
-    analyze({ progress = 0 }) {
-      el.className = 'on ana';
-      $('.vk-num').textContent = `${Math.round(progress * 100)}%`;
-      $('.vk-title').textContent = 'Tuning to your voice';
-      $('.vk-sub').textContent = 'Testing every take with noise, other voices, room echo, distance and speed';
-      $('.vk-dots').innerHTML = '';
-      ring(progress);
-    },
-    done(r) {
-      el.className = `on ${r.ok ? 'ok' : 'bad'}`;
-      $('.vk-num').textContent = r.ok ? '✓' : '!';
-      ring(1);
-      if (r.ok) {
-        $('.vk-title').textContent = `Calibrated — I catch ${Math.round(r.recall * 100)}% of your “Hey Garden”s`;
-        $('.vk-sub').textContent = `${r.takes} takes, ${r.tests} tests (before: ${Math.round(r.recallBefore * 100)}%)${r.gain > 1 ? ` · mic boost ${r.gain.toFixed(1)}×` : ''}`;
-      } else { $('.vk-title').textContent = 'Calibration didn’t finish'; $('.vk-sub').textContent = r.why || ''; }
-      $('.vk-dots').innerHTML = '';
-      hideT = setTimeout(() => { el.className = ''; total = 60; }, 9000);
-    },
-  };
-}
-
 export function startVoice(api) {
   const transcript = makeTranscript({cancel: () => post('/control', {cancel: true}), style: `
     #voiceTranscript { position:fixed; z-index:550; left:5%; right:5%; bottom:110px; padding:20px 24px; border-radius:22px; background:var(--bg-1,#091c14); color:var(--ink,#e0f5e9); border:1px solid var(--stroke); box-shadow:0 8px 32px #0006; font-family:var(--font); }
@@ -217,7 +174,7 @@ export function startVoice(api) {
   const glow = makeGlow();
   const cap = makeCaption(api);
   const bcard = makeBotanistCard(api);
-  const calib = makeCalib();
+  const calib = makeRoomCalibration({origin:ORIGIN,sound:api.sound});
   let es = null, backoff = 2000, enabled = true, busy = false, lastEv = 0, watchdog = 0;
   // never stuck: back to rest if a listening / thinking moment hears nothing for 12 s, or
   // if the voice service restarts mid-request (its hello says it's idle)
@@ -228,7 +185,18 @@ export function startVoice(api) {
   const cancelledTurns = new Set();
   const onEvent = async (ev) => {
     lastEv = Date.now();
-    if (ev.t === 'hello') { cancelledTurns.clear(); enabled = ev.enabled; if (ev.state === 'idle') settle(); glow && glow.work(!!ev.botanist); return; }
+    // TV turns are observed by GardenTV, not presented on the portrait wall.
+    if(ev.destination==='tv'&&!['enabled','calib'].includes(ev.t)){
+      if(ev.t==='hello')enabled=ev.enabled;
+      if(busy){busy=false;clearTimeout(watchdog);transcript.hide(0);cap.hide(0);glow&&glow.end('cancel');api.duck(false);}
+      return;
+    }
+    if(ev.t==='state'||ev.t==='hello'){
+      if(ev.t==='state'&&ev.state==='idle'&&ev.end==='cancel')window.dispatchEvent(new CustomEvent('garden:voice-cancel',{detail:{why:ev.why}}));
+      const button=document.getElementById('feedbackMic'),listening=ev.state==='listening';
+      button?.setAttribute('aria-pressed',String(listening));button?.setAttribute('aria-label',listening?'Finish voice message':'Start voice mode');
+    }
+    if (ev.t === 'hello') { cancelledTurns.clear(); enabled = ev.enabled; if (ev.state === 'idle') settle(); glow && glow.work(!!ev.botanist); if(ev.calibration&&ev.calibration.phase!=='done')onEvent(ev.calibration); return; }
     if (ev.t === 'enabled') { enabled = ev.enabled; api.toast(enabled ? 'Hey Garden is listening again' : 'Hey Garden is off — the mic is closed'); return; }
     if (ev.t === 'level') { glow && glow.level(ev.v); return; }
     if (ev.t === 'calib') {
@@ -301,13 +269,18 @@ export function startVoice(api) {
     try { es = new EventSource(`${ORIGIN}/events`); } catch { return; }
     es.onopen = () => { backoff = 2000; };
     es.onmessage = (m) => { try { onEvent(JSON.parse(m.data)); } catch { /* ignore */ } };
-    es.onerror = () => { es.close(); es = null; settle(); setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); };
+    es.onerror = () => { es.close(); es = null; settle(); calib.disconnected(); setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); };
   };
   connect();
   return {
     enabled: () => enabled,
+    async listen(){
+      if(!enabled)await post('/control',{enabled:true});
+      const r=await fetch(ORIGIN+'/ptt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({down:true,auto:true})});if(!r.ok)throw Error('Microphone unavailable');
+    },
+    finishListening:()=>post('/ptt',{down:false}),
     setEnabled: (on) => post('/control', { enabled: !!on }),
-    calibrate: (seconds = 60) => post('/control', { calibrate: true, seconds }),
+    calibrate: () => calib.welcome().catch(e=>api.toast(e.message)),
     // QA/preview: run the look without a voice (?voicedemo=1)
     demo() {
       onEvent({ t: 'state', state: 'listening' });

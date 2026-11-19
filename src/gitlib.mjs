@@ -1,7 +1,6 @@
 // Thin git wrapper — git is The Gardener's consistency substrate.
-// Invariant: HEAD is ALWAYS a known-good, smoke-tested UI state.
-// The working tree only diverges from HEAD during an active iteration; any
-// crash or failure resets it back to HEAD (or the iteration's base commit).
+// This checkout is shared with humans and other agents. Automated callers must
+// preserve working files and newer commits, including after a failed iteration.
 import { execFileSync } from 'node:child_process';
 import { ROOT } from './config.mjs';
 
@@ -16,7 +15,7 @@ export function head() {
   try { return git(['rev-parse', 'HEAD']); } catch { return null; }
 }
 export function isDirty() {
-  try { return git(['status', '--porcelain']).length > 0; } catch { return false; }
+  return git(['status', '--porcelain', '--untracked-files=all']).length > 0;
 }
 export function commitAll(message) {
   git(['add', '-A']);
@@ -26,9 +25,10 @@ export function commitAll(message) {
   git(['commit', '-m', message, '--no-verify']);
   return head();
 }
-export function resetHard(ref = 'HEAD') {
-  git(['reset', '--hard', ref]);
-  git(['clean', '-fd']); // remove untracked files/dirs; gitignored (data/, node_modules, .env) are preserved
+export function resetHard() {
+  // A status check followed by reset/clean has a race with concurrent editing.
+  // Keep this fail-closed API for old callers; no automated destructive reset.
+  throw new Error('Automatic reset/clean is disabled in the shared Garden checkout. Working files are preserved.');
 }
 export function shortLog(n = 10) {
   try { return git(['log', `-${n}`, '--pretty=format:%h %ad %s', '--date=short']); } catch { return ''; }

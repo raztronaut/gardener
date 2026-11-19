@@ -23,7 +23,7 @@ export function silenceBudget(text) { return editUtterance(text).kind==='wait' ?
 
 export class VoiceTurns {
   current=null; sequence=0;
-  begin() { this.cancel(); const turn={id:++this.sequence,controller:new AbortController()}; this.current=turn; return turn; }
+  begin() { this.cancel(); const turn={id:++this.sequence,startedAt:Date.now(),controller:new AbortController()}; this.current=turn; return turn; }
   cancel() { this.current?.controller.abort(); this.current=null; }
   isCurrent(turn) { return this.current===turn && !turn.controller.signal.aborted; }
 }

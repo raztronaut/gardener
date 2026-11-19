@@ -10,6 +10,7 @@ import { join, extname } from 'node:path';
 import { config, paths } from './config.mjs';
 import { addFeedback } from './db.mjs';
 import { handleHouseApi } from './house-api.mjs';
+import { serveSharedItem } from './messages.mjs';
 
 const PORT = parseInt(process.env.GARDENER_PLANT_PORT || '8788', 10);
 const HOST = '127.0.0.1'; // cloudflared connects here; never bound to the LAN directly
@@ -110,6 +111,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const p = u.pathname;
+    if (await serveSharedItem(req,res,p)) return;
 
     // Hearth — the household app is the new front door. `/` serves it; the
     // standalone note page stays reachable at /plant.html as a fallback.

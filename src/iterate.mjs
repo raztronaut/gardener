@@ -3,8 +3,8 @@
 // Runs (scheduled ~06:00 PT, or manually). Compiles the day's feedback, lets the
 // Claude Agent SDK tend the garden, then independently verifies with smoke tests
 // + a headless screenshot + a vision review. Deploys ONLY on green (git commit +
-// version bump → kiosk auto-reloads); otherwise reverts the working tree to the
-// last known-good commit. Crash-safe: any failure or abort leaves HEAD intact.
+// version bump → kiosk auto-reloads); otherwise preserves the working files for review. Never reset or clean this
+// shared checkout: other agents and humans may be editing it concurrently.
 import { spawn, execFileSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
@@ -109,7 +109,7 @@ async function runAgent({ prompt, timeoutMs, transcriptPath, label }) {
   } finally {
     clearTimeout(timer);
   }
-  try { enforceScope(SCOPE_ID); } catch (e) { log(`scope check failed: ${e.message}`); }
+  enforceScope(SCOPE_ID);
   return { summary: (summary || lastAssistantText || '').slice(0, 4000), success, turns };
 }
 
@@ -141,7 +141,7 @@ function freePort(port) {
 // ---- per-dashboard scope -----------------------------------------------------
 // Each dashboard (public/dashboards.json) is tended by its OWN agent run with its
 // own context, feedback and commit. A non-main dashboard's agent may only change
-// files under public/dashboards/<id>/ — anything else it touches is reverted.
+// files under public/dashboards/<id>/ — out-of-scope changes stop the run and are preserved.
 let DASH_QS = '';      // review screenshot query (?dash=<id>)
 let SCOPE_NOTE = '';   // prepended to every agent prompt for a dashboard run
 let SCOPE_ID = 'main';
@@ -151,7 +151,7 @@ function dashScopeNote(id, name) {
     + `You work on this one alone. You may ONLY create/edit files under \`public/dashboards/${id}/\` `
     + `(its \`manifest.json\`, \`widgets/*.js\`, and any data/helper files there). Never touch the main wall `
     + `(public/widgets/, app.js, styles.css, index.html), other dashboards, the server or the rules — changes `
-    + `outside your folder are automatically reverted. Widget entries in your manifest use absolute file paths, `
+    + `outside your folder stop the run for review. Widget entries in your manifest use absolute file paths, `
     + `e.g. \`"file": "/dashboards/${id}/widgets/foo.js"\`; widgets follow the normal widget contract. The clock `
     + `is pinned at the top of every dashboard (don't add one). Preview it at \`/?dash=${id}\`. `
     + `Run \`npm run smoke\` before finishing.\n\n`;
@@ -165,10 +165,9 @@ function enforceScope(id) {
     const f = line.slice(3).replace(/^"|"$/g, '').split(' -> ').pop();
     if (f.startsWith(keep)) continue;
     bad.push(f);
-    if (line.startsWith('??')) { try { execFileSync('rm', ['-rf', join(paths.ROOT, f)]); } catch { /* ignore */ } }
-    else { try { execFileSync('git', ['checkout', 'HEAD', '--', f], { cwd: paths.ROOT }); } catch { /* ignore */ } }
+
   }
-  if (bad.length) log(`scope: reverted ${bad.length} out-of-scope change(s): ${bad.slice(0, 8).join(', ')}`);
+  if (bad.length) throw new Error(`Out-of-scope changes detected; preserved for review: ${bad.slice(0, 8).join(', ')}`);
   return bad;
 }
 
@@ -209,6 +208,7 @@ function summarizeIssues(verdict) {
 // ---- main ------------------------------------------------------------------
 async function main() {
   const trigger = process.argv[2] || 'manual';
+  if (git.isRepo() && git.isDirty()) { log('working tree has active edits — skipping tending without changing files'); return; }
   recover();
   if (!acquireLock()) { log('another iteration holds the lock — exiting'); process.exit(0); }
   // Heartbeat the lock so a long-but-healthy run is never seen as stale/stealable.
@@ -237,8 +237,8 @@ async function main() {
 }
 
 async function tendDashboard(trigger, dash, feedbackItems) {
-  // Start from a clean, known-good base (HEAD). Discard any stray working changes.
-  if (git.isRepo() && git.isDirty()) { log('working tree dirty at start — resetting to HEAD'); git.resetHard('HEAD'); }
+  // Do not take ownership of pre-existing or concurrent working changes.
+  if (git.isRepo() && git.isDirty()) { log('working tree changed during tending startup — preserving edits and skipping'); return; }
   const baseCommit = git.head();
 
   const feedbackIds = feedbackItems.map((f) => f.id); // consume ONLY these at deploy; mid-run feedback stays pending
@@ -306,7 +306,7 @@ async function tendDashboard(trigger, dash, feedbackItems) {
     //    Smoke (incl. render integrity) is the hard deploy gate. Review-infra
     //    failures (e.g. port clash, screenshot error) are non-blocking — they
     //    must never roll back a green tree. But a visual fix that BREAKS smoke
-    //    is a real regression → hard fail → rollback.
+    //    is a real regression → hard fail → preserve for review.
     updateIteration(iterId, { status: 'reviewing' });
     let smokeBrokenByFix = false;
     try {
@@ -358,7 +358,7 @@ async function tendDashboard(trigger, dash, feedbackItems) {
     log(`DEPLOYED iteration #${iterId} → commit ${resultCommit?.slice(0, 8)}, ui v${version}, consumed ${consumeIds.length}/${feedbackIds.length} feedback${agentOk ? '' : ' (run incomplete — feedback retained)'}`);
   } catch (e) {
     log(`iteration FAILED: ${e.message} — rolling back to ${baseCommit?.slice(0, 8)}`);
-    try { if (baseCommit) git.resetHard(baseCommit); else git.resetHard('HEAD'); } catch (re) { log(`rollback error: ${re.message}`); }
+    log('Working files preserved for review; automatic rollback is disabled in this shared checkout.');
     finishIteration(iterId, 'failed', { error: e.message.slice(0, 1000), summary: finalSummary.slice(0, 2000), review_notes: lastVerdict ? summarizeIssues(lastVerdict).slice(0, 1000) : null });
   }
   log(`=== iteration #${iterId} done (deployed=${deployed}) ===`);

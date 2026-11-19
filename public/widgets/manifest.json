@@ -82,6 +82,12 @@
       "file": "rss.js",
       "enabled": true,
       "order": 12
+    },
+    {
+      "id": "benchmarks",
+      "file": "benchmarks.js",
+      "enabled": true,
+      "order": 13
     }
   ]
 }

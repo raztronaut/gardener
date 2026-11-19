@@ -23,7 +23,9 @@ const wy = (lat, z) => {
 export function staticMap({ bbox, width, height, labels = true, maxZoom = 16, dim = 0.62 }) {
   const [s, w, n, e] = bbox;
   // fractional zoom that fits the box: span at z=0, then log2 of the room we have
-  const fz = Math.min(maxZoom, Math.log2(Math.min(width / (wx(e, 0) - wx(w, 0)), height / (wy(s, 0) - wy(n, 0)))));
+  // Do not create an unbounded number of tiny tiles when repeatedly zoomed out.
+  if (![s,w,n,e,width,height].every(Number.isFinite) || width<=0 || height<=0 || s>=n || w>=e || s<=-85.051129 || n>=85.051129) throw new Error('Invalid map bounds');
+  const fz = Math.max(1, Math.min(maxZoom, Math.log2(Math.min(width / (wx(e, 0) - wx(w, 0)), height / (wy(s, 0) - wy(n, 0))))));
   const z = Math.max(1, Math.ceil(fz)); // fetch this level's tiles…
   const k = 2 ** (fz - z);             // …drawn at this scale (≤ 1)
   const T = TILE * k;

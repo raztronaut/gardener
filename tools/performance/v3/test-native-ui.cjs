@@ -1,0 +1,20 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'/tmp/garden-browser-qa/node_modules/playwright');const assert=require('node:assert/strict');const fs=require('node:fs');
+(async()=>{const browser=await chromium.launch({executablePath:process.env.GARDENER_TEST_BROWSER||'/home/talbot/.local/share/gardener-chrome/chrome-linux-arm64/chrome',args:['--no-sandbox','--disable-gpu','--disable-webgl']});try{
+ const page=await browser.newPage({viewport:{width:900,height:1600}}),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:8787/?theme=classic&screenshot=1&bar=1');await page.waitForFunction(()=>window.gardenWall);await page.evaluate(()=>document.body.classList.add('qa-open'));await page.evaluate(()=>Promise.race([document.fonts.ready,new Promise(r=>setTimeout(r,5000))]));await page.waitForTimeout(8000);
+ const report=await page.evaluate(async()=>{
+  const act=input=>window.gardenWall.act({name:'surface',input});const rows=[];const checks={};
+  let r=await act({id:'qa',operation:'create',revision:1,title:'House briefing',blocks:[{id:'stable',type:'actions',actions:[{label:'Weather',target:'weather'}]},{id:'metric',type:'metric',value:'Checking…'}]});checks.create=r.ok;
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  checks.immediateShell=!document.getElementById('panel').classList.contains('gb-wait');
+  const button=document.querySelector('.gs-actions button');button.focus();
+  for(let rev=2;rev<=31;rev++){const t=performance.now();r=await act({id:'qa',operation:'update',revision:rev,blocks:[{id:'stable',type:'actions',actions:[{label:'Weather',target:'weather'}]},{id:'metric',type:'metric',value:String(rev)}]});const domMs=performance.now()-t;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));rows.push({revision:rev,domMs,ms:performance.now()-t,ok:r.ok});}
+  checks.stableFocus=document.activeElement===button;checks.titlePreserved=document.querySelector('.gs h1').textContent==='House briefing';checks.staleRejected=!(await act({id:'qa',operation:'update',revision:2,blocks:[]})).ok;
+  checks.executableActionRejected=!(await act({id:'qa',operation:'update',revision:32,blocks:[{id:'evil',type:'actions',actions:[{target:'shell',label:'Run'}]}]})).ok;
+  await act({id:'qa',operation:'update',revision:32,blocks:[{id:'text',type:'text',text:'<img src=x onerror=alert(1)>'}]});checks.textNotHtml=!document.querySelector('.gs img');
+  await window.gardenWall.act({name:'close',input:{}});checks.closedRejected=!(await act({id:'qa',operation:'update',revision:33,blocks:[]})).ok;
+  // Direct renderer fixture verifies an asynchronous failed action leaves a usable button.
+  const {updateSurface}=await import('/lib/live-surface.js');const h=(tag,attrs,...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs||{})){if(k==='onClick')e.onclick=v;else e.setAttribute(k,v);}e.append(...kids);return e;};const host=document.createElement('div');document.body.append(host);
+  updateSurface({id:'failure',operation:'create',revision:1,blocks:[{id:'action',type:'actions',actions:[{target:'weather'}]}]},{h,openPanel:(_,root)=>host.replaceChildren(root),act:async()=>{await new Promise(r=>setTimeout(r,5));return{ok:false,error:'Try again'};}});host.querySelector('button').click();await new Promise(r=>setTimeout(r,30));checks.failureRetry=!host.querySelector('button').disabled&&host.textContent.includes('Try again');host.remove();
+  return {checks,rows};
+ });assert.ok(Object.values(report.checks).every(Boolean),JSON.stringify(report.checks));assert.equal(errors.length,0);fs.writeFileSync(process.env.GARDENER_SURFACE_REPORT||'docs/performance/v4/native-ui.json',JSON.stringify({at:new Date().toISOString(),method:'Isolated Chromium after fonts and eight-second warmup; 30 native surface patches measured through two rAF callbacks. Software rendering for test isolation; not physical Jetson display latency.',...report,errors},null,2));console.log(report.checks);
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

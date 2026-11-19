@@ -60,7 +60,7 @@ function render(body, ctx, full = false) {
     .todo-add > input[type=text]{flex:1;min-width:180px;background:var(--color-canvas-raised);color:var(--color-text-primary);border:1px solid var(--stroke);border-radius:12px;padding:12px;font:inherit}
     .todo-add button{border:1px solid var(--stroke);border-radius:12px;padding:12px 20px;background:var(--color-canvas-raised);color:var(--color-text-primary);font:inherit;cursor:pointer}
   `);
-  const compact=!full&&document.documentElement.dataset.theme==='classic';
+  const compact=!full&&['classic','moonstone'].includes(document.documentElement.dataset.theme);
   const root = h('div', { class: `todo-root${full ? ' todo-full' : compact?' todo-glance':''}` });
   const list = h('div', { class: 'todo-list' });
   const storageStatus = h('p', { class: 'todo-copy-status', role: 'status', hidden: true });

@@ -1,0 +1,15 @@
+/* New functional panel; existing surfaces and theme tokens stay unchanged. */
+.garden-signs { display:flex; flex-direction:column; gap:var(--space-card-padding,20px); font-family:var(--font-body); color:var(--color-text-primary); }
+.garden-signs p { margin:0; }
+.garden-signs label { display:flex; flex-direction:column; gap:8px; }
+.garden-signs textarea,.garden-signs input,.garden-signs select { box-sizing:border-box; width:100%; padding:12px; border:1px solid var(--color-text-muted); border-radius:var(--radius-card,12px); font:inherit; color:var(--color-text-primary); background:var(--surface-raised); }
+.garden-signs textarea { resize:vertical; min-height:80px; }
+.sign-preview img { display:block; width:100%; height:auto; }
+.sign-slots { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.sign-slots label:nth-child(2),.sign-slots label:nth-child(3) { grid-column:1 / -1; }
+.sign-actions { display:flex; gap:12px; flex-wrap:wrap; }
+.sign-actions .gbtn,.sign-compose .gbtn { padding:12px 18px; min-height:48px; }
+.sign-compose { display:flex; flex-direction:column; gap:12px; }
+.sign-source { color:var(--color-text-muted); font-size:.8em; }
+.garden-signs [hidden] { display:none !important; }
+.garden-signs button:disabled { opacity:.45; cursor:default; }

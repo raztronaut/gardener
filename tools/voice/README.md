@@ -20,11 +20,48 @@ QA without speaking: `curl -X POST -d '{"text":"open the weather"}' http://127.0
 running logs only tool names.
 
 ## Push-to-talk (MX Master 3 square button)
-`src/hidpp.mjs` diverts the button under the wheel (HID++ control 0x00C4) so holding it talks to
-Hey Garden (pad.mjs → POST /ptt). It needs access to the Logitech receiver's hidraw node:
+`src/hidpp.mjs` diverts the button under the wheel (HID++ control 0x00C4).
+With a **Paseo conversation in the foreground**, press once to start native Paseo
+dictation and again to finish/send (Paseo's Ctrl+D). Escape cancels it. This uses
+Paseo's existing microphone/transcription configuration. It is a toggle in Paseo,
+so releasing the mouse does not prematurely submit your sentence. Use it in the
+conversation view; Paseo disables this shortcut in its terminal and command palette.
+Elsewhere it remains hold-to-talk/release-to-send for Hey Garden (POST /ptt).
+`src/mouse-dictation.mjs` chooses the foreground app on press and keeps Garden's
+release paired even if focus changes. X11 lookup failures drop the press.
+Check with `node --test tools/voice/mouse-dictation.test.mjs`.
+It needs access to the Logitech receiver's hidraw node:
 
 ```sh
 sudo sh -c 'echo "KERNEL==\"hidraw*\", ATTRS{idVendor}==\"046d\", MODE=\"0660\", TAG+=\"uaccess\"" > /etc/udev/rules.d/70-gardener-logitech.rules && udevadm control --reload && udevadm trigger --subsystem-match=hidraw'
 systemctl --user restart gardener-pad
 ```
 (While diverted the button no longer toggles the wheel's ratchet / free-spin.)
+
+## Guided room calibration
+
+Open `/voice calibrate` or say “Hey Garden, start room calibration”. This opens an
+explanation; capture starts only after pressing Start. Four positions, three labelled
+trials each, variable cue intervals, room-noise and ordinary-speech controls, and
+Pause/Resume/Cancel. Recording takes about three minutes, followed by local tuning.
+The third take at every position is reserved for validation. No raw audio is stored
+or uploaded; only settings/results are saved. A changed profile must pass held-out
+and false-trigger checks, and the prior profile can be restored.
+
+Implementation and reproducible synthetic/native/browser checks are documented in
+`docs/performance/room-calibration/README.md`. It tunes detector thresholds and mic
+gain, not neural model weights. Do not claim house-wide accuracy from synthetic tests.
+
+## GardenTV routing and current recognizer (2026-11-08)
+
+Live recognition is explicitly overridden to the existing local Paseo Parakeet
+v2 0.6B model in `~/.config/systemd/user/gardener-voice.service.d/asr.conf`; the
+source/fresh-install default remains110M. The drop-in also sets1200ms partials
+and MemoryHigh1600M/MemoryMax1800M. Keep allocator tuning. Audio remains local
+and in RAM. See `docs/performance/tv-voice/README.md` for the comparison, full
+synthetic pipeline, live TV checks and honest recognition/playback limits.
+
+“Hey Garden … on the TV” and the TV home mic target the TV overlay through
+Garden's microphone. Netflix resolves and verifies title/adaptation links, then
+sends its watch intent; profile/sign-in is a human step. Channel Down has not
+been physically learned and the remote mic button is still Alexa.

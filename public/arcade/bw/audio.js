@@ -1,0 +1,9 @@
+// Original SPU captures. A single context is owned and closed by each game instance.
+export class WorldAudio {
+ constructor(base){this.base=base;this.ctx=null;this.buffers=new Map();this.sources=new Set();this.music=null;this.closed=false;this.muted=false;}
+ async load(){const r=await fetch(this.base+'audio.json');if(!r.ok)throw Error('World audio assets missing');this.manifest=await r.json();this.raw=new Map(await Promise.all(Object.entries({music:this.manifest.music,...this.manifest.sounds}).map(async([id,file])=>{const r=await fetch(this.base+file);if(!r.ok)throw Error('World sound missing');return [id,await r.arrayBuffer()];})));}
+ async start(){if(this.closed)return;if(!this.ctx){this.ctx=new AudioContext();this.gain=this.ctx.createGain();this.gain.gain.value=.65;this.gain.connect(this.ctx.destination);for(const [id,bytes] of this.raw)this.buffers.set(id,await this.ctx.decodeAudioData(bytes.slice(0)));if(this.closed)return;this.music=this.ctx.createBufferSource();this.music.buffer=this.buffers.get('music');this.music.loop=true;const level=this.ctx.createGain();level.gain.value=.40;this.music.connect(level).connect(this.gain);this.music.start();}if(!this.closed)await this.ctx.resume();}
+ play(id){if(!this.ctx||this.ctx.state!=='running'||this.closed||this.muted)return;const buffer=this.buffers.get(String(id));if(!buffer)return;const s=this.ctx.createBufferSource();s.buffer=buffer;s.connect(this.gain);this.sources.add(s);s.onended=()=>{this.sources.delete(s);s.disconnect();};s.start();}
+ pause(paused){this.muted=paused;if(!this.ctx||this.closed)return;if(paused)this.ctx.suspend().catch(()=>{});else this.ctx.resume().catch(()=>{});}
+ stop(){if(this.closed)return;this.closed=true;for(const s of this.sources){try{s.stop();}catch{}}this.sources.clear();try{this.music?.stop();}catch{}this.ctx?.close().catch(()=>{});this.raw?.clear();this.buffers.clear();}
+}

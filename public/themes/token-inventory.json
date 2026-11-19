@@ -35225,600 +35225,6 @@
     "property": "line-height",
     "default": "1.5"
   },
-  "--ds-transit-11b0e4i-align-items": {
-    "owner": "transit",
-    "selector": ".tr-row",
-    "property": "align-items",
-    "default": "baseline"
-  },
-  "--ds-transit-11b0e4i-gap": {
-    "owner": "transit",
-    "selector": ".tr-row",
-    "property": "gap",
-    "default": "16px"
-  },
-  "--ds-transit-11b0e4i-padding": {
-    "owner": "transit",
-    "selector": ".tr-row",
-    "property": "padding",
-    "default": "10px 0"
-  },
-  "--ds-transit-1haek9v-color": {
-    "owner": "transit",
-    "selector": ".tr-empty",
-    "property": "color",
-    "default": "var(--ink-soft)"
-  },
-  "--ds-transit-1loblo-color": {
-    "owner": "transit",
-    "selector": ".tr-sub",
-    "property": "color",
-    "default": "var(--ink-soft)"
-  },
-  "--ds-transit-1loblo-font-size": {
-    "owner": "transit",
-    "selector": ".tr-sub",
-    "property": "font-size",
-    "default": "15px"
-  },
-  "--ds-transit-1loblo-margin-top": {
-    "owner": "transit",
-    "selector": ".tr-sub",
-    "property": "margin-top",
-    "default": "6px"
-  },
-  "--ds-transit-1soc1t3-color": {
-    "owner": "transit",
-    "selector": ".tr-route",
-    "property": "color",
-    "default": "var(--mint)"
-  },
-  "--ds-transit-1soc1t3-font": {
-    "owner": "transit",
-    "selector": ".tr-route",
-    "property": "font",
-    "default": "32px var(--font-display)"
-  },
-  "--ds-transit-1soc1t3-min-width": {
-    "owner": "transit",
-    "selector": ".tr-route",
-    "property": "min-width",
-    "default": "45px"
-  },
-  "--ds-transit-1tjm3rc-background": {
-    "owner": "transit",
-    "selector": ".tr-map",
-    "property": "background",
-    "default": "rgba(5,20,14,.6)"
-  },
-  "--ds-transit-1tjm3rc-border": {
-    "owner": "transit",
-    "selector": ".tr-map",
-    "property": "border",
-    "default": "1px solid var(--stroke)"
-  },
-  "--ds-transit-1tjm3rc-border-radius": {
-    "owner": "transit",
-    "selector": ".tr-map",
-    "property": "border-radius",
-    "default": "18px"
-  },
-  "--ds-transit-1tjm3rc-max-height": {
-    "owner": "transit",
-    "selector": ".tr-map",
-    "property": "max-height",
-    "default": "480px"
-  },
-  "--ds-transit-1tjm3rc-width": {
-    "owner": "transit",
-    "selector": ".tr-map",
-    "property": "width",
-    "default": "100%"
-  },
-  "--ds-transit-3kzwtr-font": {
-    "owner": "transit",
-    "selector": ".tr-full h2",
-    "property": "font",
-    "default": "28px var(--font-display)"
-  },
-  "--ds-transit-3kzwtr-margin": {
-    "owner": "transit",
-    "selector": ".tr-full h2",
-    "property": "margin",
-    "default": "26px 0 12px"
-  },
-  "--ds-transit-57653f-padding": {
-    "owner": "transit",
-    "selector": ".tr-tile .tr-row",
-    "property": "padding",
-    "default": "4px 0"
-  },
-  "--ds-transit-5jknua-flex": {
-    "owner": "transit",
-    "selector": ".tr-destination",
-    "property": "flex",
-    "default": "1"
-  },
-  "--ds-transit-5jknua-font-size": {
-    "owner": "transit",
-    "selector": ".tr-destination",
-    "property": "font-size",
-    "default": "20px"
-  },
-  "--ds-transit-5jknua-min-width": {
-    "owner": "transit",
-    "selector": ".tr-destination",
-    "property": "min-width",
-    "default": "0"
-  },
-  "--ds-transit-8njxzz-fill": {
-    "owner": "transit",
-    "selector": ".tr-map text",
-    "property": "fill",
-    "default": "var(--ink)"
-  },
-  "--ds-transit-8njxzz-font": {
-    "owner": "transit",
-    "selector": ".tr-map text",
-    "property": "font",
-    "default": "14px var(--font)"
-  },
-  "--ds-transit-full-11b0e4i-align-items": {
-    "owner": "transit:full",
-    "selector": ".tr-row",
-    "property": "align-items",
-    "default": "baseline"
-  },
-  "--ds-transit-full-11b0e4i-gap": {
-    "owner": "transit:full",
-    "selector": ".tr-row",
-    "property": "gap",
-    "default": "16px"
-  },
-  "--ds-transit-full-11b0e4i-padding": {
-    "owner": "transit:full",
-    "selector": ".tr-row",
-    "property": "padding",
-    "default": "10px 0"
-  },
-  "--ds-transit-full-1haek9v-color": {
-    "owner": "transit:full",
-    "selector": ".tr-empty",
-    "property": "color",
-    "default": "var(--ink-soft)"
-  },
-  "--ds-transit-full-1loblo-color": {
-    "owner": "transit:full",
-    "selector": ".tr-sub",
-    "property": "color",
-    "default": "var(--ink-soft)"
-  },
-  "--ds-transit-full-1loblo-font-size": {
-    "owner": "transit:full",
-    "selector": ".tr-sub",
-    "property": "font-size",
-    "default": "15px"
-  },
-  "--ds-transit-full-1loblo-margin-top": {
-    "owner": "transit:full",
-    "selector": ".tr-sub",
-    "property": "margin-top",
-    "default": "6px"
-  },
-  "--ds-transit-full-1soc1t3-color": {
-    "owner": "transit:full",
-    "selector": ".tr-route",
-    "property": "color",
-    "default": "var(--mint)"
-  },
-  "--ds-transit-full-1soc1t3-font": {
-    "owner": "transit:full",
-    "selector": ".tr-route",
-    "property": "font",
-    "default": "32px var(--font-display)"
-  },
-  "--ds-transit-full-1soc1t3-min-width": {
-    "owner": "transit:full",
-    "selector": ".tr-route",
-    "property": "min-width",
-    "default": "45px"
-  },
-  "--ds-transit-full-1tjm3rc-background": {
-    "owner": "transit:full",
-    "selector": ".tr-map",
-    "property": "background",
-    "default": "rgba(5,20,14,.6)"
-  },
-  "--ds-transit-full-1tjm3rc-border": {
-    "owner": "transit:full",
-    "selector": ".tr-map",
-    "property": "border",
-    "default": "1px solid var(--stroke)"
-  },
-  "--ds-transit-full-1tjm3rc-border-radius": {
-    "owner": "transit:full",
-    "selector": ".tr-map",
-    "property": "border-radius",
-    "default": "18px"
-  },
-  "--ds-transit-full-1tjm3rc-max-height": {
-    "owner": "transit:full",
-    "selector": ".tr-map",
-    "property": "max-height",
-    "default": "480px"
-  },
-  "--ds-transit-full-1tjm3rc-width": {
-    "owner": "transit:full",
-    "selector": ".tr-map",
-    "property": "width",
-    "default": "100%"
-  },
-  "--ds-transit-full-3kzwtr-font": {
-    "owner": "transit:full",
-    "selector": ".tr-full h2",
-    "property": "font",
-    "default": "28px var(--font-display)"
-  },
-  "--ds-transit-full-3kzwtr-margin": {
-    "owner": "transit:full",
-    "selector": ".tr-full h2",
-    "property": "margin",
-    "default": "26px 0 12px"
-  },
-  "--ds-transit-full-57653f-padding": {
-    "owner": "transit:full",
-    "selector": ".tr-tile .tr-row",
-    "property": "padding",
-    "default": "4px 0"
-  },
-  "--ds-transit-full-5jknua-flex": {
-    "owner": "transit:full",
-    "selector": ".tr-destination",
-    "property": "flex",
-    "default": "1"
-  },
-  "--ds-transit-full-5jknua-font-size": {
-    "owner": "transit:full",
-    "selector": ".tr-destination",
-    "property": "font-size",
-    "default": "20px"
-  },
-  "--ds-transit-full-5jknua-min-width": {
-    "owner": "transit:full",
-    "selector": ".tr-destination",
-    "property": "min-width",
-    "default": "0"
-  },
-  "--ds-transit-full-8njxzz-fill": {
-    "owner": "transit:full",
-    "selector": ".tr-map text",
-    "property": "fill",
-    "default": "var(--ink)"
-  },
-  "--ds-transit-full-8njxzz-font": {
-    "owner": "transit:full",
-    "selector": ".tr-map text",
-    "property": "font",
-    "default": "14px var(--font)"
-  },
-  "--ds-transit-full-g6j0z3-font-size": {
-    "owner": "transit:full",
-    "selector": ".tr-tile .tr-destination",
-    "property": "font-size",
-    "default": "18px"
-  },
-  "--ds-transit-full-g6j0z3-line-height": {
-    "owner": "transit:full",
-    "selector": ".tr-tile .tr-destination",
-    "property": "line-height",
-    "default": "1.2"
-  },
-  "--ds-transit-full-k96zaz-font": {
-    "owner": "transit:full",
-    "selector": ".tr-minutes",
-    "property": "font",
-    "default": "30px var(--font-display)"
-  },
-  "--ds-transit-full-ne7y9l-font-size": {
-    "owner": "transit:full",
-    "selector": ".tr-tile .tr-minutes,.tr-tile .tr-route",
-    "property": "font-size",
-    "default": "24px"
-  },
-  "--ds-transit-full-qz71sn-padding": {
-    "owner": "transit:full",
-    "selector": ".tr-full",
-    "property": "padding",
-    "default": "24px"
-  },
-  "--ds-transit-full-v8wvm2-flex-direction": {
-    "owner": "transit:full",
-    "selector": ".tr-tile",
-    "property": "flex-direction",
-    "default": "column"
-  },
-  "--ds-transit-full-v8wvm2-gap": {
-    "owner": "transit:full",
-    "selector": ".tr-tile",
-    "property": "gap",
-    "default": "4px"
-  },
-  "--ds-transit-full-v8wvm2-height": {
-    "owner": "transit:full",
-    "selector": ".tr-tile",
-    "property": "height",
-    "default": "100%"
-  },
-  "--ds-transit-full-v8wvm2-justify-content": {
-    "owner": "transit:full",
-    "selector": ".tr-tile",
-    "property": "justify-content",
-    "default": "center"
-  },
-  "--ds-transit-full-v8wvm2-min-height": {
-    "owner": "transit:full",
-    "selector": ".tr-tile",
-    "property": "min-height",
-    "default": "0"
-  },
-  "--ds-transit-g6j0z3-font-size": {
-    "owner": "transit",
-    "selector": ".tr-tile .tr-destination",
-    "property": "font-size",
-    "default": "18px"
-  },
-  "--ds-transit-g6j0z3-line-height": {
-    "owner": "transit",
-    "selector": ".tr-tile .tr-destination",
-    "property": "line-height",
-    "default": "1.2"
-  },
-  "--ds-transit-k96zaz-font": {
-    "owner": "transit",
-    "selector": ".tr-minutes",
-    "property": "font",
-    "default": "30px var(--font-display)"
-  },
-  "--ds-transit-ne7y9l-font-size": {
-    "owner": "transit",
-    "selector": ".tr-tile .tr-minutes,.tr-tile .tr-route",
-    "property": "font-size",
-    "default": "24px"
-  },
-  "--ds-transit-panel-11b0e4i-align-items": {
-    "owner": "transit:panel",
-    "selector": ".tr-row",
-    "property": "align-items",
-    "default": "baseline"
-  },
-  "--ds-transit-panel-11b0e4i-gap": {
-    "owner": "transit:panel",
-    "selector": ".tr-row",
-    "property": "gap",
-    "default": "16px"
-  },
-  "--ds-transit-panel-11b0e4i-padding": {
-    "owner": "transit:panel",
-    "selector": ".tr-row",
-    "property": "padding",
-    "default": "10px 0"
-  },
-  "--ds-transit-panel-1haek9v-color": {
-    "owner": "transit:panel",
-    "selector": ".tr-empty",
-    "property": "color",
-    "default": "var(--ink-soft)"
-  },
-  "--ds-transit-panel-1loblo-color": {
-    "owner": "transit:panel",
-    "selector": ".tr-sub",
-    "property": "color",
-    "default": "var(--ink-soft)"
-  },
-  "--ds-transit-panel-1loblo-font-size": {
-    "owner": "transit:panel",
-    "selector": ".tr-sub",
-    "property": "font-size",
-    "default": "15px"
-  },
-  "--ds-transit-panel-1loblo-margin-top": {
-    "owner": "transit:panel",
-    "selector": ".tr-sub",
-    "property": "margin-top",
-    "default": "6px"
-  },
-  "--ds-transit-panel-1soc1t3-color": {
-    "owner": "transit:panel",
-    "selector": ".tr-route",
-    "property": "color",
-    "default": "var(--mint)"
-  },
-  "--ds-transit-panel-1soc1t3-font": {
-    "owner": "transit:panel",
-    "selector": ".tr-route",
-    "property": "font",
-    "default": "32px var(--font-display)"
-  },
-  "--ds-transit-panel-1soc1t3-min-width": {
-    "owner": "transit:panel",
-    "selector": ".tr-route",
-    "property": "min-width",
-    "default": "45px"
-  },
-  "--ds-transit-panel-1tjm3rc-background": {
-    "owner": "transit:panel",
-    "selector": ".tr-map",
-    "property": "background",
-    "default": "rgba(5,20,14,.6)"
-  },
-  "--ds-transit-panel-1tjm3rc-border": {
-    "owner": "transit:panel",
-    "selector": ".tr-map",
-    "property": "border",
-    "default": "1px solid var(--stroke)"
-  },
-  "--ds-transit-panel-1tjm3rc-border-radius": {
-    "owner": "transit:panel",
-    "selector": ".tr-map",
-    "property": "border-radius",
-    "default": "18px"
-  },
-  "--ds-transit-panel-1tjm3rc-max-height": {
-    "owner": "transit:panel",
-    "selector": ".tr-map",
-    "property": "max-height",
-    "default": "480px"
-  },
-  "--ds-transit-panel-1tjm3rc-width": {
-    "owner": "transit:panel",
-    "selector": ".tr-map",
-    "property": "width",
-    "default": "100%"
-  },
-  "--ds-transit-panel-3kzwtr-font": {
-    "owner": "transit:panel",
-    "selector": ".tr-full h2",
-    "property": "font",
-    "default": "28px var(--font-display)"
-  },
-  "--ds-transit-panel-3kzwtr-margin": {
-    "owner": "transit:panel",
-    "selector": ".tr-full h2",
-    "property": "margin",
-    "default": "26px 0 12px"
-  },
-  "--ds-transit-panel-57653f-padding": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile .tr-row",
-    "property": "padding",
-    "default": "4px 0"
-  },
-  "--ds-transit-panel-5jknua-flex": {
-    "owner": "transit:panel",
-    "selector": ".tr-destination",
-    "property": "flex",
-    "default": "1"
-  },
-  "--ds-transit-panel-5jknua-font-size": {
-    "owner": "transit:panel",
-    "selector": ".tr-destination",
-    "property": "font-size",
-    "default": "20px"
-  },
-  "--ds-transit-panel-5jknua-min-width": {
-    "owner": "transit:panel",
-    "selector": ".tr-destination",
-    "property": "min-width",
-    "default": "0"
-  },
-  "--ds-transit-panel-8njxzz-fill": {
-    "owner": "transit:panel",
-    "selector": ".tr-map text",
-    "property": "fill",
-    "default": "var(--ink)"
-  },
-  "--ds-transit-panel-8njxzz-font": {
-    "owner": "transit:panel",
-    "selector": ".tr-map text",
-    "property": "font",
-    "default": "14px var(--font)"
-  },
-  "--ds-transit-panel-g6j0z3-font-size": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile .tr-destination",
-    "property": "font-size",
-    "default": "18px"
-  },
-  "--ds-transit-panel-g6j0z3-line-height": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile .tr-destination",
-    "property": "line-height",
-    "default": "1.2"
-  },
-  "--ds-transit-panel-k96zaz-font": {
-    "owner": "transit:panel",
-    "selector": ".tr-minutes",
-    "property": "font",
-    "default": "30px var(--font-display)"
-  },
-  "--ds-transit-panel-ne7y9l-font-size": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile .tr-minutes,.tr-tile .tr-route",
-    "property": "font-size",
-    "default": "24px"
-  },
-  "--ds-transit-panel-qz71sn-padding": {
-    "owner": "transit:panel",
-    "selector": ".tr-full",
-    "property": "padding",
-    "default": "24px"
-  },
-  "--ds-transit-panel-v8wvm2-flex-direction": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile",
-    "property": "flex-direction",
-    "default": "column"
-  },
-  "--ds-transit-panel-v8wvm2-gap": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile",
-    "property": "gap",
-    "default": "4px"
-  },
-  "--ds-transit-panel-v8wvm2-height": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile",
-    "property": "height",
-    "default": "100%"
-  },
-  "--ds-transit-panel-v8wvm2-justify-content": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile",
-    "property": "justify-content",
-    "default": "center"
-  },
-  "--ds-transit-panel-v8wvm2-min-height": {
-    "owner": "transit:panel",
-    "selector": ".tr-tile",
-    "property": "min-height",
-    "default": "0"
-  },
-  "--ds-transit-qz71sn-padding": {
-    "owner": "transit",
-    "selector": ".tr-full",
-    "property": "padding",
-    "default": "24px"
-  },
-  "--ds-transit-v8wvm2-flex-direction": {
-    "owner": "transit",
-    "selector": ".tr-tile",
-    "property": "flex-direction",
-    "default": "column"
-  },
-  "--ds-transit-v8wvm2-gap": {
-    "owner": "transit",
-    "selector": ".tr-tile",
-    "property": "gap",
-    "default": "4px"
-  },
-  "--ds-transit-v8wvm2-height": {
-    "owner": "transit",
-    "selector": ".tr-tile",
-    "property": "height",
-    "default": "100%"
-  },
-  "--ds-transit-v8wvm2-justify-content": {
-    "owner": "transit",
-    "selector": ".tr-tile",
-    "property": "justify-content",
-    "default": "center"
-  },
-  "--ds-transit-v8wvm2-min-height": {
-    "owner": "transit",
-    "selector": ".tr-tile",
-    "property": "min-height",
-    "default": "0"
-  },
   "--ds-weather-105rpcu-background": {
     "owner": "weather",
     "selector": ".wx-bars .col:first-child .b",
@@ -38795,6 +38201,18 @@
     "property": "cursor",
     "default": "grabbing"
   },
+  "--ds-widget-pages-15a321t-flex": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-bar.confirming-reset .widget-reset-confirm",
+    "property": "flex",
+    "default": "1"
+  },
+  "--ds-widget-pages-15a321t-justify-content": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-bar.confirming-reset .widget-reset-confirm",
+    "property": "justify-content",
+    "default": "flex-end"
+  },
   "--ds-widget-pages-15jsjlc-background": {
     "owner": "widget-pages",
     "selector": ".widget-edit-bar button, .widget-drawer button",
@@ -38866,6 +38284,18 @@
     "selector": ".widget-pages > span",
     "property": "width",
     "default": "5px"
+  },
+  "--ds-widget-pages-168i3iz-border-color": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle[aria-pressed=\"true\"]",
+    "property": "border-color",
+    "default": "var(--mint)"
+  },
+  "--ds-widget-pages-168i3iz-color": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle[aria-pressed=\"true\"]",
+    "property": "color",
+    "default": "var(--mint)"
   },
   "--ds-widget-pages-16ss4s-align-items": {
     "owner": "widget-pages",
@@ -39056,6 +38486,18 @@
     "property": "width",
     "default": "5px"
   },
+  "--ds-widget-pages-1ld1eb8-border-color": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-bar .widget-page-confirm-remove, .widget-drawer .widget-page-confirm-remove",
+    "property": "border-color",
+    "default": "var(--color-error, #ff8a7a)"
+  },
+  "--ds-widget-pages-1ld1eb8-color": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-bar .widget-page-confirm-remove, .widget-drawer .widget-page-confirm-remove",
+    "property": "color",
+    "default": "var(--color-error, #ffb4a8)"
+  },
   "--ds-widget-pages-1m0peiw-opacity": {
     "owner": "widget-pages",
     "selector": ".widget-preview .frc img",
@@ -39067,6 +38509,18 @@
     "selector": ".widget-edit-bar > span:nth-child(2)",
     "property": "flex",
     "default": "1"
+  },
+  "--ds-widget-pages-1s8teje-align-items": {
+    "owner": "widget-pages",
+    "selector": ".widget-reset-confirm",
+    "property": "align-items",
+    "default": "center"
+  },
+  "--ds-widget-pages-1s8teje-gap": {
+    "owner": "widget-pages",
+    "selector": ".widget-reset-confirm",
+    "property": "gap",
+    "default": "10px"
   },
   "--ds-widget-pages-1sjy6rl-color": {
     "owner": "widget-pages",
@@ -39139,6 +38593,18 @@
     "selector": ".widget-page-tools",
     "property": "margin-top",
     "default": "18px"
+  },
+  "--ds-widget-pages-bgzboi-cursor": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-bar button:disabled",
+    "property": "cursor",
+    "default": "default"
+  },
+  "--ds-widget-pages-bgzboi-opacity": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-bar button:disabled",
+    "property": "opacity",
+    "default": ".35"
   },
   "--ds-widget-pages-blkf37-cursor": {
     "owner": "widget-pages",
@@ -39287,6 +38753,54 @@
       "@media(max-width:600px)"
     ]
   },
+  "--ds-widget-pages-ma0w32-border-radius": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle",
+    "property": "border-radius",
+    "default": "17px"
+  },
+  "--ds-widget-pages-ma0w32-font": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle",
+    "property": "font",
+    "default": "600 13px var(--font)"
+  },
+  "--ds-widget-pages-ma0w32-margin-left": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle",
+    "property": "margin-left",
+    "default": "auto"
+  },
+  "--ds-widget-pages-ma0w32-margin-right": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle",
+    "property": "margin-right",
+    "default": "8px"
+  },
+  "--ds-widget-pages-ma0w32-padding": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle",
+    "property": "padding",
+    "default": "0 13px"
+  },
+  "--ds-widget-pages-ma0w32-width": {
+    "owner": "widget-pages",
+    "selector": ".widget-edit-controls .widget-frame-toggle",
+    "property": "width",
+    "default": "auto"
+  },
+  "--ds-widget-pages-o4kd7i-align-items": {
+    "owner": "widget-pages",
+    "selector": ".widget-page-confirm",
+    "property": "align-items",
+    "default": "center"
+  },
+  "--ds-widget-pages-o4kd7i-flex-wrap": {
+    "owner": "widget-pages",
+    "selector": ".widget-page-confirm",
+    "property": "flex-wrap",
+    "default": "wrap"
+  },
   "--ds-widget-pages-ofyg8y-gap": {
     "owner": "widget-pages",
     "selector": ".widget-gallery",
@@ -39376,6 +38890,24 @@
     "selector": "#garden > .widget-wide",
     "property": "grid-column",
     "default": "1 / -1"
+  },
+  "--ds-widget-pages-uhi1zy-color": {
+    "owner": "widget-pages",
+    "selector": ".widget-page-confirm p",
+    "property": "color",
+    "default": "var(--ink)"
+  },
+  "--ds-widget-pages-uhi1zy-flex": {
+    "owner": "widget-pages",
+    "selector": ".widget-page-confirm p",
+    "property": "flex",
+    "default": "1 1 100%"
+  },
+  "--ds-widget-pages-uhi1zy-margin": {
+    "owner": "widget-pages",
+    "selector": ".widget-page-confirm p",
+    "property": "margin",
+    "default": "0 0 4px"
   },
   "--ds-widget-pages-v9s7z5-background": {
     "owner": "widget-pages",

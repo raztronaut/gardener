@@ -7,3 +7,12 @@ Use public/themes/classic.json by default. Scope all design changes to the
 target theme's JSON; shared baseline edits can silently change other themes.
 Do not build manual token/settings forms or browser-specific design overrides.
 Validate the theme file and inspect the resulting screen before reporting done.
+
+Garden-specific agent skills are installed under `/home/talbot/.codex/skills/`
+(and linked from `/home/talbot/.claude/skills/`). Use the relevant entrypoint only:
+`garden-design` for theme work; `garden-widget-sizes` for defaults, compositions and
+layout defects; `garden-performance` for measured voice/render/host optimization;
+`garden-native-ui` for immediate controls and incremental surfaces;
+`garden-data-integrations` for feeds/transit; `garden-arcade` for games/controllers.
+Read that skill’s SKILL.md when relevant. The current project contracts and human
+instructions remain authoritative; these skills do not widen task authorization.

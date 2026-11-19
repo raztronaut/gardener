@@ -468,6 +468,7 @@ export async function bootSB2(host, { onExit } = {}) {
   root.classList.add('ready');
   warmArt();
   const ctl = {
+    suspend() { if(screen===match&&game&&!ended){paused=true;pauseEl.classList.add('on');audio.suspend();} },
     raw, stop,
     inGame: () => !stopped,
     get screen() { return screen === match ? 'match' : screen === menuScr ? (menu.screen === 'results' ? 'results' : 'menu:' + menu.screen) : null; },

@@ -216,3 +216,19 @@ Frozen original: design-snapshots/garden-classic-2026-11-04.tar.gz (full public/
 at the start of theme work, including the person's uncommitted changes).
 Verify with sha256sum -c design-snapshots/SHA256SUMS. Inspect in a temporary
 directory. Never extract over the working app to undo an alternative theme.
+
+## Size decisions and layout regression gate (2026-11-05)
+
+For new widgets, new sizes, or clipping fixes, read
+`tools/widget-layout/SIZE_DESIGN.md`. Record a deliberate default, useful optional
+compositions, and overflow strategy in `public/lib/widget-size-plans.js` alongside
+renderers. Treat purpose and aspect ratio as separate decisions: a new size may
+use different content, charts or hierarchy, but it must earn its space. Do not
+mechanically produce every size. Preserve creativity inside tested boundaries.
+
+`node tools/widget-layout/check-contract.mjs` is part of smoke. Before releasing
+layout changes, run the browser content and packing checks relevant to the change,
+including default/optional sizes, all pages, long/empty/loading data and editor
+geometry. Inspect actual previews and fullscreen. Intentional title summaries
+with access to the full content are allowed; clipped rows/controls are failures.
+`window.gardenWall.auditLayout()` reports current-page geometry without changing it.

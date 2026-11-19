@@ -81,7 +81,8 @@ For theme or layout work read DESIGN_SYSTEM.md. Design requests target Garden Cl
 \`\`\`js
 export default {
   id: 'aqi', title: 'Air Quality', icon: '🌬',
-  size: 'sm' | 'md' | 'lg' | 'full' | 'tall',  // grid footprint (lg/full/wide span 2 cols; tall spans 2 rows)
+  size: 'md',                                   // legacy outer hint
+  homeSize: 'medium',                            // deliberate named default; see widget-size-plans.js
   chrome: true,                                  // false → bare, no card frame
   async mount(body, ctx) {
     // body: the element to fill.  MUST NOT throw — do network async with try/catch.
@@ -103,6 +104,9 @@ Optional: \`async openFull(body, ctx)\` — the widget's FULLSCREEN view (opened
 controller's A on the tile, in the big panel). Without it, the panel just re-mounts the tile. A
 widget may also take \`mount(body, ctx, { full: true })\` to reuse its reading inside openFull
 (see weather.js), rendering the extra detail only when \`full\`.
+
+# SIZE DESIGN AND LAYOUT GATE
+For new widgets, new sizes or clipping fixes, read tools/widget-layout/SIZE_DESIGN.md. Declare a purposeful default and reviewed optional compositions in public/lib/widget-size-plans.js and match widget-variants.js. Only offer sizes that earn their space; different charts, content and arrangements are welcome. Verify default and optional cards, actual previews, all pages, long/many/empty/loading data and stable editing geometry. Run the relevant browser content/packing checks and inspect screenshots; smoke checks the size contract. Never hide cut-off rows or controls to make a test green. Existing page/layout operations need no code change.
 
 # CALM TILES, RICH FULLSCREEN (core design principle — the humans' standing order)
 Agents tend to pollute interfaces: every tending adds "one more useful line" until the wall is
@@ -187,7 +191,7 @@ independent pieces to run in parallel, then integrate. Always run smoke yourself
 3. Build: implement carefully, reusing the theme. Add/adjust the manifest. Update the allowlist if needed.
 4. Verify: run \`npm run smoke\` and iterate until it is GREEN. Fix every bug you introduce.
 5. Summarize: end with a \`CHANGELOG:\` line — one sentence saying WHAT CHANGED (never test status);
-   it becomes the commit message and the human-facing changelog. Detail can follow after it.
+   it becomes the commit message and the human-facing changelog. Then write \`CHANGELOG_DETAILS:\` on its own line followed by concise bullet points covering each completed change and its user benefit. Group related changes, avoid repetition and process/test boilerplate. Do not force the detailed version into one sentence.
 
 Be tasteful and restrained — a few excellent, well-integrated changes beat many sloppy ones.
 The garden should feel a little more wonderful every single day.`;
@@ -229,7 +233,7 @@ export function buildUserPrompt({ feedbackItems, date, history }) {
     + `- The 9:16 layout has no overlap, clipping, blank areas, or illegible text.\n`
     + `- Every widget handles API failure gracefully.\n`
     + `- You did NOT commit, and you did NOT add npm dependencies or a build step.\n`
-    + `- Your final message MUST contain a line starting exactly with \`CHANGELOG:\` followed by ONE plain-English sentence describing WHAT CHANGED in the garden (e.g. "CHANGELOG: Added a moon-phase widget and moved sunset info into Weather."). It becomes the commit message and the public changelog shown in the on-screen /iterations panel — humans read it to learn what's new. NEVER use it for test/process status ("all checks green", "smoke passes") — describe the visible change itself.\n`;
+    + `- Your final message MUST contain a line starting exactly with \`CHANGELOG:\` followed by ONE plain-English sentence describing WHAT CHANGED in the garden (e.g. "CHANGELOG: Added a moon-phase widget and moved sunset info into Weather."). It becomes the commit message and the public changelog shown in the on-screen /iterations panel — humans read it to learn what's new. NEVER use it for test/process status ("all checks green", "smoke passes") — describe the visible change itself. Follow it with CHANGELOG_DETAILS: and concise bullets covering the completed changes.\n`;
 
   return prompt;
 }

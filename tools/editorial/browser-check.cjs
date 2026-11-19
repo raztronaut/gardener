@@ -1,0 +1,60 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.GARDENER_TEST_BROWSER,headless:true,args:['--no-sandbox','--disable-gpu']});
+ try{
+ const page=await browser.newPage({viewport:{width:900,height:1600}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ const base=process.env.GARDENER_TEST_URL||'http://127.0.0.1:8787';
+ await page.route('**/api/readable**',r=>r.fulfill({contentType:'text/html',body:'<html><body><h1>QA article</h1><p>Reader handoff verified.</p></body></html>'}));
+ await page.goto(base+'/?theme=classic&screenshot=1');await page.waitForFunction(()=>window.gardenDesign?.context().status==='ready');
+ await page.evaluate(()=>document.body.classList.add('qa-open'));
+ await page.locator('#readingBell').click();await page.locator('.reading-notification').first().click();
+ await page.locator('.fr-edition h2').waitFor();
+ const saved=await page.evaluate(()=>fetch('/api/reading-summary').then(r=>r.json()));
+ assert.equal(await page.locator('.fr-daily-button').innerText(),'Go back');
+ assert.equal(await page.locator('.fr-edition-section').count(),saved.edition.sections.length);
+ assert.equal(await page.locator('.fr-category-summary').count(),saved.edition.sections.filter(s=>s.summary).length);
+ assert.equal(await page.locator('.fr-edition-story').count(),saved.edition.sections.reduce((n,s)=>n+(s.stories?.length||0),0));
+ assert(!(await page.locator('.fr-sources').isVisible()));assert(!(await page.locator('.reading-unread').isVisible()));
+ await page.screenshot({path:'/tmp/editorial-v2-daily-top.png'});
+ await page.keyboard.press('End');await page.waitForFunction(()=>document.querySelector('.fr-edition').scrollTop>100);
+ await page.locator('.fr-edition-closing').scrollIntoViewIfNeeded();assert(await page.locator('.fr-edition-closing').isVisible());
+ await page.screenshot({path:'/tmp/editorial-v2-daily-bottom.png'});
+ await page.locator('.fr-source-link').first().click();await page.locator('.reader-frame-wrap').waitFor();await page.locator('#panelClose').click();
+ await page.locator('.fr-daily-button').click();await page.locator('.fr-story').first().waitFor();
+ assert.equal(await page.locator('.fr-sources button').first().innerText(),'All');
+ const rail=await page.locator('.fr-sources').evaluate(e=>({h:e.clientHeight,w:e.clientWidth,scroll:e.scrollWidth,display:getComputedStyle(e).flexDirection}));
+ assert.equal(rail.display,'row');assert(rail.h<90,JSON.stringify(rail));
+ assert.equal(await page.locator('.fr-work').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),2);
+ await page.locator('.fr-sources').getByRole('button',{name:'Ars Technica',exact:true}).click();await page.locator('.fr-story').first().waitFor();
+ const selectedTitle=await page.locator('.fr-preview h2').innerText();
+ const allBox=await page.locator('.fr-sources button').first().boundingBox(),railBox=await page.locator('.fr-sources').boundingBox();assert(Math.abs(allBox.x-railBox.x)<2);
+ const actionBox=await page.locator('.fr-article-actions').boundingBox(),titleBox=await page.locator('.fr-preview h2').boundingBox();assert(actionBox.y<titleBox.y);
+ await page.screenshot({path:'/tmp/editorial-v2-reader.png',animations:'disabled'});
+ await page.locator('.fr-daily-button').click();await page.locator('.fr-edition h2').waitFor();
+ await page.locator('.fr-daily-button').click();await page.locator('.fr-preview h2').waitFor();
+ assert.equal(await page.locator('.fr-preview h2').innerText(),selectedTitle);assert.equal(await page.locator('.fr-sources').getByRole('button',{name:'Ars Technica',exact:true}).getAttribute('aria-pressed'),'true');
+ await page.locator('.fr-article-actions').getByRole('button',{name:'Read the original'}).click();await page.locator('.rd-frame').waitFor();assert((await page.locator('.rd-frame').getAttribute('src')).includes('raw=1'));
+ await page.locator('#panelClose').click();await page.locator('.fr-fullscreen').click();await page.locator('.reader-fullscreen').waitFor();assert((await page.locator('.rd-frame').getAttribute('src')).includes('read=1'));
+ const full=await page.locator('.panel-card').boundingBox();assert(full.height>1450&&full.width>850,JSON.stringify(full));
+ await page.screenshot({path:'/tmp/editorial-v2-fullscreen.png'});await page.locator('#panelClose').click();
+ await page.locator('.fr-add').click();await page.getByRole('button',{name:"Razi's RSS Feeds List",exact:true}).click();
+ await page.locator('.fr-source-card').first().waitFor();assert(await page.locator('.fr-source-card').count()>=140);
+ await page.getByLabel('Feed category').selectOption('AI & Research');assert(await page.locator('.fr-source-card').count()>0);assert(await page.locator('.fr-source-card').count()<140);
+ await page.screenshot({path:'/tmp/editorial-v2-collection.png'});
+ await page.locator('#panelClose').click();await page.locator('#iterBadge').click();await page.locator('.cl-toggle').first().click();assert(await page.locator('.cl-details').first().locator('strong').count()>0);
+ await page.screenshot({path:'/tmp/editorial-v2-changelog.png'});await page.locator('#panelClose').click();
+ // A cached edition is independent of live feed-library availability.
+ await page.route('**/api/feeds/library',r=>r.fulfill({status:503,json:{error:'QA outage'}}));
+ await page.locator('#readingBell').click();await page.locator('.reading-notification').first().click();await page.locator('.fr-edition h2').waitFor();assert.equal(await page.locator('.fr-edition h2').innerText(),saved.edition.title);await page.unroute('**/api/feeds/library');
+ // Empty and failed edition responses stay recoverable.
+ await page.locator('.fr-daily-button').click();await page.route('**/api/reading-summary*',r=>r.fulfill({json:{today:'2026-11-05',edition:null,editions:[]}}));
+ await page.locator('.fr-daily-button').click();await page.getByText('A fresh perspective, every morning.').waitFor();await page.unroute('**/api/reading-summary*');
+ await page.locator('.fr-daily-button').click();await page.route('**/api/reading-summary*',r=>r.abort());await page.locator('.fr-daily-button').click();await page.locator('.fr-edition').getByRole('button',{name:'Try again'}).waitFor();
+ await page.unroute('**/api/reading-summary*');await page.locator('.fr-edition').getByRole('button',{name:'Try again'}).click();await page.locator('.fr-edition h2').waitFor();
+ assert.deepEqual(errors,[]);
+ await page.goto(base+'/?theme=moonstone&screenshot=1&open=rss');await page.waitForFunction(()=>window.gardenDesign?.context().status==='ready');await page.locator('.fr-daily-button').waitFor();assert(await page.locator('#readingBell').isVisible());assert.equal(await page.locator('.fr-daily-button').count(),1);
+ console.log('PASS: category edition, source rail, All, Go back preserves source/story, top original link, fullscreen, 141-feed collection, category filter, notification, scrolling, error recovery and restored Moonstone reader support.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1});

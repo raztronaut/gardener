@@ -13,6 +13,7 @@
 // A page that is still text-less but loads fine is an APP (a synth, a demo…) — the
 // caller shows the original page for those. Results are cached in data/reader-cache/
 // (12 h; misses 30 min) so reopening a story is instant and the Jetson renders once.
+import { extractArticle } from './rich-article.mjs';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -111,7 +112,7 @@ const cacheFile = (url) => join(CACHE_DIR, createHash('sha1').update(url).digest
 async function readCache(url) {
   try {
     const c = JSON.parse(await fs.readFile(cacheFile(url), 'utf8'));
-    if (Date.now() - c.at < (c.text.length >= ENOUGH || c.app ? 12 * 3600e3 : 30 * 60e3)) return c;
+    if (c.richVersion === 1 && Date.now() - c.at < (c.text.length >= ENOUGH || c.app ? 12 * 3600e3 : 30 * 60e3)) return c;
   } catch { /* none */ }
   return null;
 }
@@ -122,15 +123,15 @@ export async function readerResolve(page) {
   const { target, status, html, finalUrl } = page;
   const staticText = extractReadable(html);
   const wall = isBotWall(status, html);
-  if (!wall && staticText.length >= ENOUGH) return { title: page.title, text: staticText, url: finalUrl, source: null, app: false };
+  if (!wall && staticText.length >= ENOUGH) return { title: page.title, text: staticText, html: (await extractArticle(html, finalUrl || target)).html, url: finalUrl, source: null, app: false };
   const hit = await readCache(target);
   if (hit) return hit;
   if (inflight.has(target)) return inflight.get(target);
   const job = (async () => {
-    let best = { title: wall ? '' : page.title, text: wall ? '' : staticText, source: null };
+    let best = { title: wall ? '' : page.title, text: wall ? '' : staticText, html: wall ? '' : html, source: null };
     const consider = (h, source) => {
       const t = extractReadable(h);
-      if (t.length > best.text.length) best = { title: titleOf(h) || best.title, text: t, source };
+      if (t.length > best.text.length) best = { title: titleOf(h) || best.title, text: t, html: h, source };
     };
     const tryRender = async () => { const dom = await headlessDom(finalUrl || target); if (dom && !isBotWall(200, dom)) consider(dom, 'rendered'); };
     const tryArchive = async () => { const wb = await waybackCopy(target); if (wb) consider(wb.html, `Internet Archive · ${wb.date}`); };
@@ -140,7 +141,7 @@ export async function readerResolve(page) {
       await step();
     }
     const res = {
-      at: Date.now(), url: finalUrl || target, title: best.title, text: best.text, source: best.source,
+      at: Date.now(), richVersion: 1, html: (await extractArticle(best.html || '', finalUrl || target)).html, url: finalUrl || target, title: best.title, text: best.text, source: best.source,
       desc: best.text.length < 40 ? ogDesc(html) : '',
       app: !wall && status >= 200 && status < 300 && best.text.length < APP_MAX,
     };

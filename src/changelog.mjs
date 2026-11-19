@@ -20,3 +20,25 @@ export function changelogPhrase(summary, max = 160) {
     : (lines.find((l) => !isBoiler(l) && !/^summary\b/i.test(l) && !/:$/.test(l)) || lines[0] || '');
   return pick.replace(/\s+/g, ' ').slice(0, max);
 }
+
+// Keep the authored detail independently of the one-line list summary.
+export function changelogDetails(summary) {
+  const text = String(summary || '');
+  const tagged = text.match(/(?:^|\n)\s*CHANGELOG_DETAILS:\s*\n?([\s\S]*)/i);
+  const detail = tagged ? tagged[1] : text.replace(/^.*CHANGELOG:\s*.*$/gim, '');
+  return detail.split('\n').filter((line) => !isBoiler(line.trim())).join('\n').trim();
+}
+
+// Manual entries extend the preceding tending without advancing its counter.
+// Keep stable storage IDs separate from the human-facing decimal number.
+export function numberChangelog(entries) {
+  const ordered = [...entries].sort((a, b) => a.at - b.at ||
+    (a.kind === b.kind ? String(a.id).localeCompare(String(b.id)) : a.kind === 'manual' ? 1 : -1));
+  let tending = 0, increment = 0;
+  return ordered.map(entry => {
+    if (entry.kind === 'manual') return { ...entry, number: `${tending}.${++increment}` };
+    tending = entry.id;
+    increment = 0;
+    return { ...entry, number: String(tending) };
+  }).reverse();
+}

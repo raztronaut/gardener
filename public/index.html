@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=900, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
   <title>The Gardener</title>
+  <script id="garden-boot-recovery">
+    // Keep this inline: if startup assets fail, an external watchdog fails too.
+    // Retry only a page that never started the app, never a running session.
+    (() => {
+      setTimeout(() => {
+        if (document.documentElement.dataset.gardenerBoot !== 'loading' || window.gardenWall) return;
+        const key = 'garden.bootRecovery';
+        const now = Date.now();
+        try {
+          let state;
+          try { state = JSON.parse(sessionStorage.getItem(key)); } catch { /* stale entry */ }
+          if (!state || !Number.isFinite(state.started) || now < state.started || now - state.started > 300000) {
+            state = { started: now, attempts: 0 };
+          }
+          if (!Number.isInteger(state.attempts) || state.attempts < 0) state.attempts = 0;
+          if (state.attempts >= 2) return;
+          state.attempts++;
+          sessionStorage.setItem(key, JSON.stringify(state));
+        } catch { return; } // Without persistent accounting, do not risk a reload loop.
+        console.warn('Garden startup did not load; retrying once within the bounded recovery budget.');
+        location.reload();
+      }, 30000);
+    })();
+  </script>
   <link rel="icon" href="/assets/logo.png" />
   <script src="/lib/theme-boot.js"></script>
   <link rel="stylesheet" href="/styles.css" />
@@ -39,7 +63,7 @@
         </div>
       </div>
       <div class="topright">
-        <button id="themeSelect" class="gbtn theme-switch" type="button" aria-label="Appearance and themes">◐ Appearance</button>
+        <button id="themeSelect" class="gbtn theme-switch" type="button" aria-label="Appearance and themes" title="Appearance"><span><span class="appearance-symbol" aria-hidden="true">◐</span><span class="appearance-label"> Appearance</span></span></button>
         <!-- Trash-to-curb dashboard button: shown all day on trash day (Tue) so the
              bins can be put out & marked done early; the full-screen takeover only
              fires at night. Toggled by app.js (refreshTrashAlarm). -->
@@ -62,7 +86,8 @@
         <span class="seed">&gt;</span>
         <input id="feedbackInput" type="text" maxlength="2000" autofocus
                placeholder="Plant a seed. It will grow tomorrow morning." />
-        <button id="feedbackSend" class="gbtn icon" type="submit" aria-label="Plant this seed" title="Plant (Enter)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 5v7a3 3 0 0 1-3 3H6"/><path d="M10 11l-4 4 4 4"/></svg></button>
+        <button id="feedbackMic" class="gbtn icon" type="button" aria-label="Start voice mode" aria-pressed="false" title="Speak to Garden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg></button>
+        <button id="feedbackSend" class="gbtn icon" type="submit" aria-label="Send message" title="Send (Enter)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
       </form>
     </footer>
   </main>

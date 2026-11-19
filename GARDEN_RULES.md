@@ -150,3 +150,147 @@ every day, including quiet no-feedback days.
 - **Standard outer frames, original card identity (2026-11-05, explicit correction):** the humans now authorize moving original card sizes up/down to the nearest suitable named footprint after auditing grid jank. This supersedes the earlier prohibition on equal tracks for Classic's home grid. Preserve authored typography, materials, charts and information; Default uses the authored content inside a standard frame. Editing/loading must not alter geometry. Titles and content share a consistent safe inset; nested rounded containers derive inner radii from outer radius minus inset/border. Apply other-theme changes only within approved scope.
 
 - **Moonstone grid approved (2026-11-05):** the humans approved extending the audited standard grid, stable editor geometry, title/content insets and nested corner-spacing fixes to Moonstone after reviewing before/after previews. Keep its own palette and typography.
+
+- **Purposeful sizes, no accidental clipping (2026-11-05):** choose and explain every new widget's default footprint; offer additional sizes only when each has a useful composition. Different sizes may use different information, graphics and hierarchy. Do not merely scale or cram content, or force every possible size. Verify defaults, optional sizes and every page with long/many/empty/loading data; keep controls reachable and outer frames stable while editing/loading. Summaries with explicit remaining counts are welcome; cut-off rows and instructions are not. See `tools/widget-layout/SIZE_DESIGN.md` and the layout regression checks.
+
+- **Reading sources (2026-11-05):** do not duplicate Hacker News in the general RSS card; it has its own reader. Include The Guardian and the Old Farmer's Almanac, retaining an honest unavailable state if a publisher has removed its feed. Keep discovery and feed management easy to use by voice or touch.
+
+- **Changelogs have a headline and expandable detail (2026-11-05):** keep the short
+  `CHANGELOG:` sentence plus `CHANGELOG_DETAILS:` with concise, well-formatted bullets
+  for all completed changes. Clicking the changelog number expands the details;
+  never shorten the stored detail to fit the list. Manual human/agent work gets
+  one daily summary across relevant Paseo chats, distinct from nightly tendings.
+  Summarize completed work, not requests or plans; preserve this daily digest.
+
+- **Manual changelog numbering and scope (2026-11-05):** number manual entries
+  as decimal increments of the preceding tending: #171, #171.1, #171.2, #172.
+  Leave GitHub repo publishing, history imports, URLs and related repository
+  housekeeping out of the changelog, including its headline and expanded details.
+
+- **Paseo editorial jobs (2026-11-05):** changelog editing and daily Reading Room
+  editions run through subscription-authenticated Paseo/Codex GPT-6 Luna at medium,
+  publishing validated data via `tools/editorial/job.mjs`. Do not re-add direct model
+  API calls or backend model-generation timers for these jobs. Follow their editable
+  rules in `tools/editorial/CHANGELOG.md` and `READING.md`. Changelogs use confident,
+  forward-looking headlines and bold feature names: emphasize capabilities, omit
+  mundane layout/padding/page moves and same-day development fixes. Daily news is
+  inviting prose with original article links and explicit excerpt limitations.
+  Preserve the Classic Reading Room Daily button and dated notification bell;
+  reading an edition opens the widget's daily page and acknowledges that edition.
+
+- **Richer editorial coverage and RSS reader (2026-11-05):** earlier short editorial
+  limits were too restrictive. Changelogs should retain all significant, cool and
+  fun completed capabilities, using broader readable headlines and fuller bold-feature
+  explanations; use older published summaries as a coverage checklist. Keep minor
+  polish/repo housekeeping and same-day development fixes out. Daily editions need a
+  substantial overall overview, core categories with their own summaries and several
+  linked stories, finishing with The Wild Side. The Daily button becomes Go back and
+  restores the previous reader view. Classic has a horizontal source selector with
+  All first, top-of-preview original/fullscreen controls, and Razi's personal RSS
+  collection in Discover. Keep about ten active sources; the remaining personal feeds
+  and further recommendations are available to add, not auto-subscribed.
+
+- **Reading and Small to-dos (2026-11-05):** the Classic reader gives the article
+  column more width and uses smaller list/preview typography. Fetch public article
+  text automatically rather than stopping at RSS excerpts; show an honest excerpt
+  fallback when a publisher restricts access. Almanac category RSS URLs can exist
+  but be empty: keep an explicitly labelled publisher-website fallback, not a false
+  claim that the whole source is unavailable. Small To do shows two task checkboxes
+  with concise title summaries and a remaining count; complete titles remain in
+  fullscreen and tooltips. Weather variants must read values from forecast data,
+  not rely on hidden source markup, and failed initial fetches should retry promptly.
+
+- **Daily briefing voice and type (2026-11-05):** write like a smart friend:
+  casual, fun, chill and clear, while staying accurate and substantive. Avoid stiff
+  editorial language and forced jokes. Keep the briefing typography smaller and
+  comfortable for reading long editions; preserve the larger headline hierarchy.
+
+
+- **Shared checkout preservation (2026-11-05):** the scheduled tending once erased active work with reset/clean. Skip tending when any tracked, staged, or untracked edits exist. Fail closed when Git status cannot be read. Crash recovery and failed/scope-invalid runs must preserve working files and newer commits; never run automatic reset, clean, checkout-overwrite, or delete out-of-scope files. Keep recovery archives outside the checkout. Use an isolated worktree for future unattended code editing; review its integration before changing the shared wall.
+
+
+## Generative UI dependencies (human instruction, 2026-11-05)
+The humans explicitly approved A2UI/OpenUI dependencies for progressive generated interfaces. Garden uses official A2UI core + Lit, pinned and locally bundled, with Garden catalog components and existing typed house actions. Keep the dependency and actual provider streaming; do not replace it with a merely animated completed response. Existing native fast paths remain useful. Every saved composition must distinguish live source recipes from snapshots.
+
+## Home-page zigzag order (human correction, 2026-11-05)
+Preserve the familiar first-page pairs in their authored default sizes: Clock / Air, Weather / Painting of the Day, Hacker News / Out in SF, Gardyn / Trihourly Fractal. This creates the alternating framed/bare zigzag. Hacker News and Out in SF belong on page 1 and must remain visible. Put excess/new widgets (currently To do, Nearby transit, Reading room and Performance lab) on the next page instead of displacing these pairs. Respect a later explicit human rearrangement.
+
+- **Rich articles in every theme (2026-11-05):** Hacker News and Reading Room must preserve article images at their full aspect ratio, captions, headings, paragraphs, emphasis, links, lists, quotes, tables and code. Use the active theme’s own typography and colors. Keep sanitized feed HTML as a fallback when publisher fetching fails; never silently replace rich articles with flattened text. Preserve the original-page control and clearly explain blocked/partial articles.
+
+- **Resident messaging must cost $0 (2026-11-05):** use only the free Photon shared plan for explicit sends. Never add billing, upgrade, enable paid fallback or silently spend money when limits change. Fail closed and explain a sending failure. Keep automatic reminders out until explicitly requested. Dictated resident notes are an authorized use of the existing voice mode; this does not reintroduce the old microphone feedback-note feature.
+
+- **No tunnel warning screens for resident messages (2026-11-05):** send full summaries, itineraries and notes directly in Messages. Do not make residents pass an ngrok warning to read shared content. Original publisher and directions links may accompany the content.
+
+## Foreground mouse dictation (2026-11-07)
+- When a Paseo / Botanist conversation is foreground, the MX Master button beneath the wheel must target Paseo native dictation, not Garden voice commands. It toggles recording with each press (Ctrl+D); Escape cancels. Elsewhere preserve Garden hold-to-talk/release-to-send. Keep releases paired to their original destination.
+
+
+## TV preferences (2026-11-07)
+- Keep the Insignia TV home free of advertisements, recommendation feeds, oversized
+  app-logo tiles. The explicitly chosen Garden TV companion uses Apple-like glass
+  with Garden typography/green styling, useful shared widgets, and direct access
+  to the main streaming services and Garden. Keep Alexa/remote voice,
+  HDMI inputs, Bluetooth, casting, streaming DRM and Settings working.
+- F1, Roku, Tubi and the Brazilian TV apps (Globo, TV Aberta Brasil and TV Aberta ao
+  Vivo) are unwanted and disabled; do not restore them without a later explicit request.
+  Keep the main streaming services, including Prime Video, Netflix, YouTube, Twitch,
+  Disney+, Hulu, Apple TV, Peacock and Paramount+, available.
+- Garden on the TV should ultimately provide extra landscape workspace and playable
+  games while retaining the portrait wall. Wireless is preferred; a cable is acceptable
+  when it materially improves gameplay. Preserve all four existing Garden input devices.
+
+- **TV companion and atmosphere (2026-11-07):** the humans chose a lightweight native
+  Garden TV companion instead of Monet and its paid styling limits. The Home redirect
+  was revoked on 2026-11-11; open Garden explicitly as an app, with a dedicated remote
+  shortcut where supported. Screensaver defaults to real San Francisco sunset photos.
+  Offer a separate Fun mode using the six supplied company-parody images, plus easy
+  mode/timing/clock/preview controls. SF-city weather is explicitly authorized. Do not
+  enable a notification listener merely for a media widget. Keep heavy computation
+  and game execution on Garden, with a lightweight native TV home.
+
+- **Bomberman World Garden Edition (2026-11-08):** preserve the original World
+  assets and battle behavior while extending the playable arena to the portrait
+  display. Do not substitute stretched emulation or an SB2 reskin. The playable
+  battle port is hand-maintained in `public/arcade/bw/`; daily tending must not
+  rewrite it or `tools/bw/`. Keep original binaries/assets private under `data/bw/`
+  and preserve the original PS1 Arcade entry. See `tools/bw/README.md` for scope
+  and required original-code/gameplay checks.
+
+- **GardenTV consistency and no screensaver (2026-11-08):** the humans rejected separately recreated TV widgets. GardenTV must reuse the canonical GardenOS clock, weather, air, Hacker News, to-do and live rotating fractal code, fonts, Aurora palette and glass material. The fractal stays bare with its original corner title only; no TV caption/name/description. No “Connected to Garden” label or CPU/memory/time status bar; use the real clock widget. Dock logos must be complete and padded. Automatic screensavers, including Fun/mock ads, are Off until explicitly re-enabled; preserve supplied images privately.
+
+- **Official Twitch and transient TV voice (2026-11-08):** use the genuine Amazon-installed Twitch app (`tv.twitch.android.viewer`) for GardenTV dock and voice; S0undTV is unwanted. TV voice should show live, readable captions and listening/working animation, then clear promptly. Do not keep unsolicited Botanist/permission messages or a persistent Paseo/type control popup over the TV. Preserve explicit cancellation and local-only room audio.
+
+- **Streaming launch routing (2026-11-09):** ordinary launches of the known streaming apps default to GardenTV, including TV-prefix phrasing and speech-formatted T V / T.V. qualifiers. Explicit Garden/browser requests retain their target. Existing TV controls must never become a coding-agent task; preserve the final native-control guard even if a model proposes a Botanist handoff.
+
+- **Bomberman World perspective (2026-11-09):** preserve its original oblique
+  projection, coherent ground pattern, original HUD and menu artwork when extending
+  the arena. Do not flatten the coordinates while retaining angled blocks, repeat
+  arbitrary background rectangles, or call a partial battle build a full game port.
+
+- **World continuous arena and wall faces (human follow-up, 2026-11-09):** the
+  stepped/zigzag border is rejected. Use a continuous rectangular arena with
+  coherent perspective on every face, including the right sides of walls. A
+  shallower portrait camera must reproject ground, tops, fronts and sides together;
+  never flatten placement alone. Use the game's distinct original border pieces
+  and original menu composition/lettering rather than a redesigned menu.
+
+- **GardenOS TV branding (2026-11-09):** the TV dashboard must use the same GardenOS™ wordmark as the wall, including The Garden typography, canonical gradient and superscript trademark. Do not replace the visible brand with “GardenTV OS” or invent a separate TV logo.
+
+- **World border, opening and portrait menus (2026-11-09 follow-up):** all four
+  arena sides need visible raised walls with consistent block proportions. The
+  nearly invisible right rim and tall bottom slab are rejected. Starting spawn
+  spaces must be bounded and balanced; no long free P1 corridor, and never erase
+  permanent pillars for spawn clearance. Menus must use the full 9:16 screen,
+  retaining the proportions of the original lettering and character artwork.
+
+- **World items, stages and controller page edges (2026-11-10):** start with the original one-bomb capacity; upgrades must come from visible items released by destroyed crates and work when collected. Offer the other original battle stages with their gameplay and assets, not merely renamed arena skins. Preserve native special terrain and stage objects. GardenOS left/right controller navigation must change pages at widget-row edges, keep focus useful, stop at the ends, and never rearrange the saved home layout. Games and panels retain ownership of their input.
+
+- **Native TV Home and HDMI ownership (2026-11-11, clarified):** GardenOS TV should open automatically once when the TV powers on or wakes. After that, Home must return to the original Fire TV menu, and selecting HDMI or another app must stay there. Do not repeatedly reclaim the screen, intercept Home, or relaunch on an ordinary service restart while the TV is already on. Home on Fire remains disabled for user 0 with its accessibility redirect removed; use the companion's power-on-only receiver instead. Preserve GardenOS TV, streaming apps, HDMI/CEC and the wall services.
+
+- **Garden Directive signs (2026-11-11, Guilherme):** Use the supplied Directive PSDs, examples and memo: white landscape Letter, bold black type, short XML-like key/eyebrow, practical main phrase and subphrase, a small monochrome illustration above, and the original green Directive lockup. The eyebrow is explicitly requested for these signs. Keep text/layout/logo deterministic and separately editable. Copy should clarify shared protocols, visible state and low-friction actions, without moralizing. Generate only illustrations with the latest available configured GPT Image model, or disclose a programmatic line-art fallback. Show the actual version, ask aloud, and print only on explicit approval of that version; edits, cancellation, ambiguity, silence and expired/stale approvals never print. Keep the approved artifact, suppress duplicate submissions, and permit retry of a definite printer failure without regenerating. Never physically print a development fixture without the human approving its exact preview.
+
+- **Directive voice and generated artwork (2026-11-12, clarified):** Sign creation, semantic XML-key selection, revisions, image regeneration, approval and cancellation must work by conversation; typing is optional. Generate illustrations on demand with an image model, never a fixed illustration vocabulary or code-drawn substitute. Use the existing authenticated OpenAI/Codex connection when no API key is configured. Replace the robotic eSpeak sign voice with natural neural speech. This supersedes the earlier programmatic-illustration fallback.
+
+- **Black-and-white printing only (2026-11-12):** Every requested print from GardenOS must be monochrome, including Directive signs and their original logo. The preview and approved artifact must already be black and white; request monochrome in the printer job too. Never quietly send color or alter an already-approved colored preview at submission time.
+
+- **Replacement Samsung wall display (2026-11-18):** Use 1600×900 rotated left on DP-0 (logical 900×1600). Right rotation is upside down on its physical mount. Preserve GNOME’s saved monitor-specific configuration.

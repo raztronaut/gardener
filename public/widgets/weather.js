@@ -1,3 +1,4 @@
+import {fetchForecast,forecastSnapshot} from '/lib/weather-data.js';
 let VARIANT_DATA = null;
 // Weather — a calm, clearly-sectioned read of the sky via keyless Open-Meteo (proxy).
 // 2026-10-01 rewrite after "too dense and confusing" feedback: one idea per row,
@@ -143,7 +144,7 @@ export default {
     const tg = h('div', { class: 'wxf-tg' });
     const mapBox = h('div', { class: 'wxf-map', style: { width: `${W}px`, height: `${mapH}px` } });
     const home = h('span', {});
-    const wrap = h('div', { class: 'wxf' }, top,
+    const wrap = h('div', { class: 'wxf on' }, top,
       h('div', { class: 'wxf-hd' }, h('div', {}, h('div', { class: 'wx-sec' }, 'Rain & sun'), cap), tg),
       mapBox,
       h('div', { class: 'wxf-ft' },
@@ -228,9 +229,8 @@ export default {
     };
 
     const mounted = this.mount(top, ctx, { full: true }); // the full reading (own fetch + 15-min refresh)
-    let grid = null;
-    try { grid = await loadGrid(); }
-    catch { cap.textContent = 'The rain & sun map is unavailable right now'; }
+    loadGrid().then(grid=>{
+    if(!body.isConnected)return;
     if (grid) {
       const times = grid[hi].hourly?.time || [];
       let sel = 0;
@@ -244,9 +244,8 @@ export default {
       tg.replaceChildren(...btns);
       draw(grid, 0);
     }
-    // glass + content together: reveal once the reading, the tiles and the field are all in
-    await Promise.all([mounted.catch(() => {}), base.ready]);
-    wrap.classList.add('on');
+    }).catch(()=>{if(body.isConnected)cap.textContent='The rain & sun map is unavailable right now';});
+    return await mounted;
   },
   async mount(body, ctx, { full = false } = {}) {
     const { lat = 37.7577, lon = -122.4727, tz = 'America/Los_Angeles' } = ctx.config || {};
@@ -485,13 +484,11 @@ export default {
         hoursEl));
     };
 
-    const refresh = async () => render(await ctx.fetchJSON(url)); // fetch first → failure keeps last render
-    let loaded = false;
-    for (let attempt = 1; attempt <= 3 && !loaded; attempt++) {
-      try { await refresh(); loaded = true; }
-      catch { if (attempt < 3) await new Promise((r) => setTimeout(r, 2500)); }
-    }
-    if (!loaded) body.replaceChildren(fallback('The sky is quiet', 'reconnecting to the forecast…'));
-    ctx.interval(() => refresh().catch(() => {}), 15 * 60 * 1000);
+    let alive=true,busy=false;
+    const show=value=>{if(!alive)return;render(value.data);const age=Date.now()-value.at;if(age>15*60e3)body.querySelector('.wx')?.append(h('small',{class:'wx-freshness'},`Saved weather · ${Math.round(age/60e3)} min ago`));};
+    const cached=forecastSnapshot(ctx.config);if(cached)show(cached);
+    const refresh=async()=>{if(busy||!alive)return;busy=true;try{show(await fetchForecast(ctx.config));}catch{if(!alive)return;const saved=forecastSnapshot(ctx.config);if(saved)show(saved);else body.replaceChildren(fallback('Weather is reconnecting', 'Trying again shortly'),h('button',{type:'button',onClick:e=>{e.stopPropagation();refresh();}},'Retry weather'));}finally{busy=false;}};
+    ctx.interval(refresh,30000);
+    return()=>{alive=false;};
   },
 };
